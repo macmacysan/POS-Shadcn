@@ -44,14 +44,6 @@ import {
   TableRow
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
 
 export type ReportRow = { id: string }
 
@@ -61,8 +53,6 @@ export type ReportColumn<TData extends ReportRow> = ColumnDef<TData> & {
 }
 
 type ReportDataTableProps<TData extends ReportRow> = {
-  title?: string
-  description?: string
   columns: ReportColumn<TData>[]
   data: TData[]
   filterPlaceholder?: string
@@ -135,8 +125,6 @@ function PaginationButton({
 }
 
 export function ReportDataTable<TData extends ReportRow>({
-  title = 'Report entries',
-  description = 'Review and manage entries for this report.',
   columns,
   data,
   filterPlaceholder = 'Filter rows...',
@@ -208,27 +196,12 @@ export function ReportDataTable<TData extends ReportRow>({
   const lastVisibleRow = Math.min((pageIndex + 1) * pageSize, filteredRowCount)
 
   return (
-    <Card className="overflow-visible shadow-sm">
-      <CardHeader className="border-b bg-muted/20 px-4 py-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">{title}</CardTitle>
-            <CardDescription className="mt-1">{description}</CardDescription>
-          </div>
-          {onAddEntry && (
-            <Button type="button" size="sm" onClick={onAddEntry}>
-              <Plus data-icon="inline-start" aria-hidden="true" />
-              {addEntryLabel}
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-3 p-4">
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-2">
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="sticky top-0 z-20 overflow-x-auto border-b bg-card">
+        <div className="flex min-w-max items-center gap-2 p-2">
           <Input
             aria-label="Filter all columns"
-            className="h-8 min-w-52 flex-1 bg-background sm:max-w-xs"
+            className="h-8 w-64 shrink-0 bg-background"
             placeholder={filterPlaceholder}
             value={globalFilter}
             onChange={(event) => setGlobalFilter(event.target.value)}
@@ -302,77 +275,83 @@ export function ReportDataTable<TData extends ReportRow>({
               ))}
             </PopoverContent>
           </Popover>
+          {onAddEntry && (
+            <Button type="button" size="sm" className="shrink-0" onClick={onAddEntry}>
+              <Plus data-icon="inline-start" aria-hidden="true" />
+              {addEntryLabel}
+            </Button>
+          )}
         </div>
+      </div>
 
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader className="bg-muted/60">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const column = columns.find(
-                      (item) =>
-                        item.id === header.column.id ||
-                        ('accessorKey' in item && item.accessorKey === header.column.id)
-                    )
-                    return (
-                      <TableHead
-                        key={header.id}
-                        className={
-                          header.column.id === 'select'
-                            ? 'w-10'
-                            : 'text-xs uppercase tracking-wide text-muted-foreground'
-                        }
-                      >
-                        {header.isPlaceholder ? null : header.column.id === 'select' ? (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        ) : column?.enableSorting !== false ? (
-                          <SortButton column={header.column}>
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                          </SortButton>
-                        ) : (
-                          flexRender(header.column.columnDef.header, header.getContext())
-                        )}
-                      </TableHead>
-                    )
-                  })}
+      <div className="min-w-0 overflow-hidden rounded-lg border">
+        <Table>
+          <TableHeader className="sticky top-12 z-10 bg-muted/95 backdrop-blur">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  const column = columns.find(
+                    (item) =>
+                      item.id === header.column.id ||
+                      ('accessorKey' in item && item.accessorKey === header.column.id)
+                  )
+                  return (
+                    <TableHead
+                      key={header.id}
+                      className={
+                        header.column.id === 'select'
+                          ? 'w-10'
+                          : 'text-xs uppercase tracking-wide text-muted-foreground'
+                      }
+                    >
+                      {header.isPlaceholder ? null : header.column.id === 'select' ? (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      ) : column?.enableSorting !== false ? (
+                        <SortButton column={header.column}>
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </SortButton>
+                      ) : (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      )}
+                    </TableHead>
+                  )
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} data-state={row.getIsSelected() ? 'selected' : undefined}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        (cell.column.columnDef.meta as { className?: string } | undefined)
+                          ?.className
+                      }
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} data-state={row.getIsSelected() ? 'selected' : undefined}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell
-                        key={cell.id}
-                        className={
-                          (cell.column.columnDef.meta as { className?: string } | undefined)
-                            ?.className
-                        }
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell
-                    colSpan={tableColumns.length}
-                    className="h-24 text-center text-muted-foreground"
-                  >
-                    No matching entries.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={tableColumns.length}
+                  className="h-24 text-center text-muted-foreground"
+                >
+                  No matching entries.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       <TooltipProvider>
-        <CardFooter className="flex-wrap justify-between gap-2 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-4 py-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span>Rows</span>
             <Select
@@ -427,8 +406,8 @@ export function ReportDataTable<TData extends ReportRow>({
               <ChevronsRight aria-hidden="true" />
             </PaginationButton>
           </div>
-        </CardFooter>
+        </div>
       </TooltipProvider>
-    </Card>
+    </div>
   )
 }

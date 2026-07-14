@@ -272,8 +272,6 @@ function ReportTab({
     case 'Expenses':
       return (
         <ReportDataTable
-          title="Expenses"
-          description="Track daily operating expenses and receipts."
           columns={expenseColumns}
           data={expenseData}
           filterPlaceholder="Filter expenses..."
@@ -284,8 +282,6 @@ function ReportTab({
     case 'Income':
       return (
         <ReportDataTable
-          title="Income"
-          description="Review income entries recorded for the report date."
           columns={incomeColumns}
           data={incomeData}
           filterPlaceholder="Filter income..."
@@ -296,8 +292,6 @@ function ReportTab({
     case 'Payment':
       return (
         <ReportDataTable
-          title="Payments"
-          description="Review payment methods and collected amounts."
           columns={paymentColumns}
           data={paymentData}
           filterPlaceholder="Filter payments..."
@@ -308,8 +302,6 @@ function ReportTab({
     case 'Payments':
       return (
         <ReportDataTable
-          title="Installment payments"
-          description="Track installment collections and payment status."
           columns={installmentPaymentColumns}
           data={installmentPaymentData}
           filterPlaceholder="Filter installment payments..."
@@ -320,8 +312,6 @@ function ReportTab({
     case 'Activity':
       return (
         <ReportDataTable
-          title="Activity"
-          description="Review the activity log for this cashier report."
           columns={activityColumns}
           data={activityData}
           filterPlaceholder="Filter activity..."
@@ -332,8 +322,6 @@ function ReportTab({
     case 'In-house':
       return (
         <ReportDataTable
-          title="In-house installment"
-          description="Track customer balances and upcoming due dates."
           columns={inHouseInstallmentColumns}
           data={inHouseInstallmentData}
           filterPlaceholder="Filter in-house installments..."
@@ -344,8 +332,6 @@ function ReportTab({
     case 'Finance':
       return (
         <ReportDataTable
-          title="Finance installment"
-          description="Review lender accounts, principals, and balances."
           columns={financeInstallmentColumns}
           data={financeInstallmentData}
           filterPlaceholder="Filter finance installments..."
@@ -391,8 +377,8 @@ export function CashierReportsContent(): React.JSX.Element {
   }
 
   return (
-    <div className="m-4 grid min-h-0 min-w-0 flex-1 grid-cols-[280px_minmax(560px,1fr)_320px] gap-3 overflow-hidden">
-      <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+    <div className="m-4 grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-auto xl:grid-cols-[280px_minmax(560px,1fr)_320px] xl:overflow-hidden">
+      <Card className="order-2 flex min-h-0 min-w-0 flex-col overflow-hidden xl:order-1">
         <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3">
           <div className="shrink-0 border-b pb-3">
             <p className="text-xs text-muted-foreground">Daily Cashier Report</p>
@@ -422,16 +408,16 @@ export function CashierReportsContent(): React.JSX.Element {
           </div>
         </aside>
       </Card>
-      <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden shadow-sm">
-        <CardContent className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      <Card className="order-1 flex min-h-[32rem] min-w-0 flex-col overflow-hidden shadow-sm xl:order-2 xl:min-h-0">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as (typeof reportTabs)[number])}
-            className="flex min-h-full flex-col gap-2"
+            className="flex min-h-0 flex-1 flex-col gap-0"
           >
             <TabsList
               aria-label="Cashier report sections"
-              className="w-full rounded-lg border bg-muted/50 p-1 text-muted-foreground"
+              className="sticky top-0 z-30 w-full max-w-full shrink-0 overflow-x-auto rounded-none border-0 border-b bg-muted/95 p-1 text-muted-foreground backdrop-blur"
             >
               {reportTabs.map((tab) => (
                 <TabsTrigger key={tab} value={tab} className="h-8 rounded-md border-0 px-3 text-xs">
@@ -439,15 +425,17 @@ export function CashierReportsContent(): React.JSX.Element {
                 </TabsTrigger>
               ))}
             </TabsList>
-            {reportTabs.map((tab) => (
-              <TabsContent key={tab} value={tab} className="flex flex-col pt-4">
-                <ReportTab tab={tab} onAddEntry={focusEntryField} />
-              </TabsContent>
-            ))}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+              {reportTabs.map((tab) => (
+                <TabsContent key={tab} value={tab} className="flex min-h-full flex-col">
+                  <ReportTab tab={tab} onAddEntry={focusEntryField} />
+                </TabsContent>
+              ))}
+            </div>
           </Tabs>
         </CardContent>
       </Card>
-      <Card className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+      <Card className="order-3 flex min-h-0 min-w-0 flex-col overflow-hidden xl:order-3">
         <div className="flex h-full min-h-0 flex-col">
           <form
             className="flex h-full min-h-0 flex-col"
