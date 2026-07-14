@@ -6,11 +6,11 @@
   "tailwind": {
     "config": "",
     "css": "src/renderer/src/assets/main.css",
-    "baseColor": "neutral",
+    "baseColor": "mist",
     "cssVariables": true,
     "prefix": ""
   },
-  "iconLibrary": "lucide",
+  "iconLibrary": "remixicon",
   "rtl": false,
   "aliases": {
     "components": "@/components",

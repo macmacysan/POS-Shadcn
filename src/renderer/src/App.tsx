@@ -9,9 +9,9 @@ function Workspace(): React.JSX.Element {
   const [activeView, setActiveView] = useState<'dashboard' | 'cashier-reports'>('dashboard')
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh min-h-0 overflow-hidden">
       <SidebarLeft onCashierReports={() => setActiveView('cashier-reports')} />
-      <SidebarInset>
+      <SidebarInset className="min-h-0 overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
           <div className="flex flex-col">
@@ -23,18 +23,21 @@ function Workspace(): React.JSX.Element {
           <CashierReportsContent />
         ) : (
           <main className="flex flex-1 flex-col gap-6 p-6">
-          <div>
-            <p className="text-sm text-muted-foreground">Today&apos;s overview</p>
-            <h1 className="text-2xl font-semibold tracking-tight">Welcome to your workspace</h1>
-          </div>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Report summary">
-            {['Cashier reports', 'Receipts', 'Income', 'Expenses'].map((label) => (
-              <div key={label} className="rounded-lg border bg-card p-4">
-                <p className="text-sm text-muted-foreground">{label}</p>
-                <p className="mt-2 text-2xl font-semibold">—</p>
-              </div>
-            ))}
-          </section>
+            <div>
+              <p className="text-sm text-muted-foreground">Today&apos;s overview</p>
+              <h1 className="text-2xl font-semibold tracking-tight">Welcome to your workspace</h1>
+            </div>
+            <section
+              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+              aria-label="Report summary"
+            >
+              {['Cashier reports', 'Receipts', 'Income', 'Expenses'].map((label) => (
+                <div key={label} className="rounded-lg border bg-card p-4">
+                  <p className="text-sm text-muted-foreground">{label}</p>
+                  <p className="mt-2 text-2xl font-semibold">—</p>
+                </div>
+              ))}
+            </section>
           </main>
         )}
       </SidebarInset>
