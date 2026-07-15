@@ -205,7 +205,7 @@ export function ReportDataTable<TData extends ReportRow>({
             </InputGroupAddon>
           )}
         </InputGroup>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {onAddEntry && (
             <Button type="button" size="sm" className="shrink-0" onClick={onAddEntry}>
               <Plus data-icon="inline-start" aria-hidden="true" />

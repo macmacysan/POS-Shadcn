@@ -16,8 +16,8 @@ function Workspace(): React.JSX.Element {
       <SidebarLeft onCashierReports={() => setActiveView('cashier-reports')} />
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
         <header
-          className="flex h-14 shrink-0 items-center gap-2 border-b px-4"
-          style={{ '--app-header-height': '3.5rem' } as React.CSSProperties}
+          className="flex h-11 shrink-0 items-center gap-2 border-b px-4"
+          style={{ '--app-header-height': '2.75rem' } as React.CSSProperties}
         >
           <SidebarTrigger />
           <div className="flex flex-col">

@@ -44,10 +44,34 @@ type ActivityRow = ReportRow & { time: string; cashier: string; action: string; 
 const money = (value: number): string =>
   `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 
+const categoryClassNames: Record<string, string> = {
+  Supplies: 'border-sky-200/70 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
+  Transportation:
+    'border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  Utilities:
+    'border-violet-200/70 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300',
+  Cash: 'border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+  GCash: 'border-blue-200/70 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
+}
+
+function CategoryBox({ value }: { value: string }): React.JSX.Element {
+  return (
+    <span
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${categoryClassNames[value] ?? 'border-border bg-muted text-muted-foreground'}`}
+    >
+      {value}
+    </span>
+  )
+}
+
 const expenseColumns: ReportColumn<ExpenseRow>[] = [
   { accessorKey: 'type', header: 'Type' },
   { accessorKey: 'description', header: 'Description' },
-  { accessorKey: 'category', header: 'Category' },
+  {
+    accessorKey: 'category',
+    header: 'Category',
+    cell: ({ getValue }) => <CategoryBox value={getValue<string>()} />
+  },
   { accessorKey: 'receiptNo', header: 'Receipt No.' },
   { accessorKey: 'vat', header: 'VAT' },
   {
@@ -67,7 +91,11 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
 ]
 
 const paymentColumns: ReportColumn<PaymentRow>[] = [
-  { accessorKey: 'type', header: 'Type' },
+  {
+    accessorKey: 'type',
+    header: 'Type',
+    cell: ({ getValue }) => <CategoryBox value={getValue<string>()} />
+  },
   { accessorKey: 'bankName', header: 'Bank Name' },
   { accessorKey: 'accountName', header: 'Account Name' },
   { accessorKey: 'checkNo', header: 'Check No.' },
@@ -257,8 +285,8 @@ export function CashierReportsContent(): React.JSX.Element {
       <div
         className={
           isEntryFormVisible
-            ? 'grid h-full min-h-0 grid-cols-[minmax(220px,262px)_minmax(720px,1fr)_minmax(280px,302px)] gap-3'
-            : 'grid h-full min-h-0 grid-cols-[minmax(220px,262px)_minmax(720px,1fr)] gap-3'
+            ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)_minmax(280px,302px)] gap-3'
+            : 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3'
         }
       >
         <Card className="flex min-h-0 min-w-0 flex-col">
@@ -302,13 +330,13 @@ export function CashierReportsContent(): React.JSX.Element {
               <TabsList
                 aria-label="Cashier report sections"
                 variant="line"
-                className="h-10 w-max min-w-full justify-start rounded-none bg-transparent p-0"
+                className="h-9 w-max min-w-full justify-start rounded-none bg-transparent p-0"
               >
                 {reportTabs.map((tab) => (
                   <TabsTrigger
                     key={tab}
                     value={tab}
-                    className="h-10 flex-none rounded-none px-3 text-xs font-normal data-active:font-medium"
+                    className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-medium"
                   >
                     {tab}
                   </TabsTrigger>
