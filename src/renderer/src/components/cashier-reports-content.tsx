@@ -7,6 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
@@ -14,6 +21,34 @@ import {
 } from '@/components/ui/input-group'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
+
+const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
+const vatOptions = ['VAT', 'Non-VAT', 'Blank'] as const
+
+const expenseCategories = [
+  'Advertising',
+  'Education and training expenses for employees',
+  'Licenses and Permits',
+  'Bank Fees',
+  'Employee Benefit Programs',
+  'Office Expenses and Supplies',
+  'Business Meals',
+  'Food Allowance',
+  'Printing',
+  'Charitable Contributions',
+  'Freight, Postage and Shipping',
+  'Rent',
+  'Credit and Collection Fees',
+  'Insurance',
+  'Salaries and Compensation',
+  'Dues and Subscriptions',
+  'Legal and professional expenses',
+  'Telephone/Communication Expense',
+  'Transporation Allowance',
+  'Utilities',
+  'Vehicle Maintenance and Repairs',
+  'Others'
+] as const
 
 type ExpenseRow = ReportRow & {
   type: string
@@ -44,20 +79,22 @@ type ActivityRow = ReportRow & { time: string; cashier: string; action: string; 
 const money = (value: number): string =>
   `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 
-const categoryClassNames: Record<string, string> = {
-  Supplies: 'border-sky-200/70 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
-  Transportation:
+const typeClassNames: Record<string, string> = {
+  Operating:
+    'border-sky-200/70 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
+  Supply:
     'border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
-  Utilities:
+  Transport:
     'border-violet-200/70 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300',
   Cash: 'border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
-  GCash: 'border-blue-200/70 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
+  GCash:
+    'border-blue-200/70 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
 }
 
-function CategoryBox({ value }: { value: string }): React.JSX.Element {
+function TypeBox({ value }: { value: string }): React.JSX.Element {
   return (
     <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${categoryClassNames[value] ?? 'border-border bg-muted text-muted-foreground'}`}
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${typeClassNames[value] ?? 'border-border bg-muted text-muted-foreground'}`}
     >
       {value}
     </span>
@@ -65,20 +102,21 @@ function CategoryBox({ value }: { value: string }): React.JSX.Element {
 }
 
 const expenseColumns: ReportColumn<ExpenseRow>[] = [
-  { accessorKey: 'type', header: 'Type' },
-  { accessorKey: 'description', header: 'Description' },
   {
-    accessorKey: 'category',
-    header: 'Category',
-    cell: ({ getValue }) => <CategoryBox value={getValue<string>()} />
+    accessorKey: 'type',
+    header: 'Type',
+    cell: ({ getValue }) => <TypeBox value={getValue<string>()} />,
+    meta: { className: 'w-[17%]' }
   },
-  { accessorKey: 'receiptNo', header: 'Receipt No.' },
-  { accessorKey: 'vat', header: 'VAT' },
+  { accessorKey: 'description', header: 'Description', meta: { className: 'w-[30%]' } },
+  { accessorKey: 'category', header: 'Category', meta: { className: 'w-[15%]' } },
+  { accessorKey: 'receiptNo', header: 'Receipt No.', meta: { className: 'w-[12%]' } },
+  { accessorKey: 'vat', header: 'VAT', meta: { className: 'w-[8%]' } },
   {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    meta: { className: 'text-right' }
+    meta: { className: 'w-[18%] text-right' }
   }
 ]
 
@@ -94,7 +132,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'type',
     header: 'Type',
-    cell: ({ getValue }) => <CategoryBox value={getValue<string>()} />
+    cell: ({ getValue }) => <TypeBox value={getValue<string>()} />
   },
   { accessorKey: 'bankName', header: 'Bank Name' },
   { accessorKey: 'accountName', header: 'Account Name' },
@@ -113,10 +151,16 @@ const activityColumns: ReportColumn<ActivityRow>[] = [
 const expenseData: ExpenseRow[] = Array.from({ length: 105 }, (_, index) => ({
   id: `expense-${index + 1}`,
   type: index % 3 === 0 ? 'Operating' : index % 3 === 1 ? 'Supply' : 'Transport',
-  description: ['Office supplies', 'Delivery fuel', 'Store utilities'][index % 3],
-  category: ['Supplies', 'Transportation', 'Utilities'][index % 3],
+  description: [
+    'Printer paper, toner, and office supplies',
+    'Fuel and tolls for customer deliveries',
+    'Monthly electricity and water bill'
+  ][index % 3],
+  category: ['Office Expenses and Supplies', 'Freight, Postage and Shipping', 'Utilities'][
+    index % 3
+  ],
   receiptNo: `EXP-${String(index + 1).padStart(4, '0')}`,
-  vat: index % 2 === 0 ? 'VATable' : 'Non-VAT',
+  vat: index % 3 === 0 ? 'VAT' : index % 3 === 1 ? 'Non-VAT' : '',
   amount: 350 + index * 25
 }))
 
@@ -242,10 +286,32 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
     <div className="flex flex-col gap-3 p-4">
       {formFields[tab].map((field) => {
         const id = `${tab}-${field}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+        const options =
+          tab === 'Expenses' && field === 'Type'
+            ? expenseTypes
+            : tab === 'Expenses' && field === 'Category'
+              ? expenseCategories
+              : tab === 'Expenses' && field === 'VAT'
+                ? vatOptions
+                : null
+
         return (
           <div key={field} className="flex flex-col gap-1.5">
             <Label htmlFor={id}>{field}</Label>
-            {/(amount|balance|principal)/i.test(field) ? (
+            {options ? (
+              <Select name={id}>
+                <SelectTrigger id={id} className="w-full" aria-label={field}>
+                  <SelectValue placeholder={`Select ${field.toLowerCase()}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : /(amount|balance|principal)/i.test(field) ? (
               <InputGroup>
                 <InputGroupAddon align="inline-start">
                   <InputGroupText>₱</InputGroupText>
@@ -293,97 +359,99 @@ export function CashierReportsContent(): React.JSX.Element {
           <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3">
             <div className="shrink-0 border-b pb-3">
               <p className="text-xs text-muted-foreground">Daily Cashier Report</p>
-            <h2 className="text-base font-semibold">Today&apos;s Summary</h2>
-            <p className="mt-1 text-xs text-muted-foreground">July 14, 2026</p>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto py-4">
-            <div className="rounded-lg border bg-card p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Cash variance</span>
-                <span className="text-sm font-semibold">₱0.00</span>
+              <h2 className="text-base font-semibold">Today&apos;s Summary</h2>
+              <p className="mt-1 text-xs text-muted-foreground">July 14, 2026</p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto py-4">
+              <div className="rounded-lg border bg-card p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Cash variance</span>
+                  <span className="text-sm font-semibold">₱0.00</span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <p className="text-muted-foreground">Expected cash</p>
+                    <p className="mt-1 font-medium">₱0.00</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Actual cash</p>
+                    <p className="mt-1 font-medium">₱0.00</p>
+                  </div>
+                </div>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <p className="text-muted-foreground">Expected cash</p>
-                  <p className="mt-1 font-medium">₱0.00</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Actual cash</p>
-                  <p className="mt-1 font-medium">₱0.00</p>
-                </div>
+              <div className="mt-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                No saved report entries yet.
               </div>
             </div>
-            <div className="mt-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-              No saved report entries yet.
-            </div>
-          </div>
-        </aside>
-      </Card>
-      <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
-        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-          <Tabs
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as (typeof reportTabs)[number])}
-            className="flex min-h-0 flex-1 flex-col gap-0"
-          >
-            <div className="shrink-0 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <TabsList
-                aria-label="Cashier report sections"
-                variant="line"
-                className="h-9 w-max min-w-full justify-start rounded-none bg-transparent p-0"
-              >
+          </aside>
+        </Card>
+        <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
+          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as (typeof reportTabs)[number])}
+              className="flex min-h-0 flex-1 flex-col gap-0"
+            >
+              <div className="shrink-0 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <TabsList
+                  aria-label="Cashier report sections"
+                  variant="line"
+                  className="h-9 w-max min-w-full justify-start rounded-none bg-transparent p-0"
+                >
+                  {reportTabs.map((tab) => (
+                    <TabsTrigger
+                      key={tab}
+                      value={tab}
+                      className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-medium"
+                    >
+                      {tab}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 {reportTabs.map((tab) => (
-                  <TabsTrigger
+                  <TabsContent
                     key={tab}
                     value={tab}
-                    className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-medium"
+                    className="flex min-h-0 flex-1 flex-col overflow-hidden"
                   >
-                    {tab}
-                  </TabsTrigger>
+                    <ReportTab
+                      tab={tab}
+                      onAddEntry={() => setIsEntryFormVisible((visible) => !visible)}
+                      addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
+                    />
+                  </TabsContent>
                 ))}
-              </TabsList>
+              </div>
+            </Tabs>
+          </CardContent>
+        </Card>
+        {isEntryFormVisible && (
+          <Card className="flex min-h-0 min-w-0 flex-col">
+            <div className="flex h-full min-h-0 flex-col">
+              <form
+                className="flex h-full min-h-0 flex-col"
+                onSubmit={(event) => event.preventDefault()}
+              >
+                <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
+                  <ReportDetailsForm tab={activeTab} />
+                </CardContent>
+                <div className="flex shrink-0 flex-wrap gap-2 border-t p-3">
+                  <Button type="submit" size="sm">
+                    Save Entry
+                  </Button>
+                  <Button type="button" variant="outline" size="sm">
+                    Save &amp; New
+                  </Button>
+                  <Button type="reset" variant="ghost" size="sm">
+                    Clear
+                  </Button>
+                </div>
+              </form>
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              {reportTabs.map((tab) => (
-                <TabsContent key={tab} value={tab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  <ReportTab
-                    tab={tab}
-                    onAddEntry={() => setIsEntryFormVisible((visible) => !visible)}
-                    addEntryLabel={isEntryFormVisible ? 'Hide form' : `Add ${tab.toLowerCase()}`}
-                  />
-                </TabsContent>
-              ))}
-            </div>
-          </Tabs>
-        </CardContent>
-      </Card>
-      {isEntryFormVisible && <Card className="flex min-h-0 min-w-0 flex-col">
-        <div className="flex h-full min-h-0 flex-col">
-          <form
-            className="flex h-full min-h-0 flex-col"
-            onSubmit={(event) => event.preventDefault()}
-          >
-            <div className="shrink-0 border-b p-4">
-              <p className="text-xs text-muted-foreground">New entry</p>
-              <h2 className="text-base font-semibold">Add {activeTab}</h2>
-            </div>
-            <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
-              <ReportDetailsForm tab={activeTab} />
-            </CardContent>
-            <div className="flex shrink-0 flex-wrap gap-2 border-t p-3">
-              <Button type="submit" size="sm">
-                Save Entry
-              </Button>
-              <Button type="button" variant="outline" size="sm">
-                Save &amp; New
-              </Button>
-              <Button type="reset" variant="ghost" size="sm">
-                Clear
-              </Button>
-            </div>
-          </form>
-        </div>
-        </Card>}
+          </Card>
+        )}
       </div>
     </div>
   )
