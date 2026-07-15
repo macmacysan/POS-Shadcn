@@ -19,15 +19,13 @@ import {
   ChevronsRight,
   ChevronLeft,
   ChevronRight,
-  Columns3,
-  Filter,
-  Plus
+  Plus,
+  Search
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import {
   Select,
   SelectContent,
@@ -47,10 +45,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 export type ReportRow = { id: string }
 
-export type ReportColumn<TData extends ReportRow> = ColumnDef<TData> & {
-  filterLabel?: string
-  filterable?: boolean
-}
+export type ReportColumn<TData extends ReportRow> = ColumnDef<TData>
 
 type ReportDataTableProps<TData extends ReportRow> = {
   columns: ReportColumn<TData>[]
@@ -135,7 +130,6 @@ export function ReportDataTable<TData extends ReportRow>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = React.useState('')
   const [rowSelection, setRowSelection] = React.useState({})
-  const [columnVisibility, setColumnVisibility] = React.useState<Record<string, boolean>>({})
 
   const tableColumns = React.useMemo<ColumnDef<TData>[]>(
     () => [
@@ -167,13 +161,12 @@ export function ReportDataTable<TData extends ReportRow>({
   const table = useReactTable({
     data,
     columns: tableColumns,
-    state: { sorting, columnFilters, globalFilter, rowSelection, columnVisibility },
+    state: { sorting, columnFilters, globalFilter, rowSelection },
     enableRowSelection: true,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     onRowSelectionChange: setRowSelection,
-    onColumnVisibilityChange: setColumnVisibility,
     getRowId: (row) => row.id,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -182,13 +175,6 @@ export function ReportDataTable<TData extends ReportRow>({
     initialState: { pagination: { pageSize: 50 } }
   })
 
-  const filterableColumns = columns.filter(
-    (column): column is ReportColumn<TData> & { accessorKey: string } =>
-      column.filterable === true &&
-      'accessorKey' in column &&
-      typeof column.accessorKey === 'string'
-  )
-  const hideableColumns = table.getAllLeafColumns().filter((column) => column.getCanHide())
   const filteredRowCount = table.getFilteredRowModel().rows.length
   const pageIndex = table.getState().pagination.pageIndex
   const pageSize = table.getState().pagination.pageSize
@@ -196,85 +182,20 @@ export function ReportDataTable<TData extends ReportRow>({
   const lastVisibleRow = Math.min((pageIndex + 1) * pageSize, filteredRowCount)
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="sticky top-0 z-20 overflow-x-auto border-b bg-card">
-        <div className="flex min-w-max items-center gap-2 p-2">
-          <Input
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-12 shrink-0 items-center gap-2 border-b bg-card px-4 py-2 max-[900px]:flex-wrap">
+        <InputGroup className="min-w-0 max-w-[420px] flex-1 max-[900px]:basis-full">
+          <InputGroupAddon align="inline-start">
+            <Search aria-hidden="true" />
+          </InputGroupAddon>
+          <InputGroupInput
             aria-label="Filter all columns"
-            className="h-8 w-64 shrink-0 bg-background"
             placeholder={filterPlaceholder}
             value={globalFilter}
             onChange={(event) => setGlobalFilter(event.target.value)}
           />
-          <Popover>
-            <PopoverTrigger render={<Button type="button" variant="outline" size="sm" />}>
-              <Filter data-icon="inline-start" aria-hidden="true" />
-              Filter
-            </PopoverTrigger>
-            <PopoverContent align="start" className="max-h-80 overflow-y-auto">
-              {filterableColumns.map((column) => {
-                const key = column.accessorKey
-                const tableColumn = table.getColumn(key)
-                if (!tableColumn) return null
-                const filterValue = (tableColumn.getFilterValue() as string) ?? ''
-                const filterOptions = Array.from(
-                  new Set(data.map((row) => String(row[key as keyof TData] ?? '')))
-                )
-                  .filter(Boolean)
-                  .sort()
-                return (
-                  <div key={key} className="flex flex-col gap-1">
-                    <span className="px-2 text-xs font-medium text-muted-foreground">
-                      {column.filterLabel ?? key}
-                    </span>
-                    <div role="group" aria-label={`Filter ${column.filterLabel ?? key}`}>
-                      <Button
-                        type="button"
-                        variant={filterValue ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="w-full justify-start font-normal"
-                        onClick={() => tableColumn.setFilterValue('')}
-                      >
-                        All
-                      </Button>
-                      {filterOptions.map((option) => (
-                        <Button
-                          key={option}
-                          type="button"
-                          variant={filterValue === option ? 'secondary' : 'ghost'}
-                          size="sm"
-                          className="w-full justify-start font-normal"
-                          onClick={() => tableColumn.setFilterValue(option)}
-                        >
-                          {option}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              })}
-            </PopoverContent>
-          </Popover>
-          <Popover>
-            <PopoverTrigger render={<Button type="button" variant="outline" size="sm" />}>
-              <Columns3 data-icon="inline-start" aria-hidden="true" />
-              Columns
-            </PopoverTrigger>
-            <PopoverContent align="start" className="flex flex-col gap-1">
-              {hideableColumns.map((column) => (
-                <label
-                  key={column.id}
-                  className="flex items-center gap-2 rounded-md px-2 py-1 text-sm"
-                >
-                  <Checkbox
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                  />
-                  <span>{column.columnDef.header?.toString() ?? column.id}</span>
-                </label>
-              ))}
-            </PopoverContent>
-          </Popover>
+        </InputGroup>
+        <div className="flex shrink-0 items-center gap-2">
           {onAddEntry && (
             <Button type="button" size="sm" className="shrink-0" onClick={onAddEntry}>
               <Plus data-icon="inline-start" aria-hidden="true" />
@@ -284,11 +205,11 @@ export function ReportDataTable<TData extends ReportRow>({
         </div>
       </div>
 
-      <div className="min-w-0 overflow-hidden rounded-lg border">
-        <Table>
-          <TableHeader className="sticky top-12 z-10 bg-muted/95 backdrop-blur">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto [scrollbar-color:theme(colors.border)_transparent] [scrollbar-width:thin]">
+        <Table className="min-w-[900px]">
+          <TableHeader className="sticky top-0 z-10 bg-muted/30">
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+                <TableRow className="h-9" key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const column = columns.find(
                     (item) =>
@@ -322,13 +243,18 @@ export function ReportDataTable<TData extends ReportRow>({
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() ? 'selected' : undefined}>
+                <TableRow className="min-h-9" key={row.id} data-state={row.getIsSelected() ? 'selected' : undefined}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
                       className={
-                        (cell.column.columnDef.meta as { className?: string } | undefined)
-                          ?.className
+                        [
+                          'max-w-[18rem] truncate px-3 py-0',
+                          (cell.column.columnDef.meta as { className?: string } | undefined)
+                            ?.className
+                        ]
+                          .filter(Boolean)
+                          .join(' ')
                       }
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -351,9 +277,9 @@ export function ReportDataTable<TData extends ReportRow>({
       </div>
 
       <TooltipProvider>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-4 py-3">
+        <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-t bg-muted/30 px-4 py-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Rows</span>
+            <span>{firstVisibleRow}–{lastVisibleRow} of {filteredRowCount} entries</span>
             <Select
               value={String(pageSize)}
               onValueChange={(value) => table.setPageSize(Number(value))}
@@ -369,9 +295,6 @@ export function ReportDataTable<TData extends ReportRow>({
                 ))}
               </SelectContent>
             </Select>
-            <span>
-              {firstVisibleRow}–{lastVisibleRow} of {filteredRowCount}
-            </span>
           </div>
           <div className="flex items-center gap-1">
             <span className="px-2 text-xs text-muted-foreground">

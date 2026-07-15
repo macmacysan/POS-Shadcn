@@ -6,15 +6,13 @@ import { ReportDataTable, type ReportColumn, type ReportRow } from '@/components
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
 
 const reportTabs = [
   'Expenses',
   'Income',
   'Payment',
-  'Payments',
-  'Activity',
-  'In-house',
-  'Finance'
+  'Activity'
 ] as const
 
 type ExpenseRow = ReportRow & {
@@ -41,39 +39,17 @@ type PaymentRow = ReportRow & {
   date: string
   amount: number
 }
-type InstallmentPaymentRow = ReportRow & {
-  customer: string
-  agreementNo: string
-  dueDate: string
-  amount: number
-  status: string
-}
 type ActivityRow = ReportRow & { time: string; cashier: string; action: string; details: string }
-type InHouseInstallmentRow = ReportRow & {
-  customer: string
-  contractNo: string
-  term: string
-  balance: number
-  nextDue: string
-}
-type FinanceInstallmentRow = ReportRow & {
-  lender: string
-  customer: string
-  accountNo: string
-  principal: number
-  balance: number
-  status: string
-}
 
 const money = (value: number): string =>
   `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
 
 const expenseColumns: ReportColumn<ExpenseRow>[] = [
-  { accessorKey: 'type', header: 'Type', filterable: true },
-  { accessorKey: 'description', header: 'Description', filterable: true },
-  { accessorKey: 'category', header: 'Category', filterable: true },
-  { accessorKey: 'receiptNo', header: 'Receipt No.', filterable: true },
-  { accessorKey: 'vat', header: 'VAT', filterable: true },
+  { accessorKey: 'type', header: 'Type' },
+  { accessorKey: 'description', header: 'Description' },
+  { accessorKey: 'category', header: 'Category' },
+  { accessorKey: 'receiptNo', header: 'Receipt No.' },
+  { accessorKey: 'vat', header: 'VAT' },
   {
     accessorKey: 'amount',
     header: 'Amount',
@@ -83,56 +59,27 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
 ]
 
 const incomeColumns: ReportColumn<IncomeRow>[] = [
-  { accessorKey: 'particular', header: 'Particular', filterable: true },
-  { accessorKey: 'remarks', header: 'Remarks', filterable: true },
-  { accessorKey: 'receiptRefNo', header: 'Receipt/Ref No.', filterable: true },
-  { accessorKey: 'date', header: 'Date', filterable: true },
+  { accessorKey: 'particular', header: 'Particular' },
+  { accessorKey: 'remarks', header: 'Remarks' },
+  { accessorKey: 'receiptRefNo', header: 'Receipt/Ref No.' },
+  { accessorKey: 'date', header: 'Date' },
   { accessorKey: 'amount', header: 'Amount', cell: ({ getValue }) => money(getValue<number>()) }
 ]
 
 const paymentColumns: ReportColumn<PaymentRow>[] = [
-  { accessorKey: 'type', header: 'Type', filterable: true },
-  { accessorKey: 'bankName', header: 'Bank Name', filterable: true },
-  { accessorKey: 'accountName', header: 'Account Name', filterable: true },
-  { accessorKey: 'checkNo', header: 'Check No.', filterable: true },
-  { accessorKey: 'date', header: 'Date', filterable: true },
+  { accessorKey: 'type', header: 'Type' },
+  { accessorKey: 'bankName', header: 'Bank Name' },
+  { accessorKey: 'accountName', header: 'Account Name' },
+  { accessorKey: 'checkNo', header: 'Check No.' },
+  { accessorKey: 'date', header: 'Date' },
   { accessorKey: 'amount', header: 'Amount', cell: ({ getValue }) => money(getValue<number>()) }
 ]
 
-const installmentPaymentColumns: ReportColumn<InstallmentPaymentRow>[] = [
-  { accessorKey: 'customer', header: 'Customer', filterable: true },
-  { accessorKey: 'agreementNo', header: 'Agreement No.', filterable: true },
-  { accessorKey: 'dueDate', header: 'Due Date', filterable: true },
-  { accessorKey: 'amount', header: 'Amount', cell: ({ getValue }) => money(getValue<number>()) },
-  { accessorKey: 'status', header: 'Status', filterable: true }
-]
-
 const activityColumns: ReportColumn<ActivityRow>[] = [
-  { accessorKey: 'time', header: 'Time', filterable: true },
-  { accessorKey: 'cashier', header: 'Cashier', filterable: true },
-  { accessorKey: 'action', header: 'Action', filterable: true },
-  { accessorKey: 'details', header: 'Details', filterable: true }
-]
-
-const inHouseInstallmentColumns: ReportColumn<InHouseInstallmentRow>[] = [
-  { accessorKey: 'customer', header: 'Customer', filterable: true },
-  { accessorKey: 'contractNo', header: 'Contract No.', filterable: true },
-  { accessorKey: 'term', header: 'Term', filterable: true },
-  { accessorKey: 'balance', header: 'Balance', cell: ({ getValue }) => money(getValue<number>()) },
-  { accessorKey: 'nextDue', header: 'Next Due', filterable: true }
-]
-
-const financeInstallmentColumns: ReportColumn<FinanceInstallmentRow>[] = [
-  { accessorKey: 'lender', header: 'Lender', filterable: true },
-  { accessorKey: 'customer', header: 'Customer', filterable: true },
-  { accessorKey: 'accountNo', header: 'Account No.', filterable: true },
-  {
-    accessorKey: 'principal',
-    header: 'Principal',
-    cell: ({ getValue }) => money(getValue<number>())
-  },
-  { accessorKey: 'balance', header: 'Balance', cell: ({ getValue }) => money(getValue<number>()) },
-  { accessorKey: 'status', header: 'Status', filterable: true }
+  { accessorKey: 'time', header: 'Time' },
+  { accessorKey: 'cashier', header: 'Cashier' },
+  { accessorKey: 'action', header: 'Action' },
+  { accessorKey: 'details', header: 'Details' }
 ]
 
 const expenseData: ExpenseRow[] = Array.from({ length: 105 }, (_, index) => ({
@@ -185,25 +132,6 @@ const paymentData: PaymentRow[] = [
   }
 ]
 
-const installmentPaymentData: InstallmentPaymentRow[] = [
-  {
-    id: 'installment-payment-1',
-    customer: 'Maria Reyes',
-    agreementNo: 'AGR-2001',
-    dueDate: '2026-07-14',
-    amount: 4500,
-    status: 'Paid'
-  },
-  {
-    id: 'installment-payment-2',
-    customer: 'Jose Lim',
-    agreementNo: 'AGR-2002',
-    dueDate: '2026-07-14',
-    amount: 2800,
-    status: 'Partial'
-  }
-]
-
 const activityData: ActivityRow[] = [
   {
     id: 'activity-1',
@@ -221,52 +149,14 @@ const activityData: ActivityRow[] = [
   }
 ]
 
-const inHouseInstallmentData: InHouseInstallmentRow[] = [
-  {
-    id: 'in-house-1',
-    customer: 'Ramon Tan',
-    contractNo: 'IH-3001',
-    term: '12 months',
-    balance: 18000,
-    nextDue: '2026-08-14'
-  },
-  {
-    id: 'in-house-2',
-    customer: 'Ella Wong',
-    contractNo: 'IH-3002',
-    term: '6 months',
-    balance: 6200,
-    nextDue: '2026-07-28'
-  }
-]
-
-const financeInstallmentData: FinanceInstallmentRow[] = [
-  {
-    id: 'finance-1',
-    lender: 'Bank A',
-    customer: 'Nina Garcia',
-    accountNo: 'FIN-4001',
-    principal: 50000,
-    balance: 37500,
-    status: 'Current'
-  },
-  {
-    id: 'finance-2',
-    lender: 'Bank B',
-    customer: 'Paul Lim',
-    accountNo: 'FIN-4002',
-    principal: 30000,
-    balance: 12000,
-    status: 'Current'
-  }
-]
-
 function ReportTab({
   tab,
-  onAddEntry
+  onAddEntry,
+  addEntryLabel
 }: {
   tab: (typeof reportTabs)[number]
   onAddEntry: () => void
+  addEntryLabel: string
 }): React.JSX.Element {
   switch (tab) {
     case 'Expenses':
@@ -276,7 +166,7 @@ function ReportTab({
           data={expenseData}
           filterPlaceholder="Filter expenses..."
           onAddEntry={onAddEntry}
-          addEntryLabel="Add expense"
+          addEntryLabel={addEntryLabel}
         />
       )
     case 'Income':
@@ -286,7 +176,7 @@ function ReportTab({
           data={incomeData}
           filterPlaceholder="Filter income..."
           onAddEntry={onAddEntry}
-          addEntryLabel="Add income"
+          addEntryLabel={addEntryLabel}
         />
       )
     case 'Payment':
@@ -296,17 +186,7 @@ function ReportTab({
           data={paymentData}
           filterPlaceholder="Filter payments..."
           onAddEntry={onAddEntry}
-          addEntryLabel="Add payment"
-        />
-      )
-    case 'Payments':
-      return (
-        <ReportDataTable
-          columns={installmentPaymentColumns}
-          data={installmentPaymentData}
-          filterPlaceholder="Filter installment payments..."
-          onAddEntry={onAddEntry}
-          addEntryLabel="Add installment payment"
+          addEntryLabel={addEntryLabel}
         />
       )
     case 'Activity':
@@ -316,27 +196,7 @@ function ReportTab({
           data={activityData}
           filterPlaceholder="Filter activity..."
           onAddEntry={onAddEntry}
-          addEntryLabel="Add activity"
-        />
-      )
-    case 'In-house':
-      return (
-        <ReportDataTable
-          columns={inHouseInstallmentColumns}
-          data={inHouseInstallmentData}
-          filterPlaceholder="Filter in-house installments..."
-          onAddEntry={onAddEntry}
-          addEntryLabel="Add in-house installment"
-        />
-      )
-    case 'Finance':
-      return (
-        <ReportDataTable
-          columns={financeInstallmentColumns}
-          data={financeInstallmentData}
-          filterPlaceholder="Filter finance installments..."
-          onAddEntry={onAddEntry}
-          addEntryLabel="Add finance installment"
+          addEntryLabel={addEntryLabel}
         />
       )
   }
@@ -346,10 +206,7 @@ const formFields: Record<(typeof reportTabs)[number], string[]> = {
   Expenses: ['Type', 'Description', 'Category', 'Receipt No.', 'VAT', 'Amount'],
   Income: ['Particular', 'Remarks', 'Receipt/Ref No.', 'Date', 'Amount'],
   Payment: ['Type', 'Bank Name', 'Account Name', 'Check No.', 'Date', 'Amount'],
-  Payments: ['Customer', 'Agreement No.', 'Due Date', 'Amount', 'Status'],
-  Activity: ['Time', 'Cashier', 'Action', 'Details'],
-  'In-house': ['Customer', 'Contract No.', 'Term', 'Balance', 'Next Due'],
-  Finance: ['Lender', 'Customer', 'Account No.', 'Principal', 'Balance', 'Status']
+  Activity: ['Time', 'Cashier', 'Action', 'Details']
 }
 
 function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React.JSX.Element {
@@ -360,7 +217,23 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
         return (
           <div key={field} className="flex flex-col gap-1.5">
             <Label htmlFor={id}>{field}</Label>
-            <Input id={id} name={id} placeholder={`Enter ${field.toLowerCase()}`} />
+            {/(amount|balance|principal)/i.test(field) ? (
+              <InputGroup>
+                <InputGroupAddon align="inline-start">
+                  <InputGroupText>₱</InputGroupText>
+                </InputGroupAddon>
+                <InputGroupInput
+                  id={id}
+                  name={id}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder={`Enter ${field.toLowerCase()}`}
+                />
+              </InputGroup>
+            ) : (
+              <Input id={id} name={id} placeholder={`Enter ${field.toLowerCase()}`} />
+            )}
           </div>
         )
       })}
@@ -370,15 +243,25 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
 
 export function CashierReportsContent(): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
-  const focusEntryField = (): void => {
+  const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!isEntryFormVisible) return
     const firstField = formFields[activeTab][0]
     const id = `${activeTab}-${firstField}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
     document.getElementById(id)?.focus()
-  }
+  }, [activeTab, isEntryFormVisible])
 
   return (
-    <div className="m-4 grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 overflow-auto xl:grid-cols-[280px_minmax(560px,1fr)_320px] xl:overflow-hidden">
-      <Card className="order-2 flex min-h-0 min-w-0 flex-col overflow-hidden xl:order-1">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-3">
+      <div
+        className={
+          isEntryFormVisible
+            ? 'grid h-full min-h-0 grid-cols-[minmax(220px,262px)_minmax(720px,1fr)_minmax(280px,302px)] gap-3'
+            : 'grid h-full min-h-0 grid-cols-[minmax(220px,262px)_minmax(720px,1fr)] gap-3'
+        }
+      >
+      <Card className="flex min-h-0 min-w-0 flex-col">
         <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3">
           <div className="shrink-0 border-b pb-3">
             <p className="text-xs text-muted-foreground">Daily Cashier Report</p>
@@ -408,34 +291,45 @@ export function CashierReportsContent(): React.JSX.Element {
           </div>
         </aside>
       </Card>
-      <Card className="order-1 flex min-h-[32rem] min-w-0 flex-col overflow-hidden shadow-sm xl:order-2 xl:min-h-0">
+      <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <Tabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as (typeof reportTabs)[number])}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
-            <TabsList
-              aria-label="Cashier report sections"
-              className="sticky top-0 z-30 w-full max-w-full shrink-0 overflow-x-auto rounded-none border-0 border-b bg-muted/95 p-1 text-muted-foreground backdrop-blur"
-            >
+            <div className="shrink-0 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <TabsList
+                aria-label="Cashier report sections"
+                variant="line"
+                className="h-10 w-max min-w-full justify-start rounded-none bg-transparent p-0"
+              >
+                {reportTabs.map((tab) => (
+                  <TabsTrigger
+                    key={tab}
+                    value={tab}
+                    className="h-10 flex-none rounded-none px-3 text-xs font-normal data-active:font-medium"
+                  >
+                    {tab}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {reportTabs.map((tab) => (
-                <TabsTrigger key={tab} value={tab} className="h-8 rounded-md border-0 px-3 text-xs">
-                  {tab}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-              {reportTabs.map((tab) => (
-                <TabsContent key={tab} value={tab} className="flex min-h-full flex-col">
-                  <ReportTab tab={tab} onAddEntry={focusEntryField} />
+                <TabsContent key={tab} value={tab} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  <ReportTab
+                    tab={tab}
+                    onAddEntry={() => setIsEntryFormVisible((visible) => !visible)}
+                    addEntryLabel={isEntryFormVisible ? 'Hide form' : `Add ${tab.toLowerCase()}`}
+                  />
                 </TabsContent>
               ))}
             </div>
           </Tabs>
         </CardContent>
       </Card>
-      <Card className="order-3 flex min-h-0 min-w-0 flex-col overflow-hidden xl:order-3">
+      {isEntryFormVisible && <Card className="flex min-h-0 min-w-0 flex-col">
         <div className="flex h-full min-h-0 flex-col">
           <form
             className="flex h-full min-h-0 flex-col"
@@ -461,7 +355,8 @@ export function CashierReportsContent(): React.JSX.Element {
             </div>
           </form>
         </div>
-      </Card>
+      </Card>}
+      </div>
     </div>
   )
 }

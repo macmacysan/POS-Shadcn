@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { LoginForm } from '@/components/login-form'
 import { CashierReportsContent } from '@/components/cashier-reports-content'
 import { SidebarLeft } from '@/components/sidebar-left'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { ThemeToggle } from '@/components/theme-toggle'
+
+const THEME_STORAGE_KEY = 'cashiers-report-theme'
 
 function Workspace(): React.JSX.Element {
   const [activeView, setActiveView] = useState<'dashboard' | 'cashier-reports'>('dashboard')
@@ -11,8 +14,11 @@ function Workspace(): React.JSX.Element {
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
       <SidebarLeft onCashierReports={() => setActiveView('cashier-reports')} />
-      <SidebarInset className="min-h-0 overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
+        <header
+          className="flex h-14 shrink-0 items-center gap-2 border-b px-4"
+          style={{ '--app-header-height': '3.5rem' } as React.CSSProperties}
+        >
           <SidebarTrigger />
           <div className="flex flex-col">
             <span className="text-sm font-semibold">Cashiers Report</span>
@@ -47,11 +53,33 @@ function Workspace(): React.JSX.Element {
 
 function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
+  })
 
-  if (isLoggedIn) return <Workspace />
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDark)
+    localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light')
+  }, [isDark])
+
+  const toggleTheme = (): void => setIsDark((current) => !current)
+
+  if (isLoggedIn) {
+    return (
+      <div className="relative h-full w-full">
+        <div className="absolute top-3 right-4 z-10">
+          <ThemeToggle isDark={isDark} onToggle={toggleTheme} />
+        </div>
+        <Workspace />
+      </div>
+    )
+  }
 
   return (
-    <main className="flex min-h-screen w-full items-center justify-center bg-muted/35 px-4 py-8 sm:px-6 lg:px-8">
+    <main className="relative flex min-h-screen w-full items-center justify-center bg-muted/35 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle isDark={isDark} onToggle={toggleTheme} />
+      </div>
       <LoginForm onSuccess={() => setIsLoggedIn(true)} />
     </main>
   )
