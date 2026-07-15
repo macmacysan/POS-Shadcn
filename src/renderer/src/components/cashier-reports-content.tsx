@@ -6,14 +6,14 @@ import { ReportDataTable, type ReportColumn, type ReportRow } from '@/components
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from '@/components/ui/input-group'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText
+} from '@/components/ui/input-group'
 
-const reportTabs = [
-  'Expenses',
-  'Income',
-  'Payment',
-  'Activity'
-] as const
+const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 
 type ExpenseRow = ReportRow & {
   type: string
@@ -261,10 +261,10 @@ export function CashierReportsContent(): React.JSX.Element {
             : 'grid h-full min-h-0 grid-cols-[minmax(220px,262px)_minmax(720px,1fr)] gap-3'
         }
       >
-      <Card className="flex min-h-0 min-w-0 flex-col">
-        <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3">
-          <div className="shrink-0 border-b pb-3">
-            <p className="text-xs text-muted-foreground">Daily Cashier Report</p>
+        <Card className="flex min-h-0 min-w-0 flex-col">
+          <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3">
+            <div className="shrink-0 border-b pb-3">
+              <p className="text-xs text-muted-foreground">Daily Cashier Report</p>
             <h2 className="text-base font-semibold">Today&apos;s Summary</h2>
             <p className="mt-1 text-xs text-muted-foreground">July 14, 2026</p>
           </div>
@@ -355,7 +355,7 @@ export function CashierReportsContent(): React.JSX.Element {
             </div>
           </form>
         </div>
-      </Card>}
+        </Card>}
       </div>
     </div>
   )

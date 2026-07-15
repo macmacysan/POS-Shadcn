@@ -25,7 +25,12 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText
+} from '@/components/ui/input-group'
 import {
   Select,
   SelectContent,
@@ -194,6 +199,11 @@ export function ReportDataTable<TData extends ReportRow>({
             value={globalFilter}
             onChange={(event) => setGlobalFilter(event.target.value)}
           />
+          {globalFilter.trim() && (
+            <InputGroupAddon align="inline-end">
+              <InputGroupText>{filteredRowCount} results</InputGroupText>
+            </InputGroupAddon>
+          )}
         </InputGroup>
         <div className="flex shrink-0 items-center gap-2">
           {onAddEntry && (
