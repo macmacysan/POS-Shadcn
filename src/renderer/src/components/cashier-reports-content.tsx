@@ -11,6 +11,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle
+} from '@/components/ui/sheet'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -24,6 +31,10 @@ import {
   InputGroupInput,
   InputGroupText
 } from '@/components/ui/input-group'
+import { InstallmentHistoryInspector } from '@/components/installment-history-inspector'
+import { InstallmentHistoryTable } from '@/components/installment-history-table'
+import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/installment-history'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 
@@ -80,7 +91,6 @@ type PaymentRow = ReportRow & {
   date: string
   amount: number
 }
-type ActivityRow = ReportRow & { time: string; cashier: string; action: string; details: string }
 
 const money = (value: number): string =>
   `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
@@ -162,13 +172,6 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   { accessorKey: 'amount', header: 'AMOUNT', cell: ({ getValue }) => money(getValue<number>()) }
 ]
 
-const activityColumns: ReportColumn<ActivityRow>[] = [
-  { accessorKey: 'time', header: 'Time' },
-  { accessorKey: 'cashier', header: 'Cashier' },
-  { accessorKey: 'action', header: 'Action' },
-  { accessorKey: 'details', header: 'Details' }
-]
-
 const expenseData: ExpenseRow[] = Array.from({ length: 105 }, (_, index) => ({
   id: `expense-${index + 1}`,
   type: index % 3 === 0 ? 'Operating' : index % 3 === 1 ? 'Supply' : 'Transport',
@@ -225,31 +228,18 @@ const paymentData: PaymentRow[] = [
   }
 ]
 
-const activityData: ActivityRow[] = [
-  {
-    id: 'activity-1',
-    time: '08:05 AM',
-    cashier: 'C. Dela Cruz',
-    action: 'Opened report',
-    details: 'Started daily cashier report'
-  },
-  {
-    id: 'activity-2',
-    time: '10:42 AM',
-    cashier: 'C. Dela Cruz',
-    action: 'Added expense',
-    details: 'Recorded EXP-1001'
-  }
-]
-
 function ReportTab({
   tab,
   onAddEntry,
-  addEntryLabel
+  addEntryLabel,
+  selectedHistoryId,
+  onSelectHistory
 }: {
   tab: (typeof reportTabs)[number]
   onAddEntry: () => void
   addEntryLabel: string
+  selectedHistoryId?: string
+  onSelectHistory: (record: InstallmentHistoryRecord) => void
 }): React.JSX.Element {
   switch (tab) {
     case 'Expenses':
@@ -284,12 +274,10 @@ function ReportTab({
       )
     case 'Activity':
       return (
-        <ReportDataTable
-          columns={activityColumns}
-          data={activityData}
-          filterPlaceholder="Filter activity..."
-          onAddEntry={onAddEntry}
-          addEntryLabel={addEntryLabel}
+        <InstallmentHistoryTable
+          records={installmentHistoryData}
+          selectedId={selectedHistoryId}
+          onSelect={onSelectHistory}
         />
       )
   }
@@ -299,7 +287,7 @@ const formFields: Record<(typeof reportTabs)[number], string[]> = {
   Expenses: ['Type', 'Description', 'Category', 'Receipt No.', 'VAT', 'Amount'],
   Income: ['Date', 'Particular', 'Receipt / Reference No.', 'Remarks', 'Amount'],
   Payment: ['Type', 'Bank / Provider', 'Account Name', 'Reference No.', 'Date', 'Amount'],
-  Activity: ['Time', 'Cashier', 'Action', 'Details']
+  Activity: []
 }
 
 function ReportDatePicker({ id, label }: { id: string; label: string }): React.JSX.Element {
@@ -421,6 +409,10 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
 export function CashierReportsContent(): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
   const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
+  const [selectedHistory, setSelectedHistory] = React.useState<InstallmentHistoryRecord>()
+  const isMobile = useIsMobile()
+  const isHistoryTab = activeTab === 'Activity'
+  const showRightPanel = isHistoryTab || isEntryFormVisible
 
   React.useEffect(() => {
     if (!isEntryFormVisible) return
@@ -430,12 +422,12 @@ export function CashierReportsContent(): React.JSX.Element {
   }, [activeTab, isEntryFormVisible])
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden p-3">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
       <div
         className={
-          isEntryFormVisible
-            ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)_minmax(280px,302px)] gap-3'
-            : 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3'
+          showRightPanel
+            ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(260px,302px)] gap-3 max-[900px]:grid-cols-[minmax(160px,190px)_minmax(0,1fr)]'
+            : 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3 max-[720px]:grid-cols-1'
         }
       >
         <Card className="flex min-h-0 min-w-0 flex-col">
@@ -472,7 +464,11 @@ export function CashierReportsContent(): React.JSX.Element {
           <CardContent className="flex min-h-0 flex-1 flex-col p-0">
             <Tabs
               value={activeTab}
-              onValueChange={(value) => setActiveTab(value as (typeof reportTabs)[number])}
+              onValueChange={(value) => {
+                const nextTab = value as (typeof reportTabs)[number]
+                setActiveTab(nextTab)
+                if (nextTab === 'Activity') setIsEntryFormVisible(false)
+              }}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
               <div className="shrink-0 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -487,7 +483,7 @@ export function CashierReportsContent(): React.JSX.Element {
                       value={tab}
                       className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-medium"
                     >
-                      {tab}
+                      {tab === 'Activity' ? 'Installment History' : tab}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -503,6 +499,8 @@ export function CashierReportsContent(): React.JSX.Element {
                       tab={tab}
                       onAddEntry={() => setIsEntryFormVisible((visible) => !visible)}
                       addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
+                      selectedHistoryId={selectedHistory?.id}
+                      onSelectHistory={setSelectedHistory}
                     />
                   </TabsContent>
                 ))}
@@ -510,7 +508,7 @@ export function CashierReportsContent(): React.JSX.Element {
             </Tabs>
           </CardContent>
         </Card>
-        {isEntryFormVisible && (
+        {showRightPanel && !isHistoryTab && (
           <Card className="flex min-h-0 min-w-0 flex-col">
             <div className="flex h-full min-h-0 flex-col">
               <form
@@ -535,7 +533,26 @@ export function CashierReportsContent(): React.JSX.Element {
             </div>
           </Card>
         )}
+        {isHistoryTab && !isMobile && (
+          <Card className="flex min-h-0 min-w-0 flex-col">
+            <InstallmentHistoryInspector record={selectedHistory} />
+          </Card>
+        )}
       </div>
+      {isHistoryTab && isMobile && (
+        <Sheet
+          open={Boolean(selectedHistory)}
+          onOpenChange={(open) => !open && setSelectedHistory(undefined)}
+        >
+          <SheetContent side="right" className="w-[min(92vw,26rem)] p-0">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Installment History details</SheetTitle>
+              <SheetDescription>Full details for the selected history record.</SheetDescription>
+            </SheetHeader>
+            <InstallmentHistoryInspector record={selectedHistory} />
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   )
 }

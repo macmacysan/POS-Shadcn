@@ -91,3 +91,54 @@ At the supported desktop viewport, users can scan all five Income columns throug
 ## Blocking
 
 Yes. Remove or explicitly authorize the Payment-tab changes, then rerun the visual gate on fresh evidence.
+
+## Final gate addendum - current revision `2b4282619b1a95cc9eb9536482ad2b177b07e3b9`
+
+- **recommendation:** REJECT
+- **visualVerdict:** REVISE
+- **confidence:** HIGH
+- **reviewedState:** target source at `master` commit `2b42826`; the source bytes reviewed live before the concurrent commit match the committed diff. After review, unrelated untracked `.backlog/tasks/`, `ui/badge.tsx`, `ui/empty.tsx`, and `lib/installment-history.ts` paths appeared concurrently and were excluded.
+
+### Additional blocker 2 - Clear does not reset the controlled Income date
+
+- **violatedCriterion:** `SC-FI-01 - The requested Income date-picker must preserve the entry form's existing functional controls`
+- **observation:** After selecting `Today, Thursday, July 16th, 2026`, the Date textbox contained `2026-07-16`. Activating the visible `Clear` button left the textbox at `2026-07-16`. The new field is controlled by local `value` state, while the form still relies only on native `type="reset"`; no reset handler clears that state.
+- **evidencePointer:** Fresh live DOM reproduction at `http://localhost:5174/`; `src/renderer/src/components/cashier-reports-content.tsx:305-308`, `:312-321`, and `:516-532`.
+- **requiredResolution:** Wire form reset to clear both the text value and selected calendar date, then reproduce Date selection followed by Clear and prove the textbox is empty and the calendar has no stale selection.
+
+### Additional blocker 3 - Income date state leaks into Payment
+
+- **violatedCriterion:** `SC-04 - No accidental unrelated visual or behavioral changes outside the Income scope`
+- **observation:** With the entry panel open, selecting `2026-07-16` in Income and then switching to Payment produced a Payment Date textbox already containing `2026-07-16`. Both tabs render the generic Date branch, and the keyed `Date` child is reconciled as the same `ReportDatePicker` instance across tab changes.
+- **evidencePointer:** Fresh live DOM reproduction returned `{ paymentDateCount: 1, paymentDateValue: '2026-07-16' }`; source at `src/renderer/src/components/cashier-reports-content.tsx:298-308`, `:363-380`, `:395-396`, and `:521`.
+- **requiredResolution:** Keep the change Income-scoped or isolate/reset date-picker state by report tab. Reproduce Income -> Payment switching and prove Payment retains its prior behavior and does not inherit Income state.
+
+### Direct final-gate checks
+
+- Exact Income DOM headers and order: PASS.
+- Income form labels and accessible names: PASS.
+- Calendar dialog semantics, named navigation/day controls, and Today -> `2026-07-16`: PASS.
+- Amount header/cells right aligned: PASS from computed style.
+- `npm run typecheck`: PASS against the reviewed source.
+- `npm run lint -- --no-cache`: PASS against the reviewed source.
+- `git diff --check`: no whitespace errors; LF-to-CRLF warning only before the concurrent commit.
+- LSP diagnostics: EVIDENCE GAP; TypeScript server is installed, but the OMO LSP daemon timed out twice. Project `tsc --noEmit` passed.
+- Tests: EVIDENCE GAP; no test script or matching test/spec files cover this behavior.
+- Responsive evidence: current reviewer directly measured 1280x800 only. At form-open state the 900px table used a 412px horizontal scroller and the right-side Date field remained visible. Fresh 900/768/375 reruns could not be completed because the Electron dev process repeatedly exited. The earlier report's claimed responsive captures were consulted but not treated as independent proof.
+
+### Programming and remove-ai-slops confirmation
+
+- The prior report explicitly covers excessive/useless, deletion-only, requested-removal, tautological, implementation-mirroring, and prose-pinning test classes; no tests were added, so none create false confidence.
+- Direct diff pass found no new dependency and no hand-rolled calendar. Existing shared Calendar, Popover, InputGroup, and date-fns primitives are reused.
+- Direct pass confirms scope drift, missing regression coverage, the 515-pure-LOC maintenance burden, controlled/reset lifecycle failure, cross-tab state leakage, and typed-invalid date/selection desynchronization. Only the two functional/scope failures above block; module size and absent durable tests remain notes because they are not standalone stated success criteria.
+
+### Additional checked artifacts and evidence gaps
+
+- Checked commit and history: `git show 2b4282619b1a95cc9eb9536482ad2b177b07e3b9`, `git reflog -5`, clean `master` status.
+- Checked default Electron viewport declaration: `src/main/index.ts` (`900x670`).
+- No ULW plan/currentAttemptDir exists; direct CLI returned `ULW_LOOP_PLAN_MISSING`, so this remains the fallback report path.
+- No executor screenshot, separate code-review report, manual-QA matrix, or notepad artifact path was supplied. The committed report itself is the only review artifact found under `.omo/evidence`.
+
+### Final blocking
+
+Yes. Resolve Payment scope drift, stop Income date state from crossing tabs, and make Clear reset the controlled date before approval.
