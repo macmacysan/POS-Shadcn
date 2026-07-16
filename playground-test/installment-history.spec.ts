@@ -34,7 +34,7 @@ test('selects a row with keyboard input and fills the inspector', async ({ page 
   await expect(page.getByText('Dining table set', { exact: true })).toBeVisible()
 })
 
-test('renders edited field comparison and responsive inspector sheet', async ({ page }) => {
+test('renders edited field comparison and keeps the narrow table selectable', async ({ page }) => {
   await openHistory(page)
 
   await page.locator('tbody tr').nth(2).click()
@@ -46,5 +46,10 @@ test('renders edited field comparison and responsive inspector sheet', async ({ 
   const mobileRow = page.locator('tbody tr').nth(1)
   await mobileRow.focus()
   await mobileRow.press('Enter')
-  await expect(page.getByRole('heading', { name: 'Installment History details' })).toBeVisible()
+  await expect(mobileRow).toHaveAttribute('data-state', 'selected')
+  await page.waitForTimeout(400)
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Installment History details' })).toHaveText('Installment History details')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(700)
+  await page.screenshot({ path: '.omo/evidence/installment-history/narrow-selected.png', fullPage: true })
 })
