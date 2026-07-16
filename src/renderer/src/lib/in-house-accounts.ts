@@ -1,13 +1,13 @@
 import { format } from 'date-fns'
 
-export const branchNames = ['goa', 'tinambac', 'tigaon', 'lagonoy'] as const
+export const branchNames = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const
 export type BranchName = (typeof branchNames)[number]
 
 export const branchLabels: Record<BranchName, string> = {
-  goa: 'Goa',
-  tinambac: 'Tinambac',
-  tigaon: 'Tigaon',
-  lagonoy: 'Lagonoy'
+  Goa: 'Goa',
+  Tinambac: 'Tinambac',
+  Tigaon: 'Tigaon',
+  Lagonoy: 'Lagonoy'
 }
 
 export type AccountContact = {
@@ -23,6 +23,11 @@ export type AccountEmail = {
   readonly isPrimary: boolean
 }
 
+export type AccountAddressSelection = {
+  readonly code: string
+  readonly name: string
+}
+
 export type InHouseAccount = {
   readonly id: string
   readonly branch: BranchName
@@ -31,9 +36,13 @@ export type InHouseAccount = {
   readonly middleName?: string
   readonly suffix?: string
   readonly streetSubdivision?: string
+  readonly regionPsgc?: AccountAddressSelection
   readonly barangay: string
+  readonly barangayPsgc?: AccountAddressSelection
   readonly cityMunicipality: string
+  readonly cityMunicipalityPsgc?: AccountAddressSelection
   readonly province: string
+  readonly provincePsgc?: AccountAddressSelection
   readonly occupation?: string
   readonly contacts: readonly AccountContact[]
   readonly emails: readonly AccountEmail[]

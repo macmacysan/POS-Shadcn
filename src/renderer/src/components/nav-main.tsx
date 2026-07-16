@@ -29,6 +29,12 @@ type NavGroupItem = {
   children: NavChildItem[]
 }
 
+type NavSectionItem = {
+  title: string
+  section: true
+  children?: NavChildItem[]
+}
+
 type NavItem =
   | {
       title: string
@@ -39,9 +45,16 @@ type NavItem =
       children?: undefined
     }
   | NavGroupItem
+  | NavSectionItem
+
+type NavLinkItem = Exclude<NavItem, NavGroupItem | NavSectionItem>
 
 function isNavGroup(item: NavItem): item is NavGroupItem {
   return Array.isArray(item.children)
+}
+
+function isNavSection(item: NavItem): item is NavSectionItem {
+  return 'section' in item && item.section === true
 }
 
 function hasActiveDescendant(item: NavChildItem): boolean {
@@ -102,7 +115,7 @@ function NavChildList({ items }: { items: NavChildItem[] }): React.JSX.Element {
   )
 }
 
-function NavItemLink({ item }: { item: NavItem }): React.JSX.Element {
+function NavItemLink({ item }: { item: NavLinkItem }): React.JSX.Element {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -130,7 +143,18 @@ export function NavMain({ items }: { items: NavItem[] }): React.JSX.Element {
   return (
     <SidebarMenu>
       {items.map((item) =>
-        isNavGroup(item) ? (
+        isNavSection(item) ? (
+          <SidebarMenuItem key={item.title}>
+            <div className="px-2 py-1.5 text-xs font-medium text-sidebar-foreground/70">
+              {item.title}
+            </div>
+            {item.children && (
+              <SidebarMenuSub>
+                <NavChildList items={item.children} />
+              </SidebarMenuSub>
+            )}
+          </SidebarMenuItem>
+        ) : isNavGroup(item) ? (
           <Collapsible
             key={item.title}
             open={openGroup === item.title}

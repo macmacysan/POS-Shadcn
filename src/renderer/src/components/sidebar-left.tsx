@@ -1,7 +1,6 @@
 import * as React from 'react'
 import {
   BarChart3Icon,
-  CircleDollarSignIcon,
   CircleHelpIcon,
   ClipboardListIcon,
   HouseIcon,
@@ -20,12 +19,12 @@ import { Sidebar, SidebarContent, SidebarHeader, SidebarRail } from '@/component
 const data = {
   teams: [{ name: 'Cashiers Report', logo: <StoreIcon />, plan: 'Local workspace' }],
   navMain: [
+    { title: 'Nueva Camsur Home Furnishing', section: true as const },
     { title: 'Dashboard', url: '#', icon: <LayoutDashboardIcon />, isActive: true },
     { title: 'Cashier reports', url: '#', icon: <ClipboardListIcon /> },
     {
       title: 'Finance',
-      url: '#',
-      icon: <CircleDollarSignIcon />,
+      section: true as const,
       children: [
         { title: 'Overview', url: '#' },
         {
@@ -33,7 +32,6 @@ const data = {
           url: '#',
           icon: <HouseIcon />,
           children: [
-            { title: 'Dashboard', url: '#' },
             { title: 'All Accounts', url: '#' },
             { title: 'Active Accounts', url: '#' },
             { title: 'Closed Accounts', url: '#' },

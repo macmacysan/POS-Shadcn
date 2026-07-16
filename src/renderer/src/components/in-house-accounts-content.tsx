@@ -2,8 +2,8 @@ import * as React from 'react'
 import { ArrowDown, ArrowUp, ArrowUpDown, Plus, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import {
   Select,
   SelectContent,
@@ -19,6 +19,13 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle
+} from '@/components/ui/drawer'
+import {
   Table,
   TableBody,
   TableCell,
@@ -27,6 +34,7 @@ import {
   TableRow
 } from '@/components/ui/table'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { InHouseAccountForm } from '@/components/in-house-account-form'
 import { InHouseAccountInspector } from '@/components/in-house-account-inspector'
 import {
@@ -45,10 +53,10 @@ import {
 type SortDirection = 'asc' | 'desc'
 const storageKey = 'cashiers-report-in-house-accounts'
 const branchBadgeClasses: Record<BranchName, string> = {
-  goa: 'bg-primary/10 text-primary border-primary/20',
-  tinambac: 'bg-secondary text-secondary-foreground border-border',
-  tigaon: 'bg-accent text-accent-foreground border-border',
-  lagonoy: 'bg-muted text-muted-foreground border-border'
+  Goa: 'bg-primary/10 text-primary border-primary/20',
+  Tinambac: 'bg-secondary text-secondary-foreground border-border',
+  Tigaon: 'bg-accent text-accent-foreground border-border',
+  Lagonoy: 'bg-muted text-muted-foreground border-border'
 }
 
 function readAccounts(): readonly InHouseAccount[] {
@@ -141,20 +149,19 @@ export function InHouseAccountsContent(): React.JSX.Element {
       <div className="grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(270px,320px)] gap-3 max-[900px]:grid-cols-1">
         <Card className="flex min-h-0 min-w-0 flex-col">
           <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
-              <div className="relative min-w-48 max-w-md flex-1">
-                <Search
-                  className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  className="h-8 pl-8 text-xs"
+            <CardHeader className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
+              <InputGroup className="h-8 min-w-48 max-w-md flex-1">
+                <InputGroupAddon>
+                  <Search aria-hidden="true" />
+                </InputGroupAddon>
+                <InputGroupInput
+                  className="text-xs"
                   aria-label="Search accounts by name, contact number, or email"
                   placeholder="Search name, contact, or email..."
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                 />
-              </div>
+              </InputGroup>
               <Select
                 value={branch}
                 onValueChange={(value) => setBranch(value as BranchName | 'all')}
@@ -195,8 +202,8 @@ export function InHouseAccountsContent(): React.JSX.Element {
                 <Plus data-icon="inline-start" />
                 Add Account
               </Button>
-            </div>
-            <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+            </CardHeader>
+            <ScrollArea className="min-h-0 min-w-0 flex-1">
               <Table className="min-w-[760px]">
                 <TableHeader className="sticky top-0 z-10 bg-muted/30">
                   <TableRow className="h-9">
@@ -283,18 +290,17 @@ export function InHouseAccountsContent(): React.JSX.Element {
                   )}
                 </TableBody>
               </Table>
-            </div>
-            <div className="flex shrink-0 items-center border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            </ScrollArea>
+            <CardFooter className="flex shrink-0 items-center border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               {visibleAccounts.length} account{visibleAccounts.length === 1 ? '' : 's'}
-            </div>
+            </CardFooter>
           </CardContent>
         </Card>
         {!isMobile && (
           <Card className="flex min-h-0 min-w-0 flex-col">
-            <div className="border-b p-4">
-              <p className="text-xs text-muted-foreground">In-house Installment</p>
-              <h1 className="text-base font-semibold">All Accounts</h1>
-            </div>
+            <CardHeader className="border-b p-4">
+              <CardTitle>All Accounts</CardTitle>
+            </CardHeader>
             <InHouseAccountInspector account={selected} />
           </Card>
         )}
@@ -310,15 +316,20 @@ export function InHouseAccountsContent(): React.JSX.Element {
           </SheetContent>
         </Sheet>
       )}
-      <Sheet open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <SheetContent side="right" className="w-[min(96vw,34rem)] p-0">
-          <SheetHeader className="border-b px-4 py-3">
-            <SheetTitle>Add Account</SheetTitle>
-            <SheetDescription>Create an in-house installment customer account.</SheetDescription>
-          </SheetHeader>
+      <Drawer
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        swipeDirection={isMobile ? 'down' : 'right'}
+        showSwipeHandle={isMobile}
+      >
+        <DrawerContent className="[--drawer-bleed-background:transparent] [--drawer-content-width:min(96vw,46rem)] [--drawer-inset:1rem] bg-card text-card-foreground shadow-lg ring-1 ring-foreground/10 data-[swipe-direction=down]:!rounded-xl data-[swipe-direction=right]:!rounded-xl">
+          <DrawerHeader className="border-b px-4 py-3">
+            <DrawerTitle>Add Account</DrawerTitle>
+            <DrawerDescription>Create an in-house installment customer account.</DrawerDescription>
+          </DrawerHeader>
           <InHouseAccountForm onSave={save} onCancel={() => setIsFormOpen(false)} />
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
     </div>
   )
 }
