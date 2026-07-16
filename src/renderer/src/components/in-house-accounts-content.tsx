@@ -299,7 +299,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         {!isMobile && (
           <Card className="flex min-h-0 min-w-0 flex-col">
             <CardHeader className="border-b p-4">
-              <CardTitle>All Accounts</CardTitle>
+              <CardTitle>Account Details</CardTitle>
             </CardHeader>
             <InHouseAccountInspector account={selected} />
           </Card>
@@ -322,7 +322,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         swipeDirection={isMobile ? 'down' : 'right'}
         showSwipeHandle={isMobile}
       >
-        <DrawerContent className="[--drawer-bleed-background:transparent] [--drawer-content-width:min(96vw,46rem)] [--drawer-inset:1rem] bg-card text-card-foreground shadow-lg ring-1 ring-foreground/10 data-[swipe-direction=down]:!rounded-xl data-[swipe-direction=right]:!rounded-xl">
+        <DrawerContent className="[--drawer-content-width:min(96vw,46rem)] [--drawer-inset:1rem] bg-card text-card-foreground shadow-lg ring-1 ring-foreground/10 data-[swipe-direction=down]:!rounded-xl data-[swipe-direction=right]:!rounded-xl">
           <DrawerHeader className="border-b px-4 py-3">
             <DrawerTitle>Add Account</DrawerTitle>
             <DrawerDescription>Create an in-house installment customer account.</DrawerDescription>

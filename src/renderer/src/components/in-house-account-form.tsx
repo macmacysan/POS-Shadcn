@@ -313,7 +313,6 @@ export function InHouseAccountForm({
         <div className="p-4">
           <FieldGroup className="gap-3">
             <FieldSet className="gap-3">
-              <FieldLegend>Account classification</FieldLegend>
               <Field data-invalid={Boolean(errors.branch)}>
                 <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
                 <Select

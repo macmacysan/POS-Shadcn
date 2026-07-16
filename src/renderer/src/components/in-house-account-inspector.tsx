@@ -1,14 +1,6 @@
 import * as React from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
-import {
-  Field,
-  FieldContent,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-  FieldTitle
-} from '@/components/ui/field'
 import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -44,7 +36,7 @@ export function InHouseAccountInspector({
           <span className="text-xs text-muted-foreground">{account.id}</span>
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-2 p-4 pt-2">
+      <CardContent className="p-3">
         <DetailSection title="ACCOUNT SUMMARY">
           <Detail label="Branch" value={branchLabels[account.branch]} />
           <Detail label="Complete Name" value={formatAccountName(account)} />
@@ -92,12 +84,10 @@ function DetailSection({
   readonly children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <FieldSet className="gap-2 border-t py-3 first:border-t-0 first:pt-0">
-      <FieldLegend variant="label" className="mb-0 text-xs tracking-wide text-muted-foreground">
-        {title}
-      </FieldLegend>
-      {children}
-    </FieldSet>
+    <section>
+      <h3 className="pt-4 pb-1 text-xs font-semibold uppercase tracking-wide">{title}</h3>
+      <dl className="divide-y">{children}</dl>
+    </section>
   )
 }
 function Detail({
@@ -108,12 +98,10 @@ function Detail({
   readonly value?: string
 }): React.JSX.Element {
   return (
-    <Field orientation="horizontal" className="items-start gap-2 text-xs">
-      <FieldTitle className="w-28 shrink-0 text-muted-foreground">{label}</FieldTitle>
-      <FieldContent>
-        <p className="min-w-0 break-words">{value || '—'}</p>
-      </FieldContent>
-    </Field>
+    <div className="grid grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] gap-3 py-1.5 text-xs">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-right font-medium">{value || '—'}</dd>
+    </div>
   )
 }
 function ContactList({
@@ -126,9 +114,9 @@ function ContactList({
   readonly primaryIndex?: number
 }): React.JSX.Element {
   return (
-    <Field className="gap-1 text-xs">
-      <FieldLabel>{label}</FieldLabel>
-      <FieldContent className="gap-1">
+    <div className="grid grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] gap-3 py-1.5 text-xs">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right font-medium">
         {values.length ? (
           values.map((value, index) => (
             <p key={`${label}-${value}`} className="break-all">
@@ -139,7 +127,7 @@ function ContactList({
         ) : (
           <p>—</p>
         )}
-      </FieldContent>
-    </Field>
+      </dd>
+    </div>
   )
 }
