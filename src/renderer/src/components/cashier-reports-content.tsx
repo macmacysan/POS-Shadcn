@@ -1,11 +1,15 @@
 import * as React from 'react'
+import { format, isValid, parse } from 'date-fns'
+import { CalendarIcon } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
+import { Calendar } from '@/components/ui/calendar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReportDataTable, type ReportColumn, type ReportRow } from '@/components/report-data-table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -16,6 +20,7 @@ import {
 import {
   InputGroup,
   InputGroupAddon,
+  InputGroupButton,
   InputGroupInput,
   InputGroupText
 } from '@/components/ui/input-group'
@@ -24,6 +29,7 @@ const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 
 const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT', 'Blank'] as const
+const paymentTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
 
 const expenseCategories = [
   'Advertising',
@@ -68,9 +74,9 @@ type IncomeRow = ReportRow & {
 }
 type PaymentRow = ReportRow & {
   type: string
-  bankName: string
+  bankProvider: string
   accountName: string
-  checkNo: string
+  referenceNo: string
   date: string
   amount: number
 }
@@ -87,8 +93,14 @@ const typeClassNames: Record<string, string> = {
   Transport:
     'border-violet-200/70 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300',
   Cash: 'border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+  'Bank Check':
+    'border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+  'Bank Transfer':
+    'border-violet-200/70 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300',
   GCash:
-    'border-blue-200/70 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
+    'border-blue-200/70 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
+  'Other e-wallet':
+    'border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
 }
 
 function TypeBox({ value }: { value: string }): React.JSX.Element {
@@ -121,24 +133,33 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
 ]
 
 const incomeColumns: ReportColumn<IncomeRow>[] = [
-  { accessorKey: 'particular', header: 'Particular' },
-  { accessorKey: 'remarks', header: 'Remarks' },
-  { accessorKey: 'receiptRefNo', header: 'Receipt/Ref No.' },
-  { accessorKey: 'date', header: 'Date' },
-  { accessorKey: 'amount', header: 'Amount', cell: ({ getValue }) => money(getValue<number>()) }
+  { accessorKey: 'date', header: 'DATE', meta: { className: 'w-[15%]' } },
+  { accessorKey: 'particular', header: 'PARTICULAR', meta: { className: 'w-[25%]' } },
+  {
+    accessorKey: 'receiptRefNo',
+    header: 'RECEIPT / REFERENCE NO.',
+    meta: { className: 'w-[22%]' }
+  },
+  { accessorKey: 'remarks', header: 'REMARKS', meta: { className: 'w-[28%]' } },
+  {
+    accessorKey: 'amount',
+    header: 'AMOUNT',
+    cell: ({ getValue }) => money(getValue<number>()),
+    meta: { className: 'w-[10%] text-right' }
+  }
 ]
 
 const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'type',
-    header: 'Type',
+    header: 'TYPE',
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} />
   },
-  { accessorKey: 'bankName', header: 'Bank Name' },
-  { accessorKey: 'accountName', header: 'Account Name' },
-  { accessorKey: 'checkNo', header: 'Check No.' },
-  { accessorKey: 'date', header: 'Date' },
-  { accessorKey: 'amount', header: 'Amount', cell: ({ getValue }) => money(getValue<number>()) }
+  { accessorKey: 'bankProvider', header: 'BANK / PROVIDER' },
+  { accessorKey: 'accountName', header: 'ACCOUNT NAME' },
+  { accessorKey: 'referenceNo', header: 'REFERENCE NO.' },
+  { accessorKey: 'date', header: 'DATE' },
+  { accessorKey: 'amount', header: 'AMOUNT', cell: ({ getValue }) => money(getValue<number>()) }
 ]
 
 const activityColumns: ReportColumn<ActivityRow>[] = [
@@ -186,19 +207,19 @@ const incomeData: IncomeRow[] = [
 const paymentData: PaymentRow[] = [
   {
     id: 'payment-1',
-    type: 'Cash',
-    bankName: '—',
+    type: 'Bank Check',
+    bankProvider: 'BDO',
     accountName: 'Ana Santos',
-    checkNo: '—',
+    referenceNo: 'CHK-1001',
     date: '2026-07-14',
     amount: 2500
   },
   {
     id: 'payment-2',
     type: 'GCash',
-    bankName: 'GCash',
+    bankProvider: 'GCash',
     accountName: 'Luis Cruz',
-    checkNo: '—',
+    referenceNo: 'GC-84721',
     date: '2026-07-14',
     amount: 1800
   }
@@ -276,9 +297,67 @@ function ReportTab({
 
 const formFields: Record<(typeof reportTabs)[number], string[]> = {
   Expenses: ['Type', 'Description', 'Category', 'Receipt No.', 'VAT', 'Amount'],
-  Income: ['Particular', 'Remarks', 'Receipt/Ref No.', 'Date', 'Amount'],
-  Payment: ['Type', 'Bank Name', 'Account Name', 'Check No.', 'Date', 'Amount'],
+  Income: ['Date', 'Particular', 'Receipt / Reference No.', 'Remarks', 'Amount'],
+  Payment: ['Type', 'Bank / Provider', 'Account Name', 'Reference No.', 'Date', 'Amount'],
   Activity: ['Time', 'Cashier', 'Action', 'Details']
+}
+
+function ReportDatePicker({ id, label }: { id: string; label: string }): React.JSX.Element {
+  const [open, setOpen] = React.useState(false)
+  const [date, setDate] = React.useState<Date>()
+  const [value, setValue] = React.useState('')
+
+  return (
+    <InputGroup>
+      <InputGroupInput
+        id={id}
+        name={id}
+        value={value}
+        placeholder="YYYY-MM-DD"
+        aria-label="Date"
+        onChange={(event) => {
+          const nextValue = event.target.value
+          const nextDate = parse(nextValue, 'yyyy-MM-dd', new Date())
+          setValue(nextValue)
+          if (
+            isValid(nextDate) &&
+            nextValue.length === 10 &&
+            format(nextDate, 'yyyy-MM-dd') === nextValue
+          ) {
+            setDate(nextDate)
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            setOpen(true)
+          }
+        }}
+      />
+      <InputGroupAddon align="inline-end">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger
+            render={
+              <InputGroupButton variant="ghost" size="icon-xs" aria-label={`Select ${label}`} />
+            }
+          >
+            <CalendarIcon />
+          </PopoverTrigger>
+          <PopoverContent className="w-auto overflow-hidden p-0" align="end">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={(nextDate) => {
+                setDate(nextDate)
+                setValue(nextDate ? format(nextDate, 'yyyy-MM-dd') : '')
+                setOpen(false)
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+      </InputGroupAddon>
+    </InputGroup>
+  )
 }
 
 function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React.JSX.Element {
@@ -293,7 +372,9 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
               ? expenseCategories
               : tab === 'Expenses' && field === 'VAT'
                 ? vatOptions
-                : null
+                : tab === 'Payment' && field === 'Type'
+                  ? paymentTypes
+                  : null
 
         return (
           <div key={field} className="flex flex-col gap-1.5">
@@ -311,6 +392,8 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
                   ))}
                 </SelectContent>
               </Select>
+            ) : field === 'Date' ? (
+              <ReportDatePicker id={id} label={field} />
             ) : /(amount|balance|principal)/i.test(field) ? (
               <InputGroup>
                 <InputGroupAddon align="inline-start">
