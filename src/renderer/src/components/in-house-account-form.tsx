@@ -138,11 +138,13 @@ function AddressCombobox({
 function ContactRows({
   contacts,
   onChange,
-  errors
+  errors,
+  actions
 }: {
   readonly contacts: readonly AccountContact[]
   readonly onChange: (contacts: readonly AccountContact[]) => void
   readonly errors?: string
+  readonly actions: React.ReactNode
 }): React.JSX.Element {
   const update = (contactId: string, patch: Partial<AccountContact>): void =>
     onChange(
@@ -152,7 +154,7 @@ function ContactRows({
     onChange(contacts.filter((contact) => contact.id !== contactId))
   const mobileCount = contacts.filter((contact) => contact.kind === 'mobile').length
   return (
-    <FieldSet className="gap-3">
+    <FieldSet className="gap-2">
       {contacts
         .filter((contact) => contact.kind === 'mobile')
         .map((contact) => (
@@ -194,6 +196,7 @@ function ContactRows({
           </div>
         ))}
       {errors && <FieldError>{errors}</FieldError>}
+      {actions}
       {contacts
         .filter((contact) => contact.kind === 'telephone')
         .map((contact) => (
@@ -233,7 +236,7 @@ function EmailRows({
   const update = (emailId: string, patch: Partial<AccountEmail>): void =>
     onChange(emails.map((email) => (email.id === emailId ? { ...email, ...patch } : email)))
   return (
-    <FieldSet className="gap-3">
+    <FieldSet className="gap-2">
       {emails.map((email) => (
         <div className="flex items-end gap-2" key={email.id}>
           <Field className="min-w-0 flex-1 gap-1.5">
@@ -311,8 +314,9 @@ export function InHouseAccountForm({
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={submit}>
       <ScrollArea className="min-h-0 flex-1">
         <div className="p-4">
-          <FieldGroup className="gap-3">
+          <FieldGroup className="gap-4">
             <FieldSet className="gap-3">
+              <FieldLegend variant="label">Account classification</FieldLegend>
               <Field data-invalid={Boolean(errors.branch)}>
                 <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
                 <Select
@@ -335,7 +339,7 @@ export function InHouseAccountForm({
             </FieldSet>
             <FieldSeparator />
             <FieldSet className="gap-3">
-              <FieldLegend>Name</FieldLegend>
+              <FieldLegend variant="label">Name</FieldLegend>
               <FieldGroup className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(errors.lastName)}>
                   <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
@@ -387,7 +391,7 @@ export function InHouseAccountForm({
             </FieldSet>
             <FieldSeparator />
             <FieldSet className="gap-3">
-              <FieldLegend>Address</FieldLegend>
+              <FieldLegend variant="label">Address</FieldLegend>
               <FieldGroup className="grid gap-3 sm:grid-cols-2">
                 <AddressCombobox
                   id="province"
@@ -396,7 +400,9 @@ export function InHouseAccountForm({
                   value={address.province}
                   emptyMessage="No province found."
                   onChange={(province) => {
-                    const region = psgcRegions.find((option) => option.code === province?.parentCode)
+                    const region = psgcRegions.find(
+                      (option) => option.code === province?.parentCode
+                    )
                     setAddress((current) => ({
                       ...current,
                       province,
@@ -449,83 +455,92 @@ export function InHouseAccountForm({
                     }))
                   }}
                 />
+                <Field>
+                  <FieldLabel htmlFor="street-subdivision">Street / Subdivision</FieldLabel>
+                  <Input
+                    id="street-subdivision"
+                    value={draft.streetSubdivision}
+                    onChange={(event) => set('streetSubdivision', event.target.value)}
+                  />
+                </Field>
               </FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="street-subdivision">Street / Subdivision</FieldLabel>
-                <Input
-                  id="street-subdivision"
-                  value={draft.streetSubdivision}
-                  onChange={(event) => set('streetSubdivision', event.target.value)}
-                />
-              </Field>
             </FieldSet>
             <FieldSeparator />
             <FieldSet className="gap-3">
-              <FieldLegend>Contact information</FieldLegend>
-              <FieldGroup>
+              <FieldLegend variant="label">Contact information</FieldLegend>
+              <FieldGroup className="gap-3">
                 <ContactRows
                   contacts={draft.contacts}
                   onChange={(contacts) => set('contacts', contacts)}
                   errors={errors.contacts}
-                />
-                <EmailRows
-                  emails={draft.emails}
-                  onChange={(emails) => set('emails', emails)}
-                  error={errors.emails}
-                />
-                <div className="flex flex-nowrap items-center gap-1 overflow-x-auto text-muted-foreground">
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    onClick={() =>
-                      set('contacts', [
-                        ...draft.contacts,
-                        { id: id('mobile'), kind: 'mobile', value: '', isPrimary: false }
-                      ])
-                    }
-                  >
-                    <Plus data-icon="inline-start" />
-                    Add Contact
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      set('contacts', [
-                        ...draft.contacts,
-                        { id: id('telephone'), kind: 'telephone', value: '', isPrimary: false }
-                      ])
-                    }
-                  >
-                    <Plus data-icon="inline-start" />
-                    Add telephone
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      set('emails', [
-                        ...draft.emails,
-                        {
-                          id: id('email'),
-                          value: '',
-                          isPrimary: draft.emails.length === 0
+                  actions={
+                    <div className="flex flex-nowrap items-center gap-1 overflow-x-auto text-muted-foreground">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="xs"
+                        onClick={() =>
+                          set('contacts', [
+                            ...draft.contacts,
+                            { id: id('mobile'), kind: 'mobile', value: '', isPrimary: false }
+                          ])
                         }
-                      ])
-                    }
-                  >
-                    <Plus data-icon="inline-start" />
-                    Add Email
-                  </Button>
-                </div>
+                      >
+                        <Plus data-icon="inline-start" />
+                        Add contact
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() =>
+                          set('contacts', [
+                            ...draft.contacts,
+                            {
+                              id: id('telephone'),
+                              kind: 'telephone',
+                              value: '',
+                              isPrimary: false
+                            }
+                          ])
+                        }
+                      >
+                        <Plus data-icon="inline-start" />
+                        Add telephone
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() =>
+                          set('emails', [
+                            ...draft.emails,
+                            {
+                              id: id('email'),
+                              value: '',
+                              isPrimary: draft.emails.length === 0
+                            }
+                          ])
+                        }
+                      >
+                        <Plus data-icon="inline-start" />
+                        Add email
+                      </Button>
+                    </div>
+                  }
+                />
+                {(draft.emails.length > 0 || errors.emails) && (
+                  <EmailRows
+                    emails={draft.emails}
+                    onChange={(emails) => set('emails', emails)}
+                    error={errors.emails}
+                  />
+                )}
               </FieldGroup>
             </FieldSet>
             <FieldSeparator />
             <FieldSet className="gap-3">
-              <FieldLegend>Account attribution</FieldLegend>
+              <FieldLegend variant="label">Account attribution</FieldLegend>
               <FieldGroup className="grid gap-3 sm:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="occupation">Occupation</FieldLabel>

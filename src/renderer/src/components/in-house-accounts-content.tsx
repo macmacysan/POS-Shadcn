@@ -322,7 +322,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         swipeDirection={isMobile ? 'down' : 'right'}
         showSwipeHandle={isMobile}
       >
-        <DrawerContent className="[--drawer-content-width:min(96vw,46rem)] [--drawer-inset:1rem] bg-card text-card-foreground shadow-lg ring-1 ring-foreground/10 data-[swipe-direction=down]:!rounded-xl data-[swipe-direction=right]:!rounded-xl">
+        <DrawerContent className="[--drawer-content-width:min(96vw,46rem)] data-[swipe-axis=x]:[--drawer-bleed-background:transparent] data-[swipe-axis=x]:[--drawer-inset:0px] data-[swipe-axis=y]:[--drawer-inset:1rem]">
           <DrawerHeader className="border-b px-4 py-3">
             <DrawerTitle>Add Account</DrawerTitle>
             <DrawerDescription>Create an in-house installment customer account.</DrawerDescription>
