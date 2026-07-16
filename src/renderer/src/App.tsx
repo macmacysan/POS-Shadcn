@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { LoginForm } from '@/components/login-form'
 import { CashierReportsContent } from '@/components/cashier-reports-content'
+import { InHouseAccountsContent } from '@/components/in-house-accounts-content'
 import { SidebarLeft } from '@/components/sidebar-left'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -9,11 +10,16 @@ import { ThemeToggle } from '@/components/theme-toggle'
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 
 function Workspace(): React.JSX.Element {
-  const [activeView, setActiveView] = useState<'dashboard' | 'cashier-reports'>('dashboard')
+  const [activeView, setActiveView] = useState<
+    'dashboard' | 'cashier-reports' | 'in-house-accounts'
+  >('dashboard')
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
-      <SidebarLeft onCashierReports={() => setActiveView('cashier-reports')} />
+      <SidebarLeft
+        onCashierReports={() => setActiveView('cashier-reports')}
+        onAllAccounts={() => setActiveView('in-house-accounts')}
+      />
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
         <header
           className="flex h-11 shrink-0 items-center gap-2 border-b px-4"
@@ -27,6 +33,8 @@ function Workspace(): React.JSX.Element {
         </header>
         {activeView === 'cashier-reports' ? (
           <CashierReportsContent />
+        ) : activeView === 'in-house-accounts' ? (
+          <InHouseAccountsContent />
         ) : (
           <main className="flex flex-1 flex-col gap-6 p-6">
             <div>

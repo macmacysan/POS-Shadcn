@@ -4,11 +4,12 @@ import {
   CircleDollarSignIcon,
   CircleHelpIcon,
   ClipboardListIcon,
-  FileTextIcon,
+  HouseIcon,
+  LandmarkIcon,
   LayoutDashboardIcon,
   Settings2Icon,
   StoreIcon,
-  UsersIcon,
+  UsersIcon
 } from 'lucide-react'
 
 import { NavMain } from '@/components/nav-main'
@@ -21,30 +22,78 @@ const data = {
   navMain: [
     { title: 'Dashboard', url: '#', icon: <LayoutDashboardIcon />, isActive: true },
     { title: 'Cashier reports', url: '#', icon: <ClipboardListIcon /> },
-    { title: 'Receipts', url: '#', icon: <FileTextIcon /> },
-    { title: 'Finance', url: '#', icon: <CircleDollarSignIcon /> },
+    {
+      title: 'Finance',
+      url: '#',
+      icon: <CircleDollarSignIcon />,
+      children: [
+        { title: 'Overview', url: '#' },
+        {
+          title: 'In-house',
+          url: '#',
+          icon: <HouseIcon />,
+          children: [
+            { title: 'Dashboard', url: '#' },
+            { title: 'All Accounts', url: '#' },
+            { title: 'Active Accounts', url: '#' },
+            { title: 'Closed Accounts', url: '#' },
+            { title: 'Blacklisted Accounts', url: '#' }
+          ]
+        },
+        {
+          title: 'Finance',
+          url: '#',
+          icon: <LandmarkIcon />,
+          children: [
+            { title: 'Dashboard', url: '#' },
+            { title: 'Accounts', url: '#' }
+          ]
+        }
+      ]
+    }
   ],
   navSecondary: [
     { title: 'Reports', url: '#', icon: <BarChart3Icon /> },
     { title: 'Branches', url: '#', icon: <StoreIcon /> },
     { title: 'Cashiers', url: '#', icon: <UsersIcon /> },
     { title: 'Settings', url: '#', icon: <Settings2Icon /> },
-    { title: 'Help', url: '#', icon: <CircleHelpIcon /> },
-  ],
+    { title: 'Help', url: '#', icon: <CircleHelpIcon /> }
+  ]
 }
 
 export function SidebarLeft({
   onCashierReports,
+  onAllAccounts,
   ...props
-}: React.ComponentProps<typeof Sidebar> & { onCashierReports?: () => void }): React.JSX.Element {
+}: React.ComponentProps<typeof Sidebar> & {
+  onCashierReports?: () => void
+  onAllAccounts?: () => void
+}): React.JSX.Element {
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarHeader>
         <TeamSwitcher teams={data.teams} />
         <NavMain
-          items={data.navMain.map((item) =>
-            item.title === 'Cashier reports' ? { ...item, onClick: onCashierReports } : item
-          )}
+          items={data.navMain.map((item) => {
+            if (item.title === 'Cashier reports') return { ...item, onClick: onCashierReports }
+            if (item.title !== 'Finance') return item
+            if (!item.children) return item
+            return {
+              ...item,
+              children: item.children.map((child) =>
+                child.title === 'In-house'
+                  ? {
+                      ...child,
+                      children: child.children?.map((entry) =>
+                        entry.title === 'All Accounts'
+                          ? { ...entry, onClick: onAllAccounts }
+                          : entry
+                      )
+                    }
+                  : child
+              )
+            }
+          })}
         />
       </SidebarHeader>
       <SidebarContent>
