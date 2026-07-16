@@ -166,6 +166,7 @@ export function ReportDataTable<TData extends ReportRow>({
     [columns]
   )
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table manages reactive table state internally.
   const table = useReactTable({
     data,
     columns: tableColumns,
@@ -200,7 +201,7 @@ export function ReportDataTable<TData extends ReportRow>({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b bg-card px-4 py-2 min-[901px]:flex-nowrap">
-        <InputGroup className="min-w-0 max-w-[420px] flex-1 max-[900px]:basis-full">
+        <InputGroup className="min-w-0 max-w-105 flex-1 max-[900px]:basis-full">
           <InputGroupAddon align="inline-start">
             <Search aria-hidden="true" />
           </InputGroupAddon>
@@ -296,8 +297,8 @@ export function ReportDataTable<TData extends ReportRow>({
         </div>
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto [scrollbar-color:theme(colors.border)_transparent] [scrollbar-width:thin]">
-        <Table className="min-w-[900px]">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto [scrollbar-color:var(colors.border)_transparent] [scrollbar-thin]">
+        <Table className="min-w-225">
           <TableHeader className="sticky top-0 z-10 bg-muted/30">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow className="h-9" key={headerGroup.id}>
