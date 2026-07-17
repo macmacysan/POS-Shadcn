@@ -3,6 +3,8 @@ import { format } from 'date-fns'
 export const branchNames = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const
 export type BranchName = (typeof branchNames)[number]
 
+export const inHouseAccountsStorageKey = 'cashiers-report-in-house-accounts'
+
 export const branchLabels: Record<BranchName, string> = {
   Goa: 'Goa',
   Tinambac: 'Tinambac',
@@ -122,6 +124,19 @@ export const sampleAccounts: readonly InHouseAccount[] = [
     updatedAt: '2026-07-08T14:45:00.000Z'
   }
 ]
+
+export function readInHouseAccounts(): readonly InHouseAccount[] {
+  const saved = localStorage.getItem(inHouseAccountsStorageKey)
+  if (!saved) return sampleAccounts
+
+  try {
+    const parsed: unknown = JSON.parse(saved)
+    return Array.isArray(parsed) ? (parsed as InHouseAccount[]) : sampleAccounts
+  } catch (error) {
+    if (error instanceof SyntaxError) return sampleAccounts
+    throw error
+  }
+}
 
 export function formatAccountName(
   account: Pick<InHouseAccount, 'lastName' | 'firstName' | 'middleName' | 'suffix'>

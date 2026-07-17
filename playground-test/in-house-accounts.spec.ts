@@ -9,6 +9,7 @@ async function openAllAccounts(page: Page): Promise<void> {
   await page.getByLabel('Username').fill('cashier')
   await page.getByLabel('Password').fill('password')
   await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('button', { name: 'Finance' }).click()
   await page.getByText('In-house', { exact: true }).click()
   await page.getByText('All Accounts', { exact: true }).click()
 }

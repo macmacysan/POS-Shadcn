@@ -16,17 +16,19 @@ import { NavSecondary } from '@/components/nav-secondary'
 import { TeamSwitcher } from '@/components/team-switcher'
 import { Sidebar, SidebarContent, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
 
+type ActiveView = 'dashboard' | 'cashier-reports' | 'in-house-accounts' | 'in-house-active-accounts'
+
 const data = {
   teams: [{ name: 'Cashiers Report', logo: <StoreIcon />, plan: 'Local workspace' }],
   navMain: [
-    { title: 'Nueva Camsur Home Furnishing', section: true as const },
     { title: 'Dashboard', url: '#', icon: <LayoutDashboardIcon />, isActive: true },
     { title: 'Cashier reports', url: '#', icon: <ClipboardListIcon /> },
     {
       title: 'Finance',
-      section: true as const,
+      url: '#',
+      icon: <LandmarkIcon />,
       children: [
-        { title: 'Overview', url: '#' },
+        { title: 'Overview', url: '#', icon: <BarChart3Icon /> },
         {
           title: 'In-house',
           url: '#',
@@ -60,20 +62,37 @@ const data = {
 }
 
 export function SidebarLeft({
+  activeView = 'dashboard',
+  onDashboard,
   onCashierReports,
   onAllAccounts,
+  onActiveAccounts,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
+  activeView?: ActiveView
+  onDashboard?: () => void
   onCashierReports?: () => void
   onAllAccounts?: () => void
+  onActiveAccounts?: () => void
 }): React.JSX.Element {
   return (
-    <Sidebar className="border-r-0" {...props}>
-      <SidebarHeader>
+    <Sidebar collapsible="icon" className="border-r-0" {...props}>
+      <SidebarHeader className="gap-3 border-b border-sidebar-border">
         <TeamSwitcher teams={data.teams} />
         <NavMain
           items={data.navMain.map((item) => {
-            if (item.title === 'Cashier reports') return { ...item, onClick: onCashierReports }
+            if (item.title === 'Dashboard')
+              return {
+                ...item,
+                isActive: activeView === 'dashboard',
+                onClick: onDashboard
+              }
+            if (item.title === 'Cashier reports')
+              return {
+                ...item,
+                isActive: activeView === 'cashier-reports',
+                onClick: onCashierReports
+              }
             if (item.title !== 'Finance') return item
             if (!item.children) return item
             return {
@@ -82,11 +101,21 @@ export function SidebarLeft({
                 child.title === 'In-house'
                   ? {
                       ...child,
-                      children: child.children?.map((entry) =>
-                        entry.title === 'All Accounts'
-                          ? { ...entry, onClick: onAllAccounts }
-                          : entry
-                      )
+                      children: child.children?.map((entry) => {
+                        if (entry.title === 'All Accounts')
+                          return {
+                            ...entry,
+                            isActive: activeView === 'in-house-accounts',
+                            onClick: onAllAccounts
+                          }
+                        if (entry.title === 'Active Accounts')
+                          return {
+                            ...entry,
+                            isActive: activeView === 'in-house-active-accounts',
+                            onClick: onActiveAccounts
+                          }
+                        return entry
+                      })
                     }
                   : child
               )

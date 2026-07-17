@@ -1,18 +1,6 @@
 import * as React from 'react'
+import { FileSearch, Plus, Search } from 'lucide-react'
 import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  FileSearch,
-  Plus,
-  Search
-} from 'lucide-react'
-import {
-  flexRender,
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
@@ -21,12 +9,10 @@ import {
   type PaginationState,
   type SortingState
 } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
 import { differenceInCalendarDays, format, parseISO, startOfToday } from 'date-fns'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
   Empty,
   EmptyContent,
@@ -57,82 +43,53 @@ import {
   DrawerHeader,
   DrawerTitle
 } from '@/components/ui/drawer'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { DataGrid, DataGridContainer } from '@/components/reui/data-grid/data-grid'
+import { DataGridColumnHeader } from '@/components/reui/data-grid/data-grid-column-header'
+import { DataGridPagination } from '@/components/reui/data-grid/data-grid-pagination'
+import { DataGridScrollArea } from '@/components/reui/data-grid/data-grid-scroll-area'
+import { DataGridTable } from '@/components/reui/data-grid/data-grid-table'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { InHouseAccountForm } from '@/components/in-house-account-form'
-import {
-  InHouseAccountInspector,
-  type AccountInspectorMeta
-} from '@/components/in-house-account-inspector'
+import { AccountBranchBadge, AccountStatusBadge } from '@/components/in-house-account-badges'
+import { InHouseAccountInspector } from '@/components/in-house-account-inspector'
+import { accountStatusRank } from '@/lib/in-house-account-display'
 import {
   branchLabels,
   branchNames,
   createAccount,
   formatAccountName,
   formatAddressSummary,
+  inHouseAccountsStorageKey,
   normalizeAccountDraft,
-  sampleAccounts,
+  readInHouseAccounts,
   type BranchName,
   type InHouseAccount
 } from '@/lib/in-house-accounts'
 import {
-  installmentHistoryData,
-  type InstallmentHistoryRecord,
-  type PaymentDetails
-} from '@/lib/installment-history'
+  buildAccountMonitoringMeta,
+  createAccountHistoryIndex,
+  type AccountMonitoringMeta,
+  type AccountMonitoringStatus
+} from '@/lib/in-house-account-monitoring'
 import { cn } from '@/lib/utils'
-
-type AccountStatus = AccountInspectorMeta['status']
 
 type AccountRow = {
   readonly account: InHouseAccount
   readonly name: string
   readonly address: string
   readonly branch: BranchName
-  readonly branchCode: string
-  readonly status: AccountStatus
+  readonly status: AccountMonitoringStatus
   readonly nextDue?: string
   readonly nextDueSort: number
-  readonly inspectorMeta: AccountInspectorMeta
+  readonly inspectorMeta: AccountMonitoringMeta
 }
 
-const storageKey = 'cashiers-report-in-house-accounts'
+const storageKey = inHouseAccountsStorageKey
 const sortStorageKey = `${storageKey}-sort`
 const paginationStorageKey = `${storageKey}-pagination`
 const defaultSorting: SortingState = [{ id: 'account', desc: false }]
 const defaultPagination: PaginationState = { pageIndex: 0, pageSize: 25 }
-const branchCodeByName: Record<BranchName, string> = {
-  Goa: 'GOA',
-  Tinambac: 'TIN',
-  Tigaon: 'TIG',
-  Lagonoy: 'LAG'
-}
-const statusRank: Record<AccountStatus, number> = {
-  overdue: 0,
-  'due-today': 1,
-  'due-soon': 2,
-  active: 3,
-  'fully-paid': 4,
-  closed: 5,
-  blacklisted: 6
-}
-const statusLabel: Record<AccountStatus, string> = {
-  active: 'Active',
-  'due-today': 'Due Today',
-  'due-soon': 'Due Soon',
-  overdue: 'Overdue',
-  closed: 'Closed',
-  blacklisted: 'Blacklisted',
-  'fully-paid': 'Fully Paid'
-}
 
 function readJson<T>(key: string, fallback: T): T {
   const saved = localStorage.getItem(key)
@@ -145,85 +102,9 @@ function readJson<T>(key: string, fallback: T): T {
   }
 }
 
-function readAccounts(): readonly InHouseAccount[] {
-  const saved = localStorage.getItem(storageKey)
-  if (!saved) return sampleAccounts
-  try {
-    const parsed: unknown = JSON.parse(saved)
-    return Array.isArray(parsed) ? (parsed as InHouseAccount[]) : sampleAccounts
-  } catch (error) {
-    if (error instanceof SyntaxError) return sampleAccounts
-    throw error
-  }
-}
-
 function toBranchName(value: string): BranchName {
   const match = branchNames.find((branch) => branch.toLowerCase() === value.toLowerCase())
   return match ?? 'Goa'
-}
-
-function getPayment(record: InstallmentHistoryRecord): PaymentDetails | undefined {
-  return record.details.payment
-}
-
-function buildAccountMeta(
-  accountId: string
-): Pick<AccountRow, 'status' | 'nextDue' | 'nextDueSort' | 'inspectorMeta'> {
-  const records = installmentHistoryData
-    .filter((record) => record.source === 'in-house' && record.accountId === accountId)
-    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
-  const latestBalance = records
-    .map((record) => getPayment(record)?.newBalance ?? record.balance)
-    .find((balance): balance is number => typeof balance === 'number')
-  const paymentFrequency = records
-    .map((record) => {
-      if (record.details.kind === 'new' || record.details.kind === 'deleted')
-        return record.details.snapshot.frequency
-      return record.details.changes.find((change) => change.field === 'Frequency')?.newValue
-    })
-    .find((value): value is string => Boolean(value))
-  const lastPayment = records
-    .filter((record) => record.action !== 'deleted')
-    .map((record) => {
-      const payment = getPayment(record)
-      return payment?.datePaid ?? (payment ? record.occurredAt : undefined)
-    })
-    .find((value): value is string => Boolean(value))
-  const nextDue = records
-    .filter((record) => record.action !== 'deleted')
-    .map((record) => getPayment(record)?.dueDate)
-    .filter((value): value is string => Boolean(value))
-    .sort()[0]
-  const baseMeta = {
-    outstandingBalance: latestBalance,
-    paymentFrequency,
-    lastPayment,
-    nextDue
-  }
-
-  if (latestBalance === 0) {
-    const status: AccountStatus = 'fully-paid'
-    return {
-      status,
-      nextDue,
-      nextDueSort: nextDue ? parseISO(nextDue).getTime() : Infinity,
-      inspectorMeta: { ...baseMeta, status }
-    }
-  }
-  if (!nextDue) {
-    const status: AccountStatus = 'active'
-    return { status, nextDueSort: Infinity, inspectorMeta: { ...baseMeta, status } }
-  }
-
-  const days = differenceInCalendarDays(parseISO(nextDue), startOfToday())
-  const status: AccountStatus =
-    days < 0 ? 'overdue' : days === 0 ? 'due-today' : days <= 7 ? 'due-soon' : 'active'
-  return {
-    status,
-    nextDue,
-    nextDueSort: parseISO(nextDue).getTime(),
-    inspectorMeta: { ...baseMeta, status, delayedDays: days < 0 ? Math.abs(days) : undefined }
-  }
 }
 
 function formatDueDate(value: string | undefined): string {
@@ -267,191 +148,8 @@ function useMediaQuery(query: string): boolean {
   return matches
 }
 
-function BranchBadge({
-  branch,
-  code
-}: {
-  readonly branch: BranchName
-  readonly code: string
-}): React.JSX.Element {
-  return (
-    <Badge variant="outline" className="gap-1.5 px-1.5">
-      <span
-        aria-hidden="true"
-        className={cn(
-          'size-1.5 rounded-full',
-          branch === 'Goa' && 'bg-primary',
-          branch === 'Tinambac' && 'bg-muted-foreground',
-          branch === 'Tigaon' && 'bg-accent-foreground',
-          branch === 'Lagonoy' && 'bg-secondary-foreground'
-        )}
-      />
-      {code}
-    </Badge>
-  )
-}
-
-function StatusBadge({ status }: { readonly status: AccountStatus }): React.JSX.Element {
-  return (
-    <Badge
-      variant={
-        status === 'overdue' || status === 'blacklisted'
-          ? 'destructive'
-          : status === 'due-today'
-            ? 'default'
-            : status === 'active' || status === 'due-soon' || status === 'fully-paid'
-              ? 'secondary'
-              : 'outline'
-      }
-    >
-      {statusLabel[status]}
-    </Badge>
-  )
-}
-
-function SortButton({
-  column,
-  label
-}: {
-  readonly column: AccountColumn
-  readonly label: string
-}): React.JSX.Element {
-  const sorted = column.getIsSorted()
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className="-ml-2 h-7 px-2 text-xs"
-      onClick={column.getToggleSortingHandler()}
-      aria-label={`Sort ${label}`}
-    >
-      {label}
-      {sorted === 'desc' ? (
-        <ArrowDown data-icon="inline-end" />
-      ) : sorted === 'asc' ? (
-        <ArrowUp data-icon="inline-end" />
-      ) : (
-        <ArrowUpDown data-icon="inline-end" />
-      )}
-    </Button>
-  )
-}
-
-type AccountColumn = ReturnType<
-  ReturnType<typeof useReactTable<AccountRow>>['getAllColumns']
->[number]
-
-function columnClassName(id: string): string {
-  return cn(
-    'flex min-w-0 items-center px-3 py-1',
-    id === 'branch' && 'max-[640px]:hidden',
-    id === 'account' && 'min-w-0',
-    id === 'address' && 'max-[1099px]:hidden',
-    id === 'status' && 'justify-start',
-    id === 'nextDue' && 'justify-end text-right'
-  )
-}
-
-const rowGridClassName =
-  'grid w-full grid-cols-[5.75rem_minmax(12rem,1.35fr)_minmax(9rem,1fr)_7.5rem_6.25rem] max-[1099px]:grid-cols-[5.75rem_minmax(0,1fr)_7.5rem_6.25rem] max-[640px]:grid-cols-[minmax(0,1fr)_7.5rem_6.25rem]'
-
-function AccountTableBody({
-  table,
-  selectedId,
-  onSelect
-}: {
-  readonly table: ReturnType<typeof useReactTable<AccountRow>>
-  readonly selectedId?: string
-  readonly onSelect: (account: InHouseAccount) => void
-}): React.JSX.Element {
-  const parentRef = React.useRef<HTMLDivElement>(null)
-  const rows = table.getRowModel().rows
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual owns scroll measurement state.
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 48,
-    overscan: 8
-  })
-
-  const selectAt = (index: number): void => {
-    const row = rows[index]
-    if (row) onSelect(row.original.account)
-  }
-
-  return (
-    <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-      <Table className="grid w-full table-fixed">
-        <TableHeader className="sticky top-0 bg-card shadow-xs">
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow
-              key={headerGroup.id}
-              className={cn('h-9 hover:bg-transparent', rowGridClassName)}
-            >
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className={cn(
-                    'h-9 text-xs font-medium normal-case text-muted-foreground',
-                    columnClassName(header.column.id)
-                  )}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(header.column.columnDef.header, header.getContext())}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody className="relative grid" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-          {virtualizer.getVirtualItems().map((virtualRow) => {
-            const row = rows[virtualRow.index]
-            const selected = row.original.account.id === selectedId
-            return (
-              <TableRow
-                key={row.id}
-                tabIndex={0}
-                aria-selected={selected}
-                data-state={selected ? 'selected' : undefined}
-                className={cn(
-                  'absolute h-12 cursor-pointer border-b border-l-2 border-l-transparent text-xs outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=selected]:border-l-primary data-[state=selected]:bg-primary/10 data-[state=selected]:hover:bg-primary/10',
-                  rowGridClassName
-                )}
-                style={{ transform: `translateY(${virtualRow.start}px)` }}
-                onClick={() => onSelect(row.original.account)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    onSelect(row.original.account)
-                  }
-                  if (event.key === 'ArrowDown') {
-                    event.preventDefault()
-                    selectAt(Math.min(virtualRow.index + 1, rows.length - 1))
-                  }
-                  if (event.key === 'ArrowUp') {
-                    event.preventDefault()
-                    selectAt(Math.max(virtualRow.index - 1, 0))
-                  }
-                }}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} className={columnClassName(cell.column.id)}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
-    </div>
-  )
-}
-
 export function InHouseAccountsContent(): React.JSX.Element {
-  const [accounts, setAccounts] = React.useState<readonly InHouseAccount[]>(readAccounts)
+  const [accounts, setAccounts] = React.useState<readonly InHouseAccount[]>(readInHouseAccounts)
   const [selectedId, setSelectedId] = React.useState<string | undefined>(accounts[0]?.id)
   const [search, setSearch] = React.useState('')
   const [branch, setBranch] = React.useState<BranchName | 'all'>('all')
@@ -466,6 +164,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
   const isMobile = useIsMobile()
   const isInspectorSheet = useMediaQuery('(max-width: 1099px)')
   const selected = accounts.find((account) => account.id === selectedId)
+  const historyIndex = React.useMemo(createAccountHistoryIndex, [])
   const agents = React.useMemo(
     () =>
       Array.from(
@@ -496,31 +195,43 @@ export function InHouseAccountsContent(): React.JSX.Element {
       )
       .map((account) => {
         const accountBranch = toBranchName(String(account.branch))
+        const inspectorMeta = buildAccountMonitoringMeta(account.id, historyIndex)
         return {
           account,
           name: formatAccountName(account),
           address: formatAddressSummary(account),
           branch: accountBranch,
-          branchCode: branchCodeByName[accountBranch],
-          ...buildAccountMeta(account.id)
+          status: inspectorMeta.status,
+          nextDue: inspectorMeta.nextDue,
+          nextDueSort: inspectorMeta.nextDue ? parseISO(inspectorMeta.nextDue).getTime() : Infinity,
+          inspectorMeta
         }
       })
-  }, [accounts, agent, branch, search])
+  }, [accounts, agent, branch, historyIndex, search])
   const columns = React.useMemo<ColumnDef<AccountRow>[]>(
     () => [
       {
         id: 'branch',
-        header: 'Branch',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Branch" />,
         enableSorting: false,
-        cell: ({ row }) => (
-          <BranchBadge branch={row.original.branch} code={row.original.branchCode} />
-        )
+        size: 92,
+        meta: {
+          headerTitle: 'Branch',
+          headerClassName: 'max-[640px]:hidden',
+          cellClassName: 'max-[640px]:hidden'
+        },
+        cell: ({ row }) => <AccountBranchBadge branch={row.original.branch} />
       },
       {
         id: 'account',
         accessorFn: (row) => row.name,
-        header: ({ column }) => <SortButton column={column} label="Account" />,
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Account" />,
         sortingFn: 'alphanumeric',
+        size: 230,
+        meta: {
+          headerTitle: 'Account',
+          cellClassName: 'min-w-0'
+        },
         cell: ({ row }) => (
           <div className="min-w-0">
             <TruncatedText value={row.original.name} className="font-medium text-foreground" />
@@ -531,24 +242,40 @@ export function InHouseAccountsContent(): React.JSX.Element {
       {
         id: 'address',
         accessorFn: (row) => row.address,
-        header: 'Address',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Address" />,
         enableSorting: false,
+        size: 210,
+        meta: {
+          headerTitle: 'Address',
+          headerClassName: 'max-[1099px]:hidden',
+          cellClassName: 'max-[1099px]:hidden'
+        },
         cell: ({ row }) => (
           <TruncatedText value={row.original.address} className="text-muted-foreground" />
         )
       },
       {
         id: 'status',
-        accessorFn: (row) => statusRank[row.status],
-        header: ({ column }) => <SortButton column={column} label="Status" />,
+        accessorFn: (row) => accountStatusRank[row.status],
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Status" />,
         sortingFn: 'basic',
-        cell: ({ row }) => <StatusBadge status={row.original.status} />
+        size: 120,
+        meta: {
+          headerTitle: 'Status'
+        },
+        cell: ({ row }) => <AccountStatusBadge status={row.original.status} />
       },
       {
         id: 'nextDue',
         accessorFn: (row) => row.nextDueSort,
-        header: ({ column }) => <SortButton column={column} label="Next Due" />,
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Next Due" />,
         sortingFn: 'basic',
+        size: 100,
+        meta: {
+          headerTitle: 'Next Due',
+          headerClassName: 'text-right',
+          cellClassName: 'text-right'
+        },
         cell: ({ row }) => (
           <span
             className={cn(
@@ -569,7 +296,12 @@ export function InHouseAccountsContent(): React.JSX.Element {
   const table = useReactTable({
     data: visibleAccounts,
     columns,
-    state: { sorting, pagination },
+    state: {
+      sorting,
+      pagination,
+      rowSelection: selectedId ? { [selectedId]: true } : {}
+    },
+    enableRowSelection: true,
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
@@ -578,10 +310,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
     getRowId: (row) => row.account.id
   })
   const totalRows = table.getPrePaginationRowModel().rows.length
-  const pageRows = table.getRowModel().rows.length
-  const firstRow = totalRows === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
-  const lastRow = Math.min(firstRow + pageRows - 1, totalRows)
-  const selectedMeta = selected ? buildAccountMeta(selected.id).inspectorMeta : undefined
+  const selectedMeta = selected ? buildAccountMonitoringMeta(selected.id, historyIndex) : undefined
 
   React.useEffect(() => {
     localStorage.setItem(sortStorageKey, JSON.stringify(sorting))
@@ -667,11 +396,29 @@ export function InHouseAccountsContent(): React.JSX.Element {
               </Button>
             </CardHeader>
             {totalRows ? (
-              <AccountTableBody
+              <DataGrid
                 table={table}
-                selectedId={selectedId}
-                onSelect={(account) => setSelectedId(account.id)}
-              />
+                recordCount={totalRows}
+                onRowClick={(row) => setSelectedId(row.account.id)}
+                className="flex min-h-0 min-w-0 flex-1 flex-col"
+                tableLayout={{
+                  dense: true,
+                  headerSticky: true,
+                  columnsResizable: true,
+                  width: 'fixed'
+                }}
+              >
+                <DataGridContainer className="min-h-0 min-w-0 flex-1">
+                  <DataGridScrollArea className="h-full min-h-0" orientation="both">
+                    <DataGridTable />
+                  </DataGridScrollArea>
+                </DataGridContainer>
+                <DataGridPagination
+                  sizes={[25, 50, 100]}
+                  info="Showing {from}-{to} of {count} accounts"
+                  className="h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-3 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0"
+                />
+              </DataGrid>
             ) : (
               <div className="flex min-h-0 flex-1 items-center justify-center p-4">
                 <Empty className="border-0">
@@ -694,71 +441,6 @@ export function InHouseAccountsContent(): React.JSX.Element {
                 </Empty>
               </div>
             )}
-            <CardFooter className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              <span>
-                Showing {firstRow}-{lastRow} of {totalRows} accounts
-              </span>
-              <div className="flex items-center gap-2">
-                <span>Rows per page</span>
-                <Select
-                  value={String(pagination.pageSize)}
-                  onValueChange={(value) => table.setPageSize(Number(value))}
-                >
-                  <SelectTrigger size="sm" className="w-20" aria-label="Rows per page">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[25, 50, 100].map((size) => (
-                      <SelectItem key={size} value={String(size)}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="First page"
-                    disabled={!table.getCanPreviousPage()}
-                    onClick={() => table.setPageIndex(0)}
-                  >
-                    <ChevronsLeft aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Previous page"
-                    disabled={!table.getCanPreviousPage()}
-                    onClick={() => table.previousPage()}
-                  >
-                    <ChevronLeft aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Next page"
-                    disabled={!table.getCanNextPage()}
-                    onClick={() => table.nextPage()}
-                  >
-                    <ChevronRight aria-hidden="true" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Last page"
-                    disabled={!table.getCanNextPage()}
-                    onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                  >
-                    <ChevronsRight aria-hidden="true" />
-                  </Button>
-                </div>
-              </div>
-            </CardFooter>
           </CardContent>
         </Card>
         {!isInspectorSheet && (

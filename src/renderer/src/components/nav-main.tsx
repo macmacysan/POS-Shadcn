@@ -2,12 +2,25 @@ import * as React from 'react'
 import { ChevronRightIcon } from 'lucide-react'
 
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
+import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   SidebarMenu,
   SidebarMenuButton,
-  SidebarMenuItem
+  SidebarMenuItem,
+  useSidebar
 } from '@/components/ui/sidebar'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
@@ -61,13 +74,47 @@ function hasActiveDescendant(item: NavChildItem): boolean {
   return Boolean(item.isActive || item.children?.some(hasActiveDescendant))
 }
 
+function handleNavClick(event: React.MouseEvent<HTMLElement>, onClick?: () => void): void {
+  if (!onClick) return
+  event.preventDefault()
+  onClick()
+}
+
+function NavFlyoutItem({ item }: { item: NavChildItem }): React.JSX.Element {
+  if (item.children) {
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger className="gap-2">
+          {item.icon}
+          <span>{item.title}</span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="min-w-48">
+          {item.children.map((child) => (
+            <NavFlyoutItem key={child.title} item={child} />
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    )
+  }
+
+  return (
+    <DropdownMenuItem
+      className="gap-2"
+      data-active={item.isActive}
+      render={<a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />}
+    >
+      {item.icon}
+      <span>{item.title}</span>
+    </DropdownMenuItem>
+  )
+}
+
 function NavChildLink({ item }: { item: NavChildItem }): React.JSX.Element {
   return (
     <SidebarMenuSubItem>
       <SidebarMenuSubButton
         isActive={item.isActive}
-        onClick={item.onClick}
-        render={<a href={item.url} />}
+        render={<a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />}
       >
         <span>{item.title}</span>
       </SidebarMenuSubButton>
@@ -120,8 +167,8 @@ function NavItemLink({ item }: { item: NavLinkItem }): React.JSX.Element {
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={item.isActive}
-        onClick={item.onClick}
-        render={<a href={item.url} />}
+        tooltip={item.title}
+        render={<a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />}
       >
         {item.icon}
         <span>{item.title}</span>
@@ -130,7 +177,41 @@ function NavItemLink({ item }: { item: NavLinkItem }): React.JSX.Element {
   )
 }
 
+function NavGroupFlyout({ item }: { item: NavGroupItem }): React.JSX.Element {
+  return (
+    <SidebarMenuItem>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <SidebarMenuButton
+              isActive={hasActiveDescendant(item)}
+              tooltip={item.title}
+              className="group-data-[collapsible=icon]:justify-center"
+            />
+          }
+        >
+          {item.icon}
+          <span>{item.title}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="min-w-56">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              {item.title}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {item.children.map((child) => (
+              <NavFlyoutItem key={child.title} item={child} />
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
+  )
+}
+
 export function NavMain({ items }: { items: NavItem[] }): React.JSX.Element {
+  const { state, isMobile } = useSidebar()
+  const isCollapsed = state === 'collapsed' && !isMobile
   const initiallyOpenGroup = items.find(
     (item): item is NavGroupItem => isNavGroup(item) && hasActiveDescendant(item)
   )?.title
@@ -141,7 +222,7 @@ export function NavMain({ items }: { items: NavItem[] }): React.JSX.Element {
   }
 
   return (
-    <SidebarMenu>
+    <SidebarMenu className="gap-1">
       {items.map((item) =>
         isNavSection(item) ? (
           <SidebarMenuItem key={item.title}>
@@ -154,6 +235,8 @@ export function NavMain({ items }: { items: NavItem[] }): React.JSX.Element {
               </SidebarMenuSub>
             )}
           </SidebarMenuItem>
+        ) : isNavGroup(item) && isCollapsed ? (
+          <NavGroupFlyout key={item.title} item={item} />
         ) : isNavGroup(item) ? (
           <Collapsible
             key={item.title}

@@ -11,7 +11,7 @@ Preserve existing business behavior unless the active task explicitly changes it
 Read only the documents relevant to the current task:
 
 - UI, forms, tables, responsive layout, and visual design: `docs/DESIGN.md`
-- React, TypeScript, renderer components, Tailwind, and shadcn/ui: `docs/FRONTEND.md`
+- React, TypeScript, renderer components, Tailwind, shadcn/ui and reUI: `docs/FRONTEND.md`
 - Electron, preload, IPC, main process, persistence, and dependencies: `docs/ARCHITECTURE.md`
 - Calculations, money handling, reconciliation, and report identity: `docs/BUSINESS_RULES.md`
 - Authentication, authorization, sensitive data, imports, exports, and backups: `docs/SECURITY.md`

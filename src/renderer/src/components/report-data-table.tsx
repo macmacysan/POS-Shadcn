@@ -1,6 +1,5 @@
 import * as React from 'react'
 import {
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -8,24 +7,11 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   type SortingState,
-  type Table as TableInstance,
   useReactTable
 } from '@tanstack/react-table'
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  Plus,
-  Search
-} from 'lucide-react'
+import { Filter, Plus, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
   InputGroup,
@@ -42,15 +28,16 @@ import {
 } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { DataGrid, DataGridContainer } from '@/components/reui/data-grid/data-grid'
+import { DataGridColumnHeader } from '@/components/reui/data-grid/data-grid-column-header'
+import { DataGridPagination } from '@/components/reui/data-grid/data-grid-pagination'
+import { DataGridScrollArea } from '@/components/reui/data-grid/data-grid-scroll-area'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+  DataGridTable,
+  DataGridTableRowSelect,
+  DataGridTableRowSelectAll
+} from '@/components/reui/data-grid/data-grid-table'
+import { cn } from '@/lib/utils'
 
 export type ReportRow = { id: string }
 
@@ -64,68 +51,14 @@ type ReportDataTableProps<TData extends ReportRow> = {
   addEntryLabel?: string
 }
 
-function SortButton<TData extends ReportRow>({
-  column,
-  children
-}: {
-  column: ReturnType<TableInstance<TData>['getAllColumns']>[number]
-  children: React.ReactNode
-}): React.JSX.Element {
-  const sorted = column.getIsSorted()
-  const Icon = sorted === 'asc' ? ArrowUp : sorted === 'desc' ? ArrowDown : ArrowUpDown
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className="group -ml-2 h-7 px-2"
-      onClick={() => column.toggleSorting(sorted === 'asc')}
-    >
-      {children}
-      {sorted ? (
-        <Icon data-icon="inline-end" aria-hidden="true" />
-      ) : (
-        <ArrowUpDown
-          data-icon="inline-end"
-          aria-hidden="true"
-          className="opacity-0 transition-opacity group-hover:opacity-100"
-        />
-      )}
-    </Button>
-  )
-}
-
-function PaginationButton({
-  label,
-  disabled,
-  onClick,
-  children
-}: {
-  label: string
-  disabled: boolean
-  onClick: () => void
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-label={label}
-            onClick={onClick}
-            disabled={disabled}
-          />
-        }
-      >
-        {children}
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
-  )
+function getHeaderTitle<TData extends ReportRow>(column: ReportColumn<TData>): string {
+  if (typeof column.header === 'string') return column.header
+  if ('accessorKey' in column && typeof column.accessorKey === 'string') {
+    return column.accessorKey
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (value) => value.toUpperCase())
+  }
+  return column.id ?? 'Column'
 }
 
 export function ReportDataTable<TData extends ReportRow>({
@@ -147,22 +80,34 @@ export function ReportDataTable<TData extends ReportRow>({
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        header: ({ table }) => (
-          <Checkbox
-            aria-label="Select all rows on this page"
-            checked={table.getIsAllPageRowsSelected()}
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            aria-label={`Select row ${row.index + 1}`}
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-          />
-        )
+        size: 42,
+        header: () => <DataGridTableRowSelectAll />,
+        cell: ({ row }) => <DataGridTableRowSelect row={row} />,
+        meta: {
+          headerClassName: 'w-10',
+          cellClassName: 'w-10'
+        }
       },
-      ...columns
+      ...(columns.map((column) => {
+        const headerTitle = getHeaderTitle(column)
+        const legacyMeta = column.meta as { className?: string } | undefined
+
+        return {
+          ...column,
+          header: ({ column: tableColumn }) => (
+            <DataGridColumnHeader column={tableColumn} title={headerTitle} />
+          ),
+          meta: {
+            ...column.meta,
+            headerTitle,
+            headerClassName: cn(
+              'text-xs uppercase tracking-wide text-muted-foreground',
+              legacyMeta?.className
+            ),
+            cellClassName: cn('max-w-72 truncate align-middle', legacyMeta?.className)
+          }
+        }
+      }) as ColumnDef<TData>[])
     ],
     [columns]
   )
@@ -186,10 +131,6 @@ export function ReportDataTable<TData extends ReportRow>({
   })
 
   const filteredRowCount = table.getFilteredRowModel().rows.length
-  const pageIndex = table.getState().pagination.pageIndex
-  const pageSize = table.getState().pagination.pageSize
-  const firstVisibleRow = filteredRowCount === 0 ? 0 : pageIndex * pageSize + 1
-  const lastVisibleRow = Math.min((pageIndex + 1) * pageSize, filteredRowCount)
   const filterableColumns = columns.filter(
     (column): column is ReportColumn<TData> & { accessorKey: string } =>
       'accessorKey' in column && typeof column.accessorKey === 'string'
@@ -300,140 +241,29 @@ export function ReportDataTable<TData extends ReportRow>({
         </div>
       </div>
 
-      <ScrollArea className="min-h-0 min-w-0 flex-1" scrollbars="both">
-        <Table className="min-w-225" containerClassName="overflow-visible">
-          <TableHeader className="sticky top-0 z-10 bg-muted/30">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow className="h-9" key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  const column = columns.find(
-                    (item) =>
-                      item.id === header.column.id ||
-                      ('accessorKey' in item && item.accessorKey === header.column.id)
-                  )
-                  return (
-                    <TableHead
-                      key={header.id}
-                      className={[
-                        header.column.id === 'select'
-                          ? 'w-10'
-                          : 'text-xs uppercase tracking-wide text-muted-foreground',
-                        (header.column.columnDef.meta as { className?: string } | undefined)
-                          ?.className
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      {header.isPlaceholder ? null : header.column.id === 'select' ? (
-                        flexRender(header.column.columnDef.header, header.getContext())
-                      ) : column?.enableSorting !== false ? (
-                        <SortButton column={header.column}>
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                        </SortButton>
-                      ) : (
-                        flexRender(header.column.columnDef.header, header.getContext())
-                      )}
-                    </TableHead>
-                  )
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  className="h-9"
-                  key={row.id}
-                  data-state={row.getIsSelected() ? 'selected' : undefined}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={[
-                        'max-w-[18rem] truncate px-3 py-1 align-middle',
-                        (cell.column.columnDef.meta as { className?: string } | undefined)
-                          ?.className
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={tableColumns.length}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No matching entries.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </ScrollArea>
-
-      <TooltipProvider>
-        <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-t bg-muted/30 px-4 py-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>
-              {firstVisibleRow}–{lastVisibleRow} of {filteredRowCount} entries
-            </span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(value) => table.setPageSize(Number(value))}
-            >
-              <SelectTrigger size="sm" aria-label="Rows per page">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[15, 25, 50, 100].map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="px-2 text-xs text-muted-foreground">
-              Page {pageIndex + 1} of {Math.max(table.getPageCount(), 1)}
-            </span>
-            <PaginationButton
-              label="First page"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.setPageIndex(0)}
-            >
-              <ChevronsLeft aria-hidden="true" />
-            </PaginationButton>
-            <PaginationButton
-              label="Previous page"
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-            >
-              <ChevronLeft aria-hidden="true" />
-            </PaginationButton>
-            <PaginationButton
-              label="Next page"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-            >
-              <ChevronRight aria-hidden="true" />
-            </PaginationButton>
-            <PaginationButton
-              label="Last page"
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            >
-              <ChevronsRight aria-hidden="true" />
-            </PaginationButton>
-          </div>
-        </div>
-      </TooltipProvider>
+      <DataGrid
+        table={table}
+        recordCount={filteredRowCount}
+        emptyMessage="No matching entries."
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
+        tableLayout={{
+          dense: true,
+          headerSticky: true,
+          columnsResizable: true,
+          width: 'fixed'
+        }}
+      >
+        <DataGridContainer className="min-h-0 min-w-0 flex-1">
+          <DataGridScrollArea className="h-full min-h-0" orientation="both">
+            <DataGridTable />
+          </DataGridScrollArea>
+        </DataGridContainer>
+        <DataGridPagination
+          sizes={[15, 25, 50, 100]}
+          info="{from}-{to} of {count} entries"
+          className="h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-4 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0"
+        />
+      </DataGrid>
     </div>
   )
 }
