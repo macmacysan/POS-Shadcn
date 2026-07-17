@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { format, isValid, parse } from 'date-fns'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon } from '@phosphor-icons/react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
@@ -8,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReportDataTable, type ReportColumn, type ReportRow } from '@/components/report-data-table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Sheet,
@@ -20,10 +19,12 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import {
   InputGroup,
   InputGroupAddon,
@@ -350,7 +351,7 @@ function ReportDatePicker({ id, label }: { id: string; label: string }): React.J
 
 function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-3 p-4">
+    <FieldGroup className="p-4">
       {formFields[tab].map((field) => {
         const id = `${tab}-${field}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase()
         const options =
@@ -365,19 +366,21 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
                   : null
 
         return (
-          <div key={field} className="flex flex-col gap-1.5">
-            <Label htmlFor={id}>{field}</Label>
+          <Field key={field}>
+            <FieldLabel htmlFor={id}>{field}</FieldLabel>
             {options ? (
               <Select name={id}>
                 <SelectTrigger id={id} className="w-full" aria-label={field}>
                   <SelectValue placeholder={`Select ${field.toLowerCase()}`} />
                 </SelectTrigger>
                 <SelectContent>
-                  {options.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {options.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             ) : field === 'Date' ? (
@@ -399,20 +402,81 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
             ) : (
               <Input id={id} name={id} placeholder={`Enter ${field.toLowerCase()}`} />
             )}
-          </div>
+          </Field>
         )
       })}
+    </FieldGroup>
+  )
+}
+
+function TodaySummary(): React.JSX.Element {
+  return (
+    <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3">
+      <div className="shrink-0 border-b pb-3">
+        <p className="text-xs text-muted-foreground">Daily Cashier Report</p>
+        <h2 className="text-base font-semibold">Today&apos;s Summary</h2>
+        <p className="mt-1 text-xs text-muted-foreground">July 14, 2026</p>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto py-4">
+        <div className="rounded-lg border bg-card p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Cash variance</span>
+            <span className="text-sm font-semibold">{money(0)}</span>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <p className="text-muted-foreground">Expected cash</p>
+              <p className="mt-1 font-medium">{money(0)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Actual cash</p>
+              <p className="mt-1 font-medium">{money(0)}</p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+          No saved report entries yet.
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+function EntryFormActions(): React.JSX.Element {
+  return (
+    <div className="flex shrink-0 flex-wrap gap-2 border-t p-3">
+      <Button type="submit" size="sm">
+        Save Entry
+      </Button>
+      <Button type="button" variant="outline" size="sm">
+        Save &amp; New
+      </Button>
+      <Button type="reset" variant="ghost" size="sm">
+        Clear
+      </Button>
     </div>
+  )
+}
+
+function EntryFormPanel({ tab }: { tab: (typeof reportTabs)[number] }): React.JSX.Element {
+  return (
+    <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => event.preventDefault()}>
+      <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
+        <ReportDetailsForm tab={tab} />
+      </CardContent>
+      <EntryFormActions />
+    </form>
   )
 }
 
 export function CashierReportsContent(): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
   const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
+  const [isSummaryVisible, setIsSummaryVisible] = React.useState(false)
   const [selectedHistory, setSelectedHistory] = React.useState<InstallmentHistoryRecord>()
   const isMobile = useIsMobile()
   const isHistoryTab = activeTab === 'Activity'
-  const showRightPanel = isHistoryTab || isEntryFormVisible
+  const showRightPanel = !isMobile && (isHistoryTab || isEntryFormVisible)
 
   React.useEffect(() => {
     if (!isEntryFormVisible) return
@@ -425,41 +489,18 @@ export function CashierReportsContent(): React.JSX.Element {
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
       <div
         className={
-          showRightPanel
-            ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(260px,302px)] gap-3 max-[900px]:grid-cols-[minmax(160px,190px)_minmax(0,1fr)]'
-            : 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3 max-[720px]:grid-cols-1'
+          isMobile
+            ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-1 gap-3'
+            : showRightPanel
+              ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(260px,302px)] gap-3 max-[900px]:grid-cols-[minmax(160px,190px)_minmax(0,1fr)]'
+              : 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3'
         }
       >
-        <Card className="flex min-h-0 min-w-0 flex-col">
-          <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3">
-            <div className="shrink-0 border-b pb-3">
-              <p className="text-xs text-muted-foreground">Daily Cashier Report</p>
-              <h2 className="text-base font-semibold">Today&apos;s Summary</h2>
-              <p className="mt-1 text-xs text-muted-foreground">July 14, 2026</p>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto py-4">
-              <div className="rounded-lg border bg-card p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">Cash variance</span>
-                  <span className="text-sm font-semibold">₱0.00</span>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <p className="text-muted-foreground">Expected cash</p>
-                    <p className="mt-1 font-medium">₱0.00</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Actual cash</p>
-                    <p className="mt-1 font-medium">₱0.00</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-                No saved report entries yet.
-              </div>
-            </div>
-          </aside>
-        </Card>
+        {!isMobile && (
+          <Card className="flex min-h-0 min-w-0 flex-col">
+            <TodaySummary />
+          </Card>
+        )}
         <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
           <CardContent className="flex min-h-0 flex-1 flex-col p-0">
             <Tabs
@@ -510,27 +551,7 @@ export function CashierReportsContent(): React.JSX.Element {
         </Card>
         {showRightPanel && !isHistoryTab && (
           <Card className="flex min-h-0 min-w-0 flex-col">
-            <div className="flex h-full min-h-0 flex-col">
-              <form
-                className="flex h-full min-h-0 flex-col"
-                onSubmit={(event) => event.preventDefault()}
-              >
-                <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
-                  <ReportDetailsForm tab={activeTab} />
-                </CardContent>
-                <div className="flex shrink-0 flex-wrap gap-2 border-t p-3">
-                  <Button type="submit" size="sm">
-                    Save Entry
-                  </Button>
-                  <Button type="button" variant="outline" size="sm">
-                    Save &amp; New
-                  </Button>
-                  <Button type="reset" variant="ghost" size="sm">
-                    Clear
-                  </Button>
-                </div>
-              </form>
-            </div>
+            <EntryFormPanel tab={activeTab} />
           </Card>
         )}
         {isHistoryTab && !isMobile && (
@@ -539,6 +560,40 @@ export function CashierReportsContent(): React.JSX.Element {
           </Card>
         )}
       </div>
+      {isMobile && (
+        <>
+          <Button
+            type="button"
+            size="sm"
+            className="fixed right-4 bottom-4"
+            onClick={() => setIsSummaryVisible(true)}
+          >
+            Today&apos;s Summary
+          </Button>
+          <Sheet open={isSummaryVisible} onOpenChange={setIsSummaryVisible}>
+            <SheetContent side="left" className="w-[min(92vw,22rem)] p-0">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Today&apos;s Summary</SheetTitle>
+                <SheetDescription>Daily cashier report totals and cash variance.</SheetDescription>
+              </SheetHeader>
+              <TodaySummary />
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
+      {isMobile && !isHistoryTab && (
+        <Sheet open={isEntryFormVisible} onOpenChange={setIsEntryFormVisible}>
+          <SheetContent side="right" className="w-[min(92vw,26rem)] p-0">
+            <SheetHeader>
+              <SheetTitle>{activeTab} Entry</SheetTitle>
+              <SheetDescription>
+                Add a cashier report entry for {activeTab.toLowerCase()}.
+              </SheetDescription>
+            </SheetHeader>
+            <EntryFormPanel tab={activeTab} />
+          </SheetContent>
+        </Sheet>
+      )}
       {isHistoryTab && isMobile && (
         <Sheet
           open={Boolean(selectedHistory)}
