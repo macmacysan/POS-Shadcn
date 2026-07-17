@@ -26,7 +26,7 @@ import { differenceInCalendarDays, format, parseISO, startOfToday } from 'date-f
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import {
   Empty,
   EmptyContent,
@@ -68,7 +68,10 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { InHouseAccountForm } from '@/components/in-house-account-form'
-import { InHouseAccountInspector } from '@/components/in-house-account-inspector'
+import {
+  InHouseAccountInspector,
+  type AccountInspectorMeta
+} from '@/components/in-house-account-inspector'
 import {
   branchLabels,
   branchNames,
@@ -87,8 +90,7 @@ import {
 } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 
-type AccountStatus =
-  'active' | 'due-today' | 'due-soon' | 'overdue' | 'closed' | 'blacklisted' | 'fully-paid'
+type AccountStatus = AccountInspectorMeta['status']
 
 type AccountRow = {
   readonly account: InHouseAccount
@@ -99,6 +101,7 @@ type AccountRow = {
   readonly status: AccountStatus
   readonly nextDue?: string
   readonly nextDueSort: number
+  readonly inspectorMeta: AccountInspectorMeta
 }
 
 const storageKey = 'cashiers-report-in-house-accounts'
@@ -165,32 +168,62 @@ function getPayment(record: InstallmentHistoryRecord): PaymentDetails | undefine
 
 function buildAccountMeta(
   accountId: string
-): Pick<AccountRow, 'status' | 'nextDue' | 'nextDueSort'> {
+): Pick<AccountRow, 'status' | 'nextDue' | 'nextDueSort' | 'inspectorMeta'> {
   const records = installmentHistoryData
     .filter((record) => record.source === 'in-house' && record.accountId === accountId)
     .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
   const latestBalance = records
     .map((record) => getPayment(record)?.newBalance ?? record.balance)
     .find((balance): balance is number => typeof balance === 'number')
+  const paymentFrequency = records
+    .map((record) => {
+      if (record.details.kind === 'new' || record.details.kind === 'deleted')
+        return record.details.snapshot.frequency
+      return record.details.changes.find((change) => change.field === 'Frequency')?.newValue
+    })
+    .find((value): value is string => Boolean(value))
+  const lastPayment = records
+    .filter((record) => record.action !== 'deleted')
+    .map((record) => {
+      const payment = getPayment(record)
+      return payment?.datePaid ?? (payment ? record.occurredAt : undefined)
+    })
+    .find((value): value is string => Boolean(value))
   const nextDue = records
     .filter((record) => record.action !== 'deleted')
     .map((record) => getPayment(record)?.dueDate)
     .filter((value): value is string => Boolean(value))
     .sort()[0]
+  const baseMeta = {
+    outstandingBalance: latestBalance,
+    paymentFrequency,
+    lastPayment,
+    nextDue
+  }
 
   if (latestBalance === 0) {
+    const status: AccountStatus = 'fully-paid'
     return {
-      status: 'fully-paid',
+      status,
       nextDue,
-      nextDueSort: nextDue ? parseISO(nextDue).getTime() : Infinity
+      nextDueSort: nextDue ? parseISO(nextDue).getTime() : Infinity,
+      inspectorMeta: { ...baseMeta, status }
     }
   }
-  if (!nextDue) return { status: 'active', nextDueSort: Infinity }
+  if (!nextDue) {
+    const status: AccountStatus = 'active'
+    return { status, nextDueSort: Infinity, inspectorMeta: { ...baseMeta, status } }
+  }
 
   const days = differenceInCalendarDays(parseISO(nextDue), startOfToday())
   const status: AccountStatus =
     days < 0 ? 'overdue' : days === 0 ? 'due-today' : days <= 7 ? 'due-soon' : 'active'
-  return { status, nextDue, nextDueSort: parseISO(nextDue).getTime() }
+  return {
+    status,
+    nextDue,
+    nextDueSort: parseISO(nextDue).getTime(),
+    inspectorMeta: { ...baseMeta, status, delayedDays: days < 0 ? Math.abs(days) : undefined }
+  }
 }
 
 function formatDueDate(value: string | undefined): string {
@@ -218,6 +251,20 @@ function TruncatedText({
       </Tooltip>
     </TooltipProvider>
   )
+}
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = React.useState(false)
+
+  React.useEffect(() => {
+    const mediaQuery = window.matchMedia(query)
+    const onChange = (): void => setMatches(mediaQuery.matches)
+    mediaQuery.addEventListener('change', onChange)
+    onChange()
+    return () => mediaQuery.removeEventListener('change', onChange)
+  }, [query])
+
+  return matches
 }
 
 function BranchBadge({
@@ -417,6 +464,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
   )
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const isMobile = useIsMobile()
+  const isInspectorSheet = useMediaQuery('(max-width: 1099px)')
   const selected = accounts.find((account) => account.id === selectedId)
   const agents = React.useMemo(
     () =>
@@ -533,6 +581,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
   const pageRows = table.getRowModel().rows.length
   const firstRow = totalRows === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1
   const lastRow = Math.min(firstRow + pageRows - 1, totalRows)
+  const selectedMeta = selected ? buildAccountMeta(selected.id).inspectorMeta : undefined
 
   React.useEffect(() => {
     localStorage.setItem(sortStorageKey, JSON.stringify(sorting))
@@ -560,7 +609,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
-      <div className="grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(270px,320px)] gap-3 max-[767px]:grid-cols-1">
+      <div className="grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_clamp(20rem,24vw,24rem)] gap-3 max-[1099px]:grid-cols-1">
         <Card className="flex min-h-0 min-w-0 flex-col">
           <CardContent className="flex min-h-0 flex-1 flex-col p-0">
             <CardHeader className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
@@ -712,23 +761,29 @@ export function InHouseAccountsContent(): React.JSX.Element {
             </CardFooter>
           </CardContent>
         </Card>
-        {!isMobile && (
+        {!isInspectorSheet && (
           <Card className="flex min-h-0 min-w-0 flex-col">
-            <CardHeader className="border-b p-4">
-              <CardTitle>Account Details</CardTitle>
-            </CardHeader>
-            <InHouseAccountInspector account={selected} />
+            <InHouseAccountInspector account={selected} meta={selectedMeta} />
           </Card>
         )}
       </div>
-      {isMobile && (
+      {isInspectorSheet && (
         <Sheet open={Boolean(selected)} onOpenChange={(open) => !open && setSelectedId(undefined)}>
-          <SheetContent side="right" className="w-[min(92vw,26rem)] p-0">
+          <SheetContent
+            side="right"
+            showCloseButton={false}
+            className="w-full p-0 sm:w-[clamp(20rem,70vw,24rem)]"
+          >
             <SheetHeader className="sr-only">
               <SheetTitle>Account details</SheetTitle>
               <SheetDescription>Full details for the selected account.</SheetDescription>
             </SheetHeader>
-            <InHouseAccountInspector account={selected} />
+            <InHouseAccountInspector
+              account={selected}
+              meta={selectedMeta}
+              isSheet
+              onClose={() => setSelectedId(undefined)}
+            />
           </SheetContent>
         </Sheet>
       )}

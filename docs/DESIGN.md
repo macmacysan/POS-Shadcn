@@ -34,6 +34,7 @@ Use this emphasis order:
 
 Rules:
 
+- All Tables must use only 1 visual theme and styling.
 - Form titles use strong foreground emphasis.
 - Descriptions and helper text use `text-muted-foreground`.
 - Section titles are distinct but less prominent than the form title.
