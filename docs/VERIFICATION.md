@@ -8,7 +8,6 @@ Use verification proportional to the change.
 - Calculation changes: run targeted unit tests.
 - Form or component behavior: run relevant component or integration tests.
 - Database changes: run migrations and targeted persistence tests.
-- User workflow changes: run targeted Playwright tests.
 - Styling changes: inspect affected screens at supported viewport sizes.
 - Broad structural changes: run lint, tests, type checking, and the production build.
 - High-risk changes: verify both success and failure paths.

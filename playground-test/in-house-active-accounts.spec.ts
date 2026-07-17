@@ -15,7 +15,7 @@ async function openActiveAccounts(page: Page): Promise<void> {
   await signIn(page)
   await page.getByRole('button', { name: 'Finance' }).click()
   await page.getByText('In-house', { exact: true }).click()
-  await page.getByText('Active Accounts', { exact: true }).click()
+  await page.getByRole('link', { name: 'Active Accounts' }).click()
 }
 
 test('Active Accounts presents the collection-focused workspace', async ({ page }) => {
@@ -36,25 +36,42 @@ test('Active Accounts presents the collection-focused workspace', async ({ page 
   }
 
   await expect(page.getByText('Showing 1–3 of 3 Active Accounts')).toBeVisible()
+  const kpiCards = page.locator('[data-slot="card"]').filter({ hasText: "Today's Collections" })
+  await expect(page.locator('[data-slot="card"]').filter({ hasText: /^Active/ })).toBeVisible()
+  await expect(page.locator('[data-slot="card"]').filter({ hasText: /^Due Today/ })).toBeVisible()
+  await expect(page.locator('[data-slot="card"]').filter({ hasText: /^Overdue/ })).toBeVisible()
+  await expect(kpiCards).toBeVisible()
   await expect(page.getByRole('table').getByText('IH-2026-0041', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Record Payment' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'View Ledger' })).toBeDisabled()
   await expect(page.getByText('Loan Overview', { exact: true })).toBeVisible()
   await expect(page.getByText('Financial & Contract Details', { exact: true })).toBeVisible()
 
+  await expect(page.getByRole('button', { name: 'Open advanced filters' })).toBeVisible()
+  await page.getByRole('button', { name: 'Open advanced filters' }).click()
+  const filtersDialog = page.getByRole('dialog', { name: 'Filters' })
+  await expect(filtersDialog).toBeVisible()
+  await filtersDialog.getByRole('combobox', { name: 'Branch' }).click()
+  await page.getByRole('option', { name: 'Tinambac' }).click()
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByRole('button', { name: 'Tinambac' })).toBeVisible()
+  await page.getByRole('button', { name: 'Tinambac' }).click()
+  await expect(page.getByRole('button', { name: 'Tinambac' })).toBeHidden()
+
   const search = page.getByLabel('Search active accounts by name, account ID, or mobile number')
   await search.fill('IH-2026-0037')
   await expect(page.getByRole('table').getByText('IH-2026-0037', { exact: true })).toBeVisible()
   await expect(page.getByText('Showing 1–1 of 1 Active Accounts')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Search: IH-2026-0037' })).toBeVisible()
   await search.fill('')
 
-  await page.getByRole('button', { name: 'Monthly' }).click()
-  await expect(page.getByRole('button', { name: 'Monthly' })).toHaveAttribute(
+  await page.getByRole('button', { name: 'Monthly' }).first().click()
+  await expect(page.getByRole('button', { name: 'Monthly' }).first()).toHaveAttribute(
     'aria-pressed',
     'true'
   )
-  await page.getByRole('button', { name: 'Clear Filters' }).first().click()
-  await expect(page.getByRole('button', { name: 'Monthly' })).toHaveAttribute(
+  await page.getByRole('button', { name: 'Clear All' }).first().click()
+  await expect(page.getByRole('button', { name: 'Monthly' }).first()).toHaveAttribute(
     'aria-pressed',
     'false'
   )
@@ -108,7 +125,7 @@ test('Active Accounts keeps a bounded row DOM with 10,000 accounts', async ({ pa
   await signIn(page)
   await page.getByRole('button', { name: 'Finance' }).click()
   await page.getByText('In-house', { exact: true }).click()
-  await page.getByText('Active Accounts', { exact: true }).click()
+  await page.getByRole('link', { name: 'Active Accounts' }).click()
 
   await expect(page.getByText('Showing 1–25 of 10,000 Active Accounts')).toBeVisible()
   await expect.poll(() => page.locator('tbody tr').count()).toBeLessThanOrEqual(25)

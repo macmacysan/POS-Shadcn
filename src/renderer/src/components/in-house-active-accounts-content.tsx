@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { FileSearch, Search, X } from 'lucide-react'
+import { FileSearch, Search, SlidersHorizontal, X } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -12,6 +12,7 @@ import {
 import { differenceInCalendarDays, format, parseISO, startOfToday } from 'date-fns'
 
 import { AccountBranchBadge, AccountStatusBadge } from '@/components/in-house-account-badges'
+import { InHouseAccountStatCard } from '@/components/in-house-account-stat-card'
 import { InHouseAccountInspector } from '@/components/in-house-account-inspector'
 import { DataGrid, DataGridContainer } from '@/components/reui/data-grid/data-grid'
 import { DataGridColumnHeader } from '@/components/reui/data-grid/data-grid-column-header'
@@ -41,6 +42,7 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle
 } from '@/components/ui/sheet'
@@ -61,7 +63,7 @@ import {
   type BranchName,
   type InHouseAccount
 } from '@/lib/in-house-accounts'
-import { formatHistoryMoney } from '@/lib/installment-history'
+import { formatHistoryMoney, installmentHistoryData } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 
 type DueDateFilter = 'all' | 'today' | 'tomorrow' | 'this-week' | 'overdue'
@@ -158,6 +160,21 @@ function formatContractTerms(value: string | undefined): string {
   return value
 }
 
+function daysUntilDue(nextDue: string | undefined): number | undefined {
+  return nextDue ? differenceInCalendarDays(parseISO(nextDue), startOfToday()) : undefined
+}
+
+function paidTodayTotal(): number {
+  const today = format(startOfToday(), 'yyyy-MM-dd')
+
+  return installmentHistoryData
+    .filter((record) => record.source === 'in-house' && record.action !== 'deleted')
+    .reduce((total, record) => {
+      const payment = record.details.payment
+      return payment?.datePaid === today ? total + (payment.amountPaid ?? 0) : total
+    }, 0)
+}
+
 const TruncatedText = React.memo(function TruncatedText({
   value,
   className
@@ -239,12 +256,72 @@ function QuickFilterChip({
   return (
     <Button
       type="button"
-      size="xs"
-      variant={active ? 'secondary' : 'outline'}
+      size="sm"
+      variant="outline"
       aria-pressed={active}
       onClick={onClick}
+      className={cn('h-7 rounded-full px-2 text-xs', active && 'bg-muted text-foreground')}
     >
       {children}
+    </Button>
+  )
+}
+
+function FilterSelect<TValue extends string>({
+  label,
+  items,
+  value,
+  onValueChange
+}: {
+  readonly label: string
+  readonly items: readonly { readonly label: string; readonly value: TValue }[]
+  readonly value: TValue
+  readonly onValueChange: (value: TValue) => void
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <Select
+        items={items}
+        value={value}
+        onValueChange={(nextValue) => {
+          if (nextValue) onValueChange(nextValue)
+        }}
+      >
+        <SelectTrigger className="w-full" aria-label={label}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {items.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+function ActiveFilterChip({
+  label,
+  onRemove
+}: {
+  readonly label: string
+  readonly onRemove: () => void
+}): React.JSX.Element {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="xs"
+      className="max-w-full rounded-full"
+      onClick={onRemove}
+    >
+      <span className="truncate">{label}</span>
+      <X data-icon="inline-end" />
     </Button>
   )
 }
@@ -257,6 +334,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
   const [paymentStatus, setPaymentStatus] = React.useState<ActivePaymentStatus | 'all'>('all')
   const [frequency, setFrequency] = React.useState('all')
   const [dueDate, setDueDate] = React.useState<DueDateFilter>('all')
+  const [isFiltersOpen, setIsFiltersOpen] = React.useState(false)
   const [sorting, setSorting] = React.useState<SortingState>(() =>
     readJson(sortStorageKey, defaultSorting)
   )
@@ -298,18 +376,13 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
       ]
         .join(' ')
         .toLowerCase()
-      const daysUntilDue = row.nextDue
-        ? differenceInCalendarDays(parseISO(row.nextDue), startOfToday())
-        : undefined
+      const dueInDays = daysUntilDue(row.nextDue)
       const matchesDueDate =
         dueDate === 'all' ||
-        (dueDate === 'today' && daysUntilDue === 0) ||
-        (dueDate === 'tomorrow' && daysUntilDue === 1) ||
-        (dueDate === 'this-week' &&
-          daysUntilDue !== undefined &&
-          daysUntilDue >= 0 &&
-          daysUntilDue <= 7) ||
-        (dueDate === 'overdue' && daysUntilDue !== undefined && daysUntilDue < 0)
+        (dueDate === 'today' && dueInDays === 0) ||
+        (dueDate === 'tomorrow' && dueInDays === 1) ||
+        (dueDate === 'this-week' && dueInDays !== undefined && dueInDays >= 0 && dueInDays <= 7) ||
+        (dueDate === 'overdue' && dueInDays !== undefined && dueInDays < 0)
 
       return (
         (!query || searchable.includes(query)) &&
@@ -322,6 +395,47 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
     })
   }, [baseRows, branch, dueDate, frequency, paymentStatus, search])
   const selectedRow = baseRows.find((row) => row.account.id === selectedId)
+  const activeAccountsCount = baseRows.length
+  const dueTodayCount = baseRows.filter((row) => row.status === 'due-today').length
+  const overdueCount = baseRows.filter((row) => row.status === 'overdue').length
+  const todaysCollections = React.useMemo(paidTodayTotal, [])
+  const activeFilters = React.useMemo(
+    () =>
+      [
+        search.trim() && {
+          key: 'search',
+          label: `Search: ${search.trim()}`,
+          onRemove: () => setSearch('')
+        },
+        branch !== 'all' && {
+          key: 'branch',
+          label: branchFilterItems.find((item) => item.value === branch)?.label ?? branch,
+          onRemove: () => setBranch('all')
+        },
+        paymentStatus !== 'all' && {
+          key: 'status',
+          label:
+            statusFilterItems.find((item) => item.value === paymentStatus)?.label ?? paymentStatus,
+          onRemove: () => setPaymentStatus('all')
+        },
+        frequency !== 'all' && {
+          key: 'frequency',
+          label: frequencyFilterItems.find((item) => item.value === frequency)?.label ?? frequency,
+          onRemove: () => setFrequency('all')
+        },
+        dueDate !== 'all' && {
+          key: 'dueDate',
+          label: dueDateFilterItems.find((item) => item.value === dueDate)?.label ?? dueDate,
+          onRemove: () => setDueDate('all')
+        }
+      ].filter(Boolean) as readonly {
+        readonly key: string
+        readonly label: string
+        readonly onRemove: () => void
+      }[],
+    [branch, dueDate, frequency, paymentStatus, search]
+  )
+  const hasActiveFilters = activeFilters.length > 0
   const columns = React.useMemo<ColumnDef<ActiveAccountRow>[]>(
     () => [
       {
@@ -495,188 +609,211 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
       <div className="grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_clamp(20rem,24vw,24rem)] gap-3 max-[1099px]:grid-cols-1">
-        <Card className="flex min-h-0 min-w-0 flex-col">
-          <CardHeader className="flex shrink-0 flex-col gap-2 border-b px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <InputGroup className="h-8 min-w-56 max-w-sm flex-1">
-                <InputGroupAddon>
-                  <Search aria-hidden="true" />
-                </InputGroupAddon>
-                <InputGroupInput
-                  className="text-xs"
-                  aria-label="Search active accounts by name, account ID, or mobile number"
-                  placeholder="Search account..."
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </InputGroup>
-              <Select
-                items={branchFilterItems}
-                value={branch}
-                onValueChange={(value) => setBranch((value ?? 'all') as BranchName | 'all')}
-              >
-                <SelectTrigger size="sm" className="w-28" aria-label="Filter by branch">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {branchFilterItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select
-                items={statusFilterItems}
-                value={paymentStatus}
-                onValueChange={(value) =>
-                  setPaymentStatus((value ?? 'all') as ActivePaymentStatus | 'all')
-                }
-              >
-                <SelectTrigger size="sm" className="w-32" aria-label="Filter by payment status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {statusFilterItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select
-                items={frequencyFilterItems}
-                value={frequency}
-                onValueChange={(value) => setFrequency(value ?? 'all')}
-              >
-                <SelectTrigger size="sm" className="w-32" aria-label="Filter by frequency">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {frequencyFilterItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Select
-                items={dueDateFilterItems}
-                value={dueDate}
-                onValueChange={(value) => setDueDate((value ?? 'all') as DueDateFilter)}
-              >
-                <SelectTrigger size="sm" className="w-32" aria-label="Filter by due date">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {dueDateFilterItems.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5" aria-label="Quick filters">
-              <QuickFilterChip
-                active={paymentStatus === 'due-today'}
-                onClick={() =>
-                  setPaymentStatus(paymentStatus === 'due-today' ? 'all' : 'due-today')
-                }
-              >
-                Due Today
-              </QuickFilterChip>
-              <QuickFilterChip
-                active={paymentStatus === 'overdue'}
-                onClick={() => setPaymentStatus(paymentStatus === 'overdue' ? 'all' : 'overdue')}
-              >
-                Overdue
-              </QuickFilterChip>
-              <QuickFilterChip
-                active={dueDate === 'this-week'}
-                onClick={() => setDueDate(dueDate === 'this-week' ? 'all' : 'this-week')}
-              >
-                Due This Week
-              </QuickFilterChip>
-              <QuickFilterChip
-                active={frequency === 'Weekly'}
-                onClick={() => setFrequency(frequency === 'Weekly' ? 'all' : 'Weekly')}
-              >
-                Weekly
-              </QuickFilterChip>
-              <QuickFilterChip
-                active={frequency === 'Monthly'}
-                onClick={() => setFrequency(frequency === 'Monthly' ? 'all' : 'Monthly')}
-              >
-                Monthly
-              </QuickFilterChip>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="ml-auto"
-                onClick={clearFilters}
-              >
-                <X data-icon="inline-start" />
-                Clear Filters
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-            {filteredRows.length ? (
-              <DataGrid
-                table={table}
-                recordCount={filteredRows.length}
-                onRowClick={(row) => setSelectedId(row.account.id)}
-                className="flex min-h-0 min-w-0 flex-1 flex-col"
-                tableLayout={{ dense: true, headerSticky: true, width: 'fixed' }}
-                tableClassNames={{ base: tableMinWidthClass }}
-              >
-                <DataGridContainer className="min-h-0 min-w-0 flex-1">
-                  <DataGridScrollArea className="h-full min-h-0" orientation="both">
-                    <DataGridTableVirtual estimateSize={48} overscan={8} />
-                  </DataGridScrollArea>
-                </DataGridContainer>
-                <DataGridPagination
-                  sizes={[25, 50, 100]}
-                  info="Showing {from}–{to} of {count} Active Accounts"
-                  className="h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-3 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0"
-                />
-              </DataGrid>
-            ) : (
-              <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-                <Empty className="border-0">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <FileSearch aria-hidden="true" />
-                    </EmptyMedia>
-                    <EmptyTitle>No active accounts found.</EmptyTitle>
-                    <EmptyDescription>Try clearing one or more filters.</EmptyDescription>
-                  </EmptyHeader>
-                  <EmptyContent>
-                    <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
-                      Clear Filters
-                    </Button>
-                  </EmptyContent>
-                </Empty>
+        <div className="flex min-h-0 min-w-0 flex-col gap-3">
+          <div className="grid grid-cols-4 gap-2 max-[720px]:grid-cols-2">
+            <InHouseAccountStatCard
+              label="Active"
+              value={activeAccountsCount.toLocaleString('en-PH')}
+            />
+            <InHouseAccountStatCard
+              label="Due Today"
+              value={dueTodayCount.toLocaleString('en-PH')}
+            />
+            <InHouseAccountStatCard
+              label="Overdue"
+              value={overdueCount.toLocaleString('en-PH')}
+            />
+            <InHouseAccountStatCard
+              label="Today's Collections"
+              value={formatHistoryMoney(todaysCollections)}
+            />
+          </div>
+          <Card className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <CardHeader className="flex shrink-0 flex-col gap-2 border-b px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <InputGroup className="h-8 min-w-56 max-w-sm flex-1">
+                  <InputGroupAddon>
+                    <Search aria-hidden="true" />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    className="text-xs"
+                    aria-label="Search active accounts by name, account ID, or mobile number"
+                    placeholder="Search account..."
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </InputGroup>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Open advanced filters"
+                  onClick={() => setIsFiltersOpen(true)}
+                >
+                  <SlidersHorizontal data-icon="inline-start" />
+                  Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
+                </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex flex-wrap gap-1.5" aria-label="Quick filters">
+                  <QuickFilterChip
+                    active={paymentStatus === 'due-today'}
+                    onClick={() =>
+                      setPaymentStatus(paymentStatus === 'due-today' ? 'all' : 'due-today')
+                    }
+                  >
+                    Due Today
+                  </QuickFilterChip>
+                  <QuickFilterChip
+                    active={paymentStatus === 'overdue'}
+                    onClick={() =>
+                      setPaymentStatus(paymentStatus === 'overdue' ? 'all' : 'overdue')
+                    }
+                  >
+                    Overdue
+                  </QuickFilterChip>
+                  <QuickFilterChip
+                    active={dueDate === 'this-week'}
+                    onClick={() => setDueDate(dueDate === 'this-week' ? 'all' : 'this-week')}
+                  >
+                    Due This Week
+                  </QuickFilterChip>
+                  <QuickFilterChip
+                    active={frequency === 'Weekly'}
+                    onClick={() => setFrequency(frequency === 'Weekly' ? 'all' : 'Weekly')}
+                  >
+                    Weekly
+                  </QuickFilterChip>
+                  <QuickFilterChip
+                    active={frequency === 'Monthly'}
+                    onClick={() => setFrequency(frequency === 'Monthly' ? 'all' : 'Monthly')}
+                  >
+                    Monthly
+                  </QuickFilterChip>
+                </div>
+                {hasActiveFilters && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="ml-auto"
+                    onClick={clearFilters}
+                  >
+                    <X data-icon="inline-start" />
+                    Clear All
+                  </Button>
+                )}
+              </div>
+              {hasActiveFilters && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {activeFilters.map((filter) => (
+                    <ActiveFilterChip
+                      key={filter.key}
+                      label={filter.label}
+                      onRemove={filter.onRemove}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardHeader>
+            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+              {filteredRows.length ? (
+                <DataGrid
+                  table={table}
+                  recordCount={filteredRows.length}
+                  onRowClick={(row) => setSelectedId(row.account.id)}
+                  className="flex min-h-0 min-w-0 flex-1 flex-col"
+                  tableLayout={{ dense: true, headerSticky: true, width: 'fixed' }}
+                  tableClassNames={{ base: tableMinWidthClass }}
+                >
+                  <DataGridContainer className="min-h-0 min-w-0 flex-1">
+                    <DataGridScrollArea className="h-full min-h-0" orientation="both">
+                      <DataGridTableVirtual estimateSize={48} overscan={8} />
+                    </DataGridScrollArea>
+                  </DataGridContainer>
+                  <DataGridPagination
+                    sizes={[25, 50, 100]}
+                    info="Showing {from}–{to} of {count} Active Accounts"
+                    className="h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-3 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0"
+                  />
+                </DataGrid>
+              ) : (
+                <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+                  <Empty className="border-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <FileSearch aria-hidden="true" />
+                      </EmptyMedia>
+                      <EmptyTitle>No active accounts found.</EmptyTitle>
+                      <EmptyDescription>Try clearing one or more filters.</EmptyDescription>
+                    </EmptyHeader>
+                    <EmptyContent>
+                      <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                        Clear Filters
+                      </Button>
+                    </EmptyContent>
+                  </Empty>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
         {!isInspectorSheet && (
           <Card className="flex min-h-0 min-w-0 flex-col">
             <InHouseAccountInspector account={selectedRow?.account} meta={selectedRow?.meta} />
           </Card>
         )}
       </div>
+      <Sheet open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+        <SheetContent side="right" className="w-[min(92vw,24rem)] p-0">
+          <SheetHeader className="border-b">
+            <SheetTitle>Filters</SheetTitle>
+            <SheetDescription>Refine the active collection queue.</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <section className="flex flex-col gap-3">
+              <h3 className="text-xs font-semibold">Account Scope</h3>
+              <FilterSelect
+                label="Branch"
+                items={branchFilterItems}
+                value={branch}
+                onValueChange={(value) => setBranch(value as BranchName | 'all')}
+              />
+              <FilterSelect
+                label="Payment Status"
+                items={statusFilterItems}
+                value={paymentStatus}
+                onValueChange={(value) => setPaymentStatus(value as ActivePaymentStatus | 'all')}
+              />
+            </section>
+            <section className="flex flex-col gap-3">
+              <h3 className="text-xs font-semibold">Schedule</h3>
+              <FilterSelect
+                label="Payment Frequency"
+                items={frequencyFilterItems}
+                value={frequency}
+                onValueChange={setFrequency}
+              />
+              <FilterSelect
+                label="Due Date"
+                items={dueDateFilterItems}
+                value={dueDate}
+                onValueChange={(value) => setDueDate(value as DueDateFilter)}
+              />
+            </section>
+          </div>
+          <SheetFooter className="border-t">
+            {hasActiveFilters && (
+              <Button type="button" variant="outline" onClick={clearFilters}>
+                Clear All
+              </Button>
+            )}
+            <Button type="button" onClick={() => setIsFiltersOpen(false)}>
+              Done
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
       {isInspectorSheet && (
         <Sheet
           open={Boolean(selectedRow)}
