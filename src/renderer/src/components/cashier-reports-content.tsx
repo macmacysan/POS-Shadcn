@@ -1,6 +1,32 @@
 import * as React from 'react'
 import { format, isValid, parse } from 'date-fns'
 import { CalendarIcon } from '@phosphor-icons/react'
+import {
+  BadgeCheck,
+  BriefcaseBusiness,
+  Building2,
+  Bus,
+  CarFront,
+  CircleHelp,
+  CreditCard,
+  Ellipsis,
+  GraduationCap,
+  Heart,
+  HeartHandshake,
+  Landmark,
+  Megaphone,
+  Package,
+  Phone,
+  Printer,
+  ReceiptText,
+  Scale,
+  ShieldCheck,
+  Soup,
+  Utensils,
+  WalletCards,
+  Zap,
+  type LucideIcon
+} from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
@@ -32,6 +58,7 @@ import {
   InputGroupInput,
   InputGroupText
 } from '@/components/ui/input-group'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { InstallmentHistoryInspector } from '@/components/installment-history-inspector'
 import { InstallmentHistoryTable } from '@/components/installment-history-table'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -44,30 +71,117 @@ const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'
 const vatOptions = ['VAT', 'Non-VAT', 'Blank'] as const
 const paymentTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
 
-const expenseCategories = [
-  'Advertising',
-  'Education and training expenses for employees',
-  'Licenses and Permits',
-  'Bank Fees',
-  'Employee Benefit Programs',
-  'Office Expenses and Supplies',
-  'Business Meals',
-  'Food Allowance',
-  'Printing',
-  'Charitable Contributions',
-  'Freight, Postage and Shipping',
-  'Rent',
-  'Credit and Collection Fees',
-  'Insurance',
-  'Salaries and Compensation',
-  'Dues and Subscriptions',
-  'Legal and professional expenses',
-  'Telephone/Communication Expense',
-  'Transporation Allowance',
-  'Utilities',
-  'Vehicle Maintenance and Repairs',
-  'Others'
-] as const
+type ExpenseCategoryConfig = {
+  value: string
+  fullLabel: string
+  shortLabel: string
+  icon: LucideIcon
+}
+
+const expenseCategoryConfigs = [
+  { value: 'Advertising', fullLabel: 'Advertising', shortLabel: 'Ads', icon: Megaphone },
+  {
+    value: 'Education and training expenses for employees',
+    fullLabel: 'Education and training expenses for employees',
+    shortLabel: 'Training',
+    icon: GraduationCap
+  },
+  {
+    value: 'Licenses and Permits',
+    fullLabel: 'Licenses and Permits',
+    shortLabel: 'Permits',
+    icon: BadgeCheck
+  },
+  { value: 'Bank Fees', fullLabel: 'Bank Fees', shortLabel: 'Bank Fee', icon: Landmark },
+  {
+    value: 'Employee Benefit Programs',
+    fullLabel: 'Employee Benefit Programs',
+    shortLabel: 'Benefits',
+    icon: HeartHandshake
+  },
+  {
+    value: 'Office Expenses and Supplies',
+    fullLabel: 'Office Expenses and Supplies',
+    shortLabel: 'Office',
+    icon: BriefcaseBusiness
+  },
+  {
+    value: 'Business Meals',
+    fullLabel: 'Business Meals',
+    shortLabel: 'Meals',
+    icon: Utensils
+  },
+  { value: 'Food Allowance', fullLabel: 'Food Allowance', shortLabel: 'Food', icon: Soup },
+  { value: 'Printing', fullLabel: 'Printing', shortLabel: 'Printing', icon: Printer },
+  {
+    value: 'Charitable Contributions',
+    fullLabel: 'Charitable Contributions',
+    shortLabel: 'Charity',
+    icon: Heart
+  },
+  {
+    value: 'Freight, Postage and Shipping',
+    fullLabel: 'Freight, Postage and Shipping',
+    shortLabel: 'Shipping',
+    icon: Package
+  },
+  { value: 'Rent', fullLabel: 'Rent', shortLabel: 'Rent', icon: Building2 },
+  {
+    value: 'Credit and Collection Fees',
+    fullLabel: 'Credit and Collection Fees',
+    shortLabel: 'Collection',
+    icon: ReceiptText
+  },
+  {
+    value: 'Insurance',
+    fullLabel: 'Insurance',
+    shortLabel: 'Insurance',
+    icon: ShieldCheck
+  },
+  {
+    value: 'Salaries and Compensation',
+    fullLabel: 'Salaries and Compensation',
+    shortLabel: 'Salaries',
+    icon: WalletCards
+  },
+  {
+    value: 'Dues and Subscriptions',
+    fullLabel: 'Dues and Subscriptions',
+    shortLabel: 'Subscriptions',
+    icon: CreditCard
+  },
+  {
+    value: 'Legal and professional expenses',
+    fullLabel: 'Legal and professional expenses',
+    shortLabel: 'Legal',
+    icon: Scale
+  },
+  {
+    value: 'Telephone/Communication Expense',
+    fullLabel: 'Telephone/Communication Expense',
+    shortLabel: 'Telecom',
+    icon: Phone
+  },
+  {
+    value: 'Transporation Allowance',
+    fullLabel: 'Transporation Allowance',
+    shortLabel: 'Transport',
+    icon: Bus
+  },
+  { value: 'Utilities', fullLabel: 'Utilities', shortLabel: 'Utilities', icon: Zap },
+  {
+    value: 'Vehicle Maintenance and Repairs',
+    fullLabel: 'Vehicle Maintenance and Repairs',
+    shortLabel: 'Vehicle',
+    icon: CarFront
+  },
+  { value: 'Others', fullLabel: 'Others', shortLabel: 'Other', icon: Ellipsis }
+] as const satisfies readonly ExpenseCategoryConfig[]
+
+const expenseCategories = expenseCategoryConfigs.map(({ value }) => value)
+const expenseCategoryConfigByValue = new Map<string, ExpenseCategoryConfig>(
+  expenseCategoryConfigs.map((config) => [config.value, config])
+)
 
 type ExpenseRow = ReportRow & {
   type: string
@@ -125,6 +239,41 @@ function TypeBox({ value }: { value: string }): React.JSX.Element {
   )
 }
 
+function ExpenseCategoryCell({ category }: { category: string }): React.JSX.Element {
+  const fallbackLabel = category.trim() || 'Unknown'
+  const config = expenseCategoryConfigByValue.get(category) ?? {
+    value: category,
+    fullLabel: fallbackLabel,
+    shortLabel: fallbackLabel,
+    icon: CircleHelp
+  }
+  const Icon = config.icon
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="flex min-w-0 items-center gap-1.5" tabIndex={0}>
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-background">
+                <Icon
+                  aria-hidden="true"
+                  className="size-3 text-muted-foreground"
+                  strokeWidth={1.75}
+                />
+              </span>
+              <span className="truncate text-[10px] font-normal text-muted-foreground">
+                {config.shortLabel}
+              </span>
+            </span>
+          }
+        />
+        <TooltipContent>{config.fullLabel}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'type',
@@ -140,7 +289,8 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'category',
     header: 'Category',
-    meta: { className: 'w-[15%] text-muted-foreground' }
+    cell: ({ getValue }) => <ExpenseCategoryCell category={getValue<string>()} />,
+    meta: { className: 'w-32 min-w-28 max-w-40 text-muted-foreground' }
   },
   {
     accessorKey: 'receiptNo',

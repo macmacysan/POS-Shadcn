@@ -65,7 +65,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export const sampleAccounts: readonly InHouseAccount[] = [
   {
     id: 'IH-2026-0041',
-    branch: 'goa',
+    branch: 'Goa',
     lastName: 'Santos',
     firstName: 'Maria Clara',
     middleName: 'Villanueva',
@@ -88,7 +88,7 @@ export const sampleAccounts: readonly InHouseAccount[] = [
   },
   {
     id: 'IH-2026-0037',
-    branch: 'tinambac',
+    branch: 'Tinambac',
     lastName: 'Cruz',
     firstName: 'Luis Miguel',
     barangay: 'Olag Pequeño',
@@ -106,7 +106,7 @@ export const sampleAccounts: readonly InHouseAccount[] = [
   },
   {
     id: 'IH-2026-0029',
-    branch: 'tigaon',
+    branch: 'Tigaon',
     lastName: 'de los Santos',
     firstName: 'Beatriz',
     middleName: 'M.',
