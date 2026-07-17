@@ -41,6 +41,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Table,
   TableBody,
@@ -227,64 +228,66 @@ export function ReportDataTable<TData extends ReportRow>({
               <PopoverContent
                 align="end"
                 side="bottom"
-                className="max-h-[min(70vh,32rem)] overflow-y-auto"
+                className="h-[min(70vh,32rem)] overflow-hidden p-0"
               >
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Filter entries</p>
-                    <p className="text-xs text-muted-foreground">
-                      Narrow the table by one or more fields.
-                    </p>
-                  </div>
-                  {filterableColumns.map((column) => {
-                    const key = column.accessorKey
-                    const tableColumn = table.getColumn(key)
-                    if (!tableColumn) return null
-                    const options = Array.from(
-                      new Set(data.map((row) => String(row[key as keyof TData] ?? '')))
-                    )
-                      .filter(Boolean)
-                      .sort()
-                    const filterValue = (tableColumn.getFilterValue() as string) ?? ''
-                    const label = key
-                      .replace(/([A-Z])/g, ' $1')
-                      .replace(/^./, (value) => value.toUpperCase())
+                <ScrollArea className="h-full">
+                  <div className="flex flex-col gap-3 p-4">
+                    <div>
+                      <p className="text-sm font-medium">Filter entries</p>
+                      <p className="text-xs text-muted-foreground">
+                        Narrow the table by one or more fields.
+                      </p>
+                    </div>
+                    {filterableColumns.map((column) => {
+                      const key = column.accessorKey
+                      const tableColumn = table.getColumn(key)
+                      if (!tableColumn) return null
+                      const options = Array.from(
+                        new Set(data.map((row) => String(row[key as keyof TData] ?? '')))
+                      )
+                        .filter(Boolean)
+                        .sort()
+                      const filterValue = (tableColumn.getFilterValue() as string) ?? ''
+                      const label = key
+                        .replace(/([A-Z])/g, ' $1')
+                        .replace(/^./, (value) => value.toUpperCase())
 
-                    return (
-                      <div key={key} className="flex flex-col gap-1.5">
-                        <Label htmlFor={`filter-${key}`}>{label}</Label>
-                        <Select
-                          value={filterValue || '__all__'}
-                          onValueChange={(value) =>
-                            tableColumn.setFilterValue(value === '__all__' ? undefined : value)
-                          }
-                        >
-                          <SelectTrigger id={`filter-${key}`} size="sm" className="w-full">
-                            <SelectValue placeholder={`All ${label.toLowerCase()}`} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__all__">All</SelectItem>
-                            {options.map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )
-                  })}
-                  {activeFilterCount > 0 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => table.resetColumnFilters()}
-                    >
-                      Clear filters
-                    </Button>
-                  )}
-                </div>
+                      return (
+                        <div key={key} className="flex flex-col gap-1.5">
+                          <Label htmlFor={`filter-${key}`}>{label}</Label>
+                          <Select
+                            value={filterValue || '__all__'}
+                            onValueChange={(value) =>
+                              tableColumn.setFilterValue(value === '__all__' ? undefined : value)
+                            }
+                          >
+                            <SelectTrigger id={`filter-${key}`} size="sm" className="w-full">
+                              <SelectValue placeholder={`All ${label.toLowerCase()}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__all__">All</SelectItem>
+                              {options.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    })}
+                    {activeFilterCount > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => table.resetColumnFilters()}
+                      >
+                        Clear filters
+                      </Button>
+                    )}
+                  </div>
+                </ScrollArea>
               </PopoverContent>
             </Popover>
           )}
@@ -297,8 +300,8 @@ export function ReportDataTable<TData extends ReportRow>({
         </div>
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto [scrollbar-color:var(colors.border)_transparent] [scrollbar-thin]">
-        <Table className="min-w-225">
+      <ScrollArea className="min-h-0 min-w-0 flex-1" scrollbars="both">
+        <Table className="min-w-225" containerClassName="overflow-visible">
           <TableHeader className="sticky top-0 z-10 bg-muted/30">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow className="h-9" key={headerGroup.id}>
@@ -372,7 +375,7 @@ export function ReportDataTable<TData extends ReportRow>({
             )}
           </TableBody>
         </Table>
-      </div>
+      </ScrollArea>
 
       <TooltipProvider>
         <div className="flex min-h-12 shrink-0 items-center justify-between gap-2 border-t bg-muted/30 px-4 py-2">

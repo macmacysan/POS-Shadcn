@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/input-group'
 import { InstallmentHistoryInspector } from '@/components/installment-history-inspector'
 import { InstallmentHistoryTable } from '@/components/installment-history-table'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/installment-history'
 import { useIsMobile } from '@/hooks/use-mobile'
 
@@ -446,27 +447,29 @@ function TodaySummary(): React.JSX.Element {
         <h2 className="text-base font-semibold">Today&apos;s Summary</h2>
         <p className="mt-1 text-xs text-muted-foreground">July 14, 2026</p>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto py-4">
-        <div className="rounded-lg border bg-card p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Cash variance</span>
-            <span className="text-sm font-semibold">{money(0)}</span>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="py-4">
+          <div className="rounded-lg border bg-card p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Cash variance</span>
+              <span className="text-sm font-semibold">{money(0)}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <p className="text-muted-foreground">Expected cash</p>
+                <p className="mt-1 font-medium">{money(0)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Actual cash</p>
+                <p className="mt-1 font-medium">{money(0)}</p>
+              </div>
+            </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <p className="text-muted-foreground">Expected cash</p>
-              <p className="mt-1 font-medium">{money(0)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Actual cash</p>
-              <p className="mt-1 font-medium">{money(0)}</p>
-            </div>
+          <div className="mt-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+            No saved report entries yet.
           </div>
         </div>
-        <div className="mt-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-          No saved report entries yet.
-        </div>
-      </div>
+      </ScrollArea>
     </aside>
   )
 }
@@ -490,9 +493,9 @@ function EntryFormActions(): React.JSX.Element {
 function EntryFormPanel({ tab }: { tab: (typeof reportTabs)[number] }): React.JSX.Element {
   return (
     <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => event.preventDefault()}>
-      <CardContent className="min-h-0 flex-1 overflow-y-auto p-0">
+      <ScrollArea className="min-h-0 flex-1">
         <ReportDetailsForm tab={tab} />
-      </CardContent>
+      </ScrollArea>
       <EntryFormActions />
     </form>
   )

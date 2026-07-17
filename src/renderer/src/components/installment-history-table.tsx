@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   actionLabels,
@@ -182,8 +183,8 @@ export function InstallmentHistoryTable({
           Date &amp; time
         </button>
       </div>
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto [scrollbar-color:var(colors.border)_transparent] [scrollbar-width:thin]">
-        <Table className="min-w-[760px] table-fixed">
+      <ScrollArea className="min-h-0 min-w-0 flex-1" scrollbars="both">
+        <Table className="min-w-[760px] table-fixed" containerClassName="overflow-visible">
           <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
             <TableRow className="h-9 hover:bg-transparent">
               <TableHead className="w-[16%] text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -289,7 +290,7 @@ export function InstallmentHistoryTable({
             )}
           </TableBody>
         </Table>
-      </div>
+      </ScrollArea>
       <div className="flex min-h-10 shrink-0 items-center justify-between border-t bg-muted/30 px-3 text-xs text-muted-foreground">
         <span>
           {visibleRecords.length} record{visibleRecords.length === 1 ? '' : 's'}
