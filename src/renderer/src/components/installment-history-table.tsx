@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, Search } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
@@ -201,10 +201,10 @@ export function InstallmentHistoryTable({
               <TableHead className="w-[22%] text-[11px] uppercase tracking-wide text-muted-foreground">
                 ACTIVITY
               </TableHead>
-              <TableHead className="w-[11%] text-right text-[11px] uppercase tracking-wide text-muted-foreground">
+              <TableHead className="w-[11%] text-right text-[11px] uppercase tracking-wide text-foreground">
                 AMOUNT
               </TableHead>
-              <TableHead className="w-[10%] text-right text-[11px] uppercase tracking-wide text-muted-foreground">
+              <TableHead className="w-[10%] text-right text-[11px] uppercase tracking-wide text-foreground">
                 BALANCE
               </TableHead>
             </TableRow>
@@ -255,13 +255,13 @@ export function InstallmentHistoryTable({
                     }
                   }}
                 >
-                  <TableCell className="truncate px-3 py-1 text-xs">
+                  <TableCell className="truncate px-3 py-1 text-xs text-muted-foreground">
                     {formatHistoryDateTime(record.occurredAt)}
                   </TableCell>
                   <TableCell className="px-3 py-1">
                     <ActionBadge action={record.action} />
                   </TableCell>
-                  <TableCell className="truncate px-3 py-1 text-xs">
+                  <TableCell className="truncate px-3 py-1 text-xs text-muted-foreground">
                     {sourceLabels[record.source]}
                   </TableCell>
                   <TableCell className="min-w-0 px-3 py-1">
@@ -273,12 +273,15 @@ export function InstallmentHistoryTable({
                     )}
                   </TableCell>
                   <TableCell className="min-w-0 px-3 py-1">
-                    <TruncatedText value={record.activity} className="text-xs" />
+                    <TruncatedText
+                      value={record.activity}
+                      className="text-xs text-muted-foreground"
+                    />
                   </TableCell>
-                  <TableCell className="px-3 py-1 text-right text-xs tabular-nums">
+                  <TableCell className="px-3 py-1 text-right text-xs font-medium tabular-nums text-foreground">
                     {formatHistoryMoney(record.amount)}
                   </TableCell>
-                  <TableCell className="px-3 py-1 text-right text-xs font-medium tabular-nums">
+                  <TableCell className="px-3 py-1 text-right text-xs font-medium tabular-nums text-foreground">
                     {formatHistoryMoney(record.balance)}
                   </TableCell>
                 </TableRow>

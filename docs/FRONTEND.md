@@ -39,8 +39,8 @@ Applies to React, TypeScript, renderer components, hooks, forms, tables, Tailwin
 - Add reusable visual values as global semantic tokens before using them in components.
 - App customization must update global CSS variables, not individual component styles.
 - Do not introduce page-specific or component-local theme systems.
-- Do not construct Tailwind class names dynamically from partial strings.
 - Use `cn()` for conditional class composition.
+- Do not construct Tailwind classes dynamically from partial strings.
 
 ## shadcn/ui
 
@@ -51,16 +51,15 @@ Applies to React, TypeScript, renderer components, hooks, forms, tables, Tailwin
 
 ## Forms
 
-- All create and edit forms must follow the form presentation rules in `docs/01-DESIGN.md`.
-- Use the shared right-side shadcn Sheet drawer unless the task explicitly overrides this rule.
-- Opening a form must not resize, move, or restructure the primary workspace.
-- Reuse one shared drawer shell where practical instead of duplicating drawer implementations.
+- Follow `docs/DESIGN.md` for form hierarchy and drawer behavior.
+- Use the shared right-side shadcn `Sheet` for create and edit forms unless explicitly overridden.
+- Reuse existing form logic and avoid duplicated drawer implementations.
+- Opening a form must not alter the primary workspace layout.
 
 ## Tables
 
-- Optimize for scanning, entry speed, and monetary comparison.
+- Follow `docs/DESIGN.md` for table hierarchy and emphasis.
 - Right-align monetary values.
-- Keep column alignment and widths consistent.
 - Keep essential actions visible and inside the table viewport.
 - Use pagination or virtualization for high-volume datasets.
 - Do not render thousands of rows directly.

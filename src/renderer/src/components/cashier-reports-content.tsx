@@ -131,32 +131,48 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} />,
     meta: { className: 'w-[17%]' }
   },
-  { accessorKey: 'description', header: 'Description', meta: { className: 'w-[30%]' } },
-  { accessorKey: 'category', header: 'Category', meta: { className: 'w-[15%]' } },
-  { accessorKey: 'receiptNo', header: 'Receipt No.', meta: { className: 'w-[12%]' } },
-  { accessorKey: 'vat', header: 'VAT', meta: { className: 'w-[8%]' } },
+  {
+    accessorKey: 'description',
+    header: 'Description',
+    meta: { className: 'w-[30%] font-medium' }
+  },
+  {
+    accessorKey: 'category',
+    header: 'Category',
+    meta: { className: 'w-[15%] text-muted-foreground' }
+  },
+  {
+    accessorKey: 'receiptNo',
+    header: 'Receipt No.',
+    meta: { className: 'w-[12%] text-muted-foreground' }
+  },
+  { accessorKey: 'vat', header: 'VAT', meta: { className: 'w-[8%] text-muted-foreground' } },
   {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    meta: { className: 'w-[18%] text-right' }
+    meta: { className: 'w-[18%] text-right font-medium tabular-nums text-foreground' }
   }
 ]
 
 const incomeColumns: ReportColumn<IncomeRow>[] = [
-  { accessorKey: 'date', header: 'DATE', meta: { className: 'w-[15%]' } },
-  { accessorKey: 'particular', header: 'PARTICULAR', meta: { className: 'w-[25%]' } },
+  { accessorKey: 'date', header: 'DATE', meta: { className: 'w-[15%] text-muted-foreground' } },
+  { accessorKey: 'particular', header: 'PARTICULAR', meta: { className: 'w-[25%] font-medium' } },
   {
     accessorKey: 'receiptRefNo',
     header: 'RECEIPT / REFERENCE NO.',
-    meta: { className: 'w-[22%]' }
+    meta: { className: 'w-[22%] text-muted-foreground' }
   },
-  { accessorKey: 'remarks', header: 'REMARKS', meta: { className: 'w-[28%]' } },
+  {
+    accessorKey: 'remarks',
+    header: 'REMARKS',
+    meta: { className: 'w-[28%] text-muted-foreground' }
+  },
   {
     accessorKey: 'amount',
     header: 'AMOUNT',
     cell: ({ getValue }) => money(getValue<number>()),
-    meta: { className: 'w-[10%] text-right' }
+    meta: { className: 'w-[10%] text-right font-medium tabular-nums text-foreground' }
   }
 ]
 
@@ -166,11 +182,24 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     header: 'TYPE',
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} />
   },
-  { accessorKey: 'bankProvider', header: 'BANK / PROVIDER' },
-  { accessorKey: 'accountName', header: 'ACCOUNT NAME' },
-  { accessorKey: 'referenceNo', header: 'REFERENCE NO.' },
-  { accessorKey: 'date', header: 'DATE' },
-  { accessorKey: 'amount', header: 'AMOUNT', cell: ({ getValue }) => money(getValue<number>()) }
+  {
+    accessorKey: 'bankProvider',
+    header: 'BANK / PROVIDER',
+    meta: { className: 'text-muted-foreground' }
+  },
+  { accessorKey: 'accountName', header: 'ACCOUNT NAME', meta: { className: 'font-medium' } },
+  {
+    accessorKey: 'referenceNo',
+    header: 'REFERENCE NO.',
+    meta: { className: 'text-muted-foreground' }
+  },
+  { accessorKey: 'date', header: 'DATE', meta: { className: 'text-muted-foreground' } },
+  {
+    accessorKey: 'amount',
+    header: 'AMOUNT',
+    cell: ({ getValue }) => money(getValue<number>()),
+    meta: { className: 'text-right font-medium tabular-nums text-foreground' }
+  }
 ]
 
 const expenseData: ExpenseRow[] = Array.from({ length: 105 }, (_, index) => ({

@@ -257,22 +257,22 @@ export function InHouseAccountsContent(): React.JSX.Element {
                           <TableCell className="max-w-48 truncate text-xs font-medium">
                             {formatAccountName(account)}
                           </TableCell>
-                          <TableCell className="max-w-40 truncate text-xs">
+                          <TableCell className="max-w-40 truncate text-xs text-muted-foreground">
                             {formatAddressSummary(account)}
                           </TableCell>
-                          <TableCell className="text-xs">
+                          <TableCell className="text-xs text-muted-foreground">
                             {primaryMobile?.value || '—'}
                             {additional > 0 && (
                               <span className="ml-1 text-muted-foreground">+{additional} more</span>
                             )}
                           </TableCell>
-                          <TableCell className="max-w-32 truncate text-xs">
+                          <TableCell className="max-w-32 truncate text-xs text-muted-foreground">
                             {account.agent || '—'}
                           </TableCell>
-                          <TableCell className="max-w-32 truncate text-xs">
+                          <TableCell className="max-w-32 truncate text-xs text-muted-foreground">
                             {account.referredBy || '—'}
                           </TableCell>
-                          <TableCell className="whitespace-nowrap text-xs">
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                             {formatAccountDateTime(account.createdAt)}
                           </TableCell>
                         </TableRow>
