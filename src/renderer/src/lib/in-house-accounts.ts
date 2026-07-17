@@ -4,6 +4,7 @@ export const branchNames = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const
 export type BranchName = (typeof branchNames)[number]
 
 export const inHouseAccountsStorageKey = 'cashiers-report-in-house-accounts'
+export const inHouseLoansStorageKey = 'cashiers-report-in-house-loans'
 
 export const branchLabels: Record<BranchName, string> = {
   Goa: 'Goa',
@@ -58,8 +59,45 @@ export type AccountDraft = Omit<InHouseAccount, 'id' | 'createdAt' | 'updatedAt'
 
 export type AccountValidationErrors = Partial<Record<keyof AccountDraft | 'form', string>>
 
+export type PaymentFrequency = 'Weekly' | 'Bi-weekly' | 'Monthly'
+
+export type InHouseLoanItem = {
+  readonly id: string
+  readonly name: string
+  readonly quantity: number
+  readonly price: number
+}
+
+export type InHouseLoan = {
+  readonly id: string
+  readonly customerId: string
+  readonly dateReleased: string
+  readonly startDate: string
+  readonly firstDueDate: string
+  readonly paymentFrequency: PaymentFrequency
+  readonly terms: string
+  readonly principal: number
+  readonly interest: number
+  readonly downPayment: number
+  readonly fees: number
+  readonly installmentAmount: number
+  readonly grandTotal: number
+  readonly items: readonly InHouseLoanItem[]
+  readonly remarks?: string
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+export type LoanDraft = Omit<InHouseLoan, 'id' | 'customerId' | 'createdAt' | 'updatedAt'>
+export type LoanValidationErrors = Partial<Record<keyof LoanDraft | 'form', string>>
+
 export const suffixOptions = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V'] as const
 export const agentOptions = ['Mark Rivera', 'Nina Dela Cruz', 'Paolo Santos'] as const
+export const paymentFrequencyOptions: readonly PaymentFrequency[] = [
+  'Weekly',
+  'Bi-weekly',
+  'Monthly'
+]
 
 const mobilePattern = /^(?:\+?63|0)\d{10}$/
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -138,6 +176,19 @@ export function readInHouseAccounts(): readonly InHouseAccount[] {
   }
 }
 
+export function readInHouseLoans(): readonly InHouseLoan[] {
+  const saved = localStorage.getItem(inHouseLoansStorageKey)
+  if (!saved) return []
+
+  try {
+    const parsed: unknown = JSON.parse(saved)
+    return Array.isArray(parsed) ? (parsed as InHouseLoan[]) : []
+  } catch (error) {
+    if (error instanceof SyntaxError) return []
+    throw error
+  }
+}
+
 export function formatAccountName(
   account: Pick<InHouseAccount, 'lastName' | 'firstName' | 'middleName' | 'suffix'>
 ): string {
@@ -207,11 +258,58 @@ export function normalizeAccountDraft(draft: AccountDraft): AccountDraft {
   }
 }
 
+export function normalizeLoanDraft(draft: LoanDraft): LoanDraft {
+  return {
+    ...draft,
+    terms: draft.terms.trim(),
+    remarks: draft.remarks?.trim() || undefined,
+    principal: Number(draft.principal) || 0,
+    interest: Number(draft.interest) || 0,
+    downPayment: Number(draft.downPayment) || 0,
+    fees: Number(draft.fees) || 0,
+    installmentAmount: Number(draft.installmentAmount) || 0,
+    grandTotal: Number(draft.grandTotal) || 0,
+    items: draft.items
+      .map((item) => ({
+        ...item,
+        name: item.name.trim(),
+        quantity: Number(item.quantity) || 0,
+        price: Number(item.price) || 0
+      }))
+      .filter((item) => item.name || item.quantity || item.price)
+  }
+}
+
+export function validateLoanDraft(draft: LoanDraft): LoanValidationErrors {
+  const errors: LoanValidationErrors = {}
+  if (!draft.dateReleased) errors.dateReleased = 'Date Released is required.'
+  if (!draft.startDate) errors.startDate = 'Start Date is required.'
+  if (!draft.firstDueDate) errors.firstDueDate = 'First Due Date is required.'
+  if (!draft.paymentFrequency) errors.paymentFrequency = 'Payment Frequency is required.'
+  if (!draft.terms.trim()) errors.terms = 'Terms are required.'
+  if (draft.principal <= 0) errors.principal = 'Principal must be greater than zero.'
+  if (draft.installmentAmount <= 0)
+    errors.installmentAmount = 'Installment Amount must be greater than zero.'
+  if (draft.grandTotal <= 0) errors.grandTotal = 'Grand Total must be greater than zero.'
+  return errors
+}
+
 export function createAccount(draft: AccountDraft, now = new Date()): InHouseAccount {
   const timestamp = now.toISOString()
   return {
     ...draft,
     id: `IH-${now.getFullYear()}-${String(now.getTime()).slice(-4)}`,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  }
+}
+
+export function createLoan(customerId: string, draft: LoanDraft, now = new Date()): InHouseLoan {
+  const timestamp = now.toISOString()
+  return {
+    ...draft,
+    customerId,
+    id: `IHL-${now.getFullYear()}-${String(now.getTime()).slice(-5)}`,
     createdAt: timestamp,
     updatedAt: timestamp
   }

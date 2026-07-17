@@ -1,6 +1,7 @@
 # Design Rules
 
-Applies to layout, forms, drawers, tables, visual hierarchy, responsive behavior, and shared UI patterns.
+- Applies to layout, forms, drawers, tables, visual hierarchy, responsive behavior, and shared UI patterns.
+- Prefer first the reUI before Shadcn.
 
 ## Layout
 

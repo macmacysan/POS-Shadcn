@@ -12,7 +12,6 @@ import {
 import { differenceInCalendarDays, format, parseISO, startOfToday } from 'date-fns'
 
 import { AccountBranchBadge, AccountStatusBadge } from '@/components/in-house-account-badges'
-import { InHouseAccountStatCard } from '@/components/in-house-account-stat-card'
 import { InHouseAccountInspector } from '@/components/in-house-account-inspector'
 import { DataGrid, DataGridContainer } from '@/components/reui/data-grid/data-grid'
 import { DataGridColumnHeader } from '@/components/reui/data-grid/data-grid-column-header'
@@ -610,35 +609,37 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
       <div className="grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_clamp(20rem,24vw,24rem)] gap-3 max-[1099px]:grid-cols-1">
         <div className="flex min-h-0 min-w-0 flex-col gap-3">
-          <div className="grid grid-cols-4 gap-2 max-[720px]:grid-cols-2">
-            <InHouseAccountStatCard
-              label="Active"
-              value={activeAccountsCount.toLocaleString('en-PH')}
-            />
-            <InHouseAccountStatCard
-              label="Due Today"
-              value={dueTodayCount.toLocaleString('en-PH')}
-            />
-            <InHouseAccountStatCard
-              label="Overdue"
-              value={overdueCount.toLocaleString('en-PH')}
-            />
-            <InHouseAccountStatCard
-              label="Today's Collections"
-              value={formatHistoryMoney(todaysCollections)}
-            />
-          </div>
+          <dl className="flex h-12 min-h-12 items-center overflow-x-auto rounded-md border bg-card px-3 text-xs">
+            {[
+              { label: 'Active', value: activeAccountsCount.toLocaleString('en-PH') },
+              { label: 'Due Today', value: dueTodayCount.toLocaleString('en-PH') },
+              { label: 'Overdue', value: overdueCount.toLocaleString('en-PH') },
+              { label: "Today's Collections", value: formatHistoryMoney(todaysCollections) }
+            ].map((item, index) => (
+              <React.Fragment key={item.label}>
+                {index > 0 && (
+                  <span aria-hidden="true" className="mx-2 shrink-0 text-muted-foreground/60">
+                    •
+                  </span>
+                )}
+                <div className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap">
+                  <dt className="text-muted-foreground">{item.label}</dt>
+                  <dd className="font-medium tabular-nums text-foreground">{item.value}</dd>
+                </div>
+              </React.Fragment>
+            ))}
+          </dl>
           <Card className="flex min-h-0 min-w-0 flex-1 flex-col">
             <CardHeader className="flex shrink-0 flex-col gap-2 border-b px-3 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <InputGroup className="h-8 min-w-56 max-w-sm flex-1">
+              <div className="flex w-full items-center gap-2">
+                <InputGroup className="h-8 min-w-72 flex-[0_1_70%]">
                   <InputGroupAddon>
                     <Search aria-hidden="true" />
                   </InputGroupAddon>
                   <InputGroupInput
                     className="text-xs"
                     aria-label="Search active accounts by name, account ID, or mobile number"
-                    placeholder="Search account..."
+                    placeholder="Search customer, account ID..."
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />
@@ -649,6 +650,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
                   size="sm"
                   aria-label="Open advanced filters"
                   onClick={() => setIsFiltersOpen(true)}
+                  className="ml-auto shrink-0"
                 >
                   <SlidersHorizontal data-icon="inline-start" />
                   Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
