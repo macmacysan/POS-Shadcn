@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import * as React from 'react'
 import type { ColumnDef, RowData } from '@tanstack/react-table'
 import { MoreHorizontal } from 'lucide-react'
@@ -42,11 +43,7 @@ export function RowActions({
   className,
   openSignal
 }: RowActionsProps): React.JSX.Element {
-  const [open, setOpen] = React.useState(false)
-
-  React.useEffect(() => {
-    if (openSignal) setOpen(true)
-  }, [openSignal])
+  const [open, setOpen] = React.useState(() => openSignal !== undefined && openSignal > 0)
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -58,7 +55,7 @@ export function RowActions({
             size="icon-sm"
             aria-label={label}
             className={cn(
-              'opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:focus-visible:opacity-100 md:data-[popup-open]:opacity-100',
+              'opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:focus-visible:opacity-100 md:data-popup-open:opacity-100',
               className
             )}
             onClick={(event) => event.stopPropagation()}
@@ -112,15 +109,20 @@ export function createRowActionsColumn<TData extends RowData>({
       headerClassName: cn(dataTableColumnSizes.actions.className, 'text-right'),
       cellClassName: cn(dataTableColumnSizes.actions.className, 'text-right')
     },
-    cell: ({ row }) => (
-      <div className="flex justify-end">
-        <RowActions
-          label={label}
-          actions={getActions(row.original)}
-          className="size-7"
-          openSignal={getOpenSignal?.(row.id)}
-        />
-      </div>
-    )
+    cell: ({ row }) => {
+      const openSignal = getOpenSignal?.(row.id)
+
+      return (
+        <div className="flex justify-end">
+          <RowActions
+            key={openSignal ?? 'closed'}
+            label={label}
+            actions={getActions(row.original)}
+            className="size-7"
+            openSignal={openSignal}
+          />
+        </div>
+      )
+    }
   }
 }

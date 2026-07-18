@@ -80,7 +80,6 @@ type ActiveAccountRow = {
   readonly meta: AccountMonitoringMeta
 }
 
-const tableMinWidthClass = 'min-w-192'
 const sortStorageKey = `${inHouseAccountsStorageKey}-active-sort`
 const paginationStorageKey = `${inHouseAccountsStorageKey}-active-pagination`
 const defaultSorting: SortingState = [
@@ -748,12 +747,6 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
                       rowId: row.account.id,
                       signal: current.signal + 1
                     }))
-                  }}
-                  tableClassNames={{
-                    base: cn(tableMinWidthClass, '[&_td]:border-border/50 [&_th]:border-border/50'),
-                    headerRow: '[&>th]:!px-1.5',
-                    headerSticky: 'sticky top-0 z-15 bg-background/95 backdrop-blur-xs',
-                    bodyRow: 'hover:bg-muted/30 data-[state=selected]:bg-muted/40'
                   }}
                   virtual
                   virtualEstimateSize={48}

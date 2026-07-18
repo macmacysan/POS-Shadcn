@@ -31,7 +31,11 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ReportDataTable, type ReportColumn, type ReportRow } from '@/features/cashier-report/components/report-data-table'
+import {
+  ReportDataTable,
+  type ReportColumn,
+  type ReportRow
+} from '@/features/cashier-report/components/report-data-table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -59,13 +63,17 @@ import {
   InputGroupText
 } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { InstallmentHistoryInspector, InstallmentHistoryTable } from '@/features/installment-history'
+import {
+  InstallmentHistoryInspector,
+  InstallmentHistoryTable
+} from '@/features/installment-history'
 import type { RowActionItem } from '@/components/shared/data-table/row-actions'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { dataTableColumnSizes } from '@/components/shared/data-table/universal-data-table'
 import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { ReportSummary } from '@/features/cashier-report/components/report-summary'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 
@@ -331,7 +339,9 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
   {
     accessorKey: 'receiptRefNo',
     header: 'RECEIPT / REFERENCE NO.',
-    meta: { className: cn(dataTableColumnSizes.receiptNumber.wideClassName, 'text-muted-foreground') }
+    meta: {
+      className: cn(dataTableColumnSizes.receiptNumber.wideClassName, 'text-muted-foreground')
+    }
   },
   {
     accessorKey: 'remarks',
@@ -445,44 +455,56 @@ const destructiveAction = (
   confirmationMessage: `${label}?`
 })
 
-function expenseRowActions(row: ExpenseRow): readonly RowActionItem[] {
+function expenseRowActions(
+  row: ExpenseRow,
+  onDelete: (id: string) => void,
+  onEdit: (row: ExpenseRow) => void
+): readonly RowActionItem[] {
   return [
     { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
-    { id: 'edit', label: 'Edit Expense', onSelect: () => acknowledgeRow(row) },
+    { id: 'edit', label: 'Edit Expense', onSelect: () => onEdit(row) },
     { id: 'duplicate', label: 'Duplicate Expense', onSelect: () => acknowledgeRow(row) },
     {
       id: 'delete',
       label: 'Delete Expense',
-      onSelect: () => acknowledgeRow(row),
+      onSelect: () => onDelete(row.id),
       ...destructiveAction('Delete expense')
     }
   ]
 }
 
-function incomeRowActions(row: IncomeRow): readonly RowActionItem[] {
+function incomeRowActions(
+  row: IncomeRow,
+  onDelete: (id: string) => void,
+  onEdit: (row: IncomeRow) => void
+): readonly RowActionItem[] {
   return [
     { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
-    { id: 'edit', label: 'Edit Income', onSelect: () => acknowledgeRow(row) },
+    { id: 'edit', label: 'Edit Income', onSelect: () => onEdit(row) },
     { id: 'duplicate', label: 'Duplicate Income', onSelect: () => acknowledgeRow(row) },
     {
       id: 'delete',
       label: 'Delete Income',
-      onSelect: () => acknowledgeRow(row),
+      onSelect: () => onDelete(row.id),
       ...destructiveAction('Delete income')
     }
   ]
 }
 
-function paymentRowActions(row: PaymentRow): readonly RowActionItem[] {
+function paymentRowActions(
+  row: PaymentRow,
+  onDelete: (id: string) => void,
+  onEdit: (row: PaymentRow) => void
+): readonly RowActionItem[] {
   return [
     { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
     { id: 'adjustment', label: 'Record Adjustment', onSelect: () => acknowledgeRow(row) },
-    { id: 'edit', label: 'Edit Payment', onSelect: () => acknowledgeRow(row) },
+    { id: 'edit', label: 'Edit Payment', onSelect: () => onEdit(row) },
     { id: 'print', label: 'Print Receipt', onSelect: () => acknowledgeRow(row) },
     {
       id: 'delete',
       label: 'Delete Payment',
-      onSelect: () => acknowledgeRow(row),
+      onSelect: () => onDelete(row.id),
       ...destructiveAction('Delete payment')
     }
   ]
@@ -493,13 +515,17 @@ function ReportTab({
   onAddEntry,
   addEntryLabel,
   selectedHistoryId,
-  onSelectHistory
+  onSelectHistory,
+  onDelete,
+  onEdit
 }: {
   tab: (typeof reportTabs)[number]
   onAddEntry: () => void
   addEntryLabel: string
   selectedHistoryId?: string
   onSelectHistory: (record: InstallmentHistoryRecord) => void
+  onDelete: (id: string) => void
+  onEdit: (row: ExpenseRow | IncomeRow | PaymentRow) => void
 }): React.JSX.Element {
   switch (tab) {
     case 'Expenses':
@@ -510,7 +536,7 @@ function ReportTab({
           filterPlaceholder="Filter expenses..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
-          getRowActions={expenseRowActions}
+          getRowActions={(row) => expenseRowActions(row, onDelete, onEdit)}
           onDefaultAction={acknowledgeRow}
         />
       )
@@ -522,7 +548,7 @@ function ReportTab({
           filterPlaceholder="Filter income..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
-          getRowActions={incomeRowActions}
+          getRowActions={(row) => incomeRowActions(row, onDelete, onEdit)}
           onDefaultAction={acknowledgeRow}
         />
       )
@@ -534,7 +560,7 @@ function ReportTab({
           filterPlaceholder="Filter payments..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
-          getRowActions={paymentRowActions}
+          getRowActions={(row) => paymentRowActions(row, onDelete, onEdit)}
           onDefaultAction={acknowledgeRow}
         />
       )
@@ -674,41 +700,6 @@ function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React
   )
 }
 
-function TodaySummary(): React.JSX.Element {
-  return (
-    <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20 p-3">
-      <div className="shrink-0 border-b pb-3">
-        <p className="text-xs text-muted-foreground">Daily Cashier Report</p>
-        <h2 className="text-base font-semibold">Today&apos;s Summary</h2>
-        <p className="mt-1 text-xs text-muted-foreground">July 14, 2026</p>
-      </div>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="py-4">
-          <div className="rounded-lg border bg-card p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Cash variance</span>
-              <span className="text-sm font-semibold">{money(0)}</span>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <p className="text-muted-foreground">Expected cash</p>
-                <p className="mt-1 font-medium">{money(0)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Actual cash</p>
-                <p className="mt-1 font-medium">{money(0)}</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4 rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
-            No saved report entries yet.
-          </div>
-        </div>
-      </ScrollArea>
-    </aside>
-  )
-}
-
 function EntryFormActions(): React.JSX.Element {
   return (
     <div className="flex shrink-0 flex-wrap gap-2 border-t p-3">
@@ -725,9 +716,21 @@ function EntryFormActions(): React.JSX.Element {
   )
 }
 
-function EntryFormPanel({ tab }: { tab: (typeof reportTabs)[number] }): React.JSX.Element {
+function EntryFormPanel({
+  tab,
+  onSave
+}: {
+  tab: (typeof reportTabs)[number]
+  onSave: (form: FormData) => void
+}): React.JSX.Element {
   return (
-    <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => event.preventDefault()}>
+    <form
+      className="flex min-h-0 flex-1 flex-col"
+      onSubmit={(event) => {
+        event.preventDefault()
+        onSave(new FormData(event.currentTarget))
+      }}
+    >
       <ScrollArea className="min-h-0 flex-1">
         <ReportDetailsForm tab={tab} />
       </ScrollArea>
@@ -738,12 +741,86 @@ function EntryFormPanel({ tab }: { tab: (typeof reportTabs)[number] }): React.JS
 
 export function CashierReportsContent(): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
+  const [expenses, setExpenses] = React.useState(expenseData)
+  const [incomes, setIncomes] = React.useState(incomeData)
+  const [payments, setPayments] = React.useState(paymentData)
   const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
   const [isSummaryVisible, setIsSummaryVisible] = React.useState(false)
   const [selectedHistory, setSelectedHistory] = React.useState<InstallmentHistoryRecord>()
   const isMobile = useIsMobile()
   const isHistoryTab = activeTab === 'Activity'
   const showRightPanel = !isMobile && (isHistoryTab || isEntryFormVisible)
+
+  const editAmount = React.useCallback((row: ExpenseRow | IncomeRow | PaymentRow): void => {
+    const nextAmount = window.prompt('Amount', String(row.amount))
+    if (nextAmount === null) return
+    const amount = Number(nextAmount)
+    if (!Number.isFinite(amount) || amount < 0) return
+    if ('particular' in row)
+      setIncomes((current) =>
+        current.map((item) => (item.id === row.id ? { ...item, amount } : item))
+      )
+    else if ('bankProvider' in row)
+      setPayments((current) =>
+        current.map((item) => (item.id === row.id ? { ...item, amount } : item))
+      )
+    else
+      setExpenses((current) =>
+        current.map((item) => (item.id === row.id ? { ...item, amount } : item))
+      )
+  }, [])
+
+  const deleteEntry = React.useCallback((id: string): void => {
+    setExpenses((current) => current.filter((row) => row.id !== id))
+    setIncomes((current) => current.filter((row) => row.id !== id))
+    setPayments((current) => current.filter((row) => row.id !== id))
+  }, [])
+
+  const saveEntry = React.useCallback((tab: (typeof reportTabs)[number], form: FormData): void => {
+    const amount = Number(form.get(`${tab.toLowerCase()}-amount`) ?? 0)
+    if (!Number.isFinite(amount) || amount < 0) return
+    const id = `${tab.toLowerCase()}-${Date.now()}`
+    if (tab === 'Expenses') {
+      setExpenses((current) => [
+        ...current,
+        {
+          id,
+          type: String(form.get('expenses-type') || 'Operating'),
+          description: String(form.get('expenses-description') || 'New expense'),
+          category: String(form.get('expenses-category') || 'Others'),
+          receiptNo: String(form.get('expenses-receipt-no-') || id.toUpperCase()),
+          vat: String(form.get('expenses-vat') || ''),
+          amount
+        }
+      ])
+    } else if (tab === 'Income') {
+      setIncomes((current) => [
+        ...current,
+        {
+          id,
+          particular: String(form.get('income-particular') || 'Other income'),
+          remarks: String(form.get('income-remarks') || ''),
+          receiptRefNo: String(form.get('income-receipt-reference-no-') || id.toUpperCase()),
+          date: String(form.get('income-date') || '2026-07-14'),
+          amount
+        }
+      ])
+    } else if (tab === 'Payment') {
+      setPayments((current) => [
+        ...current,
+        {
+          id,
+          type: String(form.get('payment-type') || 'Bank Check'),
+          bankProvider: String(form.get('payment-bank-provider') || ''),
+          accountName: String(form.get('payment-account-name') || ''),
+          referenceNo: String(form.get('payment-reference-no-') || id.toUpperCase()),
+          date: String(form.get('payment-date') || '2026-07-14'),
+          amount
+        }
+      ])
+    }
+    setIsEntryFormVisible(false)
+  }, [])
 
   React.useEffect(() => {
     if (!isEntryFormVisible) return
@@ -765,7 +842,12 @@ export function CashierReportsContent(): React.JSX.Element {
       >
         {!isMobile && (
           <Card className="flex min-h-0 min-w-0 flex-col">
-            <TodaySummary />
+            <ReportSummary
+              expenses={expenses}
+              incomes={incomes}
+              payments={payments}
+              installmentHistory={installmentHistoryData}
+            />
           </Card>
         )}
         <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
@@ -809,6 +891,8 @@ export function CashierReportsContent(): React.JSX.Element {
                       addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
                       selectedHistoryId={selectedHistory?.id}
                       onSelectHistory={setSelectedHistory}
+                      onDelete={deleteEntry}
+                      onEdit={editAmount}
                     />
                   </TabsContent>
                 ))}
@@ -818,7 +902,7 @@ export function CashierReportsContent(): React.JSX.Element {
         </Card>
         {showRightPanel && !isHistoryTab && (
           <Card className="flex min-h-0 min-w-0 flex-col">
-            <EntryFormPanel tab={activeTab} />
+            <EntryFormPanel tab={activeTab} onSave={(form) => saveEntry(activeTab, form)} />
           </Card>
         )}
         {isHistoryTab && !isMobile && (
@@ -843,7 +927,12 @@ export function CashierReportsContent(): React.JSX.Element {
                 <SheetTitle>Today&apos;s Summary</SheetTitle>
                 <SheetDescription>Daily cashier report totals and cash variance.</SheetDescription>
               </SheetHeader>
-              <TodaySummary />
+              <ReportSummary
+                expenses={expenses}
+                incomes={incomes}
+                payments={payments}
+                installmentHistory={installmentHistoryData}
+              />
             </SheetContent>
           </Sheet>
         </>
@@ -857,7 +946,7 @@ export function CashierReportsContent(): React.JSX.Element {
                 Add a cashier report entry for {activeTab.toLowerCase()}.
               </SheetDescription>
             </SheetHeader>
-            <EntryFormPanel tab={activeTab} />
+            <EntryFormPanel tab={activeTab} onSave={(form) => saveEntry(activeTab, form)} />
           </SheetContent>
         </Sheet>
       )}

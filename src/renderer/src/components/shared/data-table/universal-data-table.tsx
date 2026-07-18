@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { MouseEvent, ReactNode } from 'react'
 import type { Table } from '@tanstack/react-table'
 
@@ -23,7 +24,7 @@ export const dataTableColumnSizes = {
     size: 48,
     minSize: 48,
     maxSize: 48,
-    className: 'w-12'
+    className: 'w-8'
   },
   type: {
     size: 120,
@@ -36,8 +37,8 @@ export const dataTableColumnSizes = {
     minSize: 220,
     maxSize: 420,
     className: 'w-75',
-    mediumClassName: 'w-64',
-    wideClassName: 'w-90'
+    mediumClassName: 'w-640',
+    wideClassName: 'w-900'
   },
   category: {
     size: 140,

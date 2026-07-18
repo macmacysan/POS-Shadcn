@@ -6,22 +6,17 @@ import {
   HouseIcon,
   LandmarkIcon,
   LayoutDashboardIcon,
+  MoonIcon,
   Settings2Icon,
   StoreIcon,
+  SunIcon,
   UsersIcon
 } from 'lucide-react'
 
 import { NavMain } from '@/components/layout/navigation/nav-main'
 import { NavSecondary } from '@/components/layout/navigation/nav-secondary'
 import { TeamSwitcher } from '@/components/layout/navigation/team-switcher'
-import { ThemeToggle } from '@/components/shared/theme-toggle'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarRail
-} from '@/components/ui/sidebar'
+import { Sidebar, SidebarContent, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
 
 type ActiveView = 'dashboard' | 'cashier-reports' | 'in-house-accounts' | 'in-house-active-accounts'
 
@@ -135,11 +130,19 @@ export function SidebarLeft({
         />
       </SidebarHeader>
       <SidebarContent>
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavSecondary
+          items={data.navSecondary.map((item) =>
+            item.title === 'Settings'
+              ? {
+                  ...item,
+                  icon: isDark ? <SunIcon /> : <MoonIcon />,
+                  onClick: onToggleTheme
+                }
+              : item
+          )}
+          className="mt-auto"
+        />
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border">
-        <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
-      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

@@ -325,11 +325,6 @@ export function InstallmentHistoryTable({
             signal: current.signal + 1
           }))
         }}
-        tableClassNames={{
-          base: 'min-w-[816px]',
-          headerSticky: 'sticky top-0 z-15 bg-muted/95 backdrop-blur-sm',
-          bodyRow: 'h-12'
-        }}
         paginationSizes={[15, 25, 50, 100]}
         paginationInfo="{from}-{to} of {count} records"
       />
