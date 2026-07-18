@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { Copy, MoreHorizontal, X } from 'lucide-react'
+import { ChevronDown, Copy, MoreHorizontal, X } from 'lucide-react'
 
-import { AccountStatusBadge } from '@/components/in-house-account-badges'
+import { AccountBranchBadge, AccountStatusBadge } from '@/features/in-house-accounts/components/account-badges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +14,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -89,18 +89,42 @@ function SummaryItem({
   )
 }
 
-function Section({
+function CollapsibleSection({
   title,
+  summary,
+  defaultOpen = true,
   children
 }: {
   readonly title: string
+  readonly summary?: React.ReactNode
+  readonly defaultOpen?: boolean
   readonly children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className="flex flex-col gap-2">
-      <h3 className="text-xs font-semibold">{title}</h3>
-      {children}
-    </section>
+    <Collapsible defaultOpen={defaultOpen} className="group/section rounded-md border bg-card">
+      <CollapsibleTrigger
+        render={
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/40"
+          />
+        }
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs font-semibold text-foreground">{title}</span>
+          {summary && (
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{summary}</span>
+          )}
+        </span>
+        <ChevronDown
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-data-panel-open/section:rotate-180"
+          aria-hidden="true"
+        />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="border-t px-3 py-2">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -268,11 +292,8 @@ export function InHouseAccountInspector({
         <div className="flex flex-col gap-3">
           <div className="min-w-0">
             <TruncatedName value={name} />
-            <p className="mt-1 select-text text-xs text-muted-foreground">
-              {account.id} · {branchLabels[account.branch]}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Badge variant="outline">{branchLabels[account.branch]}</Badge>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <AccountBranchBadge branch={account.branch} />
               <AccountStatusBadge status={meta?.status} />
             </div>
           </div>
@@ -327,20 +348,31 @@ export function InHouseAccountInspector({
           </TooltipProvider>
 
           <div className="rounded-md border bg-background p-3">
-            <p className="text-xs text-muted-foreground">Outstanding Balance</p>
-            <p
-              className={cn(
-                'mt-1 select-text text-2xl font-semibold tabular-nums',
-                meta?.outstandingBalance !== undefined &&
-                  meta.outstandingBalance < 0 &&
-                  'text-destructive'
-              )}
-            >
-              {formatHistoryMoney(meta?.outstandingBalance)}
-            </p>
-            <div className="mt-3 flex flex-col gap-1.5">
-              <SummaryItem label="Next Due" value={formatHistoryDate(meta?.nextDue)} />
-              <SummaryItem label="Frequency" value={meta?.paymentFrequency ?? 'Not provided'} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <p className="text-xs text-muted-foreground">Outstanding Balance</p>
+                <p
+                  className={cn(
+                    'mt-1 select-text text-2xl font-semibold tabular-nums',
+                    meta?.outstandingBalance !== undefined &&
+                      meta.outstandingBalance < 0 &&
+                      'text-destructive'
+                  )}
+                >
+                  {formatHistoryMoney(meta?.outstandingBalance)}
+                </p>
+              </div>
+              <SummaryItem label="Next due" value={formatHistoryDate(meta?.nextDue)} />
+              <SummaryItem
+                label="Installment"
+                value={formatHistoryMoney(meta?.installmentAmount)}
+              />
+              <SummaryItem
+                label="Contract"
+                value={
+                  [meta?.paymentFrequency, meta?.terms].filter(Boolean).join(' ') || 'Not provided'
+                }
+              />
               {isOverdue && meta?.delayedDays !== undefined && (
                 <SummaryItem
                   label="Delayed"
@@ -354,8 +386,11 @@ export function InHouseAccountInspector({
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-4 p-3">
-          <Section title="Loan Overview">
+        <div className="flex flex-col gap-2.5 p-3">
+          <CollapsibleSection
+            title="Collection Status"
+            summary={`${formatHistoryMoney(meta?.outstandingBalance)} balance · ${formatHistoryDate(meta?.nextDue)} next due`}
+          >
             <dl className="divide-y">
               <DetailRow
                 label="Outstanding balance"
@@ -377,37 +412,44 @@ export function InHouseAccountInspector({
               <DetailRow label="Days delayed" value={meta?.delayedDays} destructive={isOverdue} />
               <DetailRow label="Missed payments" value={meta?.missedPayments} />
             </dl>
-          </Section>
+          </CollapsibleSection>
 
-          <Separator />
-
-          <Section title="Financial & Contract Details">
+          <CollapsibleSection
+            title="Financial Breakdown"
+            summary={`${formatHistoryMoney(meta?.grandTotal)} total · ${formatHistoryMoney(meta?.totalPaid)} paid`}
+          >
             <dl className="divide-y">
               <DetailRow label="Date released" value={optionalDate(meta?.dateReleased)} />
               <DetailRow label="Start date" value={optionalDate(meta?.startDate)} />
               <DetailRow label="End date" value={optionalDate(meta?.endDate)} />
-              <DetailRow label="Required fee" value={optionalMoney(meta?.requiredFee)} />
               <DetailRow label="Grand total" value={optionalMoney(meta?.grandTotal)} />
               <DetailRow label="Principal" value={optionalMoney(meta?.principal)} />
               <DetailRow label="Interest" value={optionalMoney(meta?.interest)} />
               <DetailRow label="Total interest" value={optionalMoney(meta?.totalInterest)} />
               <DetailRow label="Down payment" value={optionalMoney(meta?.downPayment)} />
+              <DetailRow label="Required fee" value={optionalMoney(meta?.requiredFee)} />
               <DetailRow label="Total paid" value={optionalMoney(meta?.totalPaid)} />
-              <DetailRow label="Account opened" value={formatAccountDateTime(account.createdAt)} />
             </dl>
-          </Section>
+          </CollapsibleSection>
 
-          <Separator />
-
-          <Section title="Contact">
+          <CollapsibleSection
+            title="Contact"
+            summary={primaryMobile?.value ?? account.emails[0]?.value ?? 'No primary contact'}
+          >
             <ContactRows label="Mobile numbers" values={mobile} primaryId={primaryMobile?.id} />
             <ContactRows label="Telephone numbers" values={telephone} />
             <ContactRows label="Email addresses" values={account.emails} />
-          </Section>
+          </CollapsibleSection>
 
-          <Separator />
-
-          <Section title="Address">
+          <CollapsibleSection
+            title="Address"
+            summary={
+              (addressLines[0] ??
+                [account.barangay, account.cityMunicipality].filter(Boolean).join(', ')) ||
+              'Not provided'
+            }
+            defaultOpen={false}
+          >
             {address ? (
               <div className="flex items-start gap-2">
                 <p className="min-w-0 flex-1 select-text whitespace-pre-line text-xs font-medium leading-5">
@@ -418,19 +460,23 @@ export function InHouseAccountInspector({
             ) : (
               <p className="text-xs text-muted-foreground">Not provided</p>
             )}
-          </Section>
+          </CollapsibleSection>
 
-          <Separator />
-
-          <Section title="Additional Information">
+          <CollapsibleSection
+            title="Account Record"
+            summary={`${account.id} · ${formatAccountDateTime(account.createdAt)}`}
+            defaultOpen={false}
+          >
             <dl className="divide-y">
+              <DetailRow label="Account ID" value={account.id} />
+              <DetailRow label="Branch" value={branchLabels[account.branch]} />
               <DetailRow label="Occupation" value={account.occupation} />
               <DetailRow label="Agent" value={account.agent} />
               <DetailRow label="Referred by" value={account.referredBy} />
+              <DetailRow label="Created" value={formatAccountDateTime(account.createdAt)} />
               <DetailRow label="Last updated" value={formatAccountDateTime(account.updatedAt)} />
-              <DetailRow label="Last added" value={formatAccountDateTime(account.createdAt)} />
             </dl>
-          </Section>
+          </CollapsibleSection>
         </div>
       </ScrollArea>
     </div>

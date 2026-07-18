@@ -2,7 +2,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Badge } from "@/components/reui/badge"
+import { Badge } from "@/components/ui/reui/badge"
 import { Column } from "@tanstack/react-table"
 
 import { cn } from "@/lib/utils"

@@ -1,27 +1,97 @@
 # Design Rules
 
-- Applies to layout, forms, drawers, tables, visual hierarchy, responsive behavior, and shared UI patterns.
-- Prefer first the reUI before Shadcn.
+Applies to layout, forms, drawers, tables, visual hierarchy, responsive behavior, and shared UI patterns.
+
+## Product Direction
+
+Design the application as a compact financial workstation, not a generic admin dashboard.
+
+Directional references:
+
+- **Stripe:** restrained hierarchy, clean financial tables, subtle borders, and clear primary actions
+- **Linear:** compact density, minimal controls, lightweight navigation, and keyboard-friendly workflows
+
+Use these products as inspiration only. Do not copy branding, proprietary layouts, colors, or components.
+
+## Component Priority
+
+Use components in this order:
+
+1. Existing project components
+2. Existing ReUI components
+3. Install a compatible ReUI component
+4. Existing shadcn/ui components
+5. Install a required shadcn/ui component
+6. Build a custom component only when no suitable reusable component exists
+
+Do not replace a stable component solely to use ReUI.
+
+All components must follow the project theme tokens, typography, spacing, accessibility, and Electron requirements.
+
+## Visual Principles
+
+- Prefer compact workstation layouts over large dashboard cards.
+- Give primary workflows and data tables most of the available space.
+- Use spacing and typography before adding borders or containers.
+- Use subtle separators, restrained status colors, and minimal shadows.
+- Keep search and primary actions prominent.
+- Move advanced filters and secondary actions into popovers, menus, dialogs, or drawers.
+- Preserve clear hierarchy between primary data, secondary metadata, and supporting labels.
+- Avoid gradients, decorative cards, oversized headings, excessive pills, and unnecessary shadows.
+- Do not reduce usability merely to make the interface smaller.
 
 ## Layout
 
 - Keep **Today’s Summary** on the left and the primary workspace on the right.
 - Do not move the summary above the workspace at narrow desktop widths.
 - Prefer internal scrolling over page-level scrolling or layout stacking.
-- Use `min-h-0` and `min-w-0` in height- or width-constrained flex and grid layouts.
-- Opening a form must not resize, move, or restructure the main workspace.
+- Use `min-h-0` and `min-w-0` in constrained flex and grid layouts.
+- Opening an overlay must not resize or restructure the main workspace.
 
-## Form Presentation
+## Form Placement
 
-- All create and edit forms must open in a shared right-side shadcn `Sheet`.
-- Do not place forms inside tables, below the workspace, in permanent columns, or in centered dialogs unless explicitly required.
-- Use one shared drawer shell where practical.
-- Drawer structure:
-  1. fixed header
-  2. scrollable form body
-  3. fixed action footer
-- The drawer overlays the workspace and preserves the page layout behind it.
-- Protect unsaved changes when closing.
+Choose form placement based on workflow size.
+
+### Right-side drawer
+
+Use a right-side drawer for:
+
+- short create and edit forms
+- table-row editing
+- focused tasks that do not require the full workspace
+- quick account, expense, income, payment, or installment entry
+
+Prefer the shared project drawer component using ReUI first, with shadcn `Sheet` as the fallback.
+
+Drawer structure:
+
+1. fixed header
+2. scrollable form body
+3. fixed action footer
+
+The drawer must overlay the workspace, preserve the underlying layout, and protect unsaved changes.
+
+Do not place drawer forms inside tables, below the workspace, or in permanent columns.
+
+### Center workspace
+
+Use the center workspace for:
+
+- large or multi-section workflows
+- multi-step forms
+- complex financial configuration
+- workflows requiring wide tables, previews, or side-by-side comparison
+
+Do not force substantial workflows into a narrow drawer.
+
+## Form Layout
+
+- Use at most two columns for short, related fields.
+- Use one column for addresses, remarks, long inputs, and complex financial sections.
+- Group fields by task and meaning.
+- Use progressive disclosure for optional or advanced fields.
+- Use sticky actions for long workflows.
+- Avoid nested scrolling.
 
 ## Form Visual Hierarchy
 
@@ -35,12 +105,39 @@ Use this emphasis order:
 
 Rules:
 
-- All Tables must use only 1 visual theme and styling.
 - Form titles use strong foreground emphasis.
 - Descriptions and helper text use `text-muted-foreground`.
 - Section titles are distinct but less prominent than the form title.
-- Entered values must be more prominent than placeholders.
+- Entered values are more prominent than placeholders.
 - Use one primary action per form footer.
 - Secondary actions use outline, ghost, or muted styling.
 - Group related fields and separate major sections consistently.
-- Validation appears directly below the affected field using semantic destructive styling.
+- Show validation directly below the affected field using semantic destructive styling.
+
+## Table Design
+
+- Use shared table primitives, theme tokens, density, and interaction patterns.
+- Keep Description and Amount visually prominent.
+- Use muted styling for supporting metadata such as Category, Receipt No., VAT, and secondary identifiers.
+- Right-align monetary values.
+- Keep essential actions visible and inside the table viewport.
+- Keep headers, toolbars, and pagination visible while the table body scrolls.
+- Use pagination or virtualization for high-volume datasets.
+- Do not compress columns until values become unreadable.
+
+## Truncated Content
+
+- When text is intentionally truncated with ellipsis, reveal the complete value using the shared tooltip on hover and keyboard focus.
+- Use tooltips only when content is actually clipped where practical.
+- Do not use the native `title` attribute when the shared tooltip component is available.
+- Do not hide validation, required instructions, or essential actions inside tooltips.
+
+## Responsive Behavior
+
+- Treat the application as a desktop workstation.
+- Prioritize the active table or form workspace.
+- Collapse secondary inspectors before compressing primary content.
+- Move advanced filters into a drawer on constrained widths.
+- Prevent clipped labels and unintended page-level horizontal scrolling.
+- Allow wide tables to scroll inside their container.
+- Do not solve responsive issues by globally reducing font sizes.

@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { useDataGrid } from "@/components/reui/data-grid/data-grid"
+import { useDataGrid } from "@/components/ui/reui/data-grid/data-grid"
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
 
 import { cn } from "@/lib/utils"

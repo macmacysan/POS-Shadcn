@@ -1,8 +1,7 @@
 import * as React from "react"
 
-import { Calendars } from "@/components/calendars"
-import { DatePicker } from "@/components/date-picker"
-import { NavUser } from "@/components/nav-user"
+import { Calendars, DatePicker } from "@/features/calendar"
+import { NavUser } from "@/components/layout/navigation/nav-user"
 import {
   Sidebar,
   SidebarContent,

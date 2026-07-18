@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
 } from "react"
-import { useDataGrid } from "@/components/reui/data-grid/data-grid"
+import { useDataGrid } from "@/components/ui/reui/data-grid/data-grid"
 import {
   DataGridTableBase,
   DataGridTableBody,
@@ -26,7 +26,7 @@ import {
   getDataGridTableRowSections,
   getPinningStyles,
   hasDataGridTableRightPinnedColumns,
-} from "@/components/reui/data-grid/data-grid-table"
+} from "@/components/ui/reui/data-grid/data-grid-table"
 import { Column, flexRender, Row, Table } from "@tanstack/react-table"
 import {
   useVirtualizer,

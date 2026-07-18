@@ -31,7 +31,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ReportDataTable, type ReportColumn, type ReportRow } from '@/components/report-data-table'
+import { ReportDataTable, type ReportColumn, type ReportRow } from '@/features/cashier-report/components/report-data-table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -59,10 +59,12 @@ import {
   InputGroupText
 } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { InstallmentHistoryInspector } from '@/components/installment-history-inspector'
-import { InstallmentHistoryTable } from '@/components/installment-history-table'
+import { InstallmentHistoryInspector, InstallmentHistoryTable } from '@/features/installment-history'
+import type { RowActionItem } from '@/components/shared/data-table/row-actions'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { dataTableColumnSizes } from '@/components/shared/data-table/universal-data-table'
 import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/installment-history'
+import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
@@ -279,51 +281,73 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'type',
     header: 'Type',
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} />,
-    meta: { className: 'w-[17%]' }
+    meta: { className: dataTableColumnSizes.type.className }
   },
   {
     accessorKey: 'description',
     header: 'Description',
-    meta: { className: 'w-[30%] font-medium' }
+    meta: { className: cn(dataTableColumnSizes.description.className, 'font-medium') }
   },
   {
     accessorKey: 'category',
     header: 'Category',
     cell: ({ getValue }) => <ExpenseCategoryCell category={getValue<string>()} />,
-    meta: { className: 'w-32 min-w-28 max-w-40 text-muted-foreground' }
+    meta: { className: cn(dataTableColumnSizes.category.className, 'text-muted-foreground') }
   },
   {
     accessorKey: 'receiptNo',
     header: 'Receipt No.',
-    meta: { className: 'w-[12%] text-muted-foreground' }
+    meta: { className: cn(dataTableColumnSizes.receiptNumber.className, 'text-muted-foreground') }
   },
-  { accessorKey: 'vat', header: 'VAT', meta: { className: 'w-[8%] text-muted-foreground' } },
+  {
+    accessorKey: 'vat',
+    header: 'VAT',
+    meta: { className: cn(dataTableColumnSizes.vat.className, 'text-muted-foreground') }
+  },
   {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    meta: { className: 'w-[18%] text-right font-medium tabular-nums text-foreground' }
+    meta: {
+      className: cn(
+        dataTableColumnSizes.amount.className,
+        'text-right font-medium tabular-nums text-foreground'
+      )
+    }
   }
 ]
 
 const incomeColumns: ReportColumn<IncomeRow>[] = [
-  { accessorKey: 'date', header: 'DATE', meta: { className: 'w-[15%] text-muted-foreground' } },
-  { accessorKey: 'particular', header: 'PARTICULAR', meta: { className: 'w-[25%] font-medium' } },
+  {
+    accessorKey: 'date',
+    header: 'DATE',
+    meta: { className: cn(dataTableColumnSizes.date.className, 'text-muted-foreground') }
+  },
+  {
+    accessorKey: 'particular',
+    header: 'PARTICULAR',
+    meta: { className: cn(dataTableColumnSizes.description.mediumClassName, 'font-medium') }
+  },
   {
     accessorKey: 'receiptRefNo',
     header: 'RECEIPT / REFERENCE NO.',
-    meta: { className: 'w-[22%] text-muted-foreground' }
+    meta: { className: cn(dataTableColumnSizes.receiptNumber.wideClassName, 'text-muted-foreground') }
   },
   {
     accessorKey: 'remarks',
     header: 'REMARKS',
-    meta: { className: 'w-[28%] text-muted-foreground' }
+    meta: { className: cn(dataTableColumnSizes.description.wideClassName, 'text-muted-foreground') }
   },
   {
     accessorKey: 'amount',
     header: 'AMOUNT',
     cell: ({ getValue }) => money(getValue<number>()),
-    meta: { className: 'w-[10%] text-right font-medium tabular-nums text-foreground' }
+    meta: {
+      className: cn(
+        dataTableColumnSizes.amount.narrowClassName,
+        'text-right font-medium tabular-nums text-foreground'
+      )
+    }
   }
 ]
 
@@ -409,6 +433,61 @@ const paymentData: PaymentRow[] = [
   }
 ]
 
+function acknowledgeRow(row: ReportRow): void {
+  void row.id
+}
+
+const destructiveAction = (
+  label: string
+): Pick<RowActionItem, 'destructive' | 'requiresConfirmation' | 'confirmationMessage'> => ({
+  destructive: true,
+  requiresConfirmation: true,
+  confirmationMessage: `${label}?`
+})
+
+function expenseRowActions(row: ExpenseRow): readonly RowActionItem[] {
+  return [
+    { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
+    { id: 'edit', label: 'Edit Expense', onSelect: () => acknowledgeRow(row) },
+    { id: 'duplicate', label: 'Duplicate Expense', onSelect: () => acknowledgeRow(row) },
+    {
+      id: 'delete',
+      label: 'Delete Expense',
+      onSelect: () => acknowledgeRow(row),
+      ...destructiveAction('Delete expense')
+    }
+  ]
+}
+
+function incomeRowActions(row: IncomeRow): readonly RowActionItem[] {
+  return [
+    { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
+    { id: 'edit', label: 'Edit Income', onSelect: () => acknowledgeRow(row) },
+    { id: 'duplicate', label: 'Duplicate Income', onSelect: () => acknowledgeRow(row) },
+    {
+      id: 'delete',
+      label: 'Delete Income',
+      onSelect: () => acknowledgeRow(row),
+      ...destructiveAction('Delete income')
+    }
+  ]
+}
+
+function paymentRowActions(row: PaymentRow): readonly RowActionItem[] {
+  return [
+    { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
+    { id: 'adjustment', label: 'Record Adjustment', onSelect: () => acknowledgeRow(row) },
+    { id: 'edit', label: 'Edit Payment', onSelect: () => acknowledgeRow(row) },
+    { id: 'print', label: 'Print Receipt', onSelect: () => acknowledgeRow(row) },
+    {
+      id: 'delete',
+      label: 'Delete Payment',
+      onSelect: () => acknowledgeRow(row),
+      ...destructiveAction('Delete payment')
+    }
+  ]
+}
+
 function ReportTab({
   tab,
   onAddEntry,
@@ -431,6 +510,8 @@ function ReportTab({
           filterPlaceholder="Filter expenses..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
+          getRowActions={expenseRowActions}
+          onDefaultAction={acknowledgeRow}
         />
       )
     case 'Income':
@@ -441,6 +522,8 @@ function ReportTab({
           filterPlaceholder="Filter income..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
+          getRowActions={incomeRowActions}
+          onDefaultAction={acknowledgeRow}
         />
       )
     case 'Payment':
@@ -451,6 +534,8 @@ function ReportTab({
           filterPlaceholder="Filter payments..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
+          getRowActions={paymentRowActions}
+          onDefaultAction={acknowledgeRow}
         />
       )
     case 'Activity':

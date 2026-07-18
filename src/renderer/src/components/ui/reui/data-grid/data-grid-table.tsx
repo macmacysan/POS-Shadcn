@@ -15,7 +15,7 @@ import {
   useRef,
   useState
 } from 'react'
-import { useDataGrid } from '@/components/reui/data-grid/data-grid'
+import { useDataGrid } from '@/components/ui/reui/data-grid/data-grid'
 import { Cell, Column, flexRender, Header, Row, Table } from '@tanstack/react-table'
 import { cva } from 'class-variance-authority'
 
@@ -965,20 +965,22 @@ function DataGridTableBodyRow<TData>({
       style={{ ...(dndStyle ? dndStyle : null) }}
       data-state={table.options.enableRowSelection && row.getIsSelected() ? 'selected' : undefined}
       data-row-id={row.id}
-      tabIndex={props.onRowClick ? 0 : undefined}
+      tabIndex={props.onRowClick || props.onRowDoubleClick ? 0 : undefined}
       aria-selected={table.options.enableRowSelection ? row.getIsSelected() : undefined}
       data-row-pinned={isRowPinned || undefined}
       data-row-pinned-boundary={pinnedBoundary}
       onClick={() => props.onRowClick && props.onRowClick(row.original)}
+      onDoubleClick={() => props.onRowDoubleClick?.(row.original)}
+      onContextMenu={(event) => props.onRowContextMenu?.(row.original, event)}
       onKeyDown={(event) => {
-        if (!props.onRowClick) return
-
         if (event.key === 'Enter' || event.key === ' ') {
+          if (!props.onRowDoubleClick && !props.onRowClick) return
           event.preventDefault()
-          props.onRowClick(row.original)
+          ;(props.onRowDoubleClick ?? props.onRowClick)?.(row.original)
           return
         }
 
+        if (!props.onRowClick) return
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
         event.preventDefault()
         const rows = table.getRowModel().rows

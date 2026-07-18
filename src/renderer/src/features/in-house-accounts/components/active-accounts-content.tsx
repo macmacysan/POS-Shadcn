@@ -11,13 +11,11 @@ import {
 } from '@tanstack/react-table'
 import { differenceInCalendarDays, format, parseISO, startOfToday } from 'date-fns'
 
-import { AccountBranchBadge, AccountStatusBadge } from '@/components/in-house-account-badges'
-import { InHouseAccountInspector } from '@/components/in-house-account-inspector'
-import { DataGrid, DataGridContainer } from '@/components/reui/data-grid/data-grid'
-import { DataGridColumnHeader } from '@/components/reui/data-grid/data-grid-column-header'
-import { DataGridPagination } from '@/components/reui/data-grid/data-grid-pagination'
-import { DataGridScrollArea } from '@/components/reui/data-grid/data-grid-scroll-area'
-import { DataGridTableVirtual } from '@/components/reui/data-grid/data-grid-table-virtual'
+import { AccountBranchBadge, AccountStatusBadge } from '@/features/in-house-accounts/components/account-badges'
+import { InHouseAccountInspector } from '@/features/in-house-accounts/components/account-inspector'
+import { createRowActionsColumn, type RowActionItem } from '@/components/shared/data-table/row-actions'
+import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
+import { dataTableColumnSizes, UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
@@ -28,7 +26,7 @@ import {
   EmptyMedia,
   EmptyTitle
 } from '@/components/ui/empty'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -62,7 +60,7 @@ import {
   type BranchName,
   type InHouseAccount
 } from '@/lib/in-house-accounts'
-import { formatHistoryMoney, installmentHistoryData } from '@/lib/installment-history'
+import { formatHistoryMoney } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 
 type DueDateFilter = 'all' | 'today' | 'tomorrow' | 'this-week' | 'overdue'
@@ -154,24 +152,8 @@ function relativeDate(value: string | undefined, includeTomorrow = false): strin
   return format(date, 'MMM d')
 }
 
-function formatContractTerms(value: string | undefined): string {
-  if (!value) return 'Terms not provided'
-  return value
-}
-
 function daysUntilDue(nextDue: string | undefined): number | undefined {
   return nextDue ? differenceInCalendarDays(parseISO(nextDue), startOfToday()) : undefined
-}
-
-function paidTodayTotal(): number {
-  const today = format(startOfToday(), 'yyyy-MM-dd')
-
-  return installmentHistoryData
-    .filter((record) => record.source === 'in-house' && record.action !== 'deleted')
-    .reduce((total, record) => {
-      const payment = record.details.payment
-      return payment?.datePaid === today ? total + (payment.amountPaid ?? 0) : total
-    }, 0)
 }
 
 const TruncatedText = React.memo(function TruncatedText({
@@ -194,18 +176,11 @@ const TruncatedText = React.memo(function TruncatedText({
 })
 
 const AccountCell = React.memo(function AccountCell({
-  name,
-  accountId
+  name
 }: {
   readonly name: string
-  readonly accountId: string
 }): React.JSX.Element {
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <TruncatedText value={name} className="font-semibold text-foreground" />
-      <TruncatedText value={accountId} className="text-xs text-muted-foreground" />
-    </div>
-  )
+  return <TruncatedText value={name} className="font-semibold text-foreground" />
 })
 
 const ContractCell = React.memo(function ContractCell({
@@ -215,11 +190,12 @@ const ContractCell = React.memo(function ContractCell({
   readonly frequency?: string
   readonly terms?: string
 }): React.JSX.Element {
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <TruncatedText value={frequency ?? '—'} className="font-medium text-foreground" />
-      <TruncatedText value={formatContractTerms(terms)} className="text-xs text-muted-foreground" />
-    </div>
+  const contract = [frequency, terms?.replace(/\s*months?$/i, '')].filter(Boolean).join(' ')
+
+  return contract ? (
+    <TruncatedText value={contract} className="font-medium text-foreground" />
+  ) : (
+    <span aria-hidden="true" />
   )
 })
 
@@ -255,11 +231,14 @@ function QuickFilterChip({
   return (
     <Button
       type="button"
-      size="sm"
-      variant="outline"
+      size="xs"
+      variant="ghost"
       aria-pressed={active}
       onClick={onClick}
-      className={cn('h-7 rounded-full px-2 text-xs', active && 'bg-muted text-foreground')}
+      className={cn(
+        'h-9 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+        active && 'bg-muted/70 text-foreground'
+      )}
     >
       {children}
     </Button>
@@ -325,6 +304,62 @@ function ActiveFilterChip({
   )
 }
 
+function noopActiveAccountAction(account: InHouseAccount): void {
+  void account.id
+}
+
+function activeAccountRowActions(
+  row: ActiveAccountRow,
+  viewAccount: () => void
+): readonly RowActionItem[] {
+  return [
+    {
+      id: 'record-payment',
+      label: 'Record Payment',
+      onSelect: () => noopActiveAccountAction(row.account)
+    },
+    { id: 'view', label: 'View Account', onSelect: viewAccount },
+    {
+      id: 'view-ledger',
+      label: 'View Ledger',
+      onSelect: () => noopActiveAccountAction(row.account)
+    },
+    { id: 'edit-loan', label: 'Edit Loan', onSelect: () => noopActiveAccountAction(row.account) },
+    {
+      id: 'edit-customer',
+      label: 'Edit Customer',
+      onSelect: () => noopActiveAccountAction(row.account)
+    },
+    { id: 'add-loan', label: 'Add Loan', onSelect: () => noopActiveAccountAction(row.account) },
+    {
+      id: 'reschedule-payment',
+      label: 'Reschedule Payment',
+      onSelect: () => noopActiveAccountAction(row.account)
+    },
+    {
+      id: 'print-statement',
+      label: 'Print Statement',
+      onSelect: () => noopActiveAccountAction(row.account)
+    },
+    {
+      id: 'close-account',
+      label: 'Close Account',
+      onSelect: () => noopActiveAccountAction(row.account),
+      destructive: true,
+      requiresConfirmation: true,
+      confirmationMessage: 'Close account?'
+    },
+    {
+      id: 'blacklist',
+      label: 'Blacklist Account',
+      onSelect: () => noopActiveAccountAction(row.account),
+      destructive: true,
+      requiresConfirmation: true,
+      confirmationMessage: 'Blacklist account?'
+    }
+  ]
+}
+
 export function InHouseActiveAccountsContent(): React.JSX.Element {
   const [accounts] = React.useState<readonly InHouseAccount[]>(readInHouseAccounts)
   const [selectedId, setSelectedId] = React.useState<string | undefined>(accounts[0]?.id)
@@ -340,6 +375,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
   const [pagination, setPagination] = React.useState<PaginationState>(() =>
     readJson(paginationStorageKey, defaultPagination)
   )
+  const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
   const isInspectorSheet = useMediaQuery('(max-width: 1099px)')
   const historyIndex = React.useMemo(createAccountHistoryIndex, [])
   const baseRows = React.useMemo<readonly ActiveAccountRow[]>(
@@ -394,10 +430,6 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
     })
   }, [baseRows, branch, dueDate, frequency, paymentStatus, search])
   const selectedRow = baseRows.find((row) => row.account.id === selectedId)
-  const activeAccountsCount = baseRows.length
-  const dueTodayCount = baseRows.filter((row) => row.status === 'due-today').length
-  const overdueCount = baseRows.filter((row) => row.status === 'overdue').length
-  const todaysCollections = React.useMemo(paidTodayTotal, [])
   const activeFilters = React.useMemo(
     () =>
       [
@@ -443,7 +475,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Branch" className="px-1 text-xs" />
         ),
         enableSorting: false,
-        size: 58,
+        size: dataTableColumnSizes.branch.compactSize,
         meta: { headerTitle: 'Branch' },
         cell: ({ row }) => <AccountBranchBadge branch={row.original.branch} />
       },
@@ -454,11 +486,9 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Account" className="px-1 text-xs" />
         ),
         sortingFn: 'alphanumeric',
-        size: 160,
+        size: dataTableColumnSizes.account.compactSize,
         meta: { headerTitle: 'Account', cellClassName: 'min-w-0' },
-        cell: ({ row }) => (
-          <AccountCell name={row.original.name} accountId={row.original.account.id} />
-        )
+        cell: ({ row }) => <AccountCell name={row.original.name} />
       },
       {
         id: 'contract',
@@ -466,7 +496,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Contract" className="px-1 text-xs" />
         ),
         enableSorting: false,
-        size: 96,
+        size: dataTableColumnSizes.receiptNumber.size,
         meta: { headerTitle: 'Contract', cellClassName: 'min-w-0' },
         cell: ({ row }) => (
           <ContractCell
@@ -481,7 +511,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Installment" className="px-1 text-xs" />
         ),
         enableSorting: false,
-        size: 88,
+        size: dataTableColumnSizes.amount.compactSize,
         meta: {
           headerTitle: 'Installment',
           headerClassName: 'text-right',
@@ -501,7 +531,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
         ),
         sortingFn: 'basic',
         sortUndefined: 'last',
-        size: 126,
+        size: dataTableColumnSizes.amount.wideSize,
         meta: {
           headerTitle: 'Outstanding Balance',
           headerClassName: 'text-right',
@@ -516,7 +546,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Payment Status" className="px-1 text-xs" />
         ),
         sortingFn: 'basic',
-        size: 108,
+        size: dataTableColumnSizes.status.compactSize,
         meta: { headerTitle: 'Payment Status' },
         cell: ({ row }) => <AccountStatusBadge status={row.original.status} />
       },
@@ -528,7 +558,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
         ),
         sortingFn: 'basic',
         sortUndefined: 'last',
-        size: 76,
+        size: dataTableColumnSizes.date.narrowSize,
         meta: {
           headerTitle: 'Next Due',
           headerClassName: 'text-right',
@@ -555,7 +585,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
         ),
         sortingFn: 'basic',
         sortUndefined: 'last',
-        size: 88,
+        size: dataTableColumnSizes.date.compactSize,
         meta: {
           headerTitle: 'Last Payment',
           headerClassName: 'text-right',
@@ -566,9 +596,14 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
             {relativeDate(row.original.meta.lastPayment)}
           </span>
         )
-      }
+      },
+      createRowActionsColumn<ActiveAccountRow>({
+        label: 'Open active account actions',
+        getActions: (row) => activeAccountRowActions(row, () => setSelectedId(row.account.id)),
+        getOpenSignal: (rowId) => (contextMenu.rowId === rowId ? contextMenu.signal : undefined)
+      })
     ],
-    []
+    [contextMenu]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table manages reactive table state internally.
   const table = useReactTable({
@@ -609,55 +644,36 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
       <div className="grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_clamp(20rem,24vw,24rem)] gap-3 max-[1099px]:grid-cols-1">
         <div className="flex min-h-0 min-w-0 flex-col gap-3">
-          <dl className="flex h-12 min-h-12 items-center overflow-x-auto rounded-md border bg-card px-3 text-xs">
-            {[
-              { label: 'Active', value: activeAccountsCount.toLocaleString('en-PH') },
-              { label: 'Due Today', value: dueTodayCount.toLocaleString('en-PH') },
-              { label: 'Overdue', value: overdueCount.toLocaleString('en-PH') },
-              { label: "Today's Collections", value: formatHistoryMoney(todaysCollections) }
-            ].map((item, index) => (
-              <React.Fragment key={item.label}>
-                {index > 0 && (
-                  <span aria-hidden="true" className="mx-2 shrink-0 text-muted-foreground/60">
-                    •
-                  </span>
-                )}
-                <div className="flex shrink-0 items-baseline gap-1.5 whitespace-nowrap">
-                  <dt className="text-muted-foreground">{item.label}</dt>
-                  <dd className="font-medium tabular-nums text-foreground">{item.value}</dd>
-                </div>
-              </React.Fragment>
-            ))}
-          </dl>
           <Card className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <CardHeader className="flex shrink-0 flex-col gap-2 border-b px-3 py-2">
+            <CardHeader className="flex shrink-0 flex-col gap-2 border-b px-3 py-1.5">
               <div className="flex w-full items-center gap-2">
-                <InputGroup className="h-8 min-w-72 flex-[0_1_70%]">
-                  <InputGroupAddon>
-                    <Search aria-hidden="true" />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    className="text-xs"
+                <div className="relative min-w-72 flex-[1_1_70%]">
+                  <Search
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                  />
+                  <Input
+                    className="h-10 pl-8 text-xs"
                     aria-label="Search active accounts by name, account ID, or mobile number"
                     placeholder="Search customer, account ID..."
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />
-                </InputGroup>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   aria-label="Open advanced filters"
                   onClick={() => setIsFiltersOpen(true)}
-                  className="ml-auto shrink-0"
+                  className="ml-auto h-10 shrink-0"
                 >
                   <SlidersHorizontal data-icon="inline-start" />
                   Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
                 </Button>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <div className="flex flex-wrap gap-1.5" aria-label="Quick filters">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap gap-2" aria-label="Quick filters">
                   <QuickFilterChip
                     active={paymentStatus === 'due-today'}
                     onClick={() =>
@@ -698,7 +714,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
                     type="button"
                     variant="ghost"
                     size="xs"
-                    className="ml-auto"
+                    className="ml-auto h-9"
                     onClick={clearFilters}
                   >
                     <X data-icon="inline-start" />
@@ -720,25 +736,31 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
               {filteredRows.length ? (
-                <DataGrid
+                <UniversalDataTable
                   table={table}
                   recordCount={filteredRows.length}
                   onRowClick={(row) => setSelectedId(row.account.id)}
-                  className="flex min-h-0 min-w-0 flex-1 flex-col"
-                  tableLayout={{ dense: true, headerSticky: true, width: 'fixed' }}
-                  tableClassNames={{ base: tableMinWidthClass }}
-                >
-                  <DataGridContainer className="min-h-0 min-w-0 flex-1">
-                    <DataGridScrollArea className="h-full min-h-0" orientation="both">
-                      <DataGridTableVirtual estimateSize={48} overscan={8} />
-                    </DataGridScrollArea>
-                  </DataGridContainer>
-                  <DataGridPagination
-                    sizes={[25, 50, 100]}
-                    info="Showing {from}–{to} of {count} Active Accounts"
-                    className="h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-3 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0"
-                  />
-                </DataGrid>
+                  onRowDoubleClick={(row) => setSelectedId(row.account.id)}
+                  onRowContextMenu={(row, event) => {
+                    event.preventDefault()
+                    setSelectedId(row.account.id)
+                    setContextMenu((current) => ({
+                      rowId: row.account.id,
+                      signal: current.signal + 1
+                    }))
+                  }}
+                  tableClassNames={{
+                    base: cn(tableMinWidthClass, '[&_td]:border-border/50 [&_th]:border-border/50'),
+                    headerRow: '[&>th]:!px-1.5',
+                    headerSticky: 'sticky top-0 z-15 bg-background/95 backdrop-blur-xs',
+                    bodyRow: 'hover:bg-muted/30 data-[state=selected]:bg-muted/40'
+                  }}
+                  virtual
+                  virtualEstimateSize={48}
+                  virtualOverscan={8}
+                  paginationSizes={[25, 50, 100]}
+                  paginationInfo="Showing {from}-{to} of {count} Active Accounts"
+                />
               ) : (
                 <div className="flex min-h-0 flex-1 items-center justify-center p-4">
                   <Empty className="border-0">
@@ -772,9 +794,9 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
             <SheetTitle>Filters</SheetTitle>
             <SheetDescription>Refine the active collection queue.</SheetDescription>
           </SheetHeader>
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
-            <section className="flex flex-col gap-3">
-              <h3 className="text-xs font-semibold">Account Scope</h3>
+          <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
+            <section className="flex flex-col gap-2.5">
+              <h3 className="text-xs font-semibold text-foreground">Account</h3>
               <FilterSelect
                 label="Branch"
                 items={branchFilterItems}
@@ -782,16 +804,16 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
                 onValueChange={(value) => setBranch(value as BranchName | 'all')}
               />
               <FilterSelect
-                label="Payment Status"
+                label="Status"
                 items={statusFilterItems}
                 value={paymentStatus}
                 onValueChange={(value) => setPaymentStatus(value as ActivePaymentStatus | 'all')}
               />
             </section>
-            <section className="flex flex-col gap-3">
-              <h3 className="text-xs font-semibold">Schedule</h3>
+            <section className="flex flex-col gap-2.5">
+              <h3 className="text-xs font-semibold text-foreground">Schedule</h3>
               <FilterSelect
-                label="Payment Frequency"
+                label="Frequency"
                 items={frequencyFilterItems}
                 value={frequency}
                 onValueChange={setFrequency}
@@ -805,13 +827,11 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
             </section>
           </div>
           <SheetFooter className="border-t">
-            {hasActiveFilters && (
-              <Button type="button" variant="outline" onClick={clearFilters}>
-                Clear All
-              </Button>
-            )}
+            <Button type="button" variant="ghost" onClick={clearFilters}>
+              Reset
+            </Button>
             <Button type="button" onClick={() => setIsFiltersOpen(false)}>
-              Done
+              Apply Filters
             </Button>
           </SheetFooter>
         </SheetContent>

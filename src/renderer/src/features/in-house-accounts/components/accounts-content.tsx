@@ -37,17 +37,15 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { DataGrid, DataGridContainer } from '@/components/reui/data-grid/data-grid'
-import { DataGridColumnHeader } from '@/components/reui/data-grid/data-grid-column-header'
-import { DataGridPagination } from '@/components/reui/data-grid/data-grid-pagination'
-import { DataGridScrollArea } from '@/components/reui/data-grid/data-grid-scroll-area'
-import { DataGridTable } from '@/components/reui/data-grid/data-grid-table'
+import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import {
   InHouseAccountForm,
   type InHouseAccountWorkflowSave
-} from '@/components/in-house-account-form'
-import { AccountBranchBadge, AccountStatusBadge } from '@/components/in-house-account-badges'
-import { InHouseAccountInspector } from '@/components/in-house-account-inspector'
+} from '@/features/in-house-accounts/components/account-form'
+import { AccountBranchBadge, AccountStatusBadge } from '@/features/in-house-accounts/components/account-badges'
+import { InHouseAccountInspector } from '@/features/in-house-accounts/components/account-inspector'
+import { createRowActionsColumn, type RowActionItem } from '@/components/shared/data-table/row-actions'
+import { dataTableColumnSizes, UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { accountStatusRank } from '@/lib/in-house-account-display'
 import {
   branchLabels,
@@ -131,6 +129,49 @@ function TruncatedText({
   )
 }
 
+function noopAccountAction(account: InHouseAccount): void {
+  void account.id
+}
+
+function accountRowActions(row: AccountRow, viewAccount: () => void): readonly RowActionItem[] {
+  return [
+    { id: 'view', label: 'View Account', onSelect: viewAccount },
+    {
+      id: 'record-payment',
+      label: 'Record Payment',
+      onSelect: () => noopAccountAction(row.account)
+    },
+    { id: 'edit-customer', label: 'Edit Customer', onSelect: () => noopAccountAction(row.account) },
+    { id: 'add-loan', label: 'Add Loan', onSelect: () => noopAccountAction(row.account) },
+    { id: 'view-ledger', label: 'View Ledger', onSelect: () => noopAccountAction(row.account) },
+    {
+      id: 'print-summary',
+      label: 'Print Account Summary',
+      onSelect: () => noopAccountAction(row.account)
+    },
+    ...(row.status === 'blacklisted'
+      ? []
+      : [
+          {
+            id: 'blacklist',
+            label: 'Blacklist Account',
+            onSelect: () => noopAccountAction(row.account),
+            destructive: true,
+            requiresConfirmation: true,
+            confirmationMessage: 'Blacklist account?'
+          } satisfies RowActionItem
+        ]),
+    {
+      id: 'archive',
+      label: 'Archive Account',
+      onSelect: () => noopAccountAction(row.account),
+      destructive: true,
+      requiresConfirmation: true,
+      confirmationMessage: 'Archive account?'
+    }
+  ]
+}
+
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = React.useState(false)
 
@@ -159,6 +200,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
     readJson(paginationStorageKey, defaultPagination)
   )
   const [isFormOpen, setIsFormOpen] = React.useState(false)
+  const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
   const isInspectorSheet = useMediaQuery('(max-width: 1099px)')
   const selected = accounts.find((account) => account.id === selectedId)
   const historyIndex = React.useMemo(createAccountHistoryIndex, [])
@@ -211,7 +253,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         id: 'branch',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Branch" />,
         enableSorting: false,
-        size: 92,
+        size: dataTableColumnSizes.branch.size,
         meta: {
           headerTitle: 'Branch',
           headerClassName: 'max-[640px]:hidden',
@@ -224,16 +266,13 @@ export function InHouseAccountsContent(): React.JSX.Element {
         accessorFn: (row) => row.name,
         header: ({ column }) => <DataGridColumnHeader column={column} title="Account" />,
         sortingFn: 'alphanumeric',
-        size: 230,
+        size: dataTableColumnSizes.account.size,
         meta: {
           headerTitle: 'Account',
           cellClassName: 'min-w-0'
         },
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <TruncatedText value={row.original.name} className="font-medium text-foreground" />
-            <span className="block truncate text-muted-foreground">{row.original.account.id}</span>
-          </div>
+          <TruncatedText value={row.original.name} className="font-medium text-foreground" />
         )
       },
       {
@@ -241,7 +280,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         accessorFn: (row) => row.address,
         header: ({ column }) => <DataGridColumnHeader column={column} title="Address" />,
         enableSorting: false,
-        size: 210,
+        size: dataTableColumnSizes.description.size,
         meta: {
           headerTitle: 'Address',
           headerClassName: 'max-[1099px]:hidden',
@@ -256,7 +295,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         accessorFn: (row) => accountStatusRank[row.status],
         header: ({ column }) => <DataGridColumnHeader column={column} title="Status" />,
         sortingFn: 'basic',
-        size: 120,
+        size: dataTableColumnSizes.status.size,
         meta: {
           headerTitle: 'Status'
         },
@@ -267,7 +306,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         accessorFn: (row) => row.nextDueSort,
         header: ({ column }) => <DataGridColumnHeader column={column} title="Next Due" />,
         sortingFn: 'basic',
-        size: 100,
+        size: dataTableColumnSizes.date.size,
         meta: {
           headerTitle: 'Next Due',
           headerClassName: 'text-right',
@@ -285,9 +324,14 @@ export function InHouseAccountsContent(): React.JSX.Element {
             {formatDueDate(row.original.nextDue)}
           </span>
         )
-      }
+      },
+      createRowActionsColumn<AccountRow>({
+        label: 'Open account actions',
+        getActions: (row) => accountRowActions(row, () => setSelectedId(row.account.id)),
+        getOpenSignal: (rowId) => (contextMenu.rowId === rowId ? contextMenu.signal : undefined)
+      })
     ],
-    []
+    [contextMenu]
   )
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table manages reactive table state internally.
   const table = useReactTable({
@@ -431,29 +475,25 @@ export function InHouseAccountsContent(): React.JSX.Element {
                   </Button>
                 </CardHeader>
                 {totalRows ? (
-                  <DataGrid
+                  <UniversalDataTable
                     table={table}
                     recordCount={totalRows}
                     onRowClick={(row) => setSelectedId(row.account.id)}
-                    className="flex min-h-0 min-w-0 flex-1 flex-col"
-                    tableLayout={{
-                      dense: true,
-                      headerSticky: true,
-                      columnsResizable: true,
-                      width: 'fixed'
+                    onRowDoubleClick={(row) => setSelectedId(row.account.id)}
+                    onRowContextMenu={(row, event) => {
+                      event.preventDefault()
+                      setSelectedId(row.account.id)
+                      setContextMenu((current) => ({
+                        rowId: row.account.id,
+                        signal: current.signal + 1
+                      }))
                     }}
-                  >
-                    <DataGridContainer className="min-h-0 min-w-0 flex-1">
-                      <DataGridScrollArea className="h-full min-h-0" orientation="both">
-                        <DataGridTable />
-                      </DataGridScrollArea>
-                    </DataGridContainer>
-                    <DataGridPagination
-                      sizes={[25, 50, 100]}
-                      info="Showing {from}-{to} of {count} accounts"
-                      className="h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-3 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0"
-                    />
-                  </DataGrid>
+                    tableLayout={{
+                      columnsResizable: true
+                    }}
+                    paginationSizes={[25, 50, 100]}
+                    paginationInfo="Showing {from}-{to} of {count} accounts"
+                  />
                 ) : (
                   <div className="flex min-h-0 flex-1 items-center justify-center p-4">
                     <Empty className="border-0">

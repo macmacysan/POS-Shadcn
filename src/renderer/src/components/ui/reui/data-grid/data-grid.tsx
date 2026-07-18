@@ -1,16 +1,10 @@
 /* eslint-disable */
-import { createContext, ReactNode, useContext, useMemo } from "react"
-import {
-  Column,
-  ColumnFiltersState,
-  RowData,
-  SortingState,
-  Table,
-} from "@tanstack/react-table"
+import { createContext, MouseEvent, ReactNode, useContext, useMemo } from 'react'
+import { Column, ColumnFiltersState, RowData, SortingState, Table } from '@tanstack/react-table'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
-declare module "@tanstack/react-table" {
+declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData extends RowData, TValue> {
     headerTitle?: string
@@ -24,13 +18,11 @@ declare module "@tanstack/react-table" {
 }
 
 /** Label for headers / column visibility: `meta.headerTitle`, string `columnDef.header`, or `column.id`. */
-export function getColumnHeaderLabel<TData, TValue>(
-  column: Column<TData, TValue>
-): string {
+export function getColumnHeaderLabel<TData, TValue>(column: Column<TData, TValue>): string {
   const meta = column.columnDef.meta as { headerTitle?: string } | undefined
-  if (typeof meta?.headerTitle === "string") return meta.headerTitle
+  if (typeof meta?.headerTitle === 'string') return meta.headerTitle
   const defHeader = column.columnDef.header
-  if (typeof defHeader === "string") return defHeader
+  if (typeof defHeader === 'string') return defHeader
   return String(column.id)
 }
 
@@ -71,8 +63,10 @@ export interface DataGridProps<TData extends object> {
   recordCount: number
   children?: ReactNode
   onRowClick?: (row: TData) => void
+  onRowDoubleClick?: (row: TData) => void
+  onRowContextMenu?: (row: TData, event: MouseEvent<HTMLTableRowElement>) => void
   isLoading?: boolean
-  loadingMode?: "skeleton" | "spinner"
+  loadingMode?: 'skeleton' | 'spinner'
   loadingMessage?: ReactNode | string
   fetchingMoreMessage?: ReactNode | string
   allRowsLoadedMessage?: ReactNode | string
@@ -87,10 +81,10 @@ export interface DataGridProps<TData extends object> {
     footerBackground?: boolean
     headerBorder?: boolean
     headerSticky?: boolean
-    width?: "auto" | "fixed"
+    width?: 'auto' | 'fixed'
     columnsVisibility?: boolean
     columnsResizable?: boolean
-    columnsResizeMode?: "onChange" | "onEnd"
+    columnsResizeMode?: 'onChange' | 'onEnd'
     columnsPinnable?: boolean
     columnsMovable?: boolean
     columnsDraggable?: boolean
@@ -117,7 +111,7 @@ const DataGridContext = createContext<
 function useDataGrid() {
   const context = useContext(DataGridContext)
   if (!context) {
-    throw new Error("useDataGrid must be used within a DataGridProvider")
+    throw new Error('useDataGrid must be used within a DataGridProvider')
   }
   return context
 }
@@ -128,8 +122,7 @@ function DataGridProvider<TData extends object>({
   ...props
 }: DataGridProps<TData> & { table: Table<TData> }) {
   const tableState = table.getState()
-  const resolvedColumnsResizeMode =
-    props.tableLayout?.columnsResizeMode ?? "onEnd"
+  const resolvedColumnsResizeMode = props.tableLayout?.columnsResizeMode ?? 'onEnd'
 
   // Keep resize mode aligned with the DataGrid contract every render so
   // consumer-level useReactTable options cannot flip it back between drags.
@@ -145,7 +138,7 @@ function DataGridProvider<TData extends object>({
       props,
       table,
       recordCount: props.recordCount,
-      isLoading: props.isLoading || false,
+      isLoading: props.isLoading || false
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
@@ -158,6 +151,8 @@ function DataGridProvider<TData extends object>({
       props.allRowsLoadedMessage,
       props.emptyMessage,
       props.onRowClick,
+      props.onRowDoubleClick,
+      props.onRowContextMenu,
       props.className,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       JSON.stringify(props.tableLayout),
@@ -171,24 +166,16 @@ function DataGridProvider<TData extends object>({
       tableState.columnVisibility,
       tableState.columnOrder,
       tableState.columnPinning,
-      tableState.globalFilter,
+      tableState.globalFilter
     ]
   )
 
-  return (
-    <DataGridContext.Provider value={value}>
-      {children}
-    </DataGridContext.Provider>
-  )
+  return <DataGridContext.Provider value={value}>{children}</DataGridContext.Provider>
 }
 
-function DataGrid<TData extends object>({
-  children,
-  table,
-  ...props
-}: DataGridProps<TData>) {
+function DataGrid<TData extends object>({ children, table, ...props }: DataGridProps<TData>) {
   const defaultProps: Partial<DataGridProps<TData>> = {
-    loadingMode: "skeleton",
+    loadingMode: 'skeleton',
     tableLayout: {
       dense: false,
       cellBorder: false,
@@ -199,26 +186,26 @@ function DataGrid<TData extends object>({
       headerBackground: false,
       footerBackground: false,
       headerBorder: true,
-      width: "fixed",
+      width: 'fixed',
       columnsVisibility: false,
       columnsResizable: false,
-      columnsResizeMode: "onEnd",
+      columnsResizeMode: 'onEnd',
       columnsPinnable: false,
       columnsMovable: false,
       columnsDraggable: false,
       rowsDraggable: false,
-      rowsPinnable: false,
+      rowsPinnable: false
     },
     tableClassNames: {
-      base: "",
-      header: "",
-      headerRow: "",
-      headerSticky: "sticky top-0 z-15 bg-background/90 backdrop-blur-xs",
-      body: "",
-      bodyRow: "",
-      footer: "",
-      edgeCell: "",
-    },
+      base: '',
+      header: '',
+      headerRow: '',
+      headerSticky: 'sticky top-0 z-15 bg-background/90 backdrop-blur-xs',
+      body: '',
+      bodyRow: '',
+      footer: '',
+      edgeCell: ''
+    }
   }
 
   const mergedProps: DataGridProps<TData> = {
@@ -226,12 +213,12 @@ function DataGrid<TData extends object>({
     ...props,
     tableLayout: {
       ...defaultProps.tableLayout,
-      ...(props.tableLayout || {}),
+      ...(props.tableLayout || {})
     },
     tableClassNames: {
       ...defaultProps.tableClassNames,
-      ...(props.tableClassNames || {}),
-    },
+      ...(props.tableClassNames || {})
+    }
   }
 
   // Ensure table is provided
@@ -249,17 +236,14 @@ function DataGrid<TData extends object>({
 function DataGridContainer({
   children,
   className,
-  border: _border = true,
+  border: _border = true
 }: {
   children: ReactNode
   className?: string
   border?: boolean
 }) {
   return (
-    <div
-      data-slot="data-grid"
-      className={cn("w-full overflow-hidden", className)}
-    >
+    <div data-slot="data-grid" className={cn('w-full overflow-hidden', className)}>
       {children}
     </div>
   )

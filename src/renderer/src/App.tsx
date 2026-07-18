@@ -1,53 +1,14 @@
 import { useEffect, useState } from 'react'
 
-import { LoginForm } from '@/components/login-form'
-import { CashierReportsContent } from '@/components/cashier-reports-content'
-import { InHouseActiveAccountsContent } from '@/components/in-house-active-accounts-content'
-import { InHouseAccountsContent } from '@/components/in-house-accounts-content'
-import { SidebarLeft } from '@/components/sidebar-left'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
-import { ThemeToggle } from '@/components/theme-toggle'
-import { Badge } from '@/components/reui/badge'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from '@/components/ui/breadcrumb'
+import { LoginForm } from '@/features/authentication'
+import { CashierReportsContent } from '@/features/cashier-report'
+import { InHouseActiveAccountsContent, InHouseAccountsContent } from '@/features/in-house-accounts'
+import { SidebarLeft } from '@/components/layout/sidebar-left'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { ThemeToggle } from '@/components/shared/theme-toggle'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 type ActiveView = 'dashboard' | 'cashier-reports' | 'in-house-accounts' | 'in-house-active-accounts'
-
-const viewMeta: Record<
-  ActiveView,
-  { title: string; description: string; badge: string; breadcrumbs: string[] }
-> = {
-  dashboard: {
-    title: 'Cashiers Report',
-    description: 'Daily workspace',
-    badge: 'Overview',
-    breadcrumbs: ['Workspace', 'Dashboard']
-  },
-  'cashier-reports': {
-    title: 'Cashier Reports',
-    description: 'Expenses, income, payment, and installment activity',
-    badge: 'Daily report',
-    breadcrumbs: ['Workspace', 'Cashier Reports']
-  },
-  'in-house-accounts': {
-    title: 'All Accounts',
-    description: 'In-house installment customer accounts',
-    badge: 'Finance',
-    breadcrumbs: ['Finance', 'In-house', 'All Accounts']
-  },
-  'in-house-active-accounts': {
-    title: 'Active Accounts',
-    description: 'In-house installment loan monitoring',
-    badge: 'Collections',
-    breadcrumbs: ['Finance', 'In-house', 'Active Accounts']
-  }
-}
 
 function Workspace({
   isDark,
@@ -57,63 +18,19 @@ function Workspace({
   onToggleTheme: () => void
 }): React.JSX.Element {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard')
-  const currentView = viewMeta[activeView]
 
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
       <SidebarLeft
         activeView={activeView}
+        isDark={isDark}
         onDashboard={() => setActiveView('dashboard')}
         onCashierReports={() => setActiveView('cashier-reports')}
         onAllAccounts={() => setActiveView('in-house-accounts')}
         onActiveAccounts={() => setActiveView('in-house-active-accounts')}
+        onToggleTheme={onToggleTheme}
       />
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
-        <header
-          className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-4"
-          style={{ '--app-header-height': '3.5rem' } as React.CSSProperties}
-        >
-          <SidebarTrigger />
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <Breadcrumb>
-                <BreadcrumbList className="gap-1 text-xs">
-                  {currentView.breadcrumbs.map((crumb, index) => {
-                    const isLast = index === currentView.breadcrumbs.length - 1
-
-                    return (
-                      <BreadcrumbItem key={`${crumb}-${index}`} className="min-w-0">
-                        {isLast ? (
-                          <BreadcrumbPage className="truncate text-xs font-medium">
-                            {crumb}
-                          </BreadcrumbPage>
-                        ) : (
-                          <>
-                            <span className="truncate text-muted-foreground">{crumb}</span>
-                            <BreadcrumbSeparator />
-                          </>
-                        )}
-                      </BreadcrumbItem>
-                    )
-                  })}
-                </BreadcrumbList>
-              </Breadcrumb>
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-semibold leading-none">
-                  {currentView.title}
-                </span>
-                <span className="hidden truncate text-xs text-muted-foreground md:block">/</span>
-                <span className="hidden truncate text-xs text-muted-foreground md:block">
-                  {currentView.description}
-                </span>
-              </div>
-            </div>
-            <Badge variant="primary-light" size="sm" className="hidden shrink-0 sm:inline-flex">
-              {currentView.badge}
-            </Badge>
-          </div>
-          <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
-        </header>
         {activeView === 'cashier-reports' ? (
           <CashierReportsContent />
         ) : activeView === 'in-house-active-accounts' ? (

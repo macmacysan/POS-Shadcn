@@ -36,16 +36,15 @@ test('Active Accounts presents the collection-focused workspace', async ({ page 
   }
 
   await expect(page.getByText('Showing 1–3 of 3 Active Accounts')).toBeVisible()
-  const kpiCards = page.locator('[data-slot="card"]').filter({ hasText: "Today's Collections" })
-  await expect(page.locator('[data-slot="card"]').filter({ hasText: /^Active/ })).toBeVisible()
-  await expect(page.locator('[data-slot="card"]').filter({ hasText: /^Due Today/ })).toBeVisible()
-  await expect(page.locator('[data-slot="card"]').filter({ hasText: /^Overdue/ })).toBeVisible()
-  await expect(kpiCards).toBeVisible()
-  await expect(page.getByRole('table').getByText('IH-2026-0041', { exact: true })).toBeVisible()
+  await expect(page.getByText("Today's Collections")).toBeHidden()
+  await expect(
+    page.getByRole('table').getByText('Santos, Maria Clara Villanueva Jr.', { exact: true })
+  ).toBeVisible()
+  await expect(page.getByRole('table').getByText('IH-2026-0041', { exact: true })).toBeHidden()
   await expect(page.getByRole('button', { name: 'Record Payment' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'View Ledger' })).toBeDisabled()
-  await expect(page.getByText('Loan Overview', { exact: true })).toBeVisible()
-  await expect(page.getByText('Financial & Contract Details', { exact: true })).toBeVisible()
+  await expect(page.getByText('Collection Status', { exact: true })).toBeVisible()
+  await expect(page.getByText('Financial Breakdown', { exact: true })).toBeVisible()
 
   await expect(page.getByRole('button', { name: 'Open advanced filters' })).toBeVisible()
   await page.getByRole('button', { name: 'Open advanced filters' }).click()
@@ -53,14 +52,17 @@ test('Active Accounts presents the collection-focused workspace', async ({ page 
   await expect(filtersDialog).toBeVisible()
   await filtersDialog.getByRole('combobox', { name: 'Branch' }).click()
   await page.getByRole('option', { name: 'Tinambac' }).click()
-  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Apply Filters' }).click()
   await expect(page.getByRole('button', { name: 'Tinambac' })).toBeVisible()
   await page.getByRole('button', { name: 'Tinambac' }).click()
   await expect(page.getByRole('button', { name: 'Tinambac' })).toBeHidden()
 
   const search = page.getByLabel('Search active accounts by name, account ID, or mobile number')
   await search.fill('IH-2026-0037')
-  await expect(page.getByRole('table').getByText('IH-2026-0037', { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('table').getByText('Cruz, Luis Miguel', { exact: true })
+  ).toBeVisible()
+  await expect(page.getByRole('table').getByText('IH-2026-0037', { exact: true })).toBeHidden()
   await expect(page.getByText('Showing 1–1 of 1 Active Accounts')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Search: IH-2026-0037' })).toBeVisible()
   await search.fill('')
@@ -70,7 +72,7 @@ test('Active Accounts presents the collection-focused workspace', async ({ page 
     'aria-pressed',
     'true'
   )
-  await page.getByRole('button', { name: 'Clear All' }).first().click()
+  await page.getByRole('button', { name: 'Clear' }).first().click()
   await expect(page.getByRole('button', { name: 'Monthly' }).first()).toHaveAttribute(
     'aria-pressed',
     'false'
@@ -85,10 +87,10 @@ test('Active Accounts presents the collection-focused workspace', async ({ page 
     )
     .toContain('outstandingBalance')
 
-  const firstAccountRow = page.getByRole('row').filter({ hasText: 'IH-2026-0041' })
+  const firstAccountRow = page.getByRole('row').filter({ hasText: 'Santos, Maria Clara' })
   await firstAccountRow.focus()
   await firstAccountRow.press('ArrowUp')
-  await expect(page.getByText('IH-2026-0037 · Tinambac', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Cruz, Luis Miguel' })).toBeVisible()
 
   await page.setViewportSize({ width: 900, height: 800 })
   await expect(page.getByRole('dialog', { name: 'Account details' })).toBeVisible()

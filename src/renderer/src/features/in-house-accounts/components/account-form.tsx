@@ -39,12 +39,13 @@ import {
   StepperSeparator,
   StepperTitle,
   StepperTrigger
-} from '@/components/reui/stepper'
+} from '@/components/ui/reui/stepper'
 import {
   agentOptions,
   branchLabels,
   branchNames,
   formatAccountName,
+  loanTermOptions,
   paymentFrequencyOptions,
   suffixOptions,
   type AccountAddressSelection,
@@ -915,13 +916,21 @@ export function InHouseAccountForm({
                   </Field>
                   <Field data-invalid={Boolean(loanErrors.terms)}>
                     <FieldLabel htmlFor="terms">Terms</FieldLabel>
-                    <Input
-                      id="terms"
+                    <Select
                       value={loanDraft.terms}
-                      aria-invalid={Boolean(loanErrors.terms)}
-                      placeholder="12 months"
-                      onChange={(event) => setLoan('terms', event.target.value)}
-                    />
+                      onValueChange={(value) => setLoan('terms', value ?? '')}
+                    >
+                      <SelectTrigger id="terms" aria-invalid={Boolean(loanErrors.terms)}>
+                        <SelectValue placeholder="Select terms" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {loanTermOptions.map((term) => (
+                          <SelectItem key={term} value={term}>
+                            {term}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FieldError>{loanErrors.terms}</FieldError>
                   </Field>
                 </FieldGroup>

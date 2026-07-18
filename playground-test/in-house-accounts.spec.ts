@@ -29,8 +29,11 @@ test('All Accounts browser keeps only cashier-critical columns', async ({ page }
   await expect(headers.getByText('Referred By', { exact: true })).toHaveCount(0)
   await expect(headers.getByText('Last Added', { exact: true })).toHaveCount(0)
 
-  await expect(page.getByText('GOA', { exact: true })).toBeVisible()
-  await expect(page.getByRole('table').getByText('IH-2026-0041', { exact: true })).toBeVisible()
+  await expect(page.getByRole('table').getByText('GOA', { exact: true }).first()).toBeVisible()
+  await expect(
+    page.getByRole('table').getByText('Santos, Maria Clara Villanueva Jr.', { exact: true })
+  ).toBeVisible()
+  await expect(page.getByRole('table').getByText('IH-2026-0041', { exact: true })).toBeHidden()
   await expect(page.getByText('Showing 1-3 of 3 accounts')).toBeVisible()
 
   await page.setViewportSize({ width: 900, height: 800 })

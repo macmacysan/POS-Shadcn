@@ -3,7 +3,6 @@
 ## Project
 
 Cashiers Report is an Electron desktop application built with React and TypeScript for cashier reports, reconciliation, payments, installments, users, branches, and local persistence.
-
 Preserve existing business behavior unless the active task explicitly changes it.
 
 ## Required Reading
@@ -23,6 +22,9 @@ A nearer `AGENTS.md` may add stable rules for its subtree.
 Read each applicable document once per task. Re-read only when the working scope changes or an instruction file is modified.
 
 ## Working Contract
+
+- Use the smallest verification scope that matches the risk.
+- Do not run Playwright, full test suites, production builds, or repository-wide checks by default.
 
 1. Inspect affected code before editing.
 2. Prefer symbol and reference search over broad repository scans.

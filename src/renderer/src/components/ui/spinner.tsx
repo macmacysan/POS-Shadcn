@@ -1,10 +1,18 @@
-/* eslint-disable */
-import { cn } from "@/lib/utils"
-import { Loader2Icon } from "lucide-react"
+import { RiLoaderLine } from '@remixicon/react'
 
-function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
+import { cn } from '@/lib/utils'
+
+type SpinnerProps = Omit<React.ComponentProps<typeof RiLoaderLine>, 'children'>
+
+function Spinner({ className, ...props }: SpinnerProps): React.JSX.Element {
   return (
-    <Loader2Icon data-slot="spinner" role="status" aria-label="Loading" className={cn("size-4 animate-spin", className)} {...props} />
+    <RiLoaderLine
+      data-slot="spinner"
+      role="status"
+      aria-label="Loading"
+      className={cn('size-4 animate-spin', className)}
+      {...props}
+    />
   )
 }
 

@@ -98,6 +98,10 @@ export const paymentFrequencyOptions: readonly PaymentFrequency[] = [
   'Bi-weekly',
   'Monthly'
 ]
+export const loanTermOptions: readonly string[] = Array.from({ length: 12 }, (_, index) => {
+  const months = index + 1
+  return `${months} ${months === 1 ? 'month' : 'months'}`
+})
 
 const mobilePattern = /^(?:\+?63|0)\d{10}$/
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -286,7 +290,9 @@ export function validateLoanDraft(draft: LoanDraft): LoanValidationErrors {
   if (!draft.startDate) errors.startDate = 'Start Date is required.'
   if (!draft.firstDueDate) errors.firstDueDate = 'First Due Date is required.'
   if (!draft.paymentFrequency) errors.paymentFrequency = 'Payment Frequency is required.'
-  if (!draft.terms.trim()) errors.terms = 'Terms are required.'
+  if (!loanTermOptions.includes(draft.terms.trim())) {
+    errors.terms = 'Select terms from 1 to 12 months.'
+  }
   if (draft.principal <= 0) errors.principal = 'Principal must be greater than zero.'
   if (draft.installmentAmount <= 0)
     errors.installmentAmount = 'Installment Amount must be greater than zero.'

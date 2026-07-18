@@ -13,6 +13,7 @@ import { Filter, Plus, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { createRowActionsColumn, type RowActionItem } from '@/components/shared/data-table/row-actions'
 import {
   InputGroup,
   InputGroupAddon,
@@ -28,15 +29,12 @@ import {
 } from '@/components/ui/select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { DataGrid, DataGridContainer } from '@/components/reui/data-grid/data-grid'
-import { DataGridColumnHeader } from '@/components/reui/data-grid/data-grid-column-header'
-import { DataGridPagination } from '@/components/reui/data-grid/data-grid-pagination'
-import { DataGridScrollArea } from '@/components/reui/data-grid/data-grid-scroll-area'
+import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import {
-  DataGridTable,
   DataGridTableRowSelect,
   DataGridTableRowSelectAll
-} from '@/components/reui/data-grid/data-grid-table'
+} from '@/components/ui/reui/data-grid/data-grid-table'
+import { dataTableColumnSizes, UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { cn } from '@/lib/utils'
 
 export type ReportRow = { id: string }
@@ -49,6 +47,8 @@ type ReportDataTableProps<TData extends ReportRow> = {
   filterPlaceholder?: string
   onAddEntry?: () => void
   addEntryLabel?: string
+  getRowActions?: (row: TData) => readonly RowActionItem[]
+  onDefaultAction?: (row: TData) => void
 }
 
 function getHeaderTitle<TData extends ReportRow>(column: ReportColumn<TData>): string {
@@ -66,12 +66,15 @@ export function ReportDataTable<TData extends ReportRow>({
   data,
   filterPlaceholder = 'Filter rows...',
   onAddEntry,
-  addEntryLabel = 'Add Entry'
+  addEntryLabel = 'Add Entry',
+  getRowActions,
+  onDefaultAction
 }: ReportDataTableProps<TData>): React.JSX.Element {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = React.useState('')
   const [rowSelection, setRowSelection] = React.useState({})
+  const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
 
   const tableColumns = React.useMemo<ColumnDef<TData>[]>(
     () => [
@@ -80,12 +83,12 @@ export function ReportDataTable<TData extends ReportRow>({
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        size: 42,
+        size: dataTableColumnSizes.selection.size,
         header: () => <DataGridTableRowSelectAll />,
         cell: ({ row }) => <DataGridTableRowSelect row={row} />,
         meta: {
-          headerClassName: 'w-10',
-          cellClassName: 'w-10'
+          headerClassName: dataTableColumnSizes.selection.className,
+          cellClassName: dataTableColumnSizes.selection.className
         }
       },
       ...(columns.map((column) => {
@@ -107,9 +110,19 @@ export function ReportDataTable<TData extends ReportRow>({
             cellClassName: cn('max-w-72 truncate align-middle', legacyMeta?.className)
           }
         }
-      }) as ColumnDef<TData>[])
+      }) as ColumnDef<TData>[]),
+      ...(getRowActions
+        ? [
+            createRowActionsColumn<TData>({
+              label: 'Open row actions',
+              getActions: getRowActions,
+              getOpenSignal: (rowId) =>
+                contextMenu.rowId === rowId ? contextMenu.signal : undefined
+            })
+          ]
+        : [])
     ],
-    [columns]
+    [columns, contextMenu, getRowActions]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table manages reactive table state internally.
@@ -241,29 +254,29 @@ export function ReportDataTable<TData extends ReportRow>({
         </div>
       </div>
 
-      <DataGrid
+      <UniversalDataTable
         table={table}
         recordCount={filteredRowCount}
+        onRowDoubleClick={onDefaultAction}
+        onRowContextMenu={
+          getRowActions
+            ? (row, event) => {
+                event.preventDefault()
+                setContextMenu((current) => ({
+                  rowId: row.id,
+                  signal: current.signal + 1
+                }))
+              }
+            : undefined
+        }
         emptyMessage="No matching entries."
-        className="flex min-h-0 min-w-0 flex-1 flex-col"
         tableLayout={{
-          dense: true,
-          headerSticky: true,
-          columnsResizable: true,
-          width: 'fixed'
+          columnsResizable: true
         }}
-      >
-        <DataGridContainer className="min-h-0 min-w-0 flex-1">
-          <DataGridScrollArea className="h-full min-h-0" orientation="both">
-            <DataGridTable />
-          </DataGridScrollArea>
-        </DataGridContainer>
-        <DataGridPagination
-          sizes={[15, 25, 50, 100]}
-          info="{from}-{to} of {count} entries"
-          className="h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-4 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0"
-        />
-      </DataGrid>
+        paginationSizes={[15, 25, 50, 100]}
+        paginationInfo="{from}-{to} of {count} entries"
+        paginationClassName="px-4"
+      />
     </div>
   )
 }

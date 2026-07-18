@@ -104,7 +104,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
       snapshot: {
         accountDetails: 'Maria Clara Villanueva Santos · IH-2026-0041',
         loanDetails: 'In-house installment account',
-        terms: '₱85,000.00 total with ₱10,000.00 downpayment',
+        terms: '12 months',
         frequency: 'Monthly',
         startDate: '2026-07-14',
         endDate: '2027-07-14',
@@ -209,7 +209,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
       snapshot: {
         accountDetails: 'Beatriz de los Santos · IH-2026-0029',
         loanDetails: 'In-house installment account',
-        terms: '₱54,000.00 total',
+        terms: '12 months',
         frequency: 'Monthly',
         items: [{ name: 'Bedroom cabinet', quantity: 1, price: 54000 }],
         grandTotal: 54000,

@@ -1,6 +1,6 @@
 /* eslint-disable */
 import { HTMLAttributes, memo, ReactNode, useMemo } from 'react'
-import { getColumnHeaderLabel, useDataGrid } from '@/components/reui/data-grid/data-grid'
+import { getColumnHeaderLabel, useDataGrid } from '@/components/ui/reui/data-grid/data-grid'
 import { Column } from '@tanstack/react-table'
 
 import { cn } from '@/lib/utils'
@@ -84,7 +84,7 @@ function DataGridColumnHeaderInner<TData, TValue>({
   )
 
   const headerButtonClassName = cn(
-    'text-secondary-foreground/80 hover:bg-secondary data-[state=open]:bg-secondary hover:text-foreground data-[state=open]:text-foreground h-6 max-w-full justify-start truncate rounded-lg px-2 font-normal',
+    'group/header text-secondary-foreground/80 hover:bg-secondary data-[state=open]:bg-secondary hover:text-foreground data-[state=open]:text-foreground h-6 max-w-full justify-start truncate rounded-lg px-2 font-normal',
     className
   )
 
@@ -95,7 +95,9 @@ function DataGridColumnHeaderInner<TData, TValue>({
     ) : isSorted === 'asc' ? (
       <ArrowUpIcon className="size-3.25" aria-hidden="true" />
     ) : (
-      <ChevronsUpDownIcon className="mt-px size-3.25" aria-hidden="true" />
+      <span className="opacity-0 transition-opacity group-hover/header:opacity-100 group-focus-visible/header:opacity-100 group-data-[state=open]/header:opacity-100">
+        <ChevronsUpDownIcon className="mt-px size-3.25" aria-hidden="true" />
+      </span>
     ))
 
   const hasControls =

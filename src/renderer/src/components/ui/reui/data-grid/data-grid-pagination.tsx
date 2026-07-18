@@ -1,6 +1,6 @@
 /* eslint-disable */
 import React, { ReactNode } from 'react'
-import { useDataGrid } from '@/components/reui/data-grid/data-grid'
+import { useDataGrid } from '@/components/ui/reui/data-grid/data-grid'
 
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'

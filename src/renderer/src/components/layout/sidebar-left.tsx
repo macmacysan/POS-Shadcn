@@ -11,10 +11,17 @@ import {
   UsersIcon
 } from 'lucide-react'
 
-import { NavMain } from '@/components/nav-main'
-import { NavSecondary } from '@/components/nav-secondary'
-import { TeamSwitcher } from '@/components/team-switcher'
-import { Sidebar, SidebarContent, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
+import { NavMain } from '@/components/layout/navigation/nav-main'
+import { NavSecondary } from '@/components/layout/navigation/nav-secondary'
+import { TeamSwitcher } from '@/components/layout/navigation/team-switcher'
+import { ThemeToggle } from '@/components/shared/theme-toggle'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail
+} from '@/components/ui/sidebar'
 
 type ActiveView = 'dashboard' | 'cashier-reports' | 'in-house-accounts' | 'in-house-active-accounts'
 
@@ -63,17 +70,21 @@ const data = {
 
 export function SidebarLeft({
   activeView = 'dashboard',
+  isDark,
   onDashboard,
   onCashierReports,
   onAllAccounts,
   onActiveAccounts,
+  onToggleTheme,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   activeView?: ActiveView
+  isDark: boolean
   onDashboard?: () => void
   onCashierReports?: () => void
   onAllAccounts?: () => void
   onActiveAccounts?: () => void
+  onToggleTheme: () => void
 }): React.JSX.Element {
   return (
     <Sidebar collapsible="icon" className="border-r-0" {...props}>
@@ -126,6 +137,9 @@ export function SidebarLeft({
       <SidebarContent>
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border">
+        <ThemeToggle isDark={isDark} onToggle={onToggleTheme} />
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

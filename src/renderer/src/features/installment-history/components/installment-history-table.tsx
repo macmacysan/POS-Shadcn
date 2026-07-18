@@ -1,8 +1,13 @@
 import * as React from 'react'
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+  type ColumnDef
+} from '@tanstack/react-table'
 import { ArrowDown, ArrowUp, Search } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -11,17 +16,11 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { createRowActionsColumn, type RowActionItem } from '@/components/shared/data-table/row-actions'
+import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
+import { dataTableColumnSizes, UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { cn } from '@/lib/utils'
 import {
   actionLabels,
   formatHistoryDateTime,
@@ -64,7 +63,7 @@ function TruncatedText({
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger render={<span className={`block truncate ${className ?? ''}`} />}>
+        <TooltipTrigger render={<span className={cn('block truncate', className)} />}>
           {value}
         </TooltipTrigger>
         <TooltipContent className="max-w-80">{value}</TooltipContent>
@@ -73,20 +72,26 @@ function TruncatedText({
   )
 }
 
-function LoadingRows(): React.JSX.Element {
-  return (
-    <>
-      {Array.from({ length: 6 }, (_, index) => (
-        <TableRow key={`loading-${index}`} className="h-12">
-          {Array.from({ length: 7 }, (_, cellIndex) => (
-            <TableCell key={`loading-${index}-${cellIndex}`}>
-              <Skeleton className="h-4 w-full" />
-            </TableCell>
-          ))}
-        </TableRow>
-      ))}
-    </>
-  )
+function historyRowActions(
+  record: InstallmentHistoryRecord,
+  viewDetails: () => void
+): readonly RowActionItem[] {
+  if (record.action === 'deleted') {
+    return [{ id: 'view', label: 'View Details', onSelect: viewDetails }]
+  }
+
+  return [
+    { id: 'view', label: 'View Details', onSelect: viewDetails },
+    { id: 'edit', label: 'Edit Record', onSelect: viewDetails },
+    {
+      id: 'delete',
+      label: 'Delete Record',
+      onSelect: viewDetails,
+      destructive: true,
+      requiresConfirmation: true,
+      confirmationMessage: 'Delete history record?'
+    }
+  ]
 }
 
 export function InstallmentHistoryTable({
@@ -99,6 +104,7 @@ export function InstallmentHistoryTable({
   const [action, setAction] = React.useState<InstallmentHistoryAction | 'all'>('all')
   const [source, setSource] = React.useState<InstallmentHistorySource | 'all'>('all')
   const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc')
+  const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
 
   const visibleRecords = React.useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -118,10 +124,131 @@ export function InstallmentHistoryTable({
       })
   }, [action, records, search, sortDirection, source])
 
-  const selectAt = (index: number): void => {
-    const nextRecord = visibleRecords[index]
-    if (nextRecord) onSelect(nextRecord)
-  }
+  const columns = React.useMemo<ColumnDef<InstallmentHistoryRecord>[]>(
+    () => [
+      {
+        id: 'occurredAt',
+        accessorKey: 'occurredAt',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Date & Time" />,
+        enableSorting: false,
+        size: dataTableColumnSizes.date.dateTimeSize,
+        meta: {
+          headerTitle: 'Date & Time',
+          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          cellClassName: 'text-xs text-muted-foreground'
+        },
+        cell: ({ row }) => formatHistoryDateTime(row.original.occurredAt)
+      },
+      {
+        id: 'action',
+        accessorKey: 'action',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Action" />,
+        enableSorting: false,
+        size: dataTableColumnSizes.type.size,
+        meta: {
+          headerTitle: 'Action',
+          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground'
+        },
+        cell: ({ row }) => <ActionBadge action={row.original.action} />
+      },
+      {
+        id: 'source',
+        accessorKey: 'source',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Source" />,
+        enableSorting: false,
+        size: dataTableColumnSizes.status.compactSize,
+        meta: {
+          headerTitle: 'Source',
+          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          cellClassName: 'text-xs text-muted-foreground'
+        },
+        cell: ({ row }) => sourceLabels[row.original.source]
+      },
+      {
+        id: 'account',
+        accessorKey: 'accountName',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Account" />,
+        enableSorting: false,
+        size: dataTableColumnSizes.account.historySize,
+        meta: {
+          headerTitle: 'Account',
+          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          cellClassName: 'min-w-0'
+        },
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <TruncatedText value={row.original.accountName} className="text-xs font-medium" />
+            {row.original.reference && (
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {row.original.reference}
+              </span>
+            )}
+          </div>
+        )
+      },
+      {
+        id: 'activity',
+        accessorKey: 'activity',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Activity" />,
+        enableSorting: false,
+        size: dataTableColumnSizes.description.size,
+        meta: {
+          headerTitle: 'Activity',
+          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          cellClassName: 'min-w-0'
+        },
+        cell: ({ row }) => (
+          <TruncatedText value={row.original.activity} className="text-xs text-muted-foreground" />
+        )
+      },
+      {
+        id: 'amount',
+        accessorKey: 'amount',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Amount" />,
+        enableSorting: false,
+        size: dataTableColumnSizes.amount.size,
+        meta: {
+          headerTitle: 'Amount',
+          headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
+          cellClassName: 'text-right text-xs font-medium tabular-nums text-foreground'
+        },
+        cell: ({ row }) => formatHistoryMoney(row.original.amount)
+      },
+      {
+        id: 'balance',
+        accessorKey: 'balance',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Balance" />,
+        enableSorting: false,
+        size: dataTableColumnSizes.amount.size,
+        meta: {
+          headerTitle: 'Balance',
+          headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
+          cellClassName: 'text-right text-xs font-medium tabular-nums text-foreground'
+        },
+        cell: ({ row }) => formatHistoryMoney(row.original.balance)
+      },
+      createRowActionsColumn<InstallmentHistoryRecord>({
+        label: 'Open history actions',
+        getActions: (row) => historyRowActions(row, () => onSelect(row)),
+        getOpenSignal: (rowId) => (contextMenu.rowId === rowId ? contextMenu.signal : undefined)
+      })
+    ],
+    [contextMenu, onSelect]
+  )
+
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table manages reactive table state internally.
+  const table = useReactTable({
+    data: visibleRecords,
+    columns,
+    state: {
+      rowSelection: selectedId ? { [selectedId]: true } : {}
+    },
+    enableRowSelection: true,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getRowId: (row) => row.id,
+    initialState: { pagination: { pageSize: 25 } }
+  })
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -183,120 +310,29 @@ export function InstallmentHistoryTable({
           Date &amp; time
         </button>
       </div>
-      <ScrollArea className="min-h-0 min-w-0 flex-1" scrollbars="both">
-        <Table className="min-w-[760px] table-fixed" containerClassName="overflow-visible">
-          <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
-            <TableRow className="h-9 hover:bg-transparent">
-              <TableHead className="w-[16%] text-[11px] uppercase tracking-wide text-muted-foreground">
-                DATE &amp; TIME
-              </TableHead>
-              <TableHead className="w-[10%] text-[11px] uppercase tracking-wide text-muted-foreground">
-                ACTION
-              </TableHead>
-              <TableHead className="w-[11%] text-[11px] uppercase tracking-wide text-muted-foreground">
-                SOURCE
-              </TableHead>
-              <TableHead className="w-[20%] text-[11px] uppercase tracking-wide text-muted-foreground">
-                ACCOUNT
-              </TableHead>
-              <TableHead className="w-[22%] text-[11px] uppercase tracking-wide text-muted-foreground">
-                ACTIVITY
-              </TableHead>
-              <TableHead className="w-[11%] text-right text-[11px] uppercase tracking-wide text-foreground">
-                AMOUNT
-              </TableHead>
-              <TableHead className="w-[10%] text-right text-[11px] uppercase tracking-wide text-foreground">
-                BALANCE
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <LoadingRows />
-            ) : visibleRecords.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="p-4">
-                  <Empty className="min-h-64 border-0 p-8">
-                    <EmptyHeader>
-                      <EmptyTitle className="text-base">
-                        {records.length === 0
-                          ? 'No installment history yet'
-                          : 'No matching history'}
-                      </EmptyTitle>
-                      <EmptyDescription>
-                        {records.length === 0
-                          ? 'New, edited, and deleted installment activity will appear here.'
-                          : 'Try changing the search or filters.'}
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                </TableCell>
-              </TableRow>
-            ) : (
-              visibleRecords.map((record, index) => (
-                <TableRow
-                  key={record.id}
-                  tabIndex={0}
-                  aria-selected={record.id === selectedId}
-                  data-state={record.id === selectedId ? 'selected' : undefined}
-                  className="h-12 cursor-pointer focus-visible:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                  onClick={() => onSelect(record)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      onSelect(record)
-                    }
-                    if (event.key === 'ArrowDown') {
-                      event.preventDefault()
-                      selectAt(Math.min(index + 1, visibleRecords.length - 1))
-                    }
-                    if (event.key === 'ArrowUp') {
-                      event.preventDefault()
-                      selectAt(Math.max(index - 1, 0))
-                    }
-                  }}
-                >
-                  <TableCell className="truncate px-3 py-1 text-xs text-muted-foreground">
-                    {formatHistoryDateTime(record.occurredAt)}
-                  </TableCell>
-                  <TableCell className="px-3 py-1">
-                    <ActionBadge action={record.action} />
-                  </TableCell>
-                  <TableCell className="truncate px-3 py-1 text-xs text-muted-foreground">
-                    {sourceLabels[record.source]}
-                  </TableCell>
-                  <TableCell className="min-w-0 px-3 py-1">
-                    <TruncatedText value={record.accountName} className="text-xs font-medium" />
-                    {record.reference && (
-                      <span className="block truncate text-[11px] text-muted-foreground">
-                        {record.reference}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="min-w-0 px-3 py-1">
-                    <TruncatedText
-                      value={record.activity}
-                      className="text-xs text-muted-foreground"
-                    />
-                  </TableCell>
-                  <TableCell className="px-3 py-1 text-right text-xs font-medium tabular-nums text-foreground">
-                    {formatHistoryMoney(record.amount)}
-                  </TableCell>
-                  <TableCell className="px-3 py-1 text-right text-xs font-medium tabular-nums text-foreground">
-                    {formatHistoryMoney(record.balance)}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </ScrollArea>
-      <div className="flex min-h-10 shrink-0 items-center justify-between border-t bg-muted/30 px-3 text-xs text-muted-foreground">
-        <span>
-          {visibleRecords.length} record{visibleRecords.length === 1 ? '' : 's'}
-        </span>
-        <span>Newest first</span>
-      </div>
+      <UniversalDataTable
+        table={table}
+        recordCount={visibleRecords.length}
+        isLoading={isLoading}
+        emptyMessage={records.length === 0 ? 'No installment history yet' : 'No matching history.'}
+        onRowClick={onSelect}
+        onRowDoubleClick={onSelect}
+        onRowContextMenu={(record, event) => {
+          event.preventDefault()
+          onSelect(record)
+          setContextMenu((current) => ({
+            rowId: record.id,
+            signal: current.signal + 1
+          }))
+        }}
+        tableClassNames={{
+          base: 'min-w-[816px]',
+          headerSticky: 'sticky top-0 z-15 bg-muted/95 backdrop-blur-sm',
+          bodyRow: 'h-12'
+        }}
+        paginationSizes={[15, 25, 50, 100]}
+        paginationInfo="{from}-{to} of {count} records"
+      />
     </div>
   )
 }
