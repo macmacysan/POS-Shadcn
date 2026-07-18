@@ -132,19 +132,6 @@ export function InstallmentHistoryTable({
   const columns = React.useMemo<ColumnDef<InstallmentHistoryRecord>[]>(
     () => [
       {
-        id: 'occurredAt',
-        accessorKey: 'occurredAt',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Date & Time" />,
-        enableSorting: false,
-        size: 176,
-        meta: {
-          headerTitle: 'Date & Time',
-          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
-          cellClassName: 'text-xs text-muted-foreground'
-        },
-        cell: ({ row }) => formatHistoryDateTime(row.original.occurredAt)
-      },
-      {
         id: 'action',
         accessorKey: 'action',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Action" />,
@@ -174,11 +161,12 @@ export function InstallmentHistoryTable({
         accessorKey: 'accountName',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Account" />,
         enableSorting: false,
-        size: 220,
+        size: 200,
         meta: {
           headerTitle: 'Account',
           headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
-          cellClassName: 'min-w-0'
+          cellClassName: 'min-w-0',
+          autoSize: true
         },
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -196,7 +184,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'activity',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Activity" />,
         enableSorting: false,
-        size: 300,
+        size: 200,
         meta: {
           headerTitle: 'Activity',
           headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
@@ -211,7 +199,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'amount',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Amount" />,
         enableSorting: false,
-        size: 150,
+        size: 100,
         meta: {
           headerTitle: 'Amount',
           headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
@@ -224,13 +212,26 @@ export function InstallmentHistoryTable({
         accessorKey: 'balance',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Balance" />,
         enableSorting: false,
-        size: 150,
+        size: 100,
         meta: {
           headerTitle: 'Balance',
           headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
           cellClassName: 'text-right text-xs font-medium tabular-nums text-foreground'
         },
         cell: ({ row }) => formatHistoryMoney(row.original.balance)
+      },
+      {
+        id: 'occurredAt',
+        accessorKey: 'occurredAt',
+        header: ({ column }) => <DataGridColumnHeader column={column} title="Date & Time" />,
+        enableSorting: false,
+        size: 176,
+        meta: {
+          headerTitle: 'Date & Time',
+          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          cellClassName: 'text-xs text-muted-foreground'
+        },
+        cell: ({ row }) => formatHistoryDateTime(row.original.occurredAt)
       },
       createRowActionsColumn<InstallmentHistoryRecord>({
         label: 'Open history actions',
@@ -330,6 +331,7 @@ export function InstallmentHistoryTable({
         }}
         paginationSizes={[15, 25, 50, 100]}
         paginationInfo="{from}-{to} of {count} records"
+        tableLayout={{ columnsResizable: true }}
       />
     </div>
   )

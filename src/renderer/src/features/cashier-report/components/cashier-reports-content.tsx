@@ -248,6 +248,27 @@ function TypeBox({ value }: { value: string }): React.JSX.Element {
   )
 }
 
+function TruncatedText({
+  value,
+  className
+}: {
+  value: string
+  className?: string
+}): React.JSX.Element {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          render={<span className={cn('block min-w-0 truncate', className)} tabIndex={0} />}
+        >
+          {value}
+        </TooltipTrigger>
+        <TooltipContent className="max-w-80">{value}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 function ExpenseCategoryCell({ category }: { category: string }): React.JSX.Element {
   const fallbackLabel = category.trim() || 'Unknown'
   const config = expenseCategoryConfigByValue.get(category) ?? {
@@ -295,7 +316,8 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'description',
     header: 'Description',
     size: 360,
-    meta: { className: cn('w-750', 'font-light') }
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
+    meta: { className: 'min-w-0', autoSize: true }
   },
   {
     accessorKey: 'category',
@@ -338,7 +360,8 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     accessorKey: 'particular',
     header: 'Particular',
     size: 300,
-    meta: { className: cn('w-75', 'font-light') }
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
+    meta: { className: 'min-w-0', autoSize: true }
   },
   {
     accessorKey: 'receiptRefNo',
@@ -352,7 +375,10 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     accessorKey: 'remarks',
     header: 'Remarks',
     size: 200,
-    meta: { className: cn('w-[360px]', 'text-muted-foreground') }
+    cell: ({ getValue }) => (
+      <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
+    ),
+    meta: { className: 'min-w-0' }
   },
   {
     accessorKey: 'amount',
@@ -376,13 +402,17 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     accessorKey: 'bankProvider',
     header: 'BANK / PROVIDER',
     size: 150,
-    meta: { className: 'text-muted-foreground' }
+    cell: ({ getValue }) => (
+      <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
+    ),
+    meta: { className: 'min-w-0', autoSize: true }
   },
   {
     accessorKey: 'accountName',
     header: 'ACCOUNT NAME',
     size: 200,
-    meta: { className: 'font-light' }
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
+    meta: { className: 'min-w-0' }
   },
   {
     accessorKey: 'referenceNo',
