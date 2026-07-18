@@ -9,11 +9,14 @@ import {
   type SortingState,
   useReactTable
 } from '@tanstack/react-table'
-import { Filter, Plus, Search } from 'lucide-react'
+import { Filter, Plus, Search, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { createRowActionsColumn, type RowActionItem } from '@/components/shared/data-table/row-actions'
+import {
+  createRowActionsColumn,
+  type RowActionItem
+} from '@/components/shared/data-table/row-actions'
 import {
   InputGroup,
   InputGroupAddon,
@@ -34,7 +37,7 @@ import {
   DataGridTableRowSelect,
   DataGridTableRowSelectAll
 } from '@/components/ui/reui/data-grid/data-grid-table'
-import { dataTableColumnSizes, UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { cn } from '@/lib/utils'
 
 export type ReportRow = { id: string }
@@ -49,6 +52,7 @@ type ReportDataTableProps<TData extends ReportRow> = {
   addEntryLabel?: string
   getRowActions?: (row: TData) => readonly RowActionItem[]
   onDefaultAction?: (row: TData) => void
+  onDeleteSelected?: (rows: TData[]) => boolean
 }
 
 function getHeaderTitle<TData extends ReportRow>(column: ReportColumn<TData>): string {
@@ -68,7 +72,8 @@ export function ReportDataTable<TData extends ReportRow>({
   onAddEntry,
   addEntryLabel = 'Add Entry',
   getRowActions,
-  onDefaultAction
+  onDefaultAction,
+  onDeleteSelected
 }: ReportDataTableProps<TData>): React.JSX.Element {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -83,12 +88,12 @@ export function ReportDataTable<TData extends ReportRow>({
         enableSorting: false,
         enableColumnFilter: false,
         enableHiding: false,
-        size: dataTableColumnSizes.selection.size,
+        size: 42,
         header: () => <DataGridTableRowSelectAll />,
         cell: ({ row }) => <DataGridTableRowSelect row={row} />,
         meta: {
-          headerClassName: dataTableColumnSizes.selection.className,
-          cellClassName: dataTableColumnSizes.selection.className
+          headerClassName: 'w-[42px]',
+          cellClassName: 'w-[42px]'
         }
       },
       ...(columns.map((column) => {
@@ -152,6 +157,7 @@ export function ReportDataTable<TData extends ReportRow>({
     const value = table.getColumn(column.accessorKey)?.getFilterValue()
     return count + (value ? 1 : 0)
   }, 0)
+  const selectedRows = table.getSelectedRowModel().rows.map((row) => row.original)
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -173,6 +179,19 @@ export function ReportDataTable<TData extends ReportRow>({
           )}
         </InputGroup>
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {onDeleteSelected && selectedRows.length > 0 && (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (onDeleteSelected(selectedRows)) setRowSelection({})
+              }}
+            >
+              <Trash2 data-icon="inline-start" aria-hidden="true" />
+              Delete ({selectedRows.length})
+            </Button>
+          )}
           {filterableColumns.length > 0 && (
             <Popover>
               <PopoverTrigger render={<Button type="button" variant="outline" size="sm" />}>

@@ -11,11 +11,17 @@ import {
 } from '@tanstack/react-table'
 import { differenceInCalendarDays, format, parseISO, startOfToday } from 'date-fns'
 
-import { AccountBranchBadge, AccountStatusBadge } from '@/features/in-house-accounts/components/account-badges'
+import {
+  AccountBranchBadge,
+  AccountStatusBadge
+} from '@/features/in-house-accounts/components/account-badges'
 import { InHouseAccountInspector } from '@/features/in-house-accounts/components/account-inspector'
-import { createRowActionsColumn, type RowActionItem } from '@/components/shared/data-table/row-actions'
+import {
+  createRowActionsColumn,
+  type RowActionItem
+} from '@/components/shared/data-table/row-actions'
 import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
-import { dataTableColumnSizes, UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import {
@@ -474,7 +480,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Branch" className="px-1 text-xs" />
         ),
         enableSorting: false,
-        size: dataTableColumnSizes.branch.compactSize,
+        size: 76,
         meta: { headerTitle: 'Branch' },
         cell: ({ row }) => <AccountBranchBadge branch={row.original.branch} />
       },
@@ -485,7 +491,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Account" className="px-1 text-xs" />
         ),
         sortingFn: 'alphanumeric',
-        size: dataTableColumnSizes.account.compactSize,
+        size: 220,
         meta: { headerTitle: 'Account', cellClassName: 'min-w-0' },
         cell: ({ row }) => <AccountCell name={row.original.name} />
       },
@@ -495,7 +501,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Contract" className="px-1 text-xs" />
         ),
         enableSorting: false,
-        size: dataTableColumnSizes.receiptNumber.size,
+        size: 140,
         meta: { headerTitle: 'Contract', cellClassName: 'min-w-0' },
         cell: ({ row }) => (
           <ContractCell
@@ -510,7 +516,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Installment" className="px-1 text-xs" />
         ),
         enableSorting: false,
-        size: dataTableColumnSizes.amount.compactSize,
+        size: 128,
         meta: {
           headerTitle: 'Installment',
           headerClassName: 'text-right',
@@ -530,7 +536,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
         ),
         sortingFn: 'basic',
         sortUndefined: 'last',
-        size: dataTableColumnSizes.amount.wideSize,
+        size: 176,
         meta: {
           headerTitle: 'Outstanding Balance',
           headerClassName: 'text-right',
@@ -545,7 +551,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
           <DataGridColumnHeader column={column} title="Payment Status" className="px-1 text-xs" />
         ),
         sortingFn: 'basic',
-        size: dataTableColumnSizes.status.compactSize,
+        size: 112,
         meta: { headerTitle: 'Payment Status' },
         cell: ({ row }) => <AccountStatusBadge status={row.original.status} />
       },
@@ -557,7 +563,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
         ),
         sortingFn: 'basic',
         sortUndefined: 'last',
-        size: dataTableColumnSizes.date.narrowSize,
+        size: 112,
         meta: {
           headerTitle: 'Next Due',
           headerClassName: 'text-right',
@@ -584,7 +590,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
         ),
         sortingFn: 'basic',
         sortUndefined: 'last',
-        size: dataTableColumnSizes.date.compactSize,
+        size: 128,
         meta: {
           headerTitle: 'Last Payment',
           headerClassName: 'text-right',

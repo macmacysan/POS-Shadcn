@@ -11,7 +11,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { dataTableColumnSizes } from '@/components/shared/data-table/universal-data-table'
 import { cn } from '@/lib/utils'
 
 export type RowActionItem = {
@@ -102,12 +101,12 @@ export function createRowActionsColumn<TData extends RowData>({
     enableSorting: false,
     enableColumnFilter: false,
     enableHiding: false,
-    size: dataTableColumnSizes.actions.size,
+    size: 48,
     header: () => <span className="sr-only">Actions</span>,
     meta: {
       headerTitle: 'Actions',
-      headerClassName: cn(dataTableColumnSizes.actions.className, 'text-right'),
-      cellClassName: cn(dataTableColumnSizes.actions.className, 'text-right')
+      headerClassName: cn('w-8', 'text-right'),
+      cellClassName: cn('w-8', 'text-right')
     },
     cell: ({ row }) => {
       const openSignal = getOpenSignal?.(row.id)

@@ -69,7 +69,6 @@ import {
 } from '@/features/installment-history'
 import type { RowActionItem } from '@/components/shared/data-table/row-actions'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { dataTableColumnSizes } from '@/components/shared/data-table/universal-data-table'
 import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -78,7 +77,7 @@ import { ReportSummary } from '@/features/cashier-report/components/report-summa
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 
 const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
-const vatOptions = ['VAT', 'Non-VAT', 'Blank'] as const
+const vatOptions = ['VAT', 'Non-VAT'] as const
 const paymentTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
 
 type ExpenseCategoryConfig = {
@@ -242,7 +241,7 @@ const typeClassNames: Record<string, string> = {
 function TypeBox({ value }: { value: string }): React.JSX.Element {
   return (
     <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${typeClassNames[value] ?? 'border-border bg-muted text-muted-foreground'}`}
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-light ${typeClassNames[value] ?? 'border-border bg-muted text-muted-foreground'}`}
     >
       {value}
     </span>
@@ -289,38 +288,41 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'type',
     header: 'Type',
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} />,
-    meta: { className: dataTableColumnSizes.type.className }
+    size: 100,
+    meta: { className: 'w-30' }
   },
   {
     accessorKey: 'description',
     header: 'Description',
-    meta: { className: cn(dataTableColumnSizes.description.className, 'font-medium') }
+    size: 360,
+    meta: { className: cn('w-750', 'font-light') }
   },
   {
     accessorKey: 'category',
     header: 'Category',
     cell: ({ getValue }) => <ExpenseCategoryCell category={getValue<string>()} />,
-    meta: { className: cn(dataTableColumnSizes.category.className, 'text-muted-foreground') }
+    size: 100,
+    meta: { className: cn('w-35', 'text-muted-foreground') }
   },
   {
     accessorKey: 'receiptNo',
-    header: 'Receipt No.',
-    meta: { className: cn(dataTableColumnSizes.receiptNumber.className, 'text-muted-foreground') }
+    header: 'Receipt No',
+    size: 120,
+    meta: { className: cn('w-24 text-xs', 'text-muted-foreground') }
   },
   {
     accessorKey: 'vat',
     header: 'VAT',
-    meta: { className: cn(dataTableColumnSizes.vat.className, 'text-muted-foreground') }
+    size: 90,
+    meta: { className: cn('w-24 text-xs', 'text-muted-foreground') }
   },
   {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
+    size: 150,
     meta: {
-      className: cn(
-        dataTableColumnSizes.amount.className,
-        'text-right font-medium tabular-nums text-foreground'
-      )
+      className: cn('w-38', 'text-right font-light tabular-nums text-foreground')
     }
   }
 ]
@@ -328,35 +330,37 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
 const incomeColumns: ReportColumn<IncomeRow>[] = [
   {
     accessorKey: 'date',
-    header: 'DATE',
-    meta: { className: cn(dataTableColumnSizes.date.className, 'text-muted-foreground') }
+    header: 'Date',
+    size: 100,
+    meta: { className: cn('w-35', 'text-muted-foreground') }
   },
   {
     accessorKey: 'particular',
-    header: 'PARTICULAR',
-    meta: { className: cn(dataTableColumnSizes.description.mediumClassName, 'font-medium') }
+    header: 'Particular',
+    size: 300,
+    meta: { className: cn('w-75', 'font-light') }
   },
   {
     accessorKey: 'receiptRefNo',
-    header: 'RECEIPT / REFERENCE NO.',
+    header: 'Receipt / Ref No.',
+    size: 150,
     meta: {
-      className: cn(dataTableColumnSizes.receiptNumber.wideClassName, 'text-muted-foreground')
+      className: cn('w-48', 'text-muted-foreground')
     }
   },
   {
     accessorKey: 'remarks',
-    header: 'REMARKS',
-    meta: { className: cn(dataTableColumnSizes.description.wideClassName, 'text-muted-foreground') }
+    header: 'Remarks',
+    size: 200,
+    meta: { className: cn('w-[360px]', 'text-muted-foreground') }
   },
   {
     accessorKey: 'amount',
-    header: 'AMOUNT',
+    header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
+    size: 150,
     meta: {
-      className: cn(
-        dataTableColumnSizes.amount.narrowClassName,
-        'text-right font-medium tabular-nums text-foreground'
-      )
+      className: cn('w-30', 'text-right font-light tabular-nums text-foreground')
     }
   }
 ]
@@ -365,14 +369,21 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'type',
     header: 'TYPE',
+    size: 100,
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} />
   },
   {
     accessorKey: 'bankProvider',
     header: 'BANK / PROVIDER',
+    size: 150,
     meta: { className: 'text-muted-foreground' }
   },
-  { accessorKey: 'accountName', header: 'ACCOUNT NAME', meta: { className: 'font-medium' } },
+  {
+    accessorKey: 'accountName',
+    header: 'ACCOUNT NAME',
+    size: 200,
+    meta: { className: 'font-light' }
+  },
   {
     accessorKey: 'referenceNo',
     header: 'REFERENCE NO.',
@@ -382,8 +393,9 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'amount',
     header: 'AMOUNT',
+    size: 150,
     cell: ({ getValue }) => money(getValue<number>()),
-    meta: { className: 'text-right font-medium tabular-nums text-foreground' }
+    meta: { className: 'text-right font-light tabular-nums text-foreground' }
   }
 ]
 
@@ -517,6 +529,7 @@ function ReportTab({
   selectedHistoryId,
   onSelectHistory,
   onDelete,
+  onDeleteSelected,
   onEdit
 }: {
   tab: (typeof reportTabs)[number]
@@ -525,6 +538,7 @@ function ReportTab({
   selectedHistoryId?: string
   onSelectHistory: (record: InstallmentHistoryRecord) => void
   onDelete: (id: string) => void
+  onDeleteSelected: (rows: ReportRow[]) => boolean
   onEdit: (row: ExpenseRow | IncomeRow | PaymentRow) => void
 }): React.JSX.Element {
   switch (tab) {
@@ -537,6 +551,7 @@ function ReportTab({
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={(row) => expenseRowActions(row, onDelete, onEdit)}
+          onDeleteSelected={onDeleteSelected}
           onDefaultAction={acknowledgeRow}
         />
       )
@@ -549,6 +564,7 @@ function ReportTab({
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={(row) => incomeRowActions(row, onDelete, onEdit)}
+          onDeleteSelected={onDeleteSelected}
           onDefaultAction={acknowledgeRow}
         />
       )
@@ -561,6 +577,7 @@ function ReportTab({
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={(row) => paymentRowActions(row, onDelete, onEdit)}
+          onDeleteSelected={onDeleteSelected}
           onDefaultAction={acknowledgeRow}
         />
       )
@@ -569,7 +586,8 @@ function ReportTab({
         <InstallmentHistoryTable
           records={installmentHistoryData}
           selectedId={selectedHistoryId}
-          onSelect={onSelectHistory}
+          onSelect={() => undefined}
+          onDoubleClick={onSelectHistory}
         />
       )
   }
@@ -739,7 +757,11 @@ function EntryFormPanel({
   )
 }
 
-export function CashierReportsContent(): React.JSX.Element {
+export function CashierReportsContent({
+  summaryAlwaysDark = false
+}: {
+  summaryAlwaysDark?: boolean
+}): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
   const [expenses, setExpenses] = React.useState(expenseData)
   const [incomes, setIncomes] = React.useState(incomeData)
@@ -749,7 +771,7 @@ export function CashierReportsContent(): React.JSX.Element {
   const [selectedHistory, setSelectedHistory] = React.useState<InstallmentHistoryRecord>()
   const isMobile = useIsMobile()
   const isHistoryTab = activeTab === 'Activity'
-  const showRightPanel = !isMobile && (isHistoryTab || isEntryFormVisible)
+  const showRightPanel = !isMobile && isEntryFormVisible
 
   const editAmount = React.useCallback((row: ExpenseRow | IncomeRow | PaymentRow): void => {
     const nextAmount = window.prompt('Amount', String(row.amount))
@@ -771,9 +793,20 @@ export function CashierReportsContent(): React.JSX.Element {
   }, [])
 
   const deleteEntry = React.useCallback((id: string): void => {
-    setExpenses((current) => current.filter((row) => row.id !== id))
-    setIncomes((current) => current.filter((row) => row.id !== id))
-    setPayments((current) => current.filter((row) => row.id !== id))
+    const ids = new Set([id])
+    setExpenses((current) => current.filter((row) => !ids.has(row.id)))
+    setIncomes((current) => current.filter((row) => !ids.has(row.id)))
+    setPayments((current) => current.filter((row) => !ids.has(row.id)))
+  }, [])
+
+  const deleteSelectedEntries = React.useCallback((rows: ReportRow[]): boolean => {
+    const ids = new Set(rows.map((row) => row.id))
+    if (!window.confirm(`Delete ${ids.size} selected entr${ids.size === 1 ? 'y' : 'ies'}?`))
+      return false
+    setExpenses((current) => current.filter((row) => !ids.has(row.id)))
+    setIncomes((current) => current.filter((row) => !ids.has(row.id)))
+    setPayments((current) => current.filter((row) => !ids.has(row.id)))
+    return true
   }, [])
 
   const saveEntry = React.useCallback((tab: (typeof reportTabs)[number], form: FormData): void => {
@@ -847,6 +880,7 @@ export function CashierReportsContent(): React.JSX.Element {
               incomes={incomes}
               payments={payments}
               installmentHistory={installmentHistoryData}
+              alwaysDark={summaryAlwaysDark}
             />
           </Card>
         )}
@@ -871,7 +905,7 @@ export function CashierReportsContent(): React.JSX.Element {
                     <TabsTrigger
                       key={tab}
                       value={tab}
-                      className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-medium"
+                      className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-light"
                     >
                       {tab === 'Activity' ? 'Installment History' : tab}
                     </TabsTrigger>
@@ -892,6 +926,7 @@ export function CashierReportsContent(): React.JSX.Element {
                       selectedHistoryId={selectedHistory?.id}
                       onSelectHistory={setSelectedHistory}
                       onDelete={deleteEntry}
+                      onDeleteSelected={deleteSelectedEntries}
                       onEdit={editAmount}
                     />
                   </TabsContent>
@@ -903,11 +938,6 @@ export function CashierReportsContent(): React.JSX.Element {
         {showRightPanel && !isHistoryTab && (
           <Card className="flex min-h-0 min-w-0 flex-col">
             <EntryFormPanel tab={activeTab} onSave={(form) => saveEntry(activeTab, form)} />
-          </Card>
-        )}
-        {isHistoryTab && !isMobile && (
-          <Card className="flex min-h-0 min-w-0 flex-col">
-            <InstallmentHistoryInspector record={selectedHistory} />
           </Card>
         )}
       </div>
@@ -932,6 +962,7 @@ export function CashierReportsContent(): React.JSX.Element {
                 incomes={incomes}
                 payments={payments}
                 installmentHistory={installmentHistoryData}
+                alwaysDark={summaryAlwaysDark}
               />
             </SheetContent>
           </Sheet>
@@ -950,13 +981,13 @@ export function CashierReportsContent(): React.JSX.Element {
           </SheetContent>
         </Sheet>
       )}
-      {isHistoryTab && isMobile && (
+      {isHistoryTab && (
         <Sheet
           open={Boolean(selectedHistory)}
           onOpenChange={(open) => !open && setSelectedHistory(undefined)}
         >
           <SheetContent side="right" className="w-[min(92vw,26rem)] p-0">
-            <SheetHeader className="sr-only">
+            <SheetHeader>
               <SheetTitle>Installment History details</SheetTitle>
               <SheetDescription>Full details for the selected history record.</SheetDescription>
             </SheetHeader>

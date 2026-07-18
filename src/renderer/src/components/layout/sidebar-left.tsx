@@ -4,7 +4,6 @@ import {
   CircleHelpIcon,
   ClipboardListIcon,
   HouseIcon,
-  LandmarkIcon,
   LayoutDashboardIcon,
   MoonIcon,
   Settings2Icon,
@@ -17,6 +16,17 @@ import { NavMain } from '@/components/layout/navigation/nav-main'
 import { NavSecondary } from '@/components/layout/navigation/nav-secondary'
 import { TeamSwitcher } from '@/components/layout/navigation/team-switcher'
 import { Sidebar, SidebarContent, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 
 type ActiveView = 'dashboard' | 'cashier-reports' | 'in-house-accounts' | 'in-house-active-accounts'
 
@@ -26,9 +36,8 @@ const data = {
     { title: 'Dashboard', url: '#', icon: <LayoutDashboardIcon />, isActive: true },
     { title: 'Cashier reports', url: '#', icon: <ClipboardListIcon /> },
     {
-      title: 'Finance',
-      url: '#',
-      icon: <LandmarkIcon />,
+      title: 'Installments',
+      section: true as const,
       children: [
         { title: 'Overview', url: '#', icon: <BarChart3Icon /> },
         {
@@ -36,16 +45,16 @@ const data = {
           url: '#',
           icon: <HouseIcon />,
           children: [
-            { title: 'All Accounts', url: '#' },
-            { title: 'Active Accounts', url: '#' },
-            { title: 'Closed Accounts', url: '#' },
-            { title: 'Blacklisted Accounts', url: '#' }
+            { title: 'Records', url: '#' },
+            { title: 'Active', url: '#' },
+            { title: 'Closed', url: '#' },
+            { title: 'Blacklisted', url: '#' }
           ]
         },
         {
           title: 'Finance',
           url: '#',
-          icon: <LandmarkIcon />,
+          icon: <BarChart3Icon />,
           children: [
             { title: 'Dashboard', url: '#' },
             { title: 'Accounts', url: '#' }
@@ -59,7 +68,8 @@ const data = {
     { title: 'Branches', url: '#', icon: <StoreIcon /> },
     { title: 'Cashiers', url: '#', icon: <UsersIcon /> },
     { title: 'Settings', url: '#', icon: <Settings2Icon /> },
-    { title: 'Help', url: '#', icon: <CircleHelpIcon /> }
+    { title: 'Help', url: '#', icon: <CircleHelpIcon /> },
+    { title: 'Dark mode', url: '#', icon: <MoonIcon /> }
   ]
 }
 
@@ -71,6 +81,8 @@ export function SidebarLeft({
   onAllAccounts,
   onActiveAccounts,
   onToggleTheme,
+  summaryAlwaysDark,
+  onSummaryAlwaysDarkChange,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   activeView?: ActiveView
@@ -80,10 +92,14 @@ export function SidebarLeft({
   onAllAccounts?: () => void
   onActiveAccounts?: () => void
   onToggleTheme: () => void
+  summaryAlwaysDark: boolean
+  onSummaryAlwaysDarkChange: (value: boolean) => void
 }): React.JSX.Element {
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false)
+
   return (
     <Sidebar collapsible="icon" className="border-r-0" {...props}>
-      <SidebarHeader className="gap-3 border-b border-sidebar-border">
+      <SidebarHeader className="gap-3 border-sidebar-border">
         <TeamSwitcher teams={data.teams} />
         <NavMain
           items={data.navMain.map((item) => {
@@ -100,7 +116,7 @@ export function SidebarLeft({
                 onClick: onCashierReports
               }
             if (item.title !== 'Finance') return item
-            if (!item.children) return item
+            if (!('children' in item) || !item.children) return item
             return {
               ...item,
               children: item.children.map((child) =>
@@ -108,13 +124,13 @@ export function SidebarLeft({
                   ? {
                       ...child,
                       children: child.children?.map((entry) => {
-                        if (entry.title === 'All Accounts')
+                        if (entry.title === 'Records')
                           return {
                             ...entry,
                             isActive: activeView === 'in-house-accounts',
                             onClick: onAllAccounts
                           }
-                        if (entry.title === 'Active Accounts')
+                        if (entry.title === 'Active')
                           return {
                             ...entry,
                             isActive: activeView === 'in-house-active-accounts',
@@ -135,15 +151,46 @@ export function SidebarLeft({
             item.title === 'Settings'
               ? {
                   ...item,
-                  icon: isDark ? <SunIcon /> : <MoonIcon />,
-                  onClick: onToggleTheme
+                  onClick: () => setIsSettingsOpen(true)
                 }
-              : item
+              : item.title === 'Dark mode'
+                ? {
+                    ...item,
+                    icon: isDark ? <SunIcon /> : <MoonIcon />,
+                    onClick: onToggleTheme
+                  }
+                : item
           )}
           className="mt-auto"
         />
       </SidebarContent>
       <SidebarRail />
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Settings</DialogTitle>
+            <DialogDescription>Customize the cashier report workspace.</DialogDescription>
+          </DialogHeader>
+          <Label className="items-start gap-3">
+            <Checkbox
+              checked={summaryAlwaysDark}
+              onCheckedChange={(checked) => onSummaryAlwaysDarkChange(checked === true)}
+              aria-label="Sidebar Summary always Dark Mode"
+            />
+            <span className="flex flex-col gap-1">
+              <span>Sidebar Summary always Dark Mode</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                Keep Today&apos;s Summary dark even when the app uses light mode.
+              </span>
+            </span>
+          </Label>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsSettingsOpen(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sidebar>
   )
 }

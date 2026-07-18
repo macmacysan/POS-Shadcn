@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 import type { MouseEvent, ReactNode } from 'react'
 import type { Table } from '@tanstack/react-table'
 
@@ -12,91 +11,6 @@ import { DataGridScrollArea } from '@/components/ui/reui/data-grid/data-grid-scr
 import { DataGridTable } from '@/components/ui/reui/data-grid/data-grid-table'
 import { DataGridTableVirtual } from '@/components/ui/reui/data-grid/data-grid-table-virtual'
 import { cn } from '@/lib/utils'
-
-export const dataTableColumnSizes = {
-  selection: {
-    size: 42,
-    minSize: 42,
-    maxSize: 42,
-    className: 'w-[42px]'
-  },
-  actions: {
-    size: 48,
-    minSize: 48,
-    maxSize: 48,
-    className: 'w-8'
-  },
-  type: {
-    size: 120,
-    minSize: 105,
-    maxSize: 140,
-    className: 'w-30'
-  },
-  description: {
-    size: 300,
-    minSize: 220,
-    maxSize: 420,
-    className: 'w-75',
-    mediumClassName: 'w-640',
-    wideClassName: 'w-900'
-  },
-  category: {
-    size: 140,
-    minSize: 120,
-    maxSize: 170,
-    className: 'w-35'
-  },
-  receiptNumber: {
-    size: 140,
-    minSize: 120,
-    maxSize: 160,
-    className: 'w-35',
-    wideClassName: 'w-48'
-  },
-  vat: {
-    size: 90,
-    minSize: 80,
-    maxSize: 105,
-    className: 'w-24'
-  },
-  amount: {
-    size: 150,
-    minSize: 130,
-    maxSize: 170,
-    compactSize: 128,
-    wideSize: 176,
-    className: 'w-38',
-    narrowClassName: 'w-30'
-  },
-  date: {
-    size: 140,
-    minSize: 120,
-    maxSize: 170,
-    narrowSize: 112,
-    compactSize: 128,
-    dateTimeSize: 176,
-    className: 'w-35'
-  },
-  status: {
-    size: 120,
-    minSize: 105,
-    maxSize: 150,
-    compactSize: 112
-  },
-  branch: {
-    size: 90,
-    minSize: 76,
-    maxSize: 110,
-    compactSize: 76
-  },
-  account: {
-    size: 240,
-    minSize: 190,
-    maxSize: 320,
-    compactSize: 184,
-    historySize: 220
-  }
-} as const
 
 type UniversalDataTableProps<TData extends object> = {
   table: Table<TData>

@@ -17,9 +17,12 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { createRowActionsColumn, type RowActionItem } from '@/components/shared/data-table/row-actions'
+import {
+  createRowActionsColumn,
+  type RowActionItem
+} from '@/components/shared/data-table/row-actions'
 import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
-import { dataTableColumnSizes, UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { cn } from '@/lib/utils'
 import {
   actionLabels,
@@ -35,6 +38,7 @@ type InstallmentHistoryTableProps = {
   records: InstallmentHistoryRecord[]
   selectedId?: string
   onSelect: (record: InstallmentHistoryRecord) => void
+  onDoubleClick: (record: InstallmentHistoryRecord) => void
   isLoading?: boolean
 }
 
@@ -98,6 +102,7 @@ export function InstallmentHistoryTable({
   records,
   selectedId,
   onSelect,
+  onDoubleClick,
   isLoading = false
 }: InstallmentHistoryTableProps): React.JSX.Element {
   const [search, setSearch] = React.useState('')
@@ -131,7 +136,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'occurredAt',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Date & Time" />,
         enableSorting: false,
-        size: dataTableColumnSizes.date.dateTimeSize,
+        size: 176,
         meta: {
           headerTitle: 'Date & Time',
           headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
@@ -144,7 +149,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'action',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Action" />,
         enableSorting: false,
-        size: dataTableColumnSizes.type.size,
+        size: 90,
         meta: {
           headerTitle: 'Action',
           headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground'
@@ -156,7 +161,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'source',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Source" />,
         enableSorting: false,
-        size: dataTableColumnSizes.status.compactSize,
+        size: 100,
         meta: {
           headerTitle: 'Source',
           headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
@@ -169,7 +174,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'accountName',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Account" />,
         enableSorting: false,
-        size: dataTableColumnSizes.account.historySize,
+        size: 220,
         meta: {
           headerTitle: 'Account',
           headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
@@ -191,7 +196,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'activity',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Activity" />,
         enableSorting: false,
-        size: dataTableColumnSizes.description.size,
+        size: 300,
         meta: {
           headerTitle: 'Activity',
           headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
@@ -206,7 +211,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'amount',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Amount" />,
         enableSorting: false,
-        size: dataTableColumnSizes.amount.size,
+        size: 150,
         meta: {
           headerTitle: 'Amount',
           headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
@@ -219,7 +224,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'balance',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Balance" />,
         enableSorting: false,
-        size: dataTableColumnSizes.amount.size,
+        size: 150,
         meta: {
           headerTitle: 'Balance',
           headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
@@ -315,11 +320,9 @@ export function InstallmentHistoryTable({
         recordCount={visibleRecords.length}
         isLoading={isLoading}
         emptyMessage={records.length === 0 ? 'No installment history yet' : 'No matching history.'}
-        onRowClick={onSelect}
-        onRowDoubleClick={onSelect}
+        onRowDoubleClick={onDoubleClick}
         onRowContextMenu={(record, event) => {
           event.preventDefault()
-          onSelect(record)
           setContextMenu((current) => ({
             rowId: record.id,
             signal: current.signal + 1

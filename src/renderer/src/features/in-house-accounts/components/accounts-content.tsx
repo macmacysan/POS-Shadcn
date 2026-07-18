@@ -42,10 +42,16 @@ import {
   InHouseAccountForm,
   type InHouseAccountWorkflowSave
 } from '@/features/in-house-accounts/components/account-form'
-import { AccountBranchBadge, AccountStatusBadge } from '@/features/in-house-accounts/components/account-badges'
+import {
+  AccountBranchBadge,
+  AccountStatusBadge
+} from '@/features/in-house-accounts/components/account-badges'
 import { InHouseAccountInspector } from '@/features/in-house-accounts/components/account-inspector'
-import { createRowActionsColumn, type RowActionItem } from '@/components/shared/data-table/row-actions'
-import { dataTableColumnSizes, UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import {
+  createRowActionsColumn,
+  type RowActionItem
+} from '@/components/shared/data-table/row-actions'
+import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { accountStatusRank } from '@/lib/in-house-account-display'
 import {
   branchLabels,
@@ -253,7 +259,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         id: 'branch',
         header: ({ column }) => <DataGridColumnHeader column={column} title="Branch" />,
         enableSorting: false,
-        size: dataTableColumnSizes.branch.size,
+        size: 90,
         meta: {
           headerTitle: 'Branch',
           headerClassName: 'max-[640px]:hidden',
@@ -266,7 +272,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         accessorFn: (row) => row.name,
         header: ({ column }) => <DataGridColumnHeader column={column} title="Account" />,
         sortingFn: 'alphanumeric',
-        size: dataTableColumnSizes.account.size,
+        size: 240,
         meta: {
           headerTitle: 'Account',
           cellClassName: 'min-w-0'
@@ -280,7 +286,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         accessorFn: (row) => row.address,
         header: ({ column }) => <DataGridColumnHeader column={column} title="Address" />,
         enableSorting: false,
-        size: dataTableColumnSizes.description.size,
+        size: 300,
         meta: {
           headerTitle: 'Address',
           headerClassName: 'max-[1099px]:hidden',
@@ -295,7 +301,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         accessorFn: (row) => accountStatusRank[row.status],
         header: ({ column }) => <DataGridColumnHeader column={column} title="Status" />,
         sortingFn: 'basic',
-        size: dataTableColumnSizes.status.size,
+        size: 120,
         meta: {
           headerTitle: 'Status'
         },
@@ -306,7 +312,7 @@ export function InHouseAccountsContent(): React.JSX.Element {
         accessorFn: (row) => row.nextDueSort,
         header: ({ column }) => <DataGridColumnHeader column={column} title="Next Due" />,
         sortingFn: 'basic',
-        size: dataTableColumnSizes.date.size,
+        size: 140,
         meta: {
           headerTitle: 'Next Due',
           headerClassName: 'text-right',

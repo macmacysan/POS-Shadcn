@@ -8,14 +8,19 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/shared/theme-toggle'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
+const SUMMARY_DARK_STORAGE_KEY = 'cashiers-report-summary-dark'
 type ActiveView = 'dashboard' | 'cashier-reports' | 'in-house-accounts' | 'in-house-active-accounts'
 
 function Workspace({
   isDark,
-  onToggleTheme
+  onToggleTheme,
+  summaryAlwaysDark,
+  onSummaryAlwaysDarkChange
 }: {
   isDark: boolean
   onToggleTheme: () => void
+  summaryAlwaysDark: boolean
+  onSummaryAlwaysDarkChange: (value: boolean) => void
 }): React.JSX.Element {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard')
 
@@ -29,10 +34,12 @@ function Workspace({
         onAllAccounts={() => setActiveView('in-house-accounts')}
         onActiveAccounts={() => setActiveView('in-house-active-accounts')}
         onToggleTheme={onToggleTheme}
+        summaryAlwaysDark={summaryAlwaysDark}
+        onSummaryAlwaysDarkChange={onSummaryAlwaysDarkChange}
       />
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
         {activeView === 'cashier-reports' ? (
-          <CashierReportsContent />
+          <CashierReportsContent summaryAlwaysDark={summaryAlwaysDark} />
         ) : activeView === 'in-house-active-accounts' ? (
           <InHouseActiveAccountsContent />
         ) : activeView === 'in-house-accounts' ? (
@@ -40,8 +47,9 @@ function Workspace({
         ) : (
           <main className="flex flex-1 flex-col gap-6 p-6">
             <div>
-              <p className="text-sm text-muted-foreground">Today&apos;s overview</p>
-              <h1 className="text-2xl font-semibold tracking-tight">Welcome to your workspace</h1>
+              <p className="text-sm text-muted-foreground">Branch Selected</p>
+              <h1 className="text-2xl font-semibold tracking-tight">Lagonoy Branch</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Today&apos;s overview</p>
             </div>
             <section
               className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
@@ -66,18 +74,30 @@ function App(): React.JSX.Element {
   const [isDark, setIsDark] = useState(() => {
     return localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
   })
+  const [summaryAlwaysDark, setSummaryAlwaysDark] = useState(() => {
+    return localStorage.getItem(SUMMARY_DARK_STORAGE_KEY) === 'true'
+  })
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
     localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light')
   }, [isDark])
 
+  useEffect(() => {
+    localStorage.setItem(SUMMARY_DARK_STORAGE_KEY, String(summaryAlwaysDark))
+  }, [summaryAlwaysDark])
+
   const toggleTheme = (): void => setIsDark((current) => !current)
 
   if (isLoggedIn) {
     return (
       <div className="relative h-full w-full">
-        <Workspace isDark={isDark} onToggleTheme={toggleTheme} />
+        <Workspace
+          isDark={isDark}
+          onToggleTheme={toggleTheme}
+          summaryAlwaysDark={summaryAlwaysDark}
+          onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
+        />
       </div>
     )
   }

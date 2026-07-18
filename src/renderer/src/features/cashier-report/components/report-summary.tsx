@@ -50,6 +50,7 @@ type ReportSummaryProps = {
   incomes: SummaryIncome[]
   payments: SummaryPayment[]
   installmentHistory: InstallmentHistoryRecord[]
+  alwaysDark?: boolean
 }
 
 const defaultReceiptTypes = ['Sales Invoice', 'SI Trading', 'Delivery Receipt', 'Pawnshop']
@@ -233,7 +234,8 @@ export function ReportSummary({
   expenses,
   incomes,
   payments,
-  installmentHistory
+  installmentHistory,
+  alwaysDark = false
 }: ReportSummaryProps): React.JSX.Element {
   const [options, setOptions] = React.useState<SidebarOptions>(initialOptions)
   const [openingCash, setOpeningCash] = useStoredNumber(openingCashStorageKey)
@@ -349,7 +351,12 @@ export function ReportSummary({
 
   return (
     <>
-      <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20">
+      <aside
+        className={cn(
+          'flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20',
+          alwaysDark && 'dark'
+        )}
+      >
         <header className="flex shrink-0 items-center justify-between border-b border-border bg-background/70 px-3 py-3">
           <div className="min-w-0">
             <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
