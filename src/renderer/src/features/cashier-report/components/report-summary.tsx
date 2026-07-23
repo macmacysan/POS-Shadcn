@@ -24,6 +24,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import type { InstallmentHistoryRecord } from '@/lib/installment-history'
+import { amountFromCentavos, type ExpenseSummaryTotals } from '@/../../shared/contracts'
 
 export type SummaryExpense = { type: string; amount: number }
 export type SummaryIncome = { receiptType?: string; amount: number }
@@ -46,7 +47,7 @@ type SidebarOptions = {
 }
 
 type ReportSummaryProps = {
-  expenses: SummaryExpense[]
+  expenseTotals: ExpenseSummaryTotals
   incomes: SummaryIncome[]
   payments: SummaryPayment[]
   installmentHistory: InstallmentHistoryRecord[]
@@ -230,8 +231,8 @@ function initialOptions(): SidebarOptions {
   }
 }
 
-export function ReportSummary({
-  expenses,
+export const ReportSummary = React.memo(function ReportSummary({
+  expenseTotals,
   incomes,
   payments,
   installmentHistory,
@@ -307,47 +308,91 @@ export function ReportSummary({
       cashDenominations: { ...current.cashDenominations, [denomination]: quantity }
     }))
 
-  const receiptRows = options.receiptTypes.map((type) => ({
-    type,
-    ...(options.receiptValues[type] ?? { quantity: 0, amount: 0 })
-  }))
-  const cashSales = receiptRows.reduce((sum, row) => sum + row.amount, 0)
-  const collections = installmentHistory
-    .filter((record) => record.source === 'in-house' && record.action !== 'deleted')
-    .reduce((sum, record) => sum + (record.details.payment?.amountPaid ?? 0), 0)
-  const otherIncome = incomes.reduce((sum, row) => sum + row.amount, 0)
-  const finance = payments
-    .filter((payment) => payment.isDownPayment)
-    .reduce((sum, row) => sum + row.amount, 0)
-  const totalReceipts = cashSales + collections + otherIncome + finance
-  const expensesTotal = expenses
-    .filter((row) => row.type === 'Company Expenses' || row.type === 'Operating')
-    .reduce((sum, row) => sum + row.amount, 0)
-  const deductions = deductionTypes.reduce(
-    (sum, type) => sum + (options.deductionValues[type] ?? 0),
-    0
-  )
-  const drawings = expenses
-    .filter((row) => row.type === 'Drawings')
-    .reduce((sum, row) => sum + row.amount, 0)
-  const purchases = expenses
-    .filter((row) => row.type === 'Purchases' || row.type === 'Supply')
-    .reduce((sum, row) => sum + row.amount, 0)
-  const receivables = expenses
-    .filter((row) => row.type === 'Receivables')
-    .reduce((sum, row) => sum + row.amount, 0)
-  const cashOut = expensesTotal + deductions + drawings + purchases + receivables
-  const nonCash = payments
-    .filter((row) => ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'].includes(row.type))
-    .reduce((sum, row) => sum + row.amount, 0)
-  const countedCash = cashDenominationValues.reduce(
-    (sum, denomination) =>
-      sum + Number(denomination) * (options.cashDenominations[denomination] ?? 0),
-    0
-  )
-  const expectedCash = openingCash + totalReceipts - cashOut - nonCash
-  const variance = countedCash - expectedCash
-  const endingCash = expectedCash - cashRemitted
+  const {
+    receiptRows,
+    collections,
+    otherIncome,
+    finance,
+    totalReceipts,
+    expensesTotal,
+    deductions,
+    drawings,
+    purchases,
+    receivables,
+    cashOut,
+    nonCash,
+    countedCash,
+    expectedCash,
+    variance,
+    endingCash
+  } = React.useMemo(() => {
+    const receiptRows = options.receiptTypes.map((type) => ({
+      type,
+      ...(options.receiptValues[type] ?? { quantity: 0, amount: 0 })
+    }))
+    const cashSales = receiptRows.reduce((sum, row) => sum + row.amount, 0)
+    const collections = installmentHistory.reduce(
+      (sum, record) =>
+        sum +
+        (record.source === 'in-house' && record.action !== 'deleted'
+          ? (record.details.payment?.amountPaid ?? 0)
+          : 0),
+      0
+    )
+    const otherIncome = incomes.reduce((sum, row) => sum + row.amount, 0)
+    const finance = payments.reduce(
+      (sum, payment) => sum + (payment.isDownPayment ? payment.amount : 0),
+      0
+    )
+    const expenseSummary = {
+      expensesTotal: amountFromCentavos(expenseTotals.companyExpensesCentavos),
+      drawings: amountFromCentavos(expenseTotals.drawingsCentavos),
+      purchases: amountFromCentavos(expenseTotals.purchasesCentavos),
+      receivables: amountFromCentavos(expenseTotals.receivablesCentavos)
+    }
+    const deductions = deductionTypes.reduce(
+      (sum, type) => sum + (options.deductionValues[type] ?? 0),
+      0
+    )
+    const nonCash = payments.reduce(
+      (sum, row) =>
+        sum +
+        (['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'].includes(row.type)
+          ? row.amount
+          : 0),
+      0
+    )
+    const cashOut =
+      expenseSummary.expensesTotal +
+      deductions +
+      expenseSummary.drawings +
+      expenseSummary.purchases +
+      expenseSummary.receivables
+    const totalReceipts = cashSales + collections + otherIncome + finance
+    const countedCash = cashDenominationValues.reduce(
+      (sum, denomination) =>
+        sum + Number(denomination) * (options.cashDenominations[denomination] ?? 0),
+      0
+    )
+    const expectedCash = openingCash + totalReceipts - cashOut - nonCash
+    const variance = countedCash - expectedCash
+
+    return {
+      receiptRows,
+      collections,
+      otherIncome,
+      finance,
+      totalReceipts,
+      ...expenseSummary,
+      deductions,
+      cashOut,
+      nonCash,
+      countedCash,
+      expectedCash,
+      variance,
+      endingCash: expectedCash - cashRemitted
+    }
+  }, [cashRemitted, expenseTotals, incomes, installmentHistory, openingCash, options, payments])
 
   return (
     <>
@@ -393,7 +438,7 @@ export function ReportSummary({
                       <DropdownMenuCheckboxItem
                         checked={options.receiptTypes.includes(type)}
                         onCheckedChange={() => updateOption('receiptTypes', type)}
-                        className={cn(isCustom && 'flex-1')}
+                        className="flex-1"
                       >
                         {type}
                       </DropdownMenuCheckboxItem>
@@ -672,4 +717,4 @@ export function ReportSummary({
       </Dialog>
     </>
   )
-}
+})

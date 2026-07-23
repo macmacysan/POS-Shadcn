@@ -23,6 +23,7 @@ import {
 } from '@/components/shared/data-table/row-actions'
 import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { ActiveFilterChip, TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { cn } from '@/lib/utils'
 import {
   actionLabels,
@@ -46,6 +47,8 @@ type SortDirection = 'asc' | 'desc'
 
 const actionOptions: Array<InstallmentHistoryAction | 'all'> = ['all', 'new', 'edited', 'deleted']
 const sourceOptions: Array<InstallmentHistorySource | 'all'> = ['all', 'in-house', 'home-credit']
+const historyPaginationSizes = [15, 25, 50, 100]
+const historyTableLayout = { columnsResizable: true } as const
 
 function ActionBadge({ action }: { action: InstallmentHistoryAction }): React.JSX.Element {
   return (
@@ -110,6 +113,16 @@ export function InstallmentHistoryTable({
   const [source, setSource] = React.useState<InstallmentHistorySource | 'all'>('all')
   const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc')
   const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
+  const handleRowContextMenu = React.useCallback(
+    (record: InstallmentHistoryRecord, event: React.MouseEvent<HTMLTableRowElement>) => {
+      event.preventDefault()
+      setContextMenu((current) => ({
+        rowId: record.id,
+        signal: current.signal + 1
+      }))
+    },
+    []
+  )
 
   const visibleRecords = React.useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -258,7 +271,7 @@ export function InstallmentHistoryTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-card px-3 py-2">
+      <TableToolbar>
         <div className="relative min-w-52 max-w-md flex-1">
           <Search
             className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
@@ -315,23 +328,33 @@ export function InstallmentHistoryTable({
           )}{' '}
           Date &amp; time
         </button>
-      </div>
+        {(action !== 'all' || source !== 'all') && (
+          <div className="basis-full flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-1">
+            {action !== 'all' && (
+              <ActiveFilterChip
+                label={`Action: ${actionLabels[action]}`}
+                onClear={() => setAction('all')}
+              />
+            )}
+            {source !== 'all' && (
+              <ActiveFilterChip
+                label={`Source: ${sourceLabels[source]}`}
+                onClear={() => setSource('all')}
+              />
+            )}
+          </div>
+        )}
+      </TableToolbar>
       <UniversalDataTable
         table={table}
         recordCount={visibleRecords.length}
         isLoading={isLoading}
         emptyMessage={records.length === 0 ? 'No installment history yet' : 'No matching history.'}
         onRowDoubleClick={onDoubleClick}
-        onRowContextMenu={(record, event) => {
-          event.preventDefault()
-          setContextMenu((current) => ({
-            rowId: record.id,
-            signal: current.signal + 1
-          }))
-        }}
-        paginationSizes={[15, 25, 50, 100]}
+        onRowContextMenu={handleRowContextMenu}
+        paginationSizes={historyPaginationSizes}
         paginationInfo="{from}-{to} of {count} records"
-        tableLayout={{ columnsResizable: true }}
+        tableLayout={historyTableLayout}
       />
     </div>
   )

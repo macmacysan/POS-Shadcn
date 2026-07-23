@@ -6,6 +6,7 @@ import { InHouseActiveAccountsContent, InHouseAccountsContent } from '@/features
 import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/shared/theme-toggle'
+import { DevelopmentActiveReportProvider } from '@/contexts/active-report-context'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 const SUMMARY_DARK_STORAGE_KEY = 'cashiers-report-summary-dark'
@@ -91,14 +92,16 @@ function App(): React.JSX.Element {
 
   if (isLoggedIn) {
     return (
-      <div className="relative h-full w-full">
-        <Workspace
-          isDark={isDark}
-          onToggleTheme={toggleTheme}
-          summaryAlwaysDark={summaryAlwaysDark}
-          onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
-        />
-      </div>
+      <DevelopmentActiveReportProvider>
+        <div className="relative h-full w-full">
+          <Workspace
+            isDark={isDark}
+            onToggleTheme={toggleTheme}
+            summaryAlwaysDark={summaryAlwaysDark}
+            onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
+          />
+        </div>
+      </DevelopmentActiveReportProvider>
     )
   }
 

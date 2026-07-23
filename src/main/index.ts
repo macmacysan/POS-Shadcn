@@ -1,7 +1,17 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+
+import { openDatabase } from './database/database'
+import { ExpenseRepository } from './database/expense-repository'
+import { ReportRepository } from './database/report-repository'
+import { registerExpenseIpc } from './ipc/expenses'
+import { registerReportIpc } from './ipc/reports'
+import { ExpenseService } from './services/expense-service'
+import { ReportService } from './services/report-service'
+
+let database: ReturnType<typeof openDatabase> | undefined
 
 function createWindow(): void {
   // Create the browser window.
@@ -13,7 +23,9 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false
     }
   })
 
@@ -49,8 +61,17 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  try {
+    database = openDatabase(join(app.getPath('userData'), 'cashiers-report.sqlite'), {
+      seedDevelopmentData: is.dev
+    })
+    registerExpenseIpc(new ExpenseService(new ExpenseRepository(database)))
+    registerReportIpc(new ReportService(new ReportRepository(database)))
+  } catch (error) {
+    console.error('Database initialization failed.', error)
+    app.quit()
+    return
+  }
 
   createWindow()
 
@@ -68,6 +89,11 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  database?.close()
+  database = undefined
 })
 
 // In this file you can include the rest of your app's specific main process

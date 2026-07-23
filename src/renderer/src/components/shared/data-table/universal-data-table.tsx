@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { useMemo, type MouseEvent, type ReactNode } from 'react'
 import type { Table } from '@tanstack/react-table'
 
 import {
@@ -49,6 +49,23 @@ export function UniversalDataTable<TData extends object>({
   virtualEstimateSize = 48,
   virtualOverscan = 8
 }: UniversalDataTableProps<TData>): React.JSX.Element {
+  const resolvedTableLayout = useMemo(
+    () => ({
+      dense: true,
+      headerSticky: true,
+      width: 'fixed' as const,
+      ...tableLayout
+    }),
+    [tableLayout]
+  )
+  const resolvedTableClassNames = useMemo(
+    () => ({
+      ...tableClassNames,
+      bodyRow: cn('group/row', tableClassNames?.bodyRow)
+    }),
+    [tableClassNames]
+  )
+
   return (
     <DataGrid
       table={table}
@@ -59,16 +76,8 @@ export function UniversalDataTable<TData extends object>({
       onRowDoubleClick={onRowDoubleClick}
       onRowContextMenu={onRowContextMenu}
       className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}
-      tableLayout={{
-        dense: true,
-        headerSticky: true,
-        width: 'fixed',
-        ...tableLayout
-      }}
-      tableClassNames={{
-        ...tableClassNames,
-        bodyRow: cn('group/row', tableClassNames?.bodyRow)
-      }}
+      tableLayout={resolvedTableLayout}
+      tableClassNames={resolvedTableClassNames}
     >
       <DataGridContainer className="min-h-0 min-w-0 flex-1">
         <DataGridScrollArea className="h-full min-h-0" orientation="both">

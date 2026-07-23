@@ -32,3 +32,16 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+## Installation
+
+```bash
+npm install
+```
+
+Native modules are automatically rebuilt during postinstall.
+
+If Electron or Node versions change:
+
+```bash
+npx electron-rebuild -f -w better-sqlite3
+```

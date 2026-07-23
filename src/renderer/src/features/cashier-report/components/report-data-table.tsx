@@ -6,6 +6,8 @@ import {
   getSortedRowModel,
   type ColumnDef,
   type ColumnFiltersState,
+  type OnChangeFn,
+  type PaginationState,
   type SortingState,
   useReactTable
 } from '@tanstack/react-table'
@@ -38,11 +40,15 @@ import {
   DataGridTableRowSelectAll
 } from '@/components/ui/reui/data-grid/data-grid-table'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { ActiveFilterChip, TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { cn } from '@/lib/utils'
 
 export type ReportRow = { id: string }
 
 export type ReportColumn<TData extends ReportRow> = ColumnDef<TData>
+
+const reportPaginationSizes = [15, 25, 50, 100]
+const reportTableLayout = { columnsResizable: true } as const
 
 type ReportDataTableProps<TData extends ReportRow> = {
   columns: ReportColumn<TData>[]
@@ -52,7 +58,21 @@ type ReportDataTableProps<TData extends ReportRow> = {
   addEntryLabel?: string
   getRowActions?: (row: TData) => readonly RowActionItem[]
   onDefaultAction?: (row: TData) => void
-  onDeleteSelected?: (rows: TData[]) => boolean
+  onDeleteSelected?: (rows: TData[]) => boolean | Promise<boolean>
+  serverState?: {
+    pagination: PaginationState
+    pageCount: number
+    sorting: SortingState
+    columnFilters: ColumnFiltersState
+    globalFilter: string
+    onPaginationChange: OnChangeFn<PaginationState>
+    onSortingChange: OnChangeFn<SortingState>
+    onColumnFiltersChange: OnChangeFn<ColumnFiltersState>
+    onGlobalFilterChange: OnChangeFn<string>
+    totalRows: number
+    loading: boolean
+  }
+  filterOptions?: Record<string, readonly string[]>
 }
 
 function getHeaderTitle<TData extends ReportRow>(column: ReportColumn<TData>): string {
@@ -73,13 +93,25 @@ export function ReportDataTable<TData extends ReportRow>({
   addEntryLabel = 'Add Entry',
   getRowActions,
   onDefaultAction,
-  onDeleteSelected
+  onDeleteSelected,
+  serverState,
+  filterOptions
 }: ReportDataTableProps<TData>): React.JSX.Element {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = React.useState('')
   const [rowSelection, setRowSelection] = React.useState({})
   const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
+  const handleRowContextMenu = React.useCallback(
+    (row: TData, event: React.MouseEvent<HTMLTableRowElement>) => {
+      event.preventDefault()
+      setContextMenu((current) => ({
+        rowId: row.id,
+        signal: current.signal + 1
+      }))
+    },
+    []
+  )
 
   const tableColumns = React.useMemo<ColumnDef<TData>[]>(
     () => [
@@ -134,34 +166,47 @@ export function ReportDataTable<TData extends ReportRow>({
   const table = useReactTable({
     data,
     columns: tableColumns,
-    state: { sorting, columnFilters, globalFilter, rowSelection },
+    state: {
+      sorting: serverState?.sorting ?? sorting,
+      columnFilters: serverState?.columnFilters ?? columnFilters,
+      globalFilter: serverState?.globalFilter ?? globalFilter,
+      rowSelection,
+      ...(serverState ? { pagination: serverState.pagination } : {})
+    },
     enableRowSelection: true,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
+    onSortingChange: serverState?.onSortingChange ?? setSorting,
+    onColumnFiltersChange: serverState?.onColumnFiltersChange ?? setColumnFilters,
+    onGlobalFilterChange: serverState?.onGlobalFilterChange ?? setGlobalFilter,
     onRowSelectionChange: setRowSelection,
     getRowId: (row) => row.id,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    manualFiltering: Boolean(serverState),
+    manualSorting: Boolean(serverState),
+    manualPagination: Boolean(serverState),
+    pageCount: serverState?.pageCount,
     initialState: { pagination: { pageSize: 50 } }
   })
 
-  const filteredRowCount = table.getFilteredRowModel().rows.length
   const filterableColumns = columns.filter(
     (column): column is ReportColumn<TData> & { accessorKey: string } =>
-      'accessorKey' in column && typeof column.accessorKey === 'string'
+      'accessorKey' in column &&
+      typeof column.accessorKey === 'string' &&
+      (!serverState || Boolean(filterOptions?.[column.accessorKey]))
   )
   const activeFilterCount = filterableColumns.reduce((count, column) => {
     const value = table.getColumn(column.accessorKey)?.getFilterValue()
     return count + (value ? 1 : 0)
   }, 0)
   const selectedRows = table.getSelectedRowModel().rows.map((row) => row.original)
+  const filteredRowCount = serverState?.totalRows ?? table.getFilteredRowModel().rows.length
+  const currentGlobalFilter = serverState?.globalFilter ?? globalFilter
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b bg-card px-4 py-2 min-[901px]:flex-nowrap">
+      <TableToolbar className="px-4 min-[901px]:flex-nowrap">
         <InputGroup className="min-w-0 max-w-105 flex-1 max-[900px]:basis-full">
           <InputGroupAddon align="inline-start">
             <Search aria-hidden="true" />
@@ -169,10 +214,10 @@ export function ReportDataTable<TData extends ReportRow>({
           <InputGroupInput
             aria-label="Filter all columns"
             placeholder={filterPlaceholder}
-            value={globalFilter}
-            onChange={(event) => setGlobalFilter(event.target.value)}
+            value={currentGlobalFilter}
+            onChange={(event) => table.setGlobalFilter(event.target.value)}
           />
-          {globalFilter.trim() && (
+          {currentGlobalFilter.trim() && (
             <InputGroupAddon align="inline-end">
               <InputGroupText>{filteredRowCount} results</InputGroupText>
             </InputGroupAddon>
@@ -184,8 +229,8 @@ export function ReportDataTable<TData extends ReportRow>({
               type="button"
               variant="destructive"
               size="sm"
-              onClick={() => {
-                if (onDeleteSelected(selectedRows)) setRowSelection({})
+              onClick={async () => {
+                if (await onDeleteSelected(selectedRows)) setRowSelection({})
               }}
             >
               <Trash2 data-icon="inline-start" aria-hidden="true" />
@@ -215,11 +260,13 @@ export function ReportDataTable<TData extends ReportRow>({
                       const key = column.accessorKey
                       const tableColumn = table.getColumn(key)
                       if (!tableColumn) return null
-                      const options = Array.from(
-                        new Set(data.map((row) => String(row[key as keyof TData] ?? '')))
-                      )
-                        .filter(Boolean)
-                        .sort()
+                      const options = filterOptions?.[key]
+                        ? [...filterOptions[key]].sort()
+                        : Array.from(
+                            new Set(data.map((row) => String(row[key as keyof TData] ?? '')))
+                          )
+                            .filter(Boolean)
+                            .sort()
                       const filterValue = (tableColumn.getFilterValue() as string) ?? ''
                       const label = key
                         .replace(/([A-Z])/g, ' $1')
@@ -271,28 +318,34 @@ export function ReportDataTable<TData extends ReportRow>({
             </Button>
           )}
         </div>
-      </div>
+        {activeFilterCount > 0 && (
+          <div className="basis-full flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-1">
+            {filterableColumns.map((column) => {
+              const key = column.accessorKey
+              const value = table.getColumn(key)?.getFilterValue()
+              if (!value) return null
+              const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (v) => v.toUpperCase())
+              return (
+                <ActiveFilterChip
+                  key={key}
+                  label={`${label}: ${String(value)}`}
+                  onClear={() => table.getColumn(key)?.setFilterValue(undefined)}
+                />
+              )
+            })}
+          </div>
+        )}
+      </TableToolbar>
 
       <UniversalDataTable
         table={table}
         recordCount={filteredRowCount}
+        isLoading={serverState?.loading}
         onRowDoubleClick={onDefaultAction}
-        onRowContextMenu={
-          getRowActions
-            ? (row, event) => {
-                event.preventDefault()
-                setContextMenu((current) => ({
-                  rowId: row.id,
-                  signal: current.signal + 1
-                }))
-              }
-            : undefined
-        }
+        onRowContextMenu={getRowActions ? handleRowContextMenu : undefined}
         emptyMessage="No matching entries."
-        tableLayout={{
-          columnsResizable: true
-        }}
-        paginationSizes={[15, 25, 50, 100]}
+        tableLayout={reportTableLayout}
+        paginationSizes={reportPaginationSizes}
         paginationInfo="{from}-{to} of {count} entries"
         paginationClassName="px-4"
       />

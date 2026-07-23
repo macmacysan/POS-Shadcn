@@ -115,7 +115,7 @@ export function SidebarLeft({
                 isActive: activeView === 'cashier-reports',
                 onClick: onCashierReports
               }
-            if (item.title !== 'Finance') return item
+            if (item.title !== 'Installments') return item
             if (!('children' in item) || !item.children) return item
             return {
               ...item,

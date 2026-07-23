@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import * as React from "react"
+import * as React from 'react'
 
 import {
   DropdownMenu,
@@ -10,17 +10,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import { ChevronDownIcon, PlusIcon } from "lucide-react"
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
+import { ChevronDownIcon, PlusIcon } from 'lucide-react'
 
 export function TeamSwitcher({
-  teams,
+  teams
 }: {
   teams: {
     name: string
@@ -41,8 +37,8 @@ export function TeamSwitcher({
               <SidebarMenuButton className="w-fit px-1.5 aria-expanded:bg-muted aria-expanded:text-foreground" />
             }
           >
-            <div className="flex aspect-square size-5 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-              {activeTeam.logo}
+            <div className="brand-mark size-6 bg-sidebar-primary text-sidebar-primary-foreground">
+              <span aria-hidden="true">CR</span>
             </div>
             <span className="truncate font-medium">{activeTeam.name}</span>
             <ChevronDownIcon className="opacity-50" />
@@ -54,9 +50,7 @@ export function TeamSwitcher({
             sideOffset={4}
           >
             <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                Teams
-              </DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs text-muted-foreground">Teams</DropdownMenuLabel>
               {teams.map((team, index) => (
                 <DropdownMenuItem
                   key={team.name}
@@ -77,9 +71,7 @@ export function TeamSwitcher({
                 <div className="flex size-6 items-center justify-center rounded-md border bg-background">
                   <PlusIcon className="size-4" />
                 </div>
-                <div className="font-medium text-muted-foreground">
-                  Add team
-                </div>
+                <div className="font-medium text-muted-foreground">Add team</div>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

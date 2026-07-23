@@ -73,8 +73,18 @@ import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/ins
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
+import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hooks/use-expenses'
+import { useActiveReport } from '@/contexts/active-report-context'
+import {
+  expenseTypeValues,
+  parseAmountToCentavos,
+  type ExpenseCategory,
+  type ExpenseType,
+  type ExpenseVat
+} from '@/../../shared/contracts'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
+const noopHistorySelect = (_record: InstallmentHistoryRecord): void => undefined
 
 const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT'] as const
@@ -192,14 +202,7 @@ const expenseCategoryConfigByValue = new Map<string, ExpenseCategoryConfig>(
   expenseCategoryConfigs.map((config) => [config.value, config])
 )
 
-type ExpenseRow = ReportRow & {
-  type: string
-  description: string
-  category: string
-  receiptNo: string
-  vat: string
-  amount: number
-}
+type ExpenseRow = ExpenseTableRow
 
 type IncomeRow = ReportRow & {
   particular: string
@@ -429,22 +432,6 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   }
 ]
 
-const expenseData: ExpenseRow[] = Array.from({ length: 105 }, (_, index) => ({
-  id: `expense-${index + 1}`,
-  type: index % 3 === 0 ? 'Operating' : index % 3 === 1 ? 'Supply' : 'Transport',
-  description: [
-    'Printer paper, toner, and office supplies',
-    'Fuel and tolls for customer deliveries',
-    'Monthly electricity and water bill'
-  ][index % 3],
-  category: ['Office Expenses and Supplies', 'Freight, Postage and Shipping', 'Utilities'][
-    index % 3
-  ],
-  receiptNo: `EXP-${String(index + 1).padStart(4, '0')}`,
-  vat: index % 3 === 0 ? 'VAT' : index % 3 === 1 ? 'Non-VAT' : '',
-  amount: 350 + index * 25
-}))
-
 const incomeData: IncomeRow[] = [
   {
     id: 'income-1',
@@ -554,6 +541,10 @@ function paymentRowActions(
 
 function ReportTab({
   tab,
+  expenseRows,
+  expenseQuery,
+  onDeleteExpense,
+  onDeleteSelectedExpenses,
   onAddEntry,
   addEntryLabel,
   selectedHistoryId,
@@ -563,26 +554,56 @@ function ReportTab({
   onEdit
 }: {
   tab: (typeof reportTabs)[number]
+  expenseRows: ExpenseRow[]
+  expenseQuery: ReturnType<typeof useExpenses>
+  onDeleteExpense: (id: string) => Promise<void>
+  onDeleteSelectedExpenses: (rows: ExpenseRow[]) => Promise<boolean>
   onAddEntry: () => void
   addEntryLabel: string
   selectedHistoryId?: string
   onSelectHistory: (record: InstallmentHistoryRecord) => void
   onDelete: (id: string) => void
-  onDeleteSelected: (rows: ReportRow[]) => boolean
+  onDeleteSelected: (rows: ReportRow[]) => boolean | Promise<boolean>
   onEdit: (row: ExpenseRow | IncomeRow | PaymentRow) => void
 }): React.JSX.Element {
+  const getExpenseActions = React.useCallback(
+    (row: ExpenseRow) => expenseRowActions(row, onDeleteExpense, onEdit),
+    [onDeleteExpense, onEdit]
+  )
+  const getIncomeActions = React.useCallback(
+    (row: IncomeRow) => incomeRowActions(row, onDelete, onEdit),
+    [onDelete, onEdit]
+  )
+  const getPaymentActions = React.useCallback(
+    (row: PaymentRow) => paymentRowActions(row, onDelete, onEdit),
+    [onDelete, onEdit]
+  )
+  const onExpenseDefaultAction = React.useCallback(
+    (row: ExpenseRow) => {
+      expenseQuery.setSelectedId(row.id)
+      acknowledgeRow(row)
+    },
+    [expenseQuery.setSelectedId]
+  )
+
   switch (tab) {
     case 'Expenses':
       return (
         <ReportDataTable
           columns={expenseColumns}
-          data={expenseData}
+          data={expenseRows}
           filterPlaceholder="Filter expenses..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
-          getRowActions={(row) => expenseRowActions(row, onDelete, onEdit)}
-          onDeleteSelected={onDeleteSelected}
-          onDefaultAction={acknowledgeRow}
+          getRowActions={getExpenseActions}
+          onDeleteSelected={onDeleteSelectedExpenses}
+          onDefaultAction={onExpenseDefaultAction}
+          serverState={expenseQuery}
+          filterOptions={{
+            type: expenseTypeValues,
+            category: expenseCategories,
+            vat: vatOptions
+          }}
         />
       )
     case 'Income':
@@ -593,7 +614,7 @@ function ReportTab({
           filterPlaceholder="Filter income..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
-          getRowActions={(row) => incomeRowActions(row, onDelete, onEdit)}
+          getRowActions={getIncomeActions}
           onDeleteSelected={onDeleteSelected}
           onDefaultAction={acknowledgeRow}
         />
@@ -606,7 +627,7 @@ function ReportTab({
           filterPlaceholder="Filter payments..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
-          getRowActions={(row) => paymentRowActions(row, onDelete, onEdit)}
+          getRowActions={getPaymentActions}
           onDeleteSelected={onDeleteSelected}
           onDefaultAction={acknowledgeRow}
         />
@@ -616,7 +637,7 @@ function ReportTab({
         <InstallmentHistoryTable
           records={installmentHistoryData}
           selectedId={selectedHistoryId}
-          onSelect={() => undefined}
+          onSelect={noopHistorySelect}
           onDoubleClick={onSelectHistory}
         />
       )
@@ -793,7 +814,9 @@ export function CashierReportsContent({
   summaryAlwaysDark?: boolean
 }): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
-  const [expenses, setExpenses] = React.useState(expenseData)
+  const expenseQuery = useExpenses()
+  const { reportId } = useActiveReport()
+  const { createExpense, removeExpenses, updateExpense } = expenseQuery
   const [incomes, setIncomes] = React.useState(incomeData)
   const [payments, setPayments] = React.useState(paymentData)
   const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
@@ -802,29 +825,73 @@ export function CashierReportsContent({
   const isMobile = useIsMobile()
   const isHistoryTab = activeTab === 'Activity'
   const showRightPanel = !isMobile && isEntryFormVisible
+  const toggleEntryForm = React.useCallback(() => setIsEntryFormVisible((visible) => !visible), [])
 
-  const editAmount = React.useCallback((row: ExpenseRow | IncomeRow | PaymentRow): void => {
-    const nextAmount = window.prompt('Amount', String(row.amount))
-    if (nextAmount === null) return
-    const amount = Number(nextAmount)
-    if (!Number.isFinite(amount) || amount < 0) return
-    if ('particular' in row)
-      setIncomes((current) =>
-        current.map((item) => (item.id === row.id ? { ...item, amount } : item))
-      )
-    else if ('bankProvider' in row)
-      setPayments((current) =>
-        current.map((item) => (item.id === row.id ? { ...item, amount } : item))
-      )
-    else
-      setExpenses((current) =>
-        current.map((item) => (item.id === row.id ? { ...item, amount } : item))
-      )
-  }, [])
+  const editAmount = React.useCallback(
+    (row: ExpenseRow | IncomeRow | PaymentRow): void => {
+      const nextAmount = window.prompt('Amount', String(row.amount))
+      if (nextAmount === null) return
+      if ('reportId' in row) {
+        let amountCentavos: number
+        try {
+          amountCentavos = parseAmountToCentavos(nextAmount)
+        } catch {
+          return
+        }
+        void updateExpense({
+          id: row.id,
+          type: row.type,
+          description: row.description,
+          category: row.category,
+          receiptNo: row.receiptNo,
+          vat: row.vat,
+          amountCentavos
+        }).catch(() => undefined)
+        return
+      }
+      const amount = Number(nextAmount)
+      if (!Number.isFinite(amount) || amount < 0) return
+      if ('particular' in row)
+        setIncomes((current) =>
+          current.map((item) => (item.id === row.id ? { ...item, amount } : item))
+        )
+      else if ('bankProvider' in row)
+        setPayments((current) =>
+          current.map((item) => (item.id === row.id ? { ...item, amount } : item))
+        )
+      else return
+    },
+    [updateExpense]
+  )
+
+  const deleteExpense = React.useCallback(
+    async (id: string): Promise<void> => {
+      try {
+        await removeExpenses([id])
+      } catch {
+        return
+      }
+    },
+    [removeExpenses]
+  )
+
+  const deleteSelectedExpenses = React.useCallback(
+    async (rows: ExpenseRow[]): Promise<boolean> => {
+      const ids = rows.map((row) => row.id)
+      if (!window.confirm(`Delete ${ids.length} selected entr${ids.length === 1 ? 'y' : 'ies'}?`))
+        return false
+      try {
+        await removeExpenses(ids)
+        return true
+      } catch {
+        return false
+      }
+    },
+    [removeExpenses]
+  )
 
   const deleteEntry = React.useCallback((id: string): void => {
     const ids = new Set([id])
-    setExpenses((current) => current.filter((row) => !ids.has(row.id)))
     setIncomes((current) => current.filter((row) => !ids.has(row.id)))
     setPayments((current) => current.filter((row) => !ids.has(row.id)))
   }, [])
@@ -833,57 +900,64 @@ export function CashierReportsContent({
     const ids = new Set(rows.map((row) => row.id))
     if (!window.confirm(`Delete ${ids.size} selected entr${ids.size === 1 ? 'y' : 'ies'}?`))
       return false
-    setExpenses((current) => current.filter((row) => !ids.has(row.id)))
     setIncomes((current) => current.filter((row) => !ids.has(row.id)))
     setPayments((current) => current.filter((row) => !ids.has(row.id)))
     return true
   }, [])
 
-  const saveEntry = React.useCallback((tab: (typeof reportTabs)[number], form: FormData): void => {
-    const amount = Number(form.get(`${tab.toLowerCase()}-amount`) ?? 0)
-    if (!Number.isFinite(amount) || amount < 0) return
-    const id = `${tab.toLowerCase()}-${Date.now()}`
-    if (tab === 'Expenses') {
-      setExpenses((current) => [
-        ...current,
-        {
-          id,
-          type: String(form.get('expenses-type') || 'Operating'),
-          description: String(form.get('expenses-description') || 'New expense'),
-          category: String(form.get('expenses-category') || 'Others'),
-          receiptNo: String(form.get('expenses-receipt-no-') || id.toUpperCase()),
-          vat: String(form.get('expenses-vat') || ''),
-          amount
+  const saveEntry = React.useCallback(
+    async (tab: (typeof reportTabs)[number], form: FormData): Promise<void> => {
+      if (tab === 'Expenses') {
+        try {
+          await createExpense({
+            reportId,
+            type: String(form.get('expenses-type') || 'Operating') as ExpenseType,
+            description: String(form.get('expenses-description') || 'New expense'),
+            category: String(form.get('expenses-category') || 'Others') as ExpenseCategory,
+            receiptNo: String(form.get('expenses-receipt-no-') || ''),
+            vat: String(form.get('expenses-vat') || '') as ExpenseVat,
+            amountCentavos: parseAmountToCentavos(String(form.get('expenses-amount') || '0'))
+          })
+          setIsEntryFormVisible(false)
+        } catch {
+          return
         }
-      ])
-    } else if (tab === 'Income') {
-      setIncomes((current) => [
-        ...current,
-        {
-          id,
-          particular: String(form.get('income-particular') || 'Other income'),
-          remarks: String(form.get('income-remarks') || ''),
-          receiptRefNo: String(form.get('income-receipt-reference-no-') || id.toUpperCase()),
-          date: String(form.get('income-date') || '2026-07-14'),
-          amount
-        }
-      ])
-    } else if (tab === 'Payment') {
-      setPayments((current) => [
-        ...current,
-        {
-          id,
-          type: String(form.get('payment-type') || 'Bank Check'),
-          bankProvider: String(form.get('payment-bank-provider') || ''),
-          accountName: String(form.get('payment-account-name') || ''),
-          referenceNo: String(form.get('payment-reference-no-') || id.toUpperCase()),
-          date: String(form.get('payment-date') || '2026-07-14'),
-          amount
-        }
-      ])
-    }
-    setIsEntryFormVisible(false)
-  }, [])
+        return
+      }
+
+      const amount = Number(form.get(`${tab.toLowerCase()}-amount`) ?? 0)
+      if (!Number.isFinite(amount) || amount < 0) return
+      const id = `${tab.toLowerCase()}-${Date.now()}`
+      if (tab === 'Income') {
+        setIncomes((current) => [
+          ...current,
+          {
+            id,
+            particular: String(form.get('income-particular') || 'Other income'),
+            remarks: String(form.get('income-remarks') || ''),
+            receiptRefNo: String(form.get('income-receipt-reference-no-') || id.toUpperCase()),
+            date: String(form.get('income-date') || '2026-07-14'),
+            amount
+          }
+        ])
+      } else if (tab === 'Payment') {
+        setPayments((current) => [
+          ...current,
+          {
+            id,
+            type: String(form.get('payment-type') || 'Bank Check'),
+            bankProvider: String(form.get('payment-bank-provider') || ''),
+            accountName: String(form.get('payment-account-name') || ''),
+            referenceNo: String(form.get('payment-reference-no-') || id.toUpperCase()),
+            date: String(form.get('payment-date') || '2026-07-14'),
+            amount
+          }
+        ])
+      }
+      setIsEntryFormVisible(false)
+    },
+    [createExpense, reportId]
+  )
 
   React.useEffect(() => {
     if (!isEntryFormVisible) return
@@ -906,7 +980,7 @@ export function CashierReportsContent({
         {!isMobile && (
           <Card className="flex min-h-0 min-w-0 flex-col">
             <ReportSummary
-              expenses={expenses}
+              expenseTotals={expenseQuery.expenseTotals}
               incomes={incomes}
               payments={payments}
               installmentHistory={installmentHistoryData}
@@ -951,7 +1025,11 @@ export function CashierReportsContent({
                   >
                     <ReportTab
                       tab={tab}
-                      onAddEntry={() => setIsEntryFormVisible((visible) => !visible)}
+                      expenseRows={expenseQuery.rows}
+                      expenseQuery={expenseQuery}
+                      onDeleteExpense={deleteExpense}
+                      onDeleteSelectedExpenses={deleteSelectedExpenses}
+                      onAddEntry={toggleEntryForm}
                       addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
                       selectedHistoryId={selectedHistory?.id}
                       onSelectHistory={setSelectedHistory}
@@ -988,7 +1066,7 @@ export function CashierReportsContent({
                 <SheetDescription>Daily cashier report totals and cash variance.</SheetDescription>
               </SheetHeader>
               <ReportSummary
-                expenses={expenses}
+                expenseTotals={expenseQuery.expenseTotals}
                 incomes={incomes}
                 payments={payments}
                 installmentHistory={installmentHistoryData}
