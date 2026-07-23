@@ -117,12 +117,17 @@ Rules:
 ## Table Design
 
 - Use shared table primitives, theme tokens, density, and interaction patterns.
+- Use the shared table shell for Cashier Reports, Installment History, and Active Accounts so search, filters, table framing, empty states, loading, and pagination remain visually consistent.
+- Keep table surfaces compact and workstation-oriented: readable values, restrained row padding, sticky headers, subtle separators, and no decorative card treatment inside the table viewport.
+- Keep the primary table toolbar minimal: one prominent search field, one Filters control for advanced filters, and only the highest-value quick filters visible beside it.
 - Keep Description and Amount visually prominent.
 - Use muted styling for supporting metadata such as Category, Receipt No., VAT, and secondary identifiers.
 - Right-align monetary values.
 - Keep essential actions visible and inside the table viewport.
 - Keep headers, toolbars, and pagination visible while the table body scrolls.
 - Use pagination or virtualization for high-volume datasets.
+- Prefer virtualized rows for datasets that may grow beyond 1,000 records; keep filtering and sorting memoized and preserve stable record identifiers.
+- Use shadcn/ReUI skeleton rows during table loading so column geometry remains stable and the workspace does not jump.
 - Do not compress columns until values become unreadable.
 
 ## Truncated Content

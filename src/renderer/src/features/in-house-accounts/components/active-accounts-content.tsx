@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { FileSearch, Search, SlidersHorizontal, X } from 'lucide-react'
+import { FileSearch, PanelRight, Search, SlidersHorizontal, X } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -20,10 +20,11 @@ import {
   createRowActionsColumn,
   type RowActionItem
 } from '@/components/shared/data-table/row-actions'
+import { ActiveFilterChip, TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import {
   Empty,
   EmptyContent,
@@ -32,7 +33,7 @@ import {
   EmptyMedia,
   EmptyTitle
 } from '@/components/ui/empty'
-import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import {
   Select,
   SelectContent,
@@ -288,27 +289,6 @@ function FilterSelect<TValue extends string>({
   )
 }
 
-function ActiveFilterChip({
-  label,
-  onRemove
-}: {
-  readonly label: string
-  readonly onRemove: () => void
-}): React.JSX.Element {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="xs"
-      className="max-w-full rounded-full"
-      onClick={onRemove}
-    >
-      <span className="truncate">{label}</span>
-      <X data-icon="inline-end" />
-    </Button>
-  )
-}
-
 function noopActiveAccountAction(account: InHouseAccount): void {
   void account.id
 }
@@ -374,6 +354,7 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
   const [frequency, setFrequency] = React.useState('all')
   const [dueDate, setDueDate] = React.useState<DueDateFilter>('all')
   const [isFiltersOpen, setIsFiltersOpen] = React.useState(false)
+  const [isInspectorOpen, setIsInspectorOpen] = React.useState(true)
   const [sorting, setSorting] = React.useState<SortingState>(() =>
     readJson(sortStorageKey, defaultSorting)
   )
@@ -647,24 +628,35 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
-      <div className="grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_clamp(20rem,24vw,24rem)] gap-3 max-[1099px]:grid-cols-1">
+      <div
+        className={cn(
+          'grid h-full min-h-0 w-full min-w-0 gap-3 max-[1099px]:grid-cols-1',
+          !isInspectorSheet &&
+            (isInspectorOpen ? 'grid-cols-[minmax(0,1fr)_clamp(20rem,24vw,24rem)]' : 'grid-cols-1')
+        )}
+      >
         <div className="flex min-h-0 min-w-0 flex-col gap-3">
           <Card className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <CardHeader className="flex shrink-0 flex-col gap-2 border-b px-3 py-1.5">
-              <div className="flex w-full items-center gap-2">
-                <div className="relative min-w-72 flex-[1_1_70%]">
-                  <Search
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                  />
-                  <Input
-                    className="h-10 pl-8 text-xs"
-                    aria-label="Search active accounts by name, account ID, or mobile number"
-                    placeholder="Search customer, account ID..."
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                  />
-                </div>
+            <TableToolbar className="px-3 min-[901px]:flex-nowrap">
+              <InputGroup className="min-w-0 max-w-105 flex-1 max-[900px]:basis-full">
+                <InputGroupAddon align="inline-start">
+                  <Search aria-hidden="true" />
+                </InputGroupAddon>
+                <InputGroupInput
+                  aria-label="Search active accounts by name, account ID, or mobile number"
+                  placeholder="Search customer, account ID, or mobile number..."
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                {search.trim() && (
+                  <InputGroupAddon align="inline-end">
+                    <span className="text-xs text-muted-foreground">
+                      {filteredRows.length} results
+                    </span>
+                  </InputGroupAddon>
+                )}
+              </InputGroup>
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -676,9 +668,22 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
                   <SlidersHorizontal data-icon="inline-start" />
                   Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
                 </Button>
+                {!isInspectorSheet && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-pressed={isInspectorOpen}
+                    aria-label={`${isInspectorOpen ? 'Hide' : 'Show'} account inspector`}
+                    onClick={() => setIsInspectorOpen((open) => !open)}
+                  >
+                    <PanelRight data-icon="inline-start" />
+                    Inspector
+                  </Button>
+                )}
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex flex-wrap gap-2" aria-label="Quick filters">
+              <div className="basis-full flex flex-wrap items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-1" aria-label="Quick filters">
                   <QuickFilterChip
                     active={paymentStatus === 'due-today'}
                     onClick={() =>
@@ -701,18 +706,6 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
                   >
                     Due This Week
                   </QuickFilterChip>
-                  <QuickFilterChip
-                    active={frequency === 'Weekly'}
-                    onClick={() => setFrequency(frequency === 'Weekly' ? 'all' : 'Weekly')}
-                  >
-                    Weekly
-                  </QuickFilterChip>
-                  <QuickFilterChip
-                    active={frequency === 'Monthly'}
-                    onClick={() => setFrequency(frequency === 'Monthly' ? 'all' : 'Monthly')}
-                  >
-                    Monthly
-                  </QuickFilterChip>
                 </div>
                 {hasActiveFilters && (
                   <Button
@@ -728,18 +721,18 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
                 )}
               </div>
               {hasActiveFilters && (
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="basis-full flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-1">
                   {activeFilters.map((filter) => (
                     <ActiveFilterChip
                       key={filter.key}
                       label={filter.label}
-                      onRemove={filter.onRemove}
+                      onClear={filter.onRemove}
                     />
                   ))}
                 </div>
               )}
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+            </TableToolbar>
+            <div className="flex min-h-0 flex-1 flex-col">
               {filteredRows.length ? (
                 <UniversalDataTable
                   table={table}
@@ -778,10 +771,10 @@ export function InHouseActiveAccountsContent(): React.JSX.Element {
                   </Empty>
                 </div>
               )}
-            </CardContent>
+            </div>
           </Card>
         </div>
-        {!isInspectorSheet && (
+        {!isInspectorSheet && isInspectorOpen && (
           <Card className="flex min-h-0 min-w-0 flex-col">
             <InHouseAccountInspector account={selectedRow?.account} meta={selectedRow?.meta} />
           </Card>
