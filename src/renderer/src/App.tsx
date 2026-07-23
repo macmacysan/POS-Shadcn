@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { LoginForm } from '@/features/authentication'
 import { CashierReportsContent } from '@/features/cashier-report'
 import { InHouseActiveAccountsContent, InHouseAccountsContent } from '@/features/in-house-accounts'
+import { StatusAccountsContent } from '@/features/in-house-accounts/components/status-accounts-content'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/shared/theme-toggle'
@@ -10,7 +11,13 @@ import { DevelopmentActiveReportProvider } from '@/contexts/active-report-contex
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 const SUMMARY_DARK_STORAGE_KEY = 'cashiers-report-summary-dark'
-type ActiveView = 'dashboard' | 'cashier-reports' | 'in-house-accounts' | 'in-house-active-accounts'
+type ActiveView =
+  | 'dashboard'
+  | 'cashier-reports'
+  | 'in-house-accounts'
+  | 'in-house-active-accounts'
+  | 'in-house-closed-accounts'
+  | 'in-house-blacklisted-accounts'
 
 function Workspace({
   isDark,
@@ -34,6 +41,8 @@ function Workspace({
         onCashierReports={() => setActiveView('cashier-reports')}
         onAllAccounts={() => setActiveView('in-house-accounts')}
         onActiveAccounts={() => setActiveView('in-house-active-accounts')}
+        onClosedAccounts={() => setActiveView('in-house-closed-accounts')}
+        onBlacklistedAccounts={() => setActiveView('in-house-blacklisted-accounts')}
         onToggleTheme={onToggleTheme}
         summaryAlwaysDark={summaryAlwaysDark}
         onSummaryAlwaysDarkChange={onSummaryAlwaysDarkChange}
@@ -43,6 +52,10 @@ function Workspace({
           <CashierReportsContent summaryAlwaysDark={summaryAlwaysDark} />
         ) : activeView === 'in-house-active-accounts' ? (
           <InHouseActiveAccountsContent />
+        ) : activeView === 'in-house-closed-accounts' ? (
+          <StatusAccountsContent view="closed" />
+        ) : activeView === 'in-house-blacklisted-accounts' ? (
+          <StatusAccountsContent view="blacklisted" />
         ) : activeView === 'in-house-accounts' ? (
           <InHouseAccountsContent />
         ) : (

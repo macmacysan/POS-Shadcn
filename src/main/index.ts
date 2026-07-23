@@ -1,4 +1,5 @@
 import { app, shell, BrowserWindow } from 'electron'
+import { copyFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -10,6 +11,9 @@ import { registerExpenseIpc } from './ipc/expenses'
 import { registerReportIpc } from './ipc/reports'
 import { ExpenseService } from './services/expense-service'
 import { ReportService } from './services/report-service'
+import { InstallmentRepository } from './database/installment-repository'
+import { InstallmentService } from './services/installment-service'
+import { registerInstallmentIpc } from './ipc/installments'
 
 let database: ReturnType<typeof openDatabase> | undefined
 
@@ -62,11 +66,17 @@ app.whenReady().then(() => {
   })
 
   try {
-    database = openDatabase(join(app.getPath('userData'), 'cashiers-report.sqlite'), {
+    const databasePath = join(app.getPath('userData'), 'cashiers-report.db')
+    const legacyDatabasePath = join(app.getPath('userData'), 'cashiers-report.sqlite')
+    if (!existsSync(databasePath) && existsSync(legacyDatabasePath)) {
+      copyFileSync(legacyDatabasePath, databasePath)
+    }
+    database = openDatabase(databasePath, {
       seedDevelopmentData: is.dev
     })
     registerExpenseIpc(new ExpenseService(new ExpenseRepository(database)))
     registerReportIpc(new ReportService(new ReportRepository(database)))
+    registerInstallmentIpc(new InstallmentService(new InstallmentRepository(database)))
   } catch (error) {
     console.error('Database initialization failed.', error)
     app.quit()

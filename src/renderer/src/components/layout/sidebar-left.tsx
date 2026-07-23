@@ -28,7 +28,13 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 
-type ActiveView = 'dashboard' | 'cashier-reports' | 'in-house-accounts' | 'in-house-active-accounts'
+type ActiveView =
+  | 'dashboard'
+  | 'cashier-reports'
+  | 'in-house-accounts'
+  | 'in-house-active-accounts'
+  | 'in-house-closed-accounts'
+  | 'in-house-blacklisted-accounts'
 
 const data = {
   teams: [{ name: 'Cashiers Report', logo: <StoreIcon />, plan: 'Local workspace' }],
@@ -80,6 +86,8 @@ export function SidebarLeft({
   onCashierReports,
   onAllAccounts,
   onActiveAccounts,
+  onClosedAccounts,
+  onBlacklistedAccounts,
   onToggleTheme,
   summaryAlwaysDark,
   onSummaryAlwaysDarkChange,
@@ -91,6 +99,8 @@ export function SidebarLeft({
   onCashierReports?: () => void
   onAllAccounts?: () => void
   onActiveAccounts?: () => void
+  onClosedAccounts?: () => void
+  onBlacklistedAccounts?: () => void
   onToggleTheme: () => void
   summaryAlwaysDark: boolean
   onSummaryAlwaysDarkChange: (value: boolean) => void
@@ -135,6 +145,18 @@ export function SidebarLeft({
                             ...entry,
                             isActive: activeView === 'in-house-active-accounts',
                             onClick: onActiveAccounts
+                          }
+                        if (entry.title === 'Closed')
+                          return {
+                            ...entry,
+                            isActive: activeView === 'in-house-closed-accounts',
+                            onClick: onClosedAccounts
+                          }
+                        if (entry.title === 'Blacklisted')
+                          return {
+                            ...entry,
+                            isActive: activeView === 'in-house-blacklisted-accounts',
+                            onClick: onBlacklistedAccounts
                           }
                         return entry
                       })

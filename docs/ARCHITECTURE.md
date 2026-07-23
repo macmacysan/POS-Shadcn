@@ -22,9 +22,12 @@ Applies to the Electron renderer, preload, IPC, main process, persistence, and a
 ## Persistence
 
 - Keep persistence logic outside renderer components.
+- Use one physical SQLite database, `cashiers-report.db`, opened by the Electron main process with `better-sqlite3`; enable `PRAGMA foreign_keys = ON` for every connection.
+- Store UUID or ULID identifiers as `TEXT`, money as integer centavos, dates as `YYYY-MM-DD`, and timestamps as ISO-8601 UTC strings. Keep business dates, transaction dates, and creation timestamps semantically distinct.
 - Use transactions for multi-step financial, reconciliation, or report-submission operations.
 - Implement schema changes through versioned migrations.
 - Do not manually alter persisted production data as a substitute for a migration.
+- Posted financial records are voided with actor, timestamp, and reason; they are not physically deleted. Calculated totals are derived from source rows.
 - Destructive operations require explicit task scope, validation, and safeguards.
 - Preserve existing data contracts unless the task explicitly changes them.
 

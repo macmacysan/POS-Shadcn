@@ -77,12 +77,12 @@ export function formatHistoryDateTime(value: string): string {
 }
 
 export function formatHistoryDate(value: string | undefined): string {
-  return value ? format(new Date(value), 'MMM d, yyyy') : '—'
+  return value ? format(new Date(value), 'MMM d, yyyy') : '-'
 }
 
 export function formatHistoryMoney(value: number | undefined): string {
   return value === undefined
-    ? '—'
+    ? '-'
     : `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 

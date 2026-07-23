@@ -3,16 +3,18 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 import {
   expenseIpcChannels,
+  installmentIpcChannels,
   reportIpcChannels,
   type ExpenseCreateInput,
   type ExpenseListRequest,
   type ExpenseUpdateInput,
   type ExpensesApi,
+  type InstallmentsApi,
   type ReportRecord
 } from '../shared/contracts'
 
 // Custom APIs for renderer
-const api: ExpensesApi = {
+const api: ExpensesApi & InstallmentsApi = {
   reports: {
     getById: (reportId: string): Promise<ReportRecord | null> =>
       ipcRenderer.invoke(reportIpcChannels.getById, { reportId }),
@@ -25,6 +27,13 @@ const api: ExpensesApi = {
       summaryTotals: (reportId: string) =>
         ipcRenderer.invoke(expenseIpcChannels.summaryTotals, { reportId })
     }
+  },
+  installments: {
+    list: (request) => ipcRenderer.invoke(installmentIpcChannels.list, request),
+    bootstrap: (request) => ipcRenderer.invoke(installmentIpcChannels.bootstrap, request),
+    closeContract: (request) => ipcRenderer.invoke(installmentIpcChannels.closeContract, request),
+    blacklistAccount: (request) =>
+      ipcRenderer.invoke(installmentIpcChannels.blacklistAccount, request)
   }
 }
 

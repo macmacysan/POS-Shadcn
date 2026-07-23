@@ -31,7 +31,7 @@ function DetailValue({
   return (
     <div className="grid grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] gap-3 py-1.5 text-xs">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words text-right font-medium">{value ?? '—'}</dd>
+      <dd className="min-w-0 break-words text-right font-medium">{value ?? '-'}</dd>
     </div>
   )
 }

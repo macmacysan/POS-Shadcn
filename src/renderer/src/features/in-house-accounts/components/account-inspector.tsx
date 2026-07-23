@@ -44,13 +44,12 @@ type InHouseAccountInspectorProps = {
 }
 
 function Header({
-  isSheet,
   onClose
 }: Pick<InHouseAccountInspectorProps, 'isSheet' | 'onClose'>): React.JSX.Element {
   return (
     <div className="sticky top-0 flex min-h-12 shrink-0 items-center justify-between gap-2 border-b bg-card px-3 py-2">
       <h2 className="text-sm font-semibold">Account Details</h2>
-      {isSheet && (
+      {onClose && (
         <Button type="button" variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
           <X aria-hidden="true" />
         </Button>
