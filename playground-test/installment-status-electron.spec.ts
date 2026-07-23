@@ -41,6 +41,10 @@ test.describe('installment status views', () => {
     await expect(page.getByText('Customer01, Sample', { exact: true })).toBeVisible()
     await expect(page.locator('tbody tr')).toHaveCount(25)
     await expect(page.getByText('Showing 1-25 of 40 records')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Filter' })).toBeVisible()
+    await page.getByRole('button', { name: 'Filter' }).click()
+    await expect(page.getByPlaceholder('Search filters...')).toBeVisible()
+    await page.keyboard.press('Escape')
 
     await openInstallmentView(page, 'Active')
     await expect(page.getByRole('table')).toBeVisible()

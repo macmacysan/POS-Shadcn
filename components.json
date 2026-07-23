@@ -6,14 +6,14 @@
   "tailwind": {
     "config": "",
     "css": "src/renderer/src/assets/main.css",
-    "baseColor": "neutral",
+    "baseColor": "taupe",
     "cssVariables": true,
     "prefix": ""
   },
-  "iconLibrary": "remixicon",
+  "iconLibrary": "lucide",
   "rtl": false,
   "menuColor": "default",
-  "menuAccent": "bold",
+  "menuAccent": "subtle",
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils",

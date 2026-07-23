@@ -5,17 +5,9 @@ import {
   useReactTable,
   type ColumnDef
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   createRowActionsColumn,
@@ -23,7 +15,9 @@ import {
 } from '@/components/shared/data-table/row-actions'
 import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
-import { ActiveFilterChip, TableToolbar } from '@/components/shared/data-table/table-toolbar'
+import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
+import { ReuiFilters } from '@/components/shared/data-table/reui-filters'
+import type { Filter } from '@/../../components/reui/filters'
 import { cn } from '@/lib/utils'
 import {
   actionLabels,
@@ -113,6 +107,54 @@ export function InstallmentHistoryTable({
   const [source, setSource] = React.useState<InstallmentHistorySource | 'all'>('all')
   const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc')
   const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
+  const filterFields = React.useMemo(
+    () => [
+      {
+        key: 'search',
+        label: 'Search history',
+        type: 'text' as const,
+        placeholder: 'Search account, activity, or reference...'
+      },
+      {
+        key: 'action',
+        label: 'Action',
+        type: 'select' as const,
+        options: actionOptions
+          .filter((option) => option !== 'all')
+          .map((option) => ({ value: option, label: actionLabels[option] }))
+      },
+      {
+        key: 'source',
+        label: 'Source',
+        type: 'select' as const,
+        options: sourceOptions
+          .filter((option) => option !== 'all')
+          .map((option) => ({ value: option, label: sourceLabels[option] }))
+      }
+    ],
+    []
+  )
+  const filters = React.useMemo<Filter<string>[]>(() => {
+    const next: Filter<string>[] = []
+    if (search.trim())
+      next.push({ id: 'history-search', field: 'search', operator: 'contains', values: [search] })
+    if (action !== 'all')
+      next.push({ id: 'history-action', field: 'action', operator: 'is', values: [action] })
+    if (source !== 'all')
+      next.push({ id: 'history-source', field: 'source', operator: 'is', values: [source] })
+    return next
+  }, [action, search, source])
+  const handleFiltersChange = (next: Filter<string>[]): void => {
+    setSearch(next.find((filter) => filter.field === 'search')?.values[0] ?? '')
+    setAction(
+      (next.find((filter) => filter.field === 'action')?.values[0] as
+        InstallmentHistoryAction | undefined) ?? 'all'
+    )
+    setSource(
+      (next.find((filter) => filter.field === 'source')?.values[0] as
+        InstallmentHistorySource | undefined) ?? 'all'
+    )
+  }
   const handleRowContextMenu = React.useCallback(
     (record: InstallmentHistoryRecord, event: React.MouseEvent<HTMLTableRowElement>) => {
       event.preventDefault()
@@ -132,7 +174,7 @@ export function InstallmentHistoryTable({
       .filter(
         (record) =>
           !query ||
-          `${record.accountName} ${record.activity} ${record.reference ?? ''}`
+          `${record.accountName} ${record.activity} ${record.reference ?? ''} ${sourceLabels[record.source]} ${actionLabels[record.action]} ${record.amount} ${record.balance} ${record.occurredAt}`
             .toLowerCase()
             .includes(query)
       )
@@ -272,49 +314,12 @@ export function InstallmentHistoryTable({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <TableToolbar>
-        <div className="relative min-w-52 max-w-md flex-1">
-          <Search
-            className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <Input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search account or activity..."
-            aria-label="Search account or activity"
-            className="h-8 pl-8 text-xs"
-          />
-        </div>
-        <Select
-          value={action}
-          onValueChange={(value) => setAction(value as InstallmentHistoryAction | 'all')}
-        >
-          <SelectTrigger size="sm" className="w-28" aria-label="Filter by action">
-            <SelectValue placeholder="Action" />
-          </SelectTrigger>
-          <SelectContent>
-            {actionOptions.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option === 'all' ? 'All actions' : actionLabels[option]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={source}
-          onValueChange={(value) => setSource(value as InstallmentHistorySource | 'all')}
-        >
-          <SelectTrigger size="sm" className="w-32" aria-label="Filter by source">
-            <SelectValue placeholder="Source" />
-          </SelectTrigger>
-          <SelectContent>
-            {sourceOptions.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option === 'all' ? 'All sources' : sourceLabels[option]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <ReuiFilters
+          filters={filters}
+          fields={filterFields}
+          onChange={handleFiltersChange}
+          className="min-w-0 flex-1"
+        />
         <button
           type="button"
           className="ml-auto inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -328,22 +333,6 @@ export function InstallmentHistoryTable({
           )}{' '}
           Date &amp; time
         </button>
-        {(action !== 'all' || source !== 'all') && (
-          <div className="basis-full flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-1">
-            {action !== 'all' && (
-              <ActiveFilterChip
-                label={`Action: ${actionLabels[action]}`}
-                onClear={() => setAction('all')}
-              />
-            )}
-            {source !== 'all' && (
-              <ActiveFilterChip
-                label={`Source: ${sourceLabels[source]}`}
-                onClear={() => setSource('all')}
-              />
-            )}
-          </div>
-        )}
       </TableToolbar>
       <UniversalDataTable
         table={table}

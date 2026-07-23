@@ -6,7 +6,6 @@ import { InHouseActiveAccountsContent, InHouseAccountsContent } from '@/features
 import { StatusAccountsContent } from '@/features/in-house-accounts/components/status-accounts-content'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { ThemeToggle } from '@/components/shared/theme-toggle'
 import { DevelopmentActiveReportProvider } from '@/contexts/active-report-context'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
@@ -119,10 +118,7 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <main className="relative flex min-h-screen w-full items-center justify-center bg-muted/35 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle isDark={isDark} onToggle={toggleTheme} />
-      </div>
+    <main className="flex min-h-screen w-full items-center justify-center bg-background px-6 py-8">
       <LoginForm onSuccess={() => setIsLoggedIn(true)} />
     </main>
   )
