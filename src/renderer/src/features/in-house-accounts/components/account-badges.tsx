@@ -4,7 +4,6 @@ import { Badge } from '@/components/ui/badge'
 import { accountStatusLabel, branchCodeByName } from '@/lib/in-house-account-display'
 import { type AccountMonitoringStatus } from '@/lib/in-house-account-monitoring'
 import { branchLabels, type BranchName } from '@/lib/in-house-accounts'
-import { cn } from '@/lib/utils'
 
 export const AccountBranchBadge = React.memo(function AccountBranchBadge({
   branch
@@ -15,13 +14,7 @@ export const AccountBranchBadge = React.memo(function AccountBranchBadge({
     <Badge
       variant="outline"
       aria-label={`${branchLabels[branch]} branch`}
-      className={cn(
-        'min-w-9 justify-center px-1.5 font-mono text-xs tracking-normal',
-        branch === 'Goa' && 'border-primary/40 text-primary',
-        branch === 'Tinambac' && 'border-muted-foreground/40 text-muted-foreground',
-        branch === 'Tigaon' && 'border-accent-foreground/40 text-accent-foreground',
-        branch === 'Lagonoy' && 'border-secondary-foreground/40 text-secondary-foreground'
-      )}
+      className="min-w-8 justify-center px-1 font-mono tracking-normal text-muted-foreground"
     >
       {branchCodeByName[branch]}
     </Badge>
@@ -38,13 +31,18 @@ export const AccountStatusBadge = React.memo(function AccountStatusBadge({
   return (
     <Badge
       variant={
-        status === 'overdue' || status === 'delayed' || status === 'blacklisted'
+        status === 'blacklisted'
           ? 'destructive'
-          : status === 'due-today'
-            ? 'default'
+          : status === 'overdue' || status === 'delayed' || status === 'due-today'
+            ? 'outline'
             : status === 'active' || status === 'due-soon' || status === 'fully-paid'
               ? 'secondary'
               : 'outline'
+      }
+      className={
+        status === 'overdue' || status === 'delayed' || status === 'due-today'
+          ? 'border-warning/40 bg-warning/10 text-warning-foreground'
+          : undefined
       }
     >
       {accountStatusLabel[status]}

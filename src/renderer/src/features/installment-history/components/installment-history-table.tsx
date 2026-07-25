@@ -225,7 +225,7 @@ export function InstallmentHistoryTable({
         },
         cell: ({ row }) => (
           <div className="min-w-0">
-            <TruncatedText value={row.original.accountName} className="text-xs font-medium" />
+            <TruncatedText value={row.original.accountName} className="text-xs font-light" />
             {row.original.reference && (
               <span className="block truncate text-[11px] text-muted-foreground">
                 {row.original.reference}
@@ -258,7 +258,7 @@ export function InstallmentHistoryTable({
         meta: {
           headerTitle: 'Amount',
           headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
-          cellClassName: 'text-right text-xs font-medium tabular-nums text-foreground'
+          cellClassName: 'text-right text-xs font-light tabular-nums text-foreground'
         },
         cell: ({ row }) => formatHistoryMoney(row.original.amount)
       },
@@ -271,7 +271,7 @@ export function InstallmentHistoryTable({
         meta: {
           headerTitle: 'Balance',
           headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
-          cellClassName: 'text-right text-xs font-medium tabular-nums text-foreground'
+          cellClassName: 'text-right text-xs font-light tabular-nums text-foreground'
         },
         cell: ({ row }) => formatHistoryMoney(row.original.balance)
       },

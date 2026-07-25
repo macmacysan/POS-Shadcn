@@ -138,7 +138,9 @@ function NavChildList({ items }: { items: NavChildItem[] }): React.JSX.Element {
           >
             <SidebarMenuSubItem>
               <CollapsibleTrigger
-                render={<SidebarMenuSubButton isActive={hasActiveDescendant(item)} />}
+                render={
+                  <SidebarMenuSubButton className="group-data-panel-open/collapsible:bg-muted/50" />
+                }
               >
                 {item.icon}
                 <span>{item.title}</span>
@@ -226,7 +228,7 @@ export function NavMain({ items }: { items: NavItem[] }): React.JSX.Element {
       {items.map((item) =>
         isNavSection(item) ? (
           <SidebarMenuItem key={item.title}>
-            <div className="px-2 py-1.5 text-xs font-medium text-sidebar-foreground/70">
+            <div className="px-2 py-1.5 text-xs font-light text-sidebar-foreground/70">
               {item.title}
             </div>
             {item.children && (
@@ -246,7 +248,9 @@ export function NavMain({ items }: { items: NavItem[] }): React.JSX.Element {
           >
             <SidebarMenuItem>
               <CollapsibleTrigger
-                render={<SidebarMenuButton isActive={hasActiveDescendant(item)} />}
+                render={
+                  <SidebarMenuButton className="group-data-panel-open/collapsible:bg-muted/50" />
+                }
               >
                 {item.icon}
                 <span>{item.title}</span>

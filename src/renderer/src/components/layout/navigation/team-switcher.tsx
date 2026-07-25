@@ -40,7 +40,7 @@ export function TeamSwitcher({
             <div className="brand-mark size-6 bg-sidebar-primary text-sidebar-primary-foreground">
               <span aria-hidden="true">CR</span>
             </div>
-            <span className="truncate font-medium">{activeTeam.name}</span>
+            <span className="truncate font-light">{activeTeam.name}</span>
             <ChevronDownIcon className="opacity-50" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -71,7 +71,7 @@ export function TeamSwitcher({
                 <div className="flex size-6 items-center justify-center rounded-md border bg-background">
                   <PlusIcon className="size-4" />
                 </div>
-                <div className="font-medium text-muted-foreground">Add team</div>
+                <div className="font-light text-muted-foreground">Add team</div>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

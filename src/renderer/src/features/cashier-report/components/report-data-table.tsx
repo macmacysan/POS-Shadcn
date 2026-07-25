@@ -34,7 +34,7 @@ export type ReportRow = { id: string }
 export type ReportColumn<TData extends ReportRow> = ColumnDef<TData>
 
 const reportPaginationSizes = [15, 25, 50, 100]
-const reportTableLayout = { columnsResizable: true } as const
+const reportTableLayout = { columnsResizable: true, headerBackground: true } as const
 
 type ReportDataTableProps<TData extends ReportRow> = {
   columns: ReportColumn<TData>[]
@@ -126,11 +126,8 @@ export function ReportDataTable<TData extends ReportRow>({
           meta: {
             ...column.meta,
             headerTitle,
-            headerClassName: cn(
-              'text-xs uppercase tracking-wide text-muted-foreground',
-              legacyMeta?.className
-            ),
-            cellClassName: cn('max-w-72 truncate align-middle', legacyMeta?.className)
+            headerClassName: cn('text-xs font-medium text-muted-foreground', legacyMeta?.className),
+            cellClassName: cn('max-w-72 truncate align-middle text-xs', legacyMeta?.className)
           }
         }
       }) as ColumnDef<TData>[]),

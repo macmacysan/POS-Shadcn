@@ -83,7 +83,7 @@ function SummaryItem({
   return (
     <div className="flex items-baseline justify-between gap-3 text-xs">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn('text-right font-medium', className)}>{value}</span>
+      <span className={cn('text-right font-light', className)}>{value}</span>
     </div>
   )
 }
@@ -100,12 +100,12 @@ function CollapsibleSection({
   readonly children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <Collapsible defaultOpen={defaultOpen} className="group/section rounded-md border bg-card">
+    <Collapsible defaultOpen={defaultOpen} className="group/section border-b border-border last:border-b-0">
       <CollapsibleTrigger
         render={
           <button
             type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/40"
+            className="flex w-full items-center gap-2 py-2 text-left hover:bg-muted/40"
           />
         }
       >
@@ -121,7 +121,7 @@ function CollapsibleSection({
         />
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="border-t px-3 py-2">{children}</div>
+        <div className="border-t py-2">{children}</div>
       </CollapsibleContent>
     </Collapsible>
   )
@@ -149,7 +149,7 @@ function DetailRow({
       <dt className="text-muted-foreground">{label}</dt>
       <dd
         className={cn(
-          'min-w-0 break-words font-medium',
+          'min-w-0 break-words font-light',
           !stacked && 'text-right',
           destructive && 'text-destructive'
         )}
@@ -200,7 +200,7 @@ function ContactRows({
           const isPrimary = item.id === primaryId || item.isPrimary
           return (
             <div key={item.id} className="flex min-w-0 items-center gap-2 text-xs">
-              <span className="min-w-0 flex-1 select-text break-all font-medium">{item.value}</span>
+              <span className="min-w-0 flex-1 select-text break-all font-light">{item.value}</span>
               {isPrimary && (
                 <Badge variant="secondary" className="shrink-0">
                   Primary
@@ -346,7 +346,7 @@ export function InHouseAccountInspector({
             </div>
           </TooltipProvider>
 
-          <div className="rounded-md border bg-background p-3">
+          <div className="border-t pt-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <p className="text-xs text-muted-foreground">Outstanding Balance</p>
@@ -385,7 +385,7 @@ export function InHouseAccountInspector({
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-2.5 p-3">
+        <div className="flex flex-col p-3">
           <CollapsibleSection
             title="Collection Status"
             summary={`${formatHistoryMoney(meta?.outstandingBalance)} balance · ${formatHistoryDate(meta?.nextDue)} next due`}
@@ -451,7 +451,7 @@ export function InHouseAccountInspector({
           >
             {address ? (
               <div className="flex items-start gap-2">
-                <p className="min-w-0 flex-1 select-text whitespace-pre-line text-xs font-medium leading-5">
+                <p className="min-w-0 flex-1 select-text whitespace-pre-line text-xs font-light leading-5">
                   {address}
                 </p>
                 <CopyButton value={address} label="Copy address" />

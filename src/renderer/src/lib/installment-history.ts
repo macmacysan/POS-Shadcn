@@ -1,4 +1,5 @@
 import { format } from 'date-fns'
+import { formatPhilippinePeso } from '@/lib/currency'
 
 export type InstallmentHistoryAction = 'new' | 'edited' | 'deleted'
 export type InstallmentHistorySource = 'in-house' | 'home-credit'
@@ -81,9 +82,7 @@ export function formatHistoryDate(value: string | undefined): string {
 }
 
 export function formatHistoryMoney(value: number | undefined): string {
-  return value === undefined
-    ? '-'
-    : `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return value === undefined ? '-' : formatPhilippinePeso(value)
 }
 
 export const installmentHistoryData: InstallmentHistoryRecord[] = [

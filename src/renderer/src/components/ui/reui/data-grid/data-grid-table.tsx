@@ -26,7 +26,7 @@ import { Spinner } from '@/components/ui/spinner'
 const headerCellSpacingVariants = cva('', {
   variants: {
     size: {
-      dense: 'px-2 h-8',
+      dense: 'h-9 px-2',
       default: 'px-3'
     }
   },
@@ -38,7 +38,7 @@ const headerCellSpacingVariants = cva('', {
 const bodyCellSpacingVariants = cva('', {
   variants: {
     size: {
-      dense: 'px-2 py-1.5',
+      dense: 'h-10 px-2 py-0',
       default: 'px-3 py-2'
     }
   },
@@ -660,7 +660,7 @@ function DataGridTableHeadRowCell<TData>({
       data-outer-pinned-col={isFirstLeftPinned ? 'left' : isLastRightPinned ? 'right' : undefined}
       data-last-col={isLastLeftPinned ? 'left' : isFirstRightPinned ? 'right' : undefined}
       className={cn(
-        'text-foreground relative h-10 text-left align-middle font-medium rtl:text-right [&:has([role=checkbox])]:pe-0',
+        'relative text-left align-middle text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground rtl:text-right [&:has([role=checkbox])]:pe-0',
         headerCellSpacing,
         props.tableLayout?.headerBackground && 'bg-muted',
         props.tableLayout?.cellBorder && 'border-e',
@@ -863,7 +863,7 @@ function DataGridTableFootRowCell({
     <td
       colSpan={colSpan}
       className={cn(
-        'text-secondary-foreground/80 align-middle font-medium',
+        'text-secondary-foreground/80 align-middle font-light',
         spacing,
         props.tableLayout?.footerBackground && 'bg-muted/40 dark:bg-background',
         props.tableLayout?.cellBorder && 'border-e',
@@ -881,7 +881,7 @@ function DataGridTableBodyRowSkeleton({ children }: { children: ReactNode }) {
   return (
     <tr
       className={cn(
-        'hover:bg-muted/40 data-[state=selected]:bg-muted/50',
+        'hover:bg-muted/45 data-[state=selected]:bg-primary/8',
         props.onRowClick && 'cursor-pointer',
         !props.tableLayout?.stripped &&
           props.tableLayout?.rowBorder &&
@@ -999,7 +999,7 @@ function DataGridTableBodyRow<TData>({
         if (sibling instanceof HTMLElement) sibling.focus()
       }}
       className={cn(
-        'outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=selected]:bg-muted/50',
+        'outline-none hover:bg-muted/45 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=selected]:bg-primary/8',
         props.onRowClick && 'cursor-pointer',
         !props.tableLayout?.stripped && props.tableLayout?.rowBorder && bodyRowBottomBorderClasses,
         props.tableLayout?.cellBorder && `*:last:border-e-0 ${bodyRowBottomBorderClasses}`,
@@ -1157,7 +1157,7 @@ function DataGridTableLoader() {
 
   return (
     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-      <div className="text-muted-foreground bg-card rounded-lg flex items-center gap-2 border px-4 py-2 text-sm leading-none font-medium">
+      <div className="text-muted-foreground bg-card rounded-lg flex items-center gap-2 border px-4 py-2 text-sm leading-none font-light">
         <Spinner className="size-5 opacity-60" />
         {props.loadingMessage || 'Loading...'}
       </div>

@@ -105,7 +105,7 @@ function Money({
   readonly emphasis?: boolean
 }): React.JSX.Element {
   return (
-    <span className={cn('tabular-nums', emphasis && 'font-medium')}>
+    <span className={cn('tabular-nums', emphasis && 'font-light')}>
       {formatHistoryMoney(value)}
     </span>
   )
@@ -114,7 +114,7 @@ function Money({
 function AccountCell({ row }: { readonly row: PersistedInstallmentRow }): React.JSX.Element {
   return (
     <div className="min-w-0">
-      <span className="block truncate font-medium">{formatAccountName(row.account)}</span>
+      <span className="block truncate font-light">{formatAccountName(row.account)}</span>
       <span className="block truncate text-xs text-muted-foreground">{row.account.id}</span>
     </div>
   )
@@ -442,7 +442,10 @@ export function StatusAccountsContent({ view }: Props): React.JSX.Element {
                 <InHouseAccountInspector
                   account={selected?.account}
                   meta={selected?.meta}
-                  onClose={() => setIsInspectorOpen(false)}
+                  onClose={() => {
+                    setSelectedId(undefined)
+                    setIsInspectorOpen(false)
+                  }}
                 />
               </Card>
             )}

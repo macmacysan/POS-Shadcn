@@ -30,6 +30,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { formatPhilippinePeso } from '@/lib/currency'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Stepper,
@@ -135,9 +136,7 @@ function addressSelection(option: PsgcOption | undefined): AccountAddressSelecti
 }
 
 function money(value: number | undefined): string {
-  return value === undefined
-    ? 'PHP 0.00'
-    : `PHP ${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return formatPhilippinePeso(value ?? 0)
 }
 
 function AddressCombobox({
@@ -354,7 +353,7 @@ function ReviewValue({
   return (
     <div className="min-w-0">
       <div className="text-muted-foreground">{label}</div>
-      <div className="truncate font-medium text-foreground">{value || '-'}</div>
+      <div className="truncate font-light text-foreground">{value || '-'}</div>
     </div>
   )
 }
@@ -565,7 +564,7 @@ export function InHouseAccountForm({
                         )}
                         onClick={() => setSelectedCustomerId(account.id)}
                       >
-                        <span className="block font-medium">{formatAccountName(account)}</span>
+                        <span className="block font-light">{formatAccountName(account)}</span>
                         <span className="block text-xs text-muted-foreground">
                           {account.id} - {branchLabels[account.branch]}
                         </span>

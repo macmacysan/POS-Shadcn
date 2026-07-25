@@ -20,9 +20,9 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { formatPhilippinePeso } from '@/lib/currency'
 import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { amountFromCentavos, type ExpenseSummaryTotals } from '@/../../shared/contracts'
 
@@ -57,11 +57,11 @@ type ReportSummaryProps = {
 const defaultReceiptTypes = ['Sales Invoice', 'SI Trading', 'Delivery Receipt', 'Pawnshop']
 const deductionTypes = ['SSS', 'PhilHealth', 'Pag-IBIG', 'Withholding Tax']
 const cashDenominationValues = ['0.25', '1', '5', '10', '20', '50', '100', '200', '500', '1000']
+const transferTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
 const optionsStorageKey = 'cashier-report-summary-options'
 const openingCashStorageKey = 'cashier-report-opening-cash'
 
-const money = (value: number): string =>
-  `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const money = formatPhilippinePeso
 
 const amountValue = (value: string): number => {
   const parsed = Number(value.replace(/[^\d.-]/g, ''))
@@ -105,9 +105,20 @@ function AmountInput({
   )
 }
 
-function Section({ children }: { children: React.ReactNode }): React.JSX.Element {
+function Section({
+  label,
+  children
+}: {
+  label?: string
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
     <section className="border-b border-border/60 py-2.5 last:border-b-0">
+      {label && (
+        <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+          {label}
+        </p>
+      )}
       <div className="flex flex-col gap-1">{children}</div>
     </section>
   )
@@ -137,7 +148,7 @@ function SummaryRow({
       <span
         className={cn(
           'min-w-0 truncate',
-          emphasis ? 'font-medium text-foreground' : 'text-muted-foreground'
+          emphasis ? 'font-light text-foreground' : 'text-muted-foreground'
         )}
       >
         {label}
@@ -165,7 +176,7 @@ function TotalRow({
         className
       )}
     >
-      <span className="font-medium text-foreground">{label}</span>
+      <span className="font-light text-foreground">{label}</span>
       <span className="font-semibold tabular-nums text-foreground">{money(value)}</span>
     </div>
   )
@@ -180,8 +191,15 @@ function ReceiptRow({
   value: ReceiptValue
   onChange: (value: ReceiptValue) => void
 }): React.JSX.Element {
+  const isEmpty = value.amount === 0
+
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_4rem_5.75rem] items-center gap-2 text-xs">
+    <div
+      className={cn(
+        'grid grid-cols-[minmax(0,1fr)_4rem_5.75rem] items-center gap-2 text-xs',
+        isEmpty && 'text-muted-foreground'
+      )}
+    >
       <span className="min-w-0 truncate text-muted-foreground">{type}</span>
       <Input
         aria-label={`${type} quantity`}
@@ -320,7 +338,7 @@ export const ReportSummary = React.memo(function ReportSummary({
     purchases,
     receivables,
     cashOut,
-    nonCash,
+    transferRows,
     countedCash,
     expectedCash,
     variance,
@@ -354,14 +372,14 @@ export const ReportSummary = React.memo(function ReportSummary({
       (sum, type) => sum + (options.deductionValues[type] ?? 0),
       0
     )
-    const nonCash = payments.reduce(
-      (sum, row) =>
-        sum +
-        (['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'].includes(row.type)
-          ? row.amount
-          : 0),
-      0
-    )
+    const transferRows = transferTypes.map((type) => ({
+      type,
+      amount: payments.reduce(
+        (sum, payment) => sum + (payment.type === type ? payment.amount : 0),
+        0
+      )
+    }))
+    const nonCash = transferRows.reduce((sum, row) => sum + row.amount, 0)
     const cashOut =
       expenseSummary.expensesTotal +
       deductions +
@@ -386,13 +404,37 @@ export const ReportSummary = React.memo(function ReportSummary({
       ...expenseSummary,
       deductions,
       cashOut,
-      nonCash,
+      transferRows,
       countedCash,
       expectedCash,
       variance,
       endingCash: expectedCash - cashRemitted
     }
   }, [cashRemitted, expenseTotals, incomes, installmentHistory, openingCash, options, payments])
+
+  const visibleCashInRows = [
+    { label: 'Collections', value: collections },
+    { label: 'Other Income', value: otherIncome },
+    { label: 'Finance', value: finance },
+    { label: 'Total Receipts', value: totalReceipts, emphasis: true }
+  ].filter((row) => row.value !== 0)
+  const visibleCashOutRows = [
+    { label: 'Expenses', value: expensesTotal },
+    ...(options.deductions && deductions !== 0
+      ? [
+          {
+            label: 'Deductions',
+            value: deductions,
+            onClick: () => setOpenDialog('deductions' as const)
+          }
+        ]
+      : []),
+    { label: 'Drawings', value: drawings },
+    { label: 'Purchases', value: purchases },
+    { label: 'Receivables', value: receivables },
+    { label: 'Cash Out', value: cashOut, emphasis: true }
+  ].filter((row) => row.value !== 0)
+  const visibleTransferRows = transferRows.filter((row) => row.amount !== 0)
 
   return (
     <>
@@ -402,9 +444,9 @@ export const ReportSummary = React.memo(function ReportSummary({
           alwaysDark && 'dark'
         )}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-border bg-background/70 px-3 py-3">
+        <header className="flex shrink-0 items-center justify-between border-b border-border bg-muted/55 px-3 py-2.5">
           <div className="min-w-0">
-            <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="truncate text-[10px] font-light uppercase tracking-[0.14em] text-muted-foreground">
               Daily Cashier Report
             </p>
             <h2 className="truncate text-sm font-semibold tracking-tight">Today&apos;s Summary</h2>
@@ -515,63 +557,65 @@ export const ReportSummary = React.memo(function ReportSummary({
         </header>
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="px-3">
-            <Section>
-              <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="text-muted-foreground">Starting balance</span>
-                <AmountInput
-                  label="Opening Cash"
-                  value={openingCash}
-                  onChange={setOpeningCash}
-                  className="w-24"
-                />
-              </div>
-            </Section>
-            <Section>
-              {receiptRows.length > 0 && (
-                <div className="grid grid-cols-[minmax(0,1fr)_4rem_5.75rem] gap-2 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  <span>Type</span>
-                  <span className="text-right">Qty</span>
-                  <span className="text-right">Amount</span>
+          <div className="px-3 pb-3">
+            {openingCash !== 0 && (
+              <Section label="Opening">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">Opening Cash</span>
+                  <AmountInput
+                    label="Opening Cash"
+                    value={openingCash}
+                    onChange={setOpeningCash}
+                    className="w-24"
+                  />
                 </div>
-              )}
-              {receiptRows.map((row) => (
-                <ReceiptRow
-                  key={row.type}
-                  type={row.type}
-                  value={row}
-                  onChange={(value) => updateReceipt(row.type, value)}
-                />
-              ))}
-            </Section>
-            <Section>
-              <SummaryRow label="Collections" value={collections} />
-              <SummaryRow label="Other Income" value={otherIncome} />
-              <SummaryRow label="Finance" value={finance} />
-              <SummaryRow label="Total Receipts" value={totalReceipts} emphasis />
-            </Section>
-            <Section>
-              <SummaryRow label="Expenses" value={expensesTotal} />
-              {options.deductions && (
-                <SummaryRow
-                  label="Deductions"
-                  value={deductions}
-                  onClick={() => setOpenDialog('deductions')}
-                />
-              )}
-              <SummaryRow label="Drawings" value={drawings} />
-              <SummaryRow label="Purchases" value={purchases} />
-              <SummaryRow label="Receivables" value={receivables} />
-              <SummaryRow label="Cash Out" value={cashOut} emphasis />
-            </Section>
-            <Section>
-              <SummaryRow label="Non-Cash" value={nonCash} emphasis />
-            </Section>
+              </Section>
+            )}
+            {receiptRows.length > 0 && (
+              <Section label="Receipts">
+                {receiptRows.length > 0 && (
+                  <div className="grid grid-cols-[minmax(0,1fr)_4rem_5.75rem] gap-2 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <span>Type</span>
+                    <span className="text-right">Qty</span>
+                    <span className="text-right">Amount</span>
+                  </div>
+                )}
+                {receiptRows.map((row) => (
+                  <ReceiptRow
+                    key={row.type}
+                    type={row.type}
+                    value={row}
+                    onChange={(value) => updateReceipt(row.type, value)}
+                  />
+                ))}
+              </Section>
+            )}
+            {visibleCashInRows.length > 0 && (
+              <Section label="Cash in">
+                {visibleCashInRows.map((row) => (
+                  <SummaryRow key={row.label} {...row} />
+                ))}
+              </Section>
+            )}
+            {visibleCashOutRows.length > 0 && (
+              <Section label="Cash out">
+                {visibleCashOutRows.map((row) => (
+                  <SummaryRow key={row.label} {...row} />
+                ))}
+              </Section>
+            )}
+            {visibleTransferRows.length > 0 && (
+              <Section label="Transfers">
+                {visibleTransferRows.map((row) => (
+                  <SummaryRow key={row.type} label={row.type} value={row.amount} />
+                ))}
+              </Section>
+            )}
           </div>
         </ScrollArea>
 
-        <div className="shrink-0 border-t border-border bg-background/70 px-3 pb-3">
-          <SummaryRow label="Expected Cash" value={expectedCash} emphasis />
+        <div className="shrink-0 border-t border-border bg-background px-3 py-2">
+          {expectedCash !== 0 && <SummaryRow label="Expected Cash" value={expectedCash} emphasis />}
           {options.cashAmount && (
             <SummaryRow
               label="Cash Amount"
@@ -579,39 +623,35 @@ export const ReportSummary = React.memo(function ReportSummary({
               onClick={() => setOpenDialog('cash')}
             />
           )}
-          <Card
+          <div
             className={cn(
-              'mt-1 shadow-none',
+              'mt-1 flex flex-col gap-0 border-t py-2',
               variance === 0
-                ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900 dark:bg-emerald-950/30'
+                ? 'border-border'
                 : variance > 0
                   ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/30'
                   : 'border-destructive/30 bg-destructive/5'
             )}
           >
-            <CardContent className="flex flex-col gap-0 p-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Variance
+            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Variance
+            </span>
+            {variance === 0 ? (
+              <span className="text-xs font-medium text-muted-foreground">Cash is balanced</span>
+            ) : (
+              <span
+                className={cn(
+                  'flex flex-col leading-3',
+                  variance > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-destructive'
+                )}
+              >
+                <span className="text-base font-semibold tabular-nums">{money(variance)}</span>
+                <span className="text-[10px] font-light">
+                  {variance > 0 ? 'More than expected' : 'Less than expected'}
+                </span>
               </span>
-              {variance === 0 ? (
-                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                  Good job, cash is Balanced!
-                </span>
-              ) : (
-                <span
-                  className={cn(
-                    'flex flex-col leading-3',
-                    variance > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-destructive'
-                  )}
-                >
-                  <span className="text-base font-bold tabular-nums">{money(variance)}</span>
-                  <span className="text-[10px] font-medium">
-                    {variance > 0 ? 'More than expected' : 'Less than expected'}
-                  </span>
-                </span>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </div>
           {options.cashRemitted && (
             <div className="flex min-h-9 items-center justify-between gap-3 border-t border-border/60 text-xs">
               <span className="text-muted-foreground">Cash Remitted</span>

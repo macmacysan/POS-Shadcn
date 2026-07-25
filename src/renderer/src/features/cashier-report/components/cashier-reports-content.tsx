@@ -71,6 +71,7 @@ import type { RowActionItem } from '@/components/shared/data-table/row-actions'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
+import { formatPhilippinePeso } from '@/lib/currency'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
 import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hooks/use-expenses'
@@ -84,7 +85,7 @@ import {
 } from '@/../../shared/contracts'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
-const noopHistorySelect = (_record: InstallmentHistoryRecord): void => undefined
+const noopHistorySelect = (): void => undefined
 
 const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT'] as const
@@ -220,32 +221,11 @@ type PaymentRow = ReportRow & {
   amount: number
 }
 
-const money = (value: number): string =>
-  `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
-
-const typeClassNames: Record<string, string> = {
-  Operating:
-    'border-sky-200/70 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
-  Supply:
-    'border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
-  Transport:
-    'border-violet-200/70 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300',
-  Cash: 'border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
-  'Bank Check':
-    'border-emerald-200/70 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
-  'Bank Transfer':
-    'border-violet-200/70 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300',
-  GCash:
-    'border-blue-200/70 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
-  'Other e-wallet':
-    'border-amber-200/70 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-}
+const money = formatPhilippinePeso
 
 function TypeBox({ value }: { value: string }): React.JSX.Element {
   return (
-    <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-light ${typeClassNames[value] ?? 'border-border bg-muted text-muted-foreground'}`}
-    >
+    <span className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
       {value}
     </span>
   )
@@ -312,13 +292,13 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'type',
     header: 'Type',
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} />,
-    size: 100,
-    meta: { className: 'w-30' }
+    size: 88,
+    meta: { className: 'text-muted-foreground' }
   },
   {
     accessorKey: 'description',
     header: 'Description',
-    size: 360,
+    size: 240,
     cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
     meta: { className: 'min-w-0', autoSize: true }
   },
@@ -326,28 +306,28 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'category',
     header: 'Category',
     cell: ({ getValue }) => <ExpenseCategoryCell category={getValue<string>()} />,
-    size: 100,
-    meta: { className: cn('w-35', 'text-muted-foreground') }
+    size: 88,
+    meta: { className: 'text-muted-foreground' }
   },
   {
     accessorKey: 'receiptNo',
     header: 'Receipt No',
-    size: 120,
-    meta: { className: cn('w-24 text-xs', 'text-muted-foreground') }
+    size: 96,
+    meta: { className: 'text-xs text-muted-foreground' }
   },
   {
     accessorKey: 'vat',
     header: 'VAT',
-    size: 90,
-    meta: { className: cn('w-24 text-xs', 'text-muted-foreground') }
+    size: 70,
+    meta: { className: 'text-xs text-muted-foreground' }
   },
   {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    size: 150,
+    size: 120,
     meta: {
-      className: cn('w-38', 'text-right font-light tabular-nums text-foreground')
+      className: 'text-right font-light tabular-nums text-foreground'
     }
   }
 ]

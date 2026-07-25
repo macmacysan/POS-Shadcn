@@ -53,6 +53,7 @@ export function UniversalDataTable<TData extends object>({
     () => ({
       dense: true,
       headerSticky: true,
+      headerBackground: true,
       width: 'fixed' as const,
       ...tableLayout
     }),

@@ -31,7 +31,7 @@ function DetailValue({
   return (
     <div className="grid grid-cols-[minmax(7rem,0.8fr)_minmax(0,1.2fr)] gap-3 py-1.5 text-xs">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 break-words text-right font-medium">{value ?? '-'}</dd>
+      <dd className="min-w-0 break-words text-right font-light">{value ?? '-'}</dd>
     </div>
   )
 }
@@ -63,7 +63,7 @@ function SnapshotDetails({
       </dl>
       {snapshot.items && snapshot.items.length > 0 && (
         <div className="pt-3">
-          <p className="pb-2 text-xs font-medium text-muted-foreground">Items</p>
+          <p className="pb-2 text-xs font-light text-muted-foreground">Items</p>
           <div className="overflow-hidden rounded-md border">
             {snapshot.items.map((item) => (
               <div
@@ -74,7 +74,7 @@ function SnapshotDetails({
                   {item.name}
                 </span>
                 <span className="text-muted-foreground">×{item.quantity}</span>
-                <span className="text-right font-medium">{formatHistoryMoney(item.price)}</span>
+                <span className="text-right font-light">{formatHistoryMoney(item.price)}</span>
               </div>
             ))}
           </div>
@@ -131,16 +131,16 @@ function EventDetails({ record }: { record: InstallmentHistoryRecord }): React.J
         <>
           <SectionHeading>Changed fields</SectionHeading>
           <div className="overflow-hidden rounded-md border">
-            <div className="grid grid-cols-3 gap-2 bg-muted/50 px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="grid grid-cols-3 gap-2 bg-muted/50 px-3 py-2 text-[11px] font-light uppercase tracking-wide text-muted-foreground">
               <span>Field</span>
               <span>Previous value</span>
               <span>New value</span>
             </div>
             {record.details.changes.map((change) => (
               <div key={change.field} className="grid grid-cols-3 gap-2 border-t px-3 py-2 text-xs">
-                <span className="font-medium">{change.field}</span>
+                <span className="font-light">{change.field}</span>
                 <span className="break-words text-muted-foreground">{change.previousValue}</span>
-                <span className="break-words font-medium">{change.newValue}</span>
+                <span className="break-words font-light">{change.newValue}</span>
               </div>
             ))}
           </div>
@@ -201,7 +201,7 @@ export function InstallmentHistoryInspector({
           <div className="pt-1">
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger render={<p className="truncate pt-3 text-xs font-medium" />}>
+                <TooltipTrigger render={<p className="truncate pt-3 text-xs font-light" />}>
                   {record.activity}
                 </TooltipTrigger>
                 <TooltipContent>{record.activity}</TooltipContent>
