@@ -1,5 +1,13 @@
 import { StatusAccountsContent } from './status-accounts-content'
 
-export function InHouseAccountsContent(): React.JSX.Element {
-  return <StatusAccountsContent view="records" />
+type Props = {
+  readonly onOpenPaymentWorkspace?: (
+    accountId: string,
+    initialTab: 'schedule' | 'ledger',
+    origin: 'records' | 'active' | 'closed' | 'blacklisted'
+  ) => void
+}
+
+export function InHouseAccountsContent({ onOpenPaymentWorkspace }: Props): React.JSX.Element {
+  return <StatusAccountsContent view="records" onOpenPaymentWorkspace={onOpenPaymentWorkspace} />
 }

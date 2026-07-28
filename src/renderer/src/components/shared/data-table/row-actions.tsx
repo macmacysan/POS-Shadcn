@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from 'react'
-import type { ColumnDef, RowData } from '@tanstack/react-table'
+import type { ColumnDef, Row, RowData } from '@tanstack/react-table'
 import { MoreHorizontal } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { useDataGrid } from '@/components/ui/reui/data-grid/data-grid'
 import { cn } from '@/lib/utils'
 
 export type RowActionItem = {
@@ -28,6 +29,7 @@ type RowActionsProps = {
   actions: readonly RowActionItem[]
   className?: string
   openSignal?: number
+  onOpen?: () => void
 }
 
 type RowActionsColumnOptions<TData extends RowData> = {
@@ -40,12 +42,19 @@ export function RowActions({
   label,
   actions,
   className,
-  openSignal
+  openSignal,
+  onOpen
 }: RowActionsProps): React.JSX.Element {
   const [open, setOpen] = React.useState(() => openSignal !== undefined && openSignal > 0)
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) onOpen?.()
+      }}
+    >
       <DropdownMenuTrigger
         render={
           <Button
@@ -91,6 +100,15 @@ export function RowActions({
   )
 }
 
+function ActiveRowActions<TData extends RowData>({
+  row,
+  ...props
+}: RowActionsProps & { row: Row<TData> }): React.JSX.Element {
+  const { activateRow } = useDataGrid()
+
+  return <RowActions {...props} onOpen={() => activateRow(row.original, row.id)} />
+}
+
 export function createRowActionsColumn<TData extends RowData>({
   label,
   getActions,
@@ -113,8 +131,9 @@ export function createRowActionsColumn<TData extends RowData>({
 
       return (
         <div className="flex justify-end">
-          <RowActions
+          <ActiveRowActions
             key={openSignal ?? 'closed'}
+            row={row}
             label={label}
             actions={getActions(row.original)}
             className="size-7"

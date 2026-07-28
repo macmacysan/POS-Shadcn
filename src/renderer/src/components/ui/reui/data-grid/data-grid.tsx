@@ -1,5 +1,13 @@
 /* eslint-disable */
-import { createContext, MouseEvent, ReactNode, useContext, useMemo } from 'react'
+import {
+  createContext,
+  MouseEvent,
+  ReactNode,
+  useCallback,
+  useContext,
+  useMemo,
+  useState
+} from 'react'
 import { Column, ColumnFiltersState, RowData, SortingState, Table } from '@tanstack/react-table'
 
 import { cn } from '@/lib/utils'
@@ -48,6 +56,8 @@ export interface DataGridContextProps<TData extends object> {
   table: Table<TData>
   recordCount: number
   isLoading: boolean
+  activeRowId?: string
+  activateRow: (row: TData, rowId: string) => void
 }
 
 export type DataGridRequestParams = {
@@ -119,8 +129,14 @@ function useDataGrid() {
 function DataGridProvider<TData extends object>({
   children,
   table,
+  activeRowId,
+  activateRow,
   ...props
-}: DataGridProps<TData> & { table: Table<TData> }) {
+}: DataGridProps<TData> & {
+  table: Table<TData>
+  activeRowId?: string
+  activateRow?: (row: TData, rowId: string) => void
+}) {
   const tableState = table.getState()
   const resolvedColumnsResizeMode = props.tableLayout?.columnsResizeMode ?? 'onEnd'
 
@@ -138,7 +154,9 @@ function DataGridProvider<TData extends object>({
       props,
       table,
       recordCount: props.recordCount,
-      isLoading: props.isLoading || false
+      isLoading: props.isLoading || false,
+      activeRowId,
+      activateRow: activateRow ?? (() => undefined)
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
@@ -154,6 +172,8 @@ function DataGridProvider<TData extends object>({
       props.onRowDoubleClick,
       props.onRowContextMenu,
       props.className,
+      activeRowId,
+      activateRow,
       // eslint-disable-next-line react-hooks/exhaustive-deps
       JSON.stringify(props.tableLayout),
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -174,6 +194,8 @@ function DataGridProvider<TData extends object>({
 }
 
 function DataGrid<TData extends object>({ children, table, ...props }: DataGridProps<TData>) {
+  const [activeRowId, setActiveRowId] = useState<string>()
+  const activateRow = useCallback((_row: TData, rowId: string) => setActiveRowId(rowId), [])
   const defaultProps: Partial<DataGridProps<TData>> = {
     loadingMode: 'skeleton',
     tableLayout: {
@@ -227,7 +249,12 @@ function DataGrid<TData extends object>({ children, table, ...props }: DataGridP
   }
 
   return (
-    <DataGridProvider table={table} {...mergedProps}>
+    <DataGridProvider
+      table={table}
+      activeRowId={activeRowId}
+      activateRow={activateRow}
+      {...mergedProps}
+    >
       {children}
     </DataGridProvider>
   )

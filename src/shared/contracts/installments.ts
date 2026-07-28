@@ -23,17 +23,44 @@ export const installmentTransitionRequestSchema = z.object({
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
 })
 
+export const installmentPaymentWorkspaceRequestSchema = z.object({
+  accountId: z.string().trim().min(1).max(100)
+})
+
+export const installmentCreatePaymentRequestSchema = z.object({
+  accountId: z.string().trim().min(1).max(100),
+  contractId: z.string().trim().min(1).max(100),
+  submissionId: z.string().trim().min(1).max(100),
+  scheduleId: z.string().trim().min(1).max(100).optional(),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  amountCentavos: z.number().int().positive(),
+  referenceNumber: z.string().trim().max(100).optional(),
+  actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
+})
+
+export const installmentAdjustPaymentRequestSchema = z.object({
+  accountId: z.string().trim().min(1).max(100),
+  contractId: z.string().trim().min(1).max(100),
+  scheduleId: z.string().trim().min(1).max(100),
+  submissionId: z.string().trim().min(1).max(100),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  amountCentavos: z.number().int().nonnegative(),
+  referenceNumber: z.string().trim().max(100).optional(),
+  reason: z.string().trim().min(1).max(1000),
+  actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
+})
+
 export type InstallmentListRequest = z.infer<typeof installmentListRequestSchema>
 export type InstallmentBootstrapRequest = z.infer<typeof installmentBootstrapRequestSchema>
 export type InstallmentTransitionRequest = z.infer<typeof installmentTransitionRequestSchema>
+export type InstallmentPaymentWorkspaceRequest = z.infer<
+  typeof installmentPaymentWorkspaceRequestSchema
+>
+export type InstallmentCreatePaymentRequest = z.infer<typeof installmentCreatePaymentRequestSchema>
+export type InstallmentAdjustPaymentRequest = z.infer<typeof installmentAdjustPaymentRequestSchema>
 
 export type InstallmentAccountStatus = 'ACTIVE' | 'BLACKLISTED'
-export type InstallmentContractStatus =
-  | 'DRAFT'
-  | 'ACTIVE'
-  | 'CLOSED'
-  | 'VOIDED'
-  | 'DEFAULTED'
+export type InstallmentContractStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'VOIDED' | 'DEFAULTED'
 
 export type InstallmentAccountRecord = {
   account: {
@@ -114,11 +141,52 @@ export type InstallmentAccountRecord = {
 
 export type InstallmentListResult = { rows: InstallmentAccountRecord[] }
 
+export type InHouseScheduleRecord = {
+  id: string
+  installmentNumber: number
+  dueDate: string
+  dueAmountCentavos: number
+  paidAmountCentavos: number
+  balanceCentavos: number
+  status: 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'WAIVED'
+  isAdjusted: boolean
+}
+
+export type InHousePaymentRecord = {
+  id: string
+  paymentDate: string
+  amountCentavos: number
+  allocatedAmountCentavos: number
+  referenceNumber?: string
+  status: 'POSTED' | 'VOIDED'
+  isAdjustment: boolean
+  createdAt: string
+}
+
+export type InstallmentPaymentWorkspace = {
+  account: InstallmentAccountRecord['account']
+  accountStatus: InstallmentAccountStatus
+  contractId: string
+  contractNumber: string
+  contractStatus: InstallmentContractStatus
+  paymentFrequency: InstallmentAccountRecord['loan']['paymentFrequency']
+  installmentAmountCentavos: number
+  totalPayableCentavos: number
+  totalPaidCentavos: number
+  outstandingBalanceCentavos: number
+  nextDue?: { dueDate: string; amountCentavos: number; installmentNumber: number }
+  schedules: InHouseScheduleRecord[]
+  payments: InHousePaymentRecord[]
+}
+
 export const installmentIpcChannels = {
   list: 'installments:list',
   bootstrap: 'installments:bootstrap',
   closeContract: 'installments:close-contract',
-  blacklistAccount: 'installments:blacklist-account'
+  blacklistAccount: 'installments:blacklist-account',
+  paymentWorkspace: 'installments:payment-workspace',
+  createPayment: 'installments:create-payment',
+  adjustPayment: 'installments:adjust-payment'
 } as const
 
 export type InstallmentsApi = {
@@ -127,5 +195,10 @@ export type InstallmentsApi = {
     bootstrap(request: InstallmentBootstrapRequest): Promise<void>
     closeContract(request: InstallmentTransitionRequest): Promise<void>
     blacklistAccount(request: InstallmentTransitionRequest): Promise<void>
+    getPaymentWorkspace(
+      request: InstallmentPaymentWorkspaceRequest
+    ): Promise<InstallmentPaymentWorkspace>
+    createPayment(request: InstallmentCreatePaymentRequest): Promise<void>
+    adjustPayment(request: InstallmentAdjustPaymentRequest): Promise<void>
   }
 }

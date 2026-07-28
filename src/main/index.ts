@@ -14,6 +14,9 @@ import { ReportService } from './services/report-service'
 import { InstallmentRepository } from './database/installment-repository'
 import { InstallmentService } from './services/installment-service'
 import { registerInstallmentIpc } from './ipc/installments'
+import { FinanceAccountRepository } from './database/finance-account-repository'
+import { FinanceAccountService } from './services/finance-account-service'
+import { registerFinanceAccountIpc } from './ipc/finance-accounts'
 
 let database: ReturnType<typeof openDatabase> | undefined
 
@@ -77,6 +80,7 @@ app.whenReady().then(() => {
     registerExpenseIpc(new ExpenseService(new ExpenseRepository(database)))
     registerReportIpc(new ReportService(new ReportRepository(database)))
     registerInstallmentIpc(new InstallmentService(new InstallmentRepository(database)))
+    registerFinanceAccountIpc(new FinanceAccountService(new FinanceAccountRepository(database)))
   } catch (error) {
     console.error('Database initialization failed.', error)
     app.quit()

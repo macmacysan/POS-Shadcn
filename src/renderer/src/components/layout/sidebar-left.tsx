@@ -15,7 +15,7 @@ import {
 import { NavMain } from '@/components/layout/navigation/nav-main'
 import { NavSecondary } from '@/components/layout/navigation/nav-secondary'
 import { TeamSwitcher } from '@/components/layout/navigation/team-switcher'
-import { Sidebar, SidebarContent, SidebarHeader, SidebarRail } from '@/components/ui/sidebar'
+import { Sidebar, SidebarContent, SidebarHeader } from '@/components/ui/sidebar'
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,7 @@ type ActiveView =
   | 'in-house-active-accounts'
   | 'in-house-closed-accounts'
   | 'in-house-blacklisted-accounts'
+  | 'finance-accounts'
 
 const data = {
   teams: [{ name: 'Cashiers Report', logo: <StoreIcon />, plan: 'Local workspace' }],
@@ -88,6 +89,7 @@ export function SidebarLeft({
   onActiveAccounts,
   onClosedAccounts,
   onBlacklistedAccounts,
+  onFinanceAccounts,
   onToggleTheme,
   summaryAlwaysDark,
   onSummaryAlwaysDarkChange,
@@ -101,6 +103,7 @@ export function SidebarLeft({
   onActiveAccounts?: () => void
   onClosedAccounts?: () => void
   onBlacklistedAccounts?: () => void
+  onFinanceAccounts?: () => void
   onToggleTheme: () => void
   summaryAlwaysDark: boolean
   onSummaryAlwaysDarkChange: (value: boolean) => void
@@ -108,8 +111,13 @@ export function SidebarLeft({
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false)
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0" {...props}>
-      <SidebarHeader className="gap-3 border-sidebar-border">
+    <Sidebar
+      {...props}
+      collapsible="none"
+      className="border-r border-sidebar-border"
+      style={{ '--sidebar-width': '13.5rem' } as React.CSSProperties}
+    >
+      <SidebarHeader className="gap-2 border-sidebar-border">
         <TeamSwitcher teams={data.teams} />
         <NavMain
           items={data.navMain.map((item) => {
@@ -161,7 +169,20 @@ export function SidebarLeft({
                         return entry
                       })
                     }
-                  : child
+                  : child.title === 'Finance'
+                    ? {
+                        ...child,
+                        children: child.children?.map((entry) =>
+                          entry.title === 'Accounts'
+                            ? {
+                                ...entry,
+                                isActive: activeView === 'finance-accounts',
+                                onClick: onFinanceAccounts
+                              }
+                            : entry
+                        )
+                      }
+                    : child
               )
             }
           })}
@@ -186,7 +207,6 @@ export function SidebarLeft({
           className="mt-auto"
         />
       </SidebarContent>
-      <SidebarRail />
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent>
           <DialogHeader>

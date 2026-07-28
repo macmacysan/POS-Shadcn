@@ -950,7 +950,7 @@ function DataGridTableBodyRow<TData>({
   dndRef?: React.Ref<HTMLTableRowElement>
   dndStyle?: CSSProperties
 }) {
-  const { props, table } = useDataGrid()
+  const { props, table, activeRowId, activateRow } = useDataGrid()
   const isRowPinned = row.getIsPinned()
 
   const bodyRowBottomBorderClasses =
@@ -964,23 +964,32 @@ function DataGridTableBodyRow<TData>({
       }}
       style={{ ...(dndStyle ? dndStyle : null) }}
       data-state={table.options.enableRowSelection && row.getIsSelected() ? 'selected' : undefined}
+      data-active={activeRowId === row.id || undefined}
       data-row-id={row.id}
-      tabIndex={props.onRowClick || props.onRowDoubleClick ? 0 : undefined}
+      tabIndex={0}
       aria-selected={table.options.enableRowSelection ? row.getIsSelected() : undefined}
       data-row-pinned={isRowPinned || undefined}
       data-row-pinned-boundary={pinnedBoundary}
-      onClick={() => props.onRowClick && props.onRowClick(row.original)}
-      onDoubleClick={() => props.onRowDoubleClick?.(row.original)}
-      onContextMenu={(event) => props.onRowContextMenu?.(row.original, event)}
+      onClick={() => {
+        activateRow(row.original, row.id)
+        props.onRowClick?.(row.original)
+      }}
+      onDoubleClick={() => {
+        activateRow(row.original, row.id)
+        props.onRowDoubleClick?.(row.original)
+      }}
+      onContextMenu={(event) => {
+        activateRow(row.original, row.id)
+        props.onRowContextMenu?.(row.original, event)
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
-          if (!props.onRowDoubleClick && !props.onRowClick) return
           event.preventDefault()
+          activateRow(row.original, row.id)
           ;(props.onRowDoubleClick ?? props.onRowClick)?.(row.original)
           return
         }
 
-        if (!props.onRowClick) return
         if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
         event.preventDefault()
         const rows = table.getRowModel().rows
@@ -991,7 +1000,8 @@ function DataGridTableBodyRow<TData>({
         )
         const nextRow = rows[nextIndex]
         if (!nextRow || nextRow.id === row.id) return
-        props.onRowClick(nextRow.original)
+        activateRow(nextRow.original, nextRow.id)
+        props.onRowClick?.(nextRow.original)
         const sibling =
           event.key === 'ArrowDown'
             ? event.currentTarget.nextElementSibling
@@ -999,8 +1009,8 @@ function DataGridTableBodyRow<TData>({
         if (sibling instanceof HTMLElement) sibling.focus()
       }}
       className={cn(
-        'outline-none hover:bg-muted/45 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[state=selected]:bg-primary/8',
-        props.onRowClick && 'cursor-pointer',
+        'outline-none hover:bg-muted/45 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[active]:bg-primary/8 data-[state=selected]:bg-primary/10 data-[active]:[&>td:first-child]:border-l-2 data-[active]:[&>td:first-child]:border-l-primary data-[state=selected]:[&>td:first-child]:border-l-2 data-[state=selected]:[&>td:first-child]:border-l-primary',
+        'cursor-pointer',
         !props.tableLayout?.stripped && props.tableLayout?.rowBorder && bodyRowBottomBorderClasses,
         props.tableLayout?.cellBorder && `*:last:border-e-0 ${bodyRowBottomBorderClasses}`,
         props.tableLayout?.stripped && 'odd:bg-muted/90 odd:hover:bg-muted hover:bg-transparent',

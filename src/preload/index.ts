@@ -3,18 +3,20 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 import {
   expenseIpcChannels,
+  financeAccountIpcChannels,
   installmentIpcChannels,
   reportIpcChannels,
   type ExpenseCreateInput,
   type ExpenseListRequest,
   type ExpenseUpdateInput,
   type ExpensesApi,
+  type FinanceAccountsApi,
   type InstallmentsApi,
   type ReportRecord
 } from '../shared/contracts'
 
 // Custom APIs for renderer
-const api: ExpensesApi & InstallmentsApi = {
+const api: ExpensesApi & InstallmentsApi & FinanceAccountsApi = {
   reports: {
     getById: (reportId: string): Promise<ReportRecord | null> =>
       ipcRenderer.invoke(reportIpcChannels.getById, { reportId }),
@@ -33,7 +35,16 @@ const api: ExpensesApi & InstallmentsApi = {
     bootstrap: (request) => ipcRenderer.invoke(installmentIpcChannels.bootstrap, request),
     closeContract: (request) => ipcRenderer.invoke(installmentIpcChannels.closeContract, request),
     blacklistAccount: (request) =>
-      ipcRenderer.invoke(installmentIpcChannels.blacklistAccount, request)
+      ipcRenderer.invoke(installmentIpcChannels.blacklistAccount, request),
+    getPaymentWorkspace: (request) =>
+      ipcRenderer.invoke(installmentIpcChannels.paymentWorkspace, request),
+    createPayment: (request) => ipcRenderer.invoke(installmentIpcChannels.createPayment, request),
+    adjustPayment: (request) => ipcRenderer.invoke(installmentIpcChannels.adjustPayment, request)
+  },
+  financeAccounts: {
+    list: (request) => ipcRenderer.invoke(financeAccountIpcChannels.list, request),
+    create: (request) => ipcRenderer.invoke(financeAccountIpcChannels.create, request),
+    update: (request) => ipcRenderer.invoke(financeAccountIpcChannels.update, request)
   }
 }
 

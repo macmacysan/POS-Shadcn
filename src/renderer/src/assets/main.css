@@ -90,6 +90,10 @@ code {
   --color-info-foreground: var(--info-foreground);
   --color-info: var(--info);
   --color-brand: var(--brand);
+  --color-branch-goa: var(--branch-goa);
+  --color-branch-tinambac: var(--branch-tinambac);
+  --color-branch-tigaon: var(--branch-tigaon);
+  --color-branch-lagonoy: var(--branch-lagonoy);
   --color-success-foreground: var(--success-foreground);
   --color-success: var(--success);
   --color-destructive-foreground: var(--destructive-foreground);
@@ -136,6 +140,10 @@ code {
   --warning: var(--color-amber-500);
   --warning-foreground: var(--color-amber-950);
   --brand: oklch(0.67 0.18 58);
+  --branch-goa: oklch(0.55 0.16 252);
+  --branch-tinambac: oklch(0.55 0.16 295);
+  --branch-tigaon: oklch(0.65 0.16 75);
+  --branch-lagonoy: oklch(0.58 0.14 155);
   --invert: var(--color-zinc-900);
   --invert-foreground: var(--color-zinc-50);
 }
@@ -180,6 +188,10 @@ code {
   --warning: var(--color-amber-400);
   --warning-foreground: var(--color-amber-950);
   --brand: oklch(0.73 0.17 65);
+  --branch-goa: oklch(0.72 0.13 252);
+  --branch-tinambac: oklch(0.72 0.13 295);
+  --branch-tigaon: oklch(0.78 0.14 75);
+  --branch-lagonoy: oklch(0.75 0.12 155);
   --invert: var(--color-zinc-700);
   --invert-foreground: var(--color-zinc-50);
 }

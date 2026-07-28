@@ -1,9 +1,9 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { ExpensesApi, InstallmentsApi } from '../shared/contracts'
+import type { ExpensesApi, FinanceAccountsApi, InstallmentsApi } from '../shared/contracts'
 
 declare global {
   interface Window {
     electron: ElectronAPI
-    api: ExpensesApi & InstallmentsApi
+    api: ExpensesApi & InstallmentsApi & FinanceAccountsApi
   }
 }

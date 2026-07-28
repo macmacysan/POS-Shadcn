@@ -23,9 +23,11 @@ type UniversalDataTableProps<TData extends object> = {
   paginationSizes?: number[]
   paginationInfo?: string
   paginationClassName?: string
+  showPagination?: boolean
   className?: string
   tableLayout?: DataGridProps<TData>['tableLayout']
   tableClassNames?: DataGridProps<TData>['tableClassNames']
+  footerContent?: ReactNode
   virtual?: boolean
   virtualEstimateSize?: number
   virtualOverscan?: number
@@ -42,9 +44,11 @@ export function UniversalDataTable<TData extends object>({
   paginationSizes = [25, 50, 100],
   paginationInfo = 'Showing {from}-{to} of {count}',
   paginationClassName,
+  showPagination = true,
   className,
   tableLayout,
   tableClassNames,
+  footerContent,
   virtual = false,
   virtualEstimateSize = 48,
   virtualOverscan = 8
@@ -83,20 +87,26 @@ export function UniversalDataTable<TData extends object>({
       <DataGridContainer className="min-h-0 min-w-0 flex-1">
         <DataGridScrollArea className="h-full min-h-0" orientation="both">
           {virtual ? (
-            <DataGridTableVirtual estimateSize={virtualEstimateSize} overscan={virtualOverscan} />
+            <DataGridTableVirtual
+              estimateSize={virtualEstimateSize}
+              overscan={virtualOverscan}
+              footerContent={footerContent}
+            />
           ) : (
-            <DataGridTable />
+            <DataGridTable footerContent={footerContent} />
           )}
         </DataGridScrollArea>
       </DataGridContainer>
-      <DataGridPagination
-        sizes={paginationSizes}
-        info={paginationInfo}
-        className={cn(
-          'h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-3 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0',
-          paginationClassName
-        )}
-      />
+      {showPagination && (
+        <DataGridPagination
+          sizes={paginationSizes}
+          info={paginationInfo}
+          className={cn(
+            'h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-3 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0',
+            paginationClassName
+          )}
+        />
+      )}
     </DataGrid>
   )
 }

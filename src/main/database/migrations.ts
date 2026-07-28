@@ -1,6 +1,9 @@
 import type Database from 'better-sqlite3'
+import { randomUUID } from 'node:crypto'
 
-export const currentSchemaVersion = 3
+import { buildInHouseSchedule } from '../services/in-house-schedule'
+
+export const currentSchemaVersion = 7
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -280,8 +283,9 @@ export function runMigrations(db: Database.Database): void {
          VALUES ('installment-type-in-house', 'IN_HOUSE', 'In-house', 'IN_HOUSE', 1, ?, ?)`
       ).run(now, now)
 
-      db.prepare('INSERT OR IGNORE INTO branches (id, code, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-        .run('development-lagonoy', 'LAG', 'Lagonoy', now, now)
+      db.prepare(
+        'INSERT OR IGNORE INTO branches (id, code, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+      ).run('development-lagonoy', 'LAG', 'Lagonoy', now, now)
 
       db.prepare(
         `INSERT OR IGNORE INTO users
@@ -344,6 +348,124 @@ export function runMigrations(db: Database.Database): void {
         now
       )
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(3, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 4) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      const contracts = db
+        .prepare(
+          `SELECT c.id, c.first_due_date, c.payment_frequency, c.terms, c.total_payable_centavos
+             FROM installment_contracts c
+             JOIN installment_types t ON t.id = c.installment_type_id
+            WHERE t.provider_kind = 'IN_HOUSE'
+              AND NOT EXISTS (
+                SELECT 1 FROM in_house_schedules s WHERE s.contract_id = c.id
+              )`
+        )
+        .all() as Array<{
+        id: string
+        first_due_date: string
+        payment_frequency: string
+        terms: string
+        total_payable_centavos: number
+      }>
+      const insert = db.prepare(
+        `INSERT INTO in_house_schedules
+          (id, contract_id, installment_number, due_date, due_amount_centavos, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      for (const contract of contracts) {
+        for (const schedule of buildInHouseSchedule(
+          contract.first_due_date,
+          contract.payment_frequency,
+          contract.terms,
+          contract.total_payable_centavos
+        )) {
+          insert.run(
+            randomUUID(),
+            contract.id,
+            schedule.installmentNumber,
+            schedule.dueDate,
+            schedule.dueAmountCentavos,
+            now,
+            now
+          )
+        }
+      }
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(4, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 5) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        ALTER TABLE in_house_payments ADD COLUMN submission_id TEXT;
+        CREATE UNIQUE INDEX IF NOT EXISTS in_house_payments_submission_idx
+          ON in_house_payments (contract_id, submission_id)
+          WHERE submission_id IS NOT NULL;
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        5,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 6) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        ALTER TABLE in_house_payments ADD COLUMN replaces_payment_id TEXT;
+        CREATE INDEX IF NOT EXISTS in_house_payments_replaces_payment_idx
+          ON in_house_payments (replaces_payment_id)
+          WHERE replaces_payment_id IS NOT NULL;
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        6,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 7) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE finance_accounts (
+          id TEXT PRIMARY KEY NOT NULL,
+          branch TEXT NOT NULL CHECK (branch IN ('Goa', 'Tinambac', 'Tigaon', 'Lagonoy')),
+          provider TEXT NOT NULL CHECK (provider IN ('Home Credit', 'Salmon', 'Skyro')),
+          date_released TEXT NOT NULL,
+          terms_months INTEGER NOT NULL CHECK (terms_months BETWEEN 1 AND 12),
+          last_name TEXT NOT NULL,
+          first_name TEXT NOT NULL,
+          middle_name TEXT,
+          suffix TEXT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          item TEXT NOT NULL,
+          serial_no TEXT,
+          item_price_centavos INTEGER NOT NULL CHECK (item_price_centavos >= 0),
+          grand_total_centavos INTEGER NOT NULL CHECK (grand_total_centavos >= 0),
+          downpayment_centavos INTEGER NOT NULL CHECK (downpayment_centavos >= 0),
+          balance_centavos INTEGER NOT NULL CHECK (balance_centavos >= 0),
+          or_number TEXT,
+          or_date TEXT,
+          paid_date TEXT,
+          remarks TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX finance_accounts_branch_date_idx
+          ON finance_accounts (branch, date_released DESC, created_at DESC);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        7,
+        new Date().toISOString()
+      )
     })
     migrate()
   }

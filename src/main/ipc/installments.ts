@@ -2,8 +2,11 @@ import { ipcMain } from 'electron'
 
 import {
   installmentBootstrapRequestSchema,
+  installmentAdjustPaymentRequestSchema,
+  installmentCreatePaymentRequestSchema,
   installmentIpcChannels,
   installmentListRequestSchema,
+  installmentPaymentWorkspaceRequestSchema,
   installmentTransitionRequestSchema
 } from '../../shared/contracts'
 import { toIpcError } from '../database/errors'
@@ -41,6 +44,30 @@ export function registerInstallmentIpc(service: InstallmentService): void {
   ipcMain.handle(installmentIpcChannels.blacklistAccount, (_event, input: unknown) => {
     try {
       service.blacklistAccount(installmentTransitionRequestSchema.parse(input))
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+
+  ipcMain.handle(installmentIpcChannels.paymentWorkspace, (_event, input: unknown) => {
+    try {
+      return service.getPaymentWorkspace(installmentPaymentWorkspaceRequestSchema.parse(input))
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+
+  ipcMain.handle(installmentIpcChannels.createPayment, (_event, input: unknown) => {
+    try {
+      service.createPayment(installmentCreatePaymentRequestSchema.parse(input))
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+
+  ipcMain.handle(installmentIpcChannels.adjustPayment, (_event, input: unknown) => {
+    try {
+      service.adjustPayment(installmentAdjustPaymentRequestSchema.parse(input))
     } catch (error) {
       return rethrowIpcError(error)
     }

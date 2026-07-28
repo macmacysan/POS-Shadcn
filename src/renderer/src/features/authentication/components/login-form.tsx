@@ -23,7 +23,11 @@ type LoginValues = {
 
 type LoginErrors = Partial<Record<keyof LoginValues, string>>
 
-export function LoginForm({ className, onSuccess, ...props }: React.ComponentProps<'div'> & { onSuccess?: () => void }): React.JSX.Element {
+export function LoginForm({
+  className,
+  onSuccess,
+  ...props
+}: React.ComponentProps<'div'> & { onSuccess?: (branch: Branch) => void }): React.JSX.Element {
   const [values, setValues] = useState<LoginValues>({
     branch: '',
     username: '',
@@ -47,7 +51,7 @@ export function LoginForm({ className, onSuccess, ...props }: React.ComponentPro
 
     setErrors(nextErrors)
     const isValid = Object.keys(nextErrors).length === 0
-    if (isValid) onSuccess?.()
+    if (isValid) onSuccess?.(values.branch as Branch)
   }
 
   return (

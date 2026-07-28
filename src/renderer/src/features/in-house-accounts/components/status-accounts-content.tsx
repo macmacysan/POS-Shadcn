@@ -73,7 +73,14 @@ import type { InstallmentView } from '../../../../../shared/contracts'
 import type { Filter } from '@/../../components/reui/filters'
 import { cn } from '@/lib/utils'
 
-type Props = { readonly view: InstallmentView }
+type Props = {
+  readonly view: InstallmentView
+  readonly onOpenPaymentWorkspace?: (
+    accountId: string,
+    initialTab: 'schedule' | 'ledger',
+    origin: InstallmentView
+  ) => void
+}
 type Transition = { readonly kind: 'close' | 'blacklist'; readonly row: PersistedInstallmentRow }
 
 function useMediaQuery(query: string): boolean {
@@ -220,7 +227,7 @@ function statusColumns(view: InstallmentView): ColumnDef<PersistedInstallmentRow
   return base
 }
 
-export function StatusAccountsContent({ view }: Props): React.JSX.Element {
+export function StatusAccountsContent({ view, onOpenPaymentWorkspace }: Props): React.JSX.Element {
   const { rows, isLoading, error, reload } = useInstallmentData(view)
   const [selectedId, setSelectedId] = React.useState<string>()
   const [search, setSearch] = React.useState('')
@@ -332,6 +339,26 @@ export function StatusAccountsContent({ view }: Props): React.JSX.Element {
   const actionItems = React.useCallback(
     (row: PersistedInstallmentRow): readonly RowActionItem[] => [
       { id: 'view', label: 'View Account', onSelect: () => setSelectedId(row.contractId) },
+      ...(row.contractStatus === 'ACTIVE' &&
+      row.accountStatus === 'ACTIVE' &&
+      onOpenPaymentWorkspace
+        ? [
+            {
+              id: 'record-payment',
+              label: 'Record Payment',
+              onSelect: () => onOpenPaymentWorkspace(row.account.id, 'schedule', view)
+            } satisfies RowActionItem
+          ]
+        : []),
+      ...(onOpenPaymentWorkspace
+        ? [
+            {
+              id: 'view-ledger',
+              label: 'View Ledger',
+              onSelect: () => onOpenPaymentWorkspace(row.account.id, 'ledger', view)
+            } satisfies RowActionItem
+          ]
+        : []),
       ...(row.contractStatus === 'ACTIVE' && view !== 'blacklisted'
         ? [
             {
@@ -355,7 +382,7 @@ export function StatusAccountsContent({ view }: Props): React.JSX.Element {
           ]
         : [])
     ],
-    [openTransition, view]
+    [onOpenPaymentWorkspace, openTransition, view]
   )
 
   const columns = React.useMemo(
@@ -442,6 +469,18 @@ export function StatusAccountsContent({ view }: Props): React.JSX.Element {
                 <InHouseAccountInspector
                   account={selected?.account}
                   meta={selected?.meta}
+                  onRecordPayment={
+                    onOpenPaymentWorkspace &&
+                    selected?.contractStatus === 'ACTIVE' &&
+                    selected.accountStatus === 'ACTIVE'
+                      ? (account) => onOpenPaymentWorkspace(account.id, 'schedule', view)
+                      : undefined
+                  }
+                  onViewLedger={
+                    onOpenPaymentWorkspace
+                      ? (account) => onOpenPaymentWorkspace(account.id, 'ledger', view)
+                      : undefined
+                  }
                   onClose={() => {
                     setSelectedId(undefined)
                     setIsInspectorOpen(false)
@@ -470,6 +509,18 @@ export function StatusAccountsContent({ view }: Props): React.JSX.Element {
               account={selected?.account}
               meta={selected?.meta}
               isSheet
+              onRecordPayment={
+                onOpenPaymentWorkspace &&
+                selected?.contractStatus === 'ACTIVE' &&
+                selected.accountStatus === 'ACTIVE'
+                  ? (account) => onOpenPaymentWorkspace(account.id, 'schedule', view)
+                  : undefined
+              }
+              onViewLedger={
+                onOpenPaymentWorkspace
+                  ? (account) => onOpenPaymentWorkspace(account.id, 'ledger', view)
+                  : undefined
+              }
               onClose={() => setSelectedId(undefined)}
             />
           </SheetContent>

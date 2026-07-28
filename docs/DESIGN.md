@@ -130,6 +130,22 @@ Rules:
 - Use shadcn/ReUI skeleton rows during table loading so column geometry remains stable and the workspace does not jump.
 - Do not compress columns until values become unreadable.
 
+## Branch Badges
+
+Use the shared `AccountBranchBadge` for every account branch label. Do not create page-specific
+branch colors or substitute text-only branch labels.
+
+| Branch   | Code  | Color  |
+| -------- | ----- | ------ |
+| Goa      | `GOA` | Blue   |
+| Tinambac | `TIN` | Violet |
+| Tigaon   | `TIG` | Amber  |
+| Lagonoy  | `LAG` | Green  |
+
+Branch colors are global semantic tokens defined in `src/renderer/src/assets/main.css`. Apply them
+only through `AccountBranchBadge` so the color code remains consistent in tables, inspectors, and
+future account views.
+
 ## Truncated Content
 
 - When text is intentionally truncated with ellipsis, reveal the complete value using the shared tooltip on hover and keyboard focus.
