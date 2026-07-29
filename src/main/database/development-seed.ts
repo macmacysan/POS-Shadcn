@@ -1,11 +1,13 @@
 import type Database from 'better-sqlite3'
 
 import { developmentReportId } from '../../shared/contracts'
+import { hashPassword } from '../security/passwords'
 
 const developmentDate = '2026-07-14'
 const developmentTimestamp = '2026-07-14T08:00:00.000Z'
 
 export function seedDevelopmentData(db: Database.Database): void {
+  seedDevelopmentUsers(db)
   const report = db.prepare('SELECT id FROM reports WHERE id = ?').get(developmentReportId)
 
   const insertReport = db.prepare(`
@@ -64,6 +66,60 @@ export function seedDevelopmentData(db: Database.Database): void {
 
   seed()
   seedDevelopmentInstallments(db)
+}
+
+function seedDevelopmentUsers(db: Database.Database): void {
+  const now = new Date().toISOString()
+  const branches = [
+    ['development-goa', 'GOA', 'Goa'],
+    ['development-tinambac', 'TIN', 'Tinambac'],
+    ['development-tigaon', 'TIG', 'Tigaon'],
+    ['development-lagonoy', 'LAG', 'Lagonoy']
+  ] as const
+  const insertBranch = db.prepare(
+    `INSERT OR IGNORE INTO branches (id, code, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
+  )
+  const insertUser = db.prepare(
+    `INSERT OR IGNORE INTO users (
+      id, branch_id, username, password_hash, display_name, role, is_active, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)`
+  )
+  const seed = db.transaction(() => {
+    for (const [id, code, name] of branches) {
+      insertBranch.run(id, code, name, now, now)
+      insertUser.run(
+        `development-cashier-${name.toLowerCase()}`,
+        id,
+        `cashier-${name.toLowerCase()}`,
+        hashPassword('cashier123'),
+        `${name} Cashier`,
+        'CASHIER',
+        now,
+        now
+      )
+    }
+    insertUser.run(
+      'development-admin',
+      null,
+      'admin',
+      hashPassword('admin'),
+      'Development Admin',
+      'ADMIN',
+      now,
+      now
+    )
+    db.prepare(
+      `UPDATE users
+          SET password_hash = ?, display_name = 'Development Admin', role = 'ADMIN',
+              is_active = 1, updated_at = ?
+        WHERE id = 'development-admin'`
+    ).run(hashPassword('admin'), now)
+    db.prepare('UPDATE reports SET cashier_id = ? WHERE id = ?').run(
+      'development-cashier-lagonoy',
+      developmentReportId
+    )
+  })
+  seed()
 }
 
 function seedDevelopmentInstallments(db: Database.Database): void {

@@ -6,9 +6,11 @@ import { InHouseActiveAccountsContent, InHouseAccountsContent } from '@/features
 import { FinanceAccountsContent } from '@/features/finance-accounts'
 import { StatusAccountsContent } from '@/features/in-house-accounts/components/status-accounts-content'
 import { InstallmentPaymentWorkspace } from '@/features/in-house-payments'
+import { DashboardContent } from '@/features/dashboard'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
-import { DevelopmentActiveReportProvider } from '@/contexts/active-report-context'
+import { ActiveReportProvider } from '@/contexts/active-report-context'
+import type { AuthenticatedUser } from '@/../../shared/contracts'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 const SUMMARY_DARK_STORAGE_KEY = 'cashiers-report-summary-dark'
@@ -143,24 +145,13 @@ function Workspace({
         ) : activeView === 'finance-accounts' ? (
           <FinanceAccountsContent selectedBranch={selectedBranch} />
         ) : (
-          <main className="flex flex-1 flex-col gap-6 p-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Branch Selected</p>
-              <h1 className="text-2xl font-semibold tracking-tight">Lagonoy Branch</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Today&apos;s overview</p>
-            </div>
-            <section
-              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-              aria-label="Report summary"
-            >
-              {['Cashier reports', 'Receipts', 'Income', 'Expenses'].map((label) => (
-                <div key={label} className="rounded-lg border bg-card p-4">
-                  <p className="text-sm text-muted-foreground">{label}</p>
-                  <p className="mt-2 text-2xl font-semibold">-</p>
-                </div>
-              ))}
-            </section>
-          </main>
+          <DashboardContent
+            selectedBranch={selectedBranch}
+            onOpenCashierReports={() => selectView('cashier-reports')}
+            onOpenInHouse={() => selectView('in-house-active-accounts')}
+            onOpenFinance={() => selectView('finance-accounts')}
+            onOpenPaymentWorkspace={(accountId) => openPaymentWorkspace(accountId, 'schedule', 'active')}
+          />
         )}
       </SidebarInset>
     </SidebarProvider>
@@ -169,6 +160,7 @@ function Workspace({
 
 function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser>()
   const [isDark, setIsDark] = useState(() => {
     return localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
   })
@@ -190,9 +182,9 @@ function App(): React.JSX.Element {
 
   const toggleTheme = (): void => setIsDark((current) => !current)
 
-  if (isLoggedIn) {
+  if (isLoggedIn && authenticatedUser) {
     return (
-      <DevelopmentActiveReportProvider>
+      <ActiveReportProvider user={authenticatedUser}>
         <div className="relative h-full w-full">
           <Workspace
             isDark={isDark}
@@ -202,15 +194,16 @@ function App(): React.JSX.Element {
             selectedBranch={selectedBranch}
           />
         </div>
-      </DevelopmentActiveReportProvider>
+      </ActiveReportProvider>
     )
   }
 
   return (
     <main className="flex min-h-screen w-full items-center justify-center bg-background px-6 py-8">
       <LoginForm
-        onSuccess={(branch) => {
+        onSuccess={(branch, user) => {
           setSelectedBranch(branch)
+          setAuthenticatedUser(user)
           setIsLoggedIn(true)
         }}
       />

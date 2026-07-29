@@ -4,9 +4,13 @@ import type {
   ExpenseUpdateInput
 } from '../../shared/contracts'
 import { ExpenseRepository } from '../database/expense-repository'
+import { AuthService } from './auth-service'
 
 export class ExpenseService {
-  constructor(private readonly repository: ExpenseRepository) {}
+  constructor(
+    private readonly repository: ExpenseRepository,
+    private readonly auth: AuthService
+  ) {}
 
   list(request: ExpenseListRequest) {
     return this.repository.findPage(request)
@@ -25,7 +29,7 @@ export class ExpenseService {
   }
 
   remove(ids: string[]): void {
-    this.repository.remove(ids)
+    this.repository.remove(ids, this.auth.requireSession().id, 'Voided from Cashier Reports')
   }
 
   summaryTotals(reportId: string) {

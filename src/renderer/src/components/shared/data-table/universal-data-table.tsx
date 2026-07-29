@@ -10,12 +10,22 @@ import { DataGridPagination } from '@/components/ui/reui/data-grid/data-grid-pag
 import { DataGridScrollArea } from '@/components/ui/reui/data-grid/data-grid-scroll-area'
 import { DataGridTable } from '@/components/ui/reui/data-grid/data-grid-table'
 import { DataGridTableVirtual } from '@/components/ui/reui/data-grid/data-grid-table-virtual'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle
+} from '@/components/ui/empty'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 type UniversalDataTableProps<TData extends object> = {
   table: Table<TData>
   recordCount: number
   isLoading?: boolean
+  error?: ReactNode | string
+  onRetry?: () => void
   emptyMessage?: ReactNode | string
   onRowClick?: (row: TData) => void
   onRowDoubleClick?: (row: TData) => void
@@ -37,6 +47,8 @@ export function UniversalDataTable<TData extends object>({
   table,
   recordCount,
   isLoading = false,
+  error,
+  onRetry,
   emptyMessage,
   onRowClick,
   onRowDoubleClick,
@@ -70,6 +82,24 @@ export function UniversalDataTable<TData extends object>({
     }),
     [tableClassNames]
   )
+
+  if (error) {
+    return (
+      <Empty className={cn('min-h-52 border-0', className)} role="alert">
+        <EmptyHeader>
+          <EmptyTitle>Unable to load this table</EmptyTitle>
+          <EmptyDescription>{error}</EmptyDescription>
+        </EmptyHeader>
+        {onRetry && (
+          <EmptyContent>
+            <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+              Retry
+            </Button>
+          </EmptyContent>
+        )}
+      </Empty>
+    )
+  }
 
   return (
     <DataGrid

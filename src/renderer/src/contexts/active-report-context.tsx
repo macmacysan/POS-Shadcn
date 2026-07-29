@@ -1,23 +1,31 @@
 import * as React from 'react'
+import { format } from 'date-fns'
 
-import { developmentReportId, type ReportRecord } from '@/../../shared/contracts'
+import type { AuthenticatedUser, DailyReportRecord } from '@/../../shared/contracts'
 
-export type ActiveReportContextValue = ReportRecord
+export type ActiveReportContextValue = DailyReportRecord & { reportId: string }
 
 const ActiveReportContext = React.createContext<ActiveReportContextValue | undefined>(undefined)
 
-export function DevelopmentActiveReportProvider({
+export function ActiveReportProvider({
+  user,
   children
-}: React.PropsWithChildren): React.JSX.Element {
-  const [report, setReport] = React.useState<ReportRecord | null>(null)
+}: React.PropsWithChildren<{ user: AuthenticatedUser }>): React.JSX.Element {
+  const [report, setReport] = React.useState<ActiveReportContextValue | null>(null)
   const [error, setError] = React.useState(false)
 
   React.useEffect(() => {
     let active = true
-    void window.api.reports.getById(developmentReportId).then(
+    void window.api.dailyReports
+      .resolveActive({
+        branchId: user.branchId,
+        cashierUserId: user.id,
+        businessDate: format(new Date(), 'yyyy-MM-dd')
+      })
+      .then(
       (value) => {
         if (!active) return
-        if (value) setReport(value)
+        if (value) setReport({ ...value, reportId: value.id })
         else setError(true)
       },
       () => {
@@ -27,7 +35,7 @@ export function DevelopmentActiveReportProvider({
     return () => {
       active = false
     }
-  }, [])
+  }, [user.branchId, user.id])
 
   if (error) {
     return (

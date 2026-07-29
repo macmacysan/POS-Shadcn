@@ -6,7 +6,8 @@ import type {
   FinanceAccountListRequest,
   FinanceAccountListResult,
   FinanceAccountRecord,
-  FinanceAccountUpdateRequest
+  FinanceAccountUpdateRequest,
+  FinanceItemRecord
 } from '../../shared/contracts'
 import { AppError } from './errors'
 import type { AppDatabase } from './database'
@@ -21,12 +22,8 @@ type FinanceRow = {
   first_name: string
   middle_name: string | null
   suffix: string | null
-  quantity: number
-  item: string
-  serial_no: string | null
-  item_price_centavos: number
-  grand_total_centavos: number
   downpayment_centavos: number
+  grand_total_centavos: number
   balance_centavos: number
   or_number: string | null
   or_date: string | null
@@ -43,10 +40,11 @@ export class FinanceAccountRepository {
     const query = request.search.trim()
     const rows = this.db
       .prepare(
-        `SELECT * FROM finance_accounts
-          WHERE (? = '' OR lower(branch || ' ' || provider || ' ' || last_name || ' ' || first_name || ' ' || item || ' ' || COALESCE(serial_no, '') || ' ' || COALESCE(or_number, '') || ' ' || COALESCE(remarks, '')) LIKE '%' || lower(?) || '%')
-            AND (? IS NULL OR branch = ?)
-          ORDER BY date_released DESC, created_at DESC, id DESC`
+        `SELECT DISTINCT f.* FROM finance_accounts f
+          LEFT JOIN finance_account_items i ON i.finance_account_id = f.id
+          WHERE (? = '' OR lower(f.branch || ' ' || f.provider || ' ' || f.last_name || ' ' || f.first_name || ' ' || COALESCE(f.or_number, '') || ' ' || COALESCE(f.remarks, '') || ' ' || COALESCE(i.item, '') || ' ' || COALESCE(i.serial_no, '')) LIKE '%' || lower(?) || '%')
+            AND (? IS NULL OR f.branch = ?)
+          ORDER BY f.date_released DESC, f.created_at DESC, f.id DESC`
       )
       .all(query, query, request.branch ?? null, request.branch ?? null) as FinanceRow[]
     return { rows: rows.map((row) => this.toRecord(row)) }
@@ -55,102 +53,115 @@ export class FinanceAccountRepository {
   create(request: FinanceAccountCreateRequest): FinanceAccountRecord {
     const id = randomUUID()
     const now = new Date().toISOString()
-    const amounts = calculateFinanceAmounts(
-      request.quantity,
-      request.itemPriceCentavos,
-      request.downpaymentCentavos
-    )
-    this.write(id, request, amounts, now, now)
+    this.write(id, request, now, now)
     return this.getById(id)
   }
 
   update(request: FinanceAccountUpdateRequest): FinanceAccountRecord {
     this.getById(request.id)
-    const now = new Date().toISOString()
-    const amounts = calculateFinanceAmounts(
-      request.quantity,
-      request.itemPriceCentavos,
-      request.downpaymentCentavos
-    )
-    this.write(request.id, request, amounts, undefined, now)
+    this.write(request.id, request, undefined, new Date().toISOString())
     return this.getById(request.id)
   }
 
   private write(
     id: string,
     request: FinanceAccountCreateRequest | FinanceAccountUpdateRequest,
-    amounts: ReturnType<typeof calculateFinanceAmounts>,
     createdAt: string | undefined,
     updatedAt: string
   ): void {
-    if (createdAt) {
-      this.db
-        .prepare(
-          `INSERT INTO finance_accounts (
-            id, branch, provider, date_released, terms_months, last_name, first_name, middle_name,
-            suffix, quantity, item, serial_no, item_price_centavos, grand_total_centavos,
-            downpayment_centavos, balance_centavos, or_number, or_date, paid_date, remarks,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(
+    const amounts = calculateFinanceAmounts(request.items, request.downpaymentCentavos)
+    const firstItem = request.items[0]
+    const save = this.db.transaction(() => {
+      if (createdAt) {
+        this.db
+          .prepare(
+            `INSERT INTO finance_accounts (
+              id, branch, provider, date_released, terms_months, last_name, first_name, middle_name,
+              suffix, quantity, item, serial_no, item_price_centavos, grand_total_centavos,
+              downpayment_centavos, balance_centavos, or_number, or_date, paid_date, remarks,
+              created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            id,
+            request.branch,
+            request.provider,
+            request.dateReleased,
+            request.termsMonths,
+            request.lastName,
+            request.firstName,
+            request.middleName || null,
+            request.suffix || null,
+            firstItem.quantity,
+            firstItem.item,
+            firstItem.serialNo || null,
+            firstItem.itemPriceCentavos,
+            amounts.grandTotalCentavos,
+            request.downpaymentCentavos,
+            amounts.balanceCentavos,
+            request.orNumber || null,
+            request.orDate || null,
+            request.paidDate || null,
+            request.remarks || null,
+            createdAt,
+            updatedAt
+          )
+      } else {
+        this.db
+          .prepare(
+            `UPDATE finance_accounts SET
+              branch = ?, provider = ?, date_released = ?, terms_months = ?, last_name = ?, first_name = ?,
+              middle_name = ?, suffix = ?, quantity = ?, item = ?, serial_no = ?, item_price_centavos = ?,
+              grand_total_centavos = ?, downpayment_centavos = ?, balance_centavos = ?, or_number = ?,
+              or_date = ?, paid_date = ?, remarks = ?, updated_at = ? WHERE id = ?`
+          )
+          .run(
+            request.branch,
+            request.provider,
+            request.dateReleased,
+            request.termsMonths,
+            request.lastName,
+            request.firstName,
+            request.middleName || null,
+            request.suffix || null,
+            firstItem.quantity,
+            firstItem.item,
+            firstItem.serialNo || null,
+            firstItem.itemPriceCentavos,
+            amounts.grandTotalCentavos,
+            request.downpaymentCentavos,
+            amounts.balanceCentavos,
+            request.orNumber || null,
+            request.orDate || null,
+            request.paidDate || null,
+            request.remarks || null,
+            updatedAt,
+            id
+          )
+        this.db.prepare('DELETE FROM finance_account_items WHERE finance_account_id = ?').run(id)
+      }
+      const insertItem = this.db.prepare(
+        `INSERT INTO finance_account_items (
+          id, finance_account_id, sort_order, item, serial_no, quantity, item_price_centavos,
+          total_centavos, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      request.items.forEach((item, index) => {
+        insertItem.run(
+          randomUUID(),
           id,
-          request.branch,
-          request.provider,
-          request.dateReleased,
-          request.termsMonths,
-          request.lastName,
-          request.firstName,
-          request.middleName || null,
-          request.suffix || null,
-          request.quantity,
-          request.item,
-          request.serialNo || null,
-          request.itemPriceCentavos,
-          amounts.grandTotalCentavos,
-          request.downpaymentCentavos,
-          amounts.balanceCentavos,
-          request.orNumber || null,
-          request.orDate || null,
-          request.paidDate || null,
-          request.remarks || null,
-          createdAt,
+          index,
+          item.item,
+          item.serialNo || null,
+          item.quantity,
+          item.itemPriceCentavos,
+          item.quantity * item.itemPriceCentavos,
+          updatedAt,
           updatedAt
         )
-      return
-    }
-    this.db
-      .prepare(
-        `UPDATE finance_accounts SET
-          branch = ?, provider = ?, date_released = ?, terms_months = ?, last_name = ?, first_name = ?,
-          middle_name = ?, suffix = ?, quantity = ?, item = ?, serial_no = ?, item_price_centavos = ?,
-          grand_total_centavos = ?, downpayment_centavos = ?, balance_centavos = ?, or_number = ?,
-          or_date = ?, paid_date = ?, remarks = ?, updated_at = ?
-        WHERE id = ?`
-      )
-      .run(
-        request.branch,
-        request.provider,
-        request.dateReleased,
-        request.termsMonths,
-        request.lastName,
-        request.firstName,
-        request.middleName || null,
-        request.suffix || null,
-        request.quantity,
-        request.item,
-        request.serialNo || null,
-        request.itemPriceCentavos,
-        amounts.grandTotalCentavos,
-        request.downpaymentCentavos,
-        amounts.balanceCentavos,
-        request.orNumber || null,
-        request.orDate || null,
-        request.paidDate || null,
-        request.remarks || null,
-        updatedAt,
-        id
-      )
+      })
+    })
+    save()
   }
 
   private getById(id: string): FinanceAccountRecord {
@@ -161,6 +172,19 @@ export class FinanceAccountRepository {
   }
 
   private toRecord(row: FinanceRow): FinanceAccountRecord {
+    const items = this.db
+      .prepare(
+        `SELECT id, item, serial_no, quantity, item_price_centavos, total_centavos
+           FROM finance_account_items WHERE finance_account_id = ? ORDER BY sort_order`
+      )
+      .all(row.id) as Array<{
+      id: string
+      item: string
+      serial_no: string | null
+      quantity: number
+      item_price_centavos: number
+      total_centavos: number
+    }>
     return {
       id: row.id,
       branch: row.branch,
@@ -171,10 +195,14 @@ export class FinanceAccountRepository {
       firstName: row.first_name,
       middleName: row.middle_name ?? undefined,
       suffix: row.suffix ?? undefined,
-      quantity: row.quantity,
-      item: row.item,
-      serialNo: row.serial_no ?? undefined,
-      itemPriceCentavos: row.item_price_centavos,
+      items: items.map((item): FinanceItemRecord => ({
+        id: item.id,
+        item: item.item,
+        serialNo: item.serial_no ?? undefined,
+        quantity: item.quantity,
+        itemPriceCentavos: item.item_price_centavos,
+        totalCentavos: item.total_centavos
+      })),
       grandTotalCentavos: row.grand_total_centavos,
       downpaymentCentavos: row.downpayment_centavos,
       balanceCentavos: row.balance_centavos,

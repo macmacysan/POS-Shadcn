@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -10,6 +10,7 @@ import {
   type SortingState
 } from '@tanstack/react-table'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -39,20 +40,28 @@ import {
 } from '@/components/shared/data-table/row-actions'
 import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { AccountBranchBadge } from '@/features/in-house-accounts/components/account-badges'
 import { calculateFinanceAmounts } from '../../../../../shared/finance-calculations'
 import {
   financeAccountInputSchema,
   financeBranchValues,
   financeProviderValues,
   type FinanceAccountInput,
-  type FinanceAccountRecord
+  type FinanceAccountRecord,
+  type FinanceItemInput,
+  type FinanceItemRecord
 } from '../../../../../shared/contracts'
 
 type Props = { readonly selectedBranch: FinanceAccountRecord['branch'] }
-type FinanceFormValues = Omit<FinanceAccountInput, 'itemPriceCentavos' | 'downpaymentCentavos'> & {
+type FinanceItemFormValues = Omit<FinanceItemInput, 'itemPriceCentavos'> & {
+  id: string
   itemPrice: string
+}
+type FinanceFormValues = Omit<FinanceAccountInput, 'items' | 'downpaymentCentavos'> & {
+  items: FinanceItemFormValues[]
   downpayment: string
 }
+type FinanceTableRow = FinanceItemRecord & { account: FinanceAccountRecord }
 
 const moneyFormatter = new Intl.NumberFormat('en-PH', {
   style: 'currency',
@@ -69,6 +78,10 @@ function asCentavos(value: string): number {
   return Number.isFinite(amount) ? Math.round(amount * 100) : 0
 }
 
+function createItem(): FinanceItemFormValues {
+  return { id: crypto.randomUUID(), item: '', serialNo: '', quantity: 1, itemPrice: '' }
+}
+
 function blankForm(branch: FinanceAccountRecord['branch']): FinanceFormValues {
   return {
     branch,
@@ -79,10 +92,7 @@ function blankForm(branch: FinanceAccountRecord['branch']): FinanceFormValues {
     firstName: '',
     middleName: '',
     suffix: '',
-    quantity: 1,
-    item: '',
-    serialNo: '',
-    itemPrice: '',
+    items: [createItem()],
     downpayment: '',
     orNumber: '',
     orDate: undefined,
@@ -93,24 +103,47 @@ function blankForm(branch: FinanceAccountRecord['branch']): FinanceFormValues {
 
 function recordForm(record: FinanceAccountRecord): FinanceFormValues {
   return {
-    ...record,
-    itemPrice: (record.itemPriceCentavos / 100).toFixed(2),
-    downpayment: (record.downpaymentCentavos / 100).toFixed(2)
+    branch: record.branch,
+    provider: record.provider,
+    dateReleased: record.dateReleased,
+    termsMonths: record.termsMonths,
+    lastName: record.lastName,
+    firstName: record.firstName,
+    middleName: record.middleName ?? '',
+    suffix: record.suffix ?? '',
+    items: record.items.map((item) => ({
+      ...item,
+      itemPrice: (item.itemPriceCentavos / 100).toFixed(2)
+    })),
+    downpayment: (record.downpaymentCentavos / 100).toFixed(2),
+    orNumber: record.orNumber ?? '',
+    orDate: record.orDate,
+    paidDate: record.paidDate,
+    remarks: record.remarks ?? ''
   }
 }
 
 function toInput(values: FinanceFormValues): FinanceAccountInput {
   return {
-    ...values,
+    branch: values.branch,
+    provider: values.provider,
+    dateReleased: values.dateReleased,
+    termsMonths: values.termsMonths,
+    lastName: values.lastName,
+    firstName: values.firstName,
     middleName: values.middleName?.trim() || undefined,
     suffix: values.suffix?.trim() || undefined,
-    serialNo: values.serialNo?.trim() || undefined,
+    items: values.items.map(({ item, serialNo, quantity, itemPrice }) => ({
+      item,
+      serialNo: serialNo?.trim() || undefined,
+      quantity,
+      itemPriceCentavos: asCentavos(itemPrice)
+    })),
+    downpaymentCentavos: asCentavos(values.downpayment),
     orNumber: values.orNumber?.trim() || undefined,
     orDate: values.orDate || undefined,
     paidDate: values.paidDate || undefined,
-    remarks: values.remarks?.trim() || undefined,
-    itemPriceCentavos: asCentavos(values.itemPrice),
-    downpaymentCentavos: asCentavos(values.downpayment)
+    remarks: values.remarks?.trim() || undefined
   }
 }
 
@@ -120,125 +153,174 @@ function errorMessage(error: unknown): string {
     : 'The finance account could not be saved.'
 }
 
-function financeColumns(): ColumnDef<FinanceAccountRecord>[] {
-  const date = (value?: string): string => value || '—'
+function Cell({
+  children,
+  money = false
+}: {
+  readonly children: React.ReactNode
+  readonly money?: boolean
+}): React.JSX.Element {
+  return (
+    <span
+      className={
+        money
+          ? 'block text-right text-sm font-light tabular-nums'
+          : 'block truncate text-sm font-light'
+      }
+    >
+      {children}
+    </span>
+  )
+}
+
+function financeColumns(): ColumnDef<FinanceTableRow>[] {
   const text = (value?: string): string => value || '—'
   return [
     {
-      accessorKey: 'branch',
+      id: 'branch',
+      accessorFn: (row) => row.account.branch,
       header: ({ column }) => <DataGridColumnHeader column={column} title="Branch" />,
-      size: 100
+      cell: ({ row }) => <AccountBranchBadge branch={row.original.account.branch} />,
+      size: 80
     },
     {
-      accessorKey: 'provider',
-      header: ({ column }) => (
-        <DataGridColumnHeader column={column} title="Type (Home Credit, Salmon, Skyro)" />
-      ),
+      id: 'provider',
+      accessorFn: (row) => row.account.provider,
+      header: ({ column }) => <DataGridColumnHeader column={column} title="Type" />,
+      cell: ({ row }) => <Badge variant="secondary">{row.original.account.provider}</Badge>,
       size: 120
     },
     {
-      accessorKey: 'dateReleased',
+      id: 'dateReleased',
+      accessorFn: (row) => row.account.dateReleased,
       header: ({ column }) => <DataGridColumnHeader column={column} title="Date Release" />,
-      cell: ({ getValue }) => date(getValue<string>()),
-      size: 118
+      cell: ({ row }) => <Cell>{row.original.account.dateReleased}</Cell>,
+      size: 112
     },
     {
-      accessorKey: 'termsMonths',
-      header: 'TERMS (1 - 12 Months)',
-      cell: ({ getValue }) => `${getValue<number>()} month${getValue<number>() === 1 ? '' : 's'}`,
+      id: 'termsMonths',
+      accessorFn: (row) => row.account.termsMonths,
+      header: 'Terms',
+      cell: ({ row }) => (
+        <Cell>
+          {row.original.account.termsMonths} month
+          {row.original.account.termsMonths === 1 ? '' : 's'}
+        </Cell>
+      ),
       size: 92
     },
-    { accessorKey: 'lastName', header: 'Last Name', size: 150 },
-    { accessorKey: 'firstName', header: 'First Name', size: 150 },
     {
-      id: 'middleNameSuffix',
-      accessorFn: (row) => [row.middleName, row.suffix].filter(Boolean).join(', '),
-      header: 'MIDDLE NAME, SUFFIX',
-      cell: ({ getValue }) => text(getValue<string>()),
+      id: 'lastName',
+      accessorFn: (row) => row.account.lastName,
+      header: 'Last Name',
+      cell: ({ row }) => <Cell>{row.original.account.lastName}</Cell>,
+      size: 140
+    },
+    {
+      id: 'firstName',
+      accessorFn: (row) => row.account.firstName,
+      header: 'First Name',
+      cell: ({ row }) => <Cell>{row.original.account.firstName}</Cell>,
+      size: 140
+    },
+    {
+      id: 'middleName',
+      accessorFn: (row) => row.account.middleName,
+      header: 'Middle Name',
+      cell: ({ row }) => <Cell>{text(row.original.account.middleName)}</Cell>,
+      size: 130
+    },
+    {
+      id: 'suffix',
+      accessorFn: (row) => row.account.suffix,
+      header: 'Suffix',
+      cell: ({ row }) => <Cell>{text(row.original.account.suffix)}</Cell>,
+      size: 82
+    },
+    {
+      accessorKey: 'quantity',
+      header: 'QTY',
+      cell: ({ getValue }) => <Cell>{getValue<number>()}</Cell>,
+      size: 62
+    },
+    {
+      accessorKey: 'item',
+      header: 'Item',
+      cell: ({ getValue }) => <Cell>{getValue<string>()}</Cell>,
       size: 180
     },
-    { accessorKey: 'quantity', header: 'QTY', size: 65 },
-    { accessorKey: 'item', header: 'Item', size: 190 },
     {
       accessorKey: 'serialNo',
       header: 'Serial No.',
-      cell: ({ getValue }) => text(getValue<string | undefined>()),
-      size: 150
+      cell: ({ getValue }) => <Cell>{text(getValue<string | undefined>())}</Cell>,
+      size: 140
     },
     {
       accessorKey: 'itemPriceCentavos',
       header: 'Item Price',
-      cell: ({ getValue }) => (
-        <span className="block text-right tabular-nums">{formatMoney(getValue<number>())}</span>
-      ),
-      size: 130
+      cell: ({ getValue }) => <Cell money>{formatMoney(getValue<number>())}</Cell>,
+      size: 120
     },
     {
-      accessorKey: 'grandTotalCentavos',
-      header: 'Total (QTY × Item Price)',
-      cell: ({ getValue }) => (
-        <span className="block text-right tabular-nums">{formatMoney(getValue<number>())}</span>
-      ),
-      size: 130
+      accessorKey: 'totalCentavos',
+      header: 'Total',
+      cell: ({ getValue }) => <Cell money>{formatMoney(getValue<number>())}</Cell>,
+      size: 120
     },
     {
-      accessorKey: 'grandTotalCentavos',
       id: 'grandTotal',
-      header: 'Grand Total (Sum of Totals)',
-      cell: ({ getValue }) => (
-        <span className="block text-right font-medium tabular-nums">
-          {formatMoney(getValue<number>())}
-        </span>
-      ),
-      size: 135
+      accessorFn: (row) => row.account.grandTotalCentavos,
+      header: 'Grand Total',
+      cell: ({ row }) => <Cell money>{formatMoney(row.original.account.grandTotalCentavos)}</Cell>,
+      size: 128
     },
     {
-      accessorKey: 'downpaymentCentavos',
+      id: 'downpayment',
+      accessorFn: (row) => row.account.downpaymentCentavos,
       header: 'Downpayment',
-      cell: ({ getValue }) => (
-        <span className="block text-right tabular-nums">{formatMoney(getValue<number>())}</span>
-      ),
-      size: 135
+      cell: ({ row }) => <Cell money>{formatMoney(row.original.account.downpaymentCentavos)}</Cell>,
+      size: 128
     },
     {
-      accessorKey: 'balanceCentavos',
-      header: 'Balance (Grand Total - Downpayment)',
-      cell: ({ getValue }) => (
-        <span className="block text-right font-medium tabular-nums">
-          {formatMoney(getValue<number>())}
-        </span>
-      ),
-      size: 130
+      id: 'balance',
+      accessorFn: (row) => row.account.balanceCentavos,
+      header: 'Balance',
+      cell: ({ row }) => <Cell money>{formatMoney(row.original.account.balanceCentavos)}</Cell>,
+      size: 120
     },
     {
-      accessorKey: 'orNumber',
+      id: 'orNumber',
+      accessorFn: (row) => row.account.orNumber,
       header: 'OR#',
-      cell: ({ getValue }) => text(getValue<string | undefined>()),
-      size: 110
+      cell: ({ row }) => <Cell>{text(row.original.account.orNumber)}</Cell>,
+      size: 100
     },
     {
-      accessorKey: 'orDate',
+      id: 'orDate',
+      accessorFn: (row) => row.account.orDate,
       header: 'OR Date',
-      cell: ({ getValue }) => date(getValue<string | undefined>()),
-      size: 110
+      cell: ({ row }) => <Cell>{text(row.original.account.orDate)}</Cell>,
+      size: 105
     },
     {
-      accessorKey: 'paidDate',
+      id: 'paidDate',
+      accessorFn: (row) => row.account.paidDate,
       header: 'Paid Date',
-      cell: ({ getValue }) => date(getValue<string | undefined>()),
-      size: 110
+      cell: ({ row }) => <Cell>{text(row.original.account.paidDate)}</Cell>,
+      size: 105
     },
     {
-      accessorKey: 'remarks',
+      id: 'remarks',
+      accessorFn: (row) => row.account.remarks,
       header: 'Remarks',
-      cell: ({ getValue }) => text(getValue<string | undefined>()),
-      size: 220
+      cell: ({ row }) => <Cell>{text(row.original.account.remarks)}</Cell>,
+      size: 200
     }
   ]
 }
 
 export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Element {
-  const [rows, setRows] = React.useState<FinanceAccountRecord[]>([])
+  const [accounts, setAccounts] = React.useState<FinanceAccountRecord[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState<string>()
   const [search, setSearch] = React.useState('')
@@ -255,33 +337,36 @@ export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Ele
     setLoadError(undefined)
     try {
       const result = await window.api.financeAccounts.list({ search: '' })
-      setRows(result.rows)
+      setAccounts(result.rows)
     } catch (caught) {
       setLoadError(errorMessage(caught))
     } finally {
       setIsLoading(false)
     }
   }, [])
-
   React.useEffect(() => {
     void reload()
   }, [reload])
 
+  const rows = React.useMemo<FinanceTableRow[]>(
+    () => accounts.flatMap((account) => account.items.map((item) => ({ ...item, account }))),
+    [accounts]
+  )
   const filteredRows = React.useMemo(() => {
     const query = search.trim().toLowerCase()
     if (!query) return rows
-    return rows.filter((row) =>
+    return rows.filter(({ account, item, serialNo }) =>
       [
-        row.branch,
-        row.provider,
-        row.lastName,
-        row.firstName,
-        row.middleName,
-        row.suffix,
-        row.item,
-        row.serialNo,
-        row.orNumber,
-        row.remarks
+        account.branch,
+        account.provider,
+        account.lastName,
+        account.firstName,
+        account.middleName,
+        account.suffix,
+        item,
+        serialNo,
+        account.orNumber,
+        account.remarks
       ]
         .filter(Boolean)
         .join(' ')
@@ -289,17 +374,16 @@ export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Ele
         .includes(query)
     )
   }, [rows, search])
-
   const actions = React.useCallback(
-    (row: FinanceAccountRecord): readonly RowActionItem[] => [
-      { id: 'edit', label: 'Edit finance account', onSelect: () => setEditing(row) }
+    (row: FinanceTableRow): readonly RowActionItem[] => [
+      { id: 'edit', label: 'Edit finance account', onSelect: () => setEditing(row.account) }
     ],
     []
   )
   const columns = React.useMemo(
     () => [
       ...financeColumns(),
-      createRowActionsColumn<FinanceAccountRecord>({
+      createRowActionsColumn<FinanceTableRow>({
         label: 'Open finance account actions',
         getActions: actions
       })
@@ -316,9 +400,8 @@ export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Ele
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    getRowId: (row) => row.id
+    getRowId: (row) => `${row.account.id}:${row.id}`
   })
-
   const closeForm = (): void => {
     setIsCreating(false)
     setEditing(undefined)
@@ -350,7 +433,7 @@ export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Ele
               isLoading={isLoading}
               emptyMessage="No finance accounts found."
               paginationSizes={[25, 50, 100]}
-              paginationInfo="Showing {from}-{to} of {count} accounts"
+              paginationInfo="Showing {from}-{to} of {count} items"
               tableLayout={{ columnsResizable: true }}
             />
           )}
@@ -389,7 +472,6 @@ function FinanceAccountSheet({
   const [errors, setErrors] = React.useState<Record<string, string>>({})
   const [submitError, setSubmitError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
-
   React.useEffect(() => {
     if (open) {
       setValues(record ? recordForm(record) : blankForm(initialBranch))
@@ -397,20 +479,23 @@ function FinanceAccountSheet({
       setSubmitError(undefined)
     }
   }, [initialBranch, open, record])
-
-  const amounts = calculateFinanceAmounts(
-    values.quantity,
-    asCentavos(values.itemPrice),
-    asCentavos(values.downpayment)
-  )
+  const itemInputs = values.items.map(({ quantity, itemPrice }) => ({
+    quantity,
+    itemPriceCentavos: asCentavos(itemPrice)
+  }))
+  const amounts = calculateFinanceAmounts(itemInputs, asCentavos(values.downpayment))
   const set = <Key extends keyof FinanceFormValues>(
     key: Key,
     value: FinanceFormValues[Key]
   ): void => setValues((current) => ({ ...current, [key]: value }))
+  const updateItem = (id: string, patch: Partial<FinanceItemFormValues>): void =>
+    set(
+      'items',
+      values.items.map((item) => (item.id === id ? { ...item, ...patch } : item))
+    )
   const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
-    const input = toInput(values)
-    const parsed = financeAccountInputSchema.safeParse(input)
+    const parsed = financeAccountInputSchema.safeParse(toInput(values))
     if (!parsed.success) {
       const nextErrors: Record<string, string> = {}
       for (const issue of parsed.error.issues)
@@ -439,7 +524,7 @@ function FinanceAccountSheet({
         <SheetHeader className="border-b p-4">
           <SheetTitle>{record ? 'Edit Finance Account' : 'Add Finance Account'}</SheetTitle>
           <SheetDescription>
-            Amounts are calculated from quantity, item price, and downpayment.
+            Add one or more released items. Totals update from every item.
           </SheetDescription>
         </SheetHeader>
         <form
@@ -567,57 +652,91 @@ function FinanceAccountSheet({
                   />
                 </Field>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field data-invalid={Boolean(errors.quantity)}>
-                  <FieldLabel htmlFor="finance-quantity">Qty</FieldLabel>
-                  <Input
-                    id="finance-quantity"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={values.quantity}
-                    aria-invalid={Boolean(errors.quantity)}
-                    onChange={(event) => set('quantity', Number(event.target.value))}
-                  />
-                  {fieldError('quantity')}
-                </Field>
-                <Field data-invalid={Boolean(errors.item)}>
-                  <FieldLabel htmlFor="finance-item">Item</FieldLabel>
-                  <Input
-                    id="finance-item"
-                    value={values.item}
-                    aria-invalid={Boolean(errors.item)}
-                    onChange={(event) => set('item', event.target.value)}
-                  />
-                  {fieldError('item')}
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="finance-serial">Serial No.</FieldLabel>
-                  <Input
-                    id="finance-serial"
-                    value={values.serialNo ?? ''}
-                    onChange={(event) => set('serialNo', event.target.value)}
-                  />
-                </Field>
-                <Field data-invalid={Boolean(errors.itemPriceCentavos)}>
-                  <FieldLabel htmlFor="finance-item-price">Item Price</FieldLabel>
-                  <Input
-                    id="finance-item-price"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={values.itemPrice}
-                    aria-invalid={Boolean(errors.itemPriceCentavos)}
-                    onChange={(event) => set('itemPrice', event.target.value)}
-                  />
-                  {fieldError('itemPriceCentavos')}
-                </Field>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">Items</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="xs"
+                  onClick={() => set('items', [...values.items, createItem()])}
+                >
+                  <Plus data-icon="inline-start" />
+                  Add item
+                </Button>
               </div>
+              {values.items.map((item, index) => (
+                <FieldGroup key={item.id} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-muted-foreground">Item {index + 1}</p>
+                    {values.items.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remove item ${index + 1}`}
+                        onClick={() =>
+                          set(
+                            'items',
+                            values.items.filter((current) => current.id !== item.id)
+                          )
+                        }
+                      >
+                        <Trash2 />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor={`finance-item-${item.id}`}>Item</FieldLabel>
+                      <Input
+                        id={`finance-item-${item.id}`}
+                        value={item.item}
+                        onChange={(event) => updateItem(item.id, { item: event.target.value })}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor={`finance-serial-${item.id}`}>Serial No.</FieldLabel>
+                      <Input
+                        id={`finance-serial-${item.id}`}
+                        value={item.serialNo ?? ''}
+                        onChange={(event) => updateItem(item.id, { serialNo: event.target.value })}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor={`finance-qty-${item.id}`}>Qty</FieldLabel>
+                      <Input
+                        id={`finance-qty-${item.id}`}
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={item.quantity}
+                        onChange={(event) =>
+                          updateItem(item.id, { quantity: Number(event.target.value) })
+                        }
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor={`finance-price-${item.id}`}>Item Price</FieldLabel>
+                      <Input
+                        id={`finance-price-${item.id}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.itemPrice}
+                        onChange={(event) => updateItem(item.id, { itemPrice: event.target.value })}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Total</FieldLabel>
+                      <Input
+                        readOnly
+                        value={formatMoney(item.quantity * asCentavos(item.itemPrice))}
+                      />
+                    </Field>
+                  </div>
+                </FieldGroup>
+              ))}
               <div className="grid gap-3 sm:grid-cols-3">
-                <Field>
-                  <FieldLabel>Total</FieldLabel>
-                  <Input readOnly value={formatMoney(amounts.grandTotalCentavos)} />
-                </Field>
                 <Field>
                   <FieldLabel>Grand Total</FieldLabel>
                   <Input readOnly value={formatMoney(amounts.grandTotalCentavos)} />
@@ -635,11 +754,11 @@ function FinanceAccountSheet({
                   />
                   {fieldError('downpaymentCentavos')}
                 </Field>
+                <Field>
+                  <FieldLabel>Balance</FieldLabel>
+                  <Input readOnly value={formatMoney(amounts.balanceCentavos)} />
+                </Field>
               </div>
-              <Field>
-                <FieldLabel>Balance</FieldLabel>
-                <Input readOnly value={formatMoney(amounts.balanceCentavos)} />
-              </Field>
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="finance-or-number">OR#</FieldLabel>

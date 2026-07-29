@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 7
+export const currentSchemaVersion = 11
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -464,6 +464,386 @@ export function runMigrations(db: Database.Database): void {
       `)
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
         7,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 8) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE finance_account_items (
+          id TEXT PRIMARY KEY NOT NULL,
+          finance_account_id TEXT NOT NULL REFERENCES finance_accounts(id) ON DELETE RESTRICT,
+          sort_order INTEGER NOT NULL CHECK (sort_order >= 0),
+          item TEXT NOT NULL,
+          serial_no TEXT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          item_price_centavos INTEGER NOT NULL CHECK (item_price_centavos >= 0),
+          total_centavos INTEGER NOT NULL CHECK (total_centavos >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (finance_account_id, sort_order)
+        );
+        INSERT INTO finance_account_items (
+          id, finance_account_id, sort_order, item, serial_no, quantity, item_price_centavos,
+          total_centavos, created_at, updated_at
+        )
+        SELECT 'finance-item-' || id, id, 0, item, serial_no, quantity, item_price_centavos,
+               grand_total_centavos, created_at, updated_at
+          FROM finance_accounts;
+        CREATE INDEX finance_account_items_account_sort_idx
+          ON finance_account_items (finance_account_id, sort_order);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        8,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 9) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE report_reconciliations (
+          report_id TEXT PRIMARY KEY NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+          physical_cash_centavos INTEGER NOT NULL,
+          cash_remitted_centavos INTEGER NOT NULL CHECK (cash_remitted_centavos >= 0),
+          cash_variance_centavos INTEGER NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX report_reconciliations_updated_idx
+          ON report_reconciliations (updated_at DESC);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        9,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 10) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS daily_reports (
+          id TEXT PRIMARY KEY NOT NULL,
+          branch_id TEXT NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+          cashier_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          business_date TEXT NOT NULL CHECK (length(business_date) = 10),
+          opening_cash_centavos INTEGER NOT NULL DEFAULT 0 CHECK (opening_cash_centavos >= 0),
+          cash_remitted_centavos INTEGER CHECK (cash_remitted_centavos IS NULL OR cash_remitted_centavos >= 0),
+          status TEXT NOT NULL DEFAULT 'DRAFT'
+            CHECK (status IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REOPENED', 'VOIDED')),
+          submitted_at TEXT,
+          approved_at TEXT,
+          approved_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (branch_id, cashier_user_id, business_date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_reports_business_date
+          ON daily_reports (branch_id, business_date);
+
+        CREATE TABLE IF NOT EXISTS receipt_types (
+          id TEXT PRIMARY KEY NOT NULL,
+          code TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          is_system INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
+          is_default_visible INTEGER NOT NULL DEFAULT 0 CHECK (is_default_visible IN (0, 1)),
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS daily_receipt_totals (
+          id TEXT PRIMARY KEY NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          receipt_type_id TEXT NOT NULL REFERENCES receipt_types(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+          amount_centavos INTEGER NOT NULL DEFAULT 0 CHECK (amount_centavos >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (daily_report_id, receipt_type_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_receipt_totals_report
+          ON daily_receipt_totals (daily_report_id);
+
+        CREATE TABLE IF NOT EXISTS report_payment_methods (
+          id TEXT PRIMARY KEY NOT NULL,
+          code TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS daily_report_payment_entries (
+          id TEXT PRIMARY KEY NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          payment_method_id TEXT NOT NULL REFERENCES report_payment_methods(id) ON DELETE RESTRICT,
+          transaction_date TEXT NOT NULL CHECK (length(transaction_date) = 10),
+          amount_centavos INTEGER NOT NULL CHECK (amount_centavos > 0),
+          reference_number TEXT,
+          bank_name TEXT,
+          payer_name TEXT,
+          remarks TEXT,
+          status TEXT NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED', 'VOIDED')),
+          voided_at TEXT,
+          voided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          void_reason TEXT,
+          created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_report_payments_report
+          ON daily_report_payment_entries (daily_report_id);
+        CREATE INDEX IF NOT EXISTS idx_daily_report_payments_method_date
+          ON daily_report_payment_entries (payment_method_id, transaction_date);
+
+        CREATE TABLE IF NOT EXISTS cash_out_entries (
+          id TEXT PRIMARY KEY NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          transaction_date TEXT NOT NULL CHECK (length(transaction_date) = 10),
+          description TEXT NOT NULL,
+          amount_centavos INTEGER NOT NULL CHECK (amount_centavos > 0),
+          status TEXT NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED', 'VOIDED')),
+          voided_at TEXT,
+          voided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          void_reason TEXT,
+          created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_cash_out_entries_report
+          ON cash_out_entries (daily_report_id);
+
+        CREATE TABLE IF NOT EXISTS deduction_types (
+          id TEXT PRIMARY KEY NOT NULL,
+          code TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          contribution_code TEXT NOT NULL CHECK (contribution_code IN ('ER', 'EE', 'EE_LOAN')),
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS daily_report_deductions (
+          id TEXT PRIMARY KEY NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          deduction_type_id TEXT NOT NULL REFERENCES deduction_types(id) ON DELETE RESTRICT,
+          amount_centavos INTEGER NOT NULL CHECK (amount_centavos >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (daily_report_id, deduction_type_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_report_deductions_report
+          ON daily_report_deductions (daily_report_id);
+
+        CREATE TABLE IF NOT EXISTS cash_denominations (
+          id TEXT PRIMARY KEY NOT NULL,
+          value_centavos INTEGER NOT NULL UNIQUE CHECK (value_centavos > 0),
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS daily_report_cash_counts (
+          id TEXT PRIMARY KEY NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          denomination_id TEXT NOT NULL REFERENCES cash_denominations(id) ON DELETE RESTRICT,
+          quantity INTEGER NOT NULL CHECK (quantity >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (daily_report_id, denomination_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_daily_report_cash_counts_report
+          ON daily_report_cash_counts (daily_report_id);
+
+        CREATE TABLE IF NOT EXISTS income_categories (
+          id TEXT PRIMARY KEY NOT NULL,
+          code TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          summary_group TEXT NOT NULL CHECK (summary_group IN ('COLLECTION', 'OTHER_INCOME', 'FINANCE')),
+          is_system INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS income_entries (
+          id TEXT PRIMARY KEY NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          category_id TEXT NOT NULL REFERENCES income_categories(id) ON DELETE RESTRICT,
+          transaction_date TEXT NOT NULL CHECK (length(transaction_date) = 10),
+          particular TEXT NOT NULL,
+          receipt_number TEXT,
+          remarks TEXT,
+          amount_centavos INTEGER NOT NULL CHECK (amount_centavos > 0),
+          status TEXT NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED', 'VOIDED')),
+          voided_at TEXT,
+          voided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          void_reason TEXT,
+          created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_income_entries_report ON income_entries (daily_report_id);
+        CREATE INDEX IF NOT EXISTS idx_income_entries_category ON income_entries (category_id);
+
+        CREATE TABLE IF NOT EXISTS expense_categories (
+          id TEXT PRIMARY KEY NOT NULL,
+          code TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          is_system INTEGER NOT NULL DEFAULT 0 CHECK (is_system IN (0, 1)),
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS expense_entries (
+          id TEXT PRIMARY KEY NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          category_id TEXT NOT NULL REFERENCES expense_categories(id) ON DELETE RESTRICT,
+          transaction_date TEXT NOT NULL CHECK (length(transaction_date) = 10),
+          description TEXT NOT NULL,
+          receipt_number TEXT,
+          vat_type TEXT NOT NULL DEFAULT 'NON_VAT'
+            CHECK (vat_type IN ('VATABLE', 'VAT_EXEMPT', 'ZERO_RATED', 'NON_VAT')),
+          vat_amount_centavos INTEGER NOT NULL DEFAULT 0 CHECK (vat_amount_centavos >= 0),
+          gross_amount_centavos INTEGER NOT NULL CHECK (gross_amount_centavos > 0),
+          payment_method_code TEXT NOT NULL DEFAULT 'CASH'
+            CHECK (payment_method_code IN ('CASH', 'CHECK', 'BANK_TRANSFER', 'GCASH', 'MAYA', 'OTHER_EWALLET', 'OTHER')),
+          reference_number TEXT,
+          remarks TEXT,
+          status TEXT NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED', 'VOIDED')),
+          voided_at TEXT,
+          voided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          void_reason TEXT,
+          created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          CHECK (vat_amount_centavos <= gross_amount_centavos)
+        );
+        CREATE INDEX IF NOT EXISTS idx_expense_entries_report ON expense_entries (daily_report_id);
+        CREATE INDEX IF NOT EXISTS idx_expense_entries_category ON expense_entries (category_id);
+      `)
+
+      const now = new Date().toISOString()
+      const seed = db.prepare(
+        `INSERT OR IGNORE INTO receipt_types
+          (id, code, name, is_system, is_default_visible, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 1, ?, ?, ?)`
+      )
+      for (const [id, code, name, sortOrder] of [
+        ['receipt-type-cash-sales', 'CASH_SALES', 'Cash Sales', 10],
+        ['receipt-type-collections', 'COLLECTIONS', 'Collections', 20]
+      ]) {
+        seed.run(id, code, name, sortOrder, now, now)
+      }
+
+      const seedPaymentMethod = db.prepare(
+        `INSERT OR IGNORE INTO report_payment_methods (id, code, name, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      for (const [id, code, name] of [
+        ['report-payment-method-check', 'CHECK', 'Check'],
+        ['report-payment-method-bank-transfer', 'BANK_TRANSFER', 'Bank Transfer'],
+        ['report-payment-method-gcash', 'GCASH', 'GCash'],
+        ['report-payment-method-maya', 'MAYA', 'Maya'],
+        ['report-payment-method-other-ewallet', 'OTHER_EWALLET', 'Other E-wallet']
+      ]) {
+        seedPaymentMethod.run(id, code, name, now, now)
+      }
+
+      const seedIncomeCategory = db.prepare(
+        `INSERT OR IGNORE INTO income_categories
+          (id, code, name, summary_group, is_system, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?, ?, ?)`
+      )
+      for (const [id, code, name, summaryGroup, sortOrder] of [
+        ['income-category-collections', 'COLLECTIONS', 'Collections', 'COLLECTION', 10],
+        ['income-category-other-income', 'OTHER_INCOME', 'Other Income', 'OTHER_INCOME', 20],
+        ['income-category-finance', 'FINANCE', 'Finance Income', 'FINANCE', 30]
+      ]) {
+        seedIncomeCategory.run(id, code, name, summaryGroup, sortOrder, now, now)
+      }
+
+      const seedDeductionType = db.prepare(
+        `INSERT OR IGNORE INTO deduction_types
+          (id, code, name, contribution_code, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      for (const [id, code, name, contributionCode] of [
+        ['deduction-type-sss-ee', 'SSS_EE', 'SSS Employee Share', 'EE'],
+        ['deduction-type-philhealth-ee', 'PHILHEALTH_EE', 'PhilHealth Employee Share', 'EE'],
+        ['deduction-type-pagibig-ee', 'PAGIBIG_EE', 'Pag-IBIG Employee Share', 'EE']
+      ]) {
+        seedDeductionType.run(id, code, name, contributionCode, now, now)
+      }
+
+      const seedDenomination = db.prepare(
+        `INSERT OR IGNORE INTO cash_denominations (id, value_centavos, sort_order)
+         VALUES (?, ?, ?)`
+      )
+      for (const [valueCentavos, sortOrder] of [
+        [100000, 10],
+        [50000, 20],
+        [20000, 30],
+        [10000, 40],
+        [5000, 50],
+        [2000, 60],
+        [1000, 70],
+        [500, 80],
+        [100, 90],
+        [25, 100],
+        [10, 110],
+        [5, 120],
+        [1, 130]
+      ]) {
+        seedDenomination.run(`cash-denomination-${valueCentavos}`, valueCentavos, sortOrder)
+      }
+
+      // Preserve the existing report identity while moving new daily-report work to the
+      // documented table. Legacy expense records continue to reference the same report id.
+      db.exec(`
+        INSERT OR IGNORE INTO daily_reports (
+          id, branch_id, cashier_user_id, business_date, opening_cash_centavos,
+          cash_remitted_centavos, status, created_at, updated_at
+        )
+        SELECT id, branch_id, cashier_id, business_date, 0, NULL,
+          CASE status
+            WHEN 'Submitted' THEN 'SUBMITTED'
+            WHEN 'Locked' THEN 'APPROVED'
+            ELSE 'DRAFT'
+          END,
+          created_at, updated_at
+        FROM reports;
+      `)
+
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(10, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 11) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        ALTER TABLE expenses ADD COLUMN status TEXT NOT NULL DEFAULT 'POSTED'
+          CHECK (status IN ('POSTED', 'VOIDED'));
+        ALTER TABLE expenses ADD COLUMN voided_at TEXT;
+        ALTER TABLE expenses ADD COLUMN voided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE expenses ADD COLUMN void_reason TEXT;
+        CREATE INDEX IF NOT EXISTS expenses_report_status_idx ON expenses (report_id, status);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        11,
         new Date().toISOString()
       )
     })

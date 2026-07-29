@@ -79,9 +79,11 @@ import { useActiveReport } from '@/contexts/active-report-context'
 import {
   expenseTypeValues,
   parseAmountToCentavos,
+  type DailyReportPaymentEntryRecord,
   type ExpenseCategory,
   type ExpenseType,
-  type ExpenseVat
+  type ExpenseVat,
+  type IncomeEntryRecord
 } from '@/../../shared/contracts'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
@@ -206,6 +208,7 @@ const expenseCategoryConfigByValue = new Map<string, ExpenseCategoryConfig>(
 type ExpenseRow = ExpenseTableRow
 
 type IncomeRow = ReportRow & {
+  categoryId: string
   particular: string
   remarks: string
   receiptRefNo: string
@@ -213,6 +216,7 @@ type IncomeRow = ReportRow & {
   amount: number
 }
 type PaymentRow = ReportRow & {
+  paymentMethodId: string
   type: string
   bankProvider: string
   accountName: string
@@ -412,45 +416,41 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   }
 ]
 
-const incomeData: IncomeRow[] = [
-  {
-    id: 'income-1',
-    particular: 'Retail sale',
-    remarks: 'Daily merchandise sales',
-    receiptRefNo: 'OR-1001',
-    date: '2026-07-14',
-    amount: 12500
-  },
-  {
-    id: 'income-2',
-    particular: 'Service fee',
-    remarks: 'Installation service',
-    receiptRefNo: 'OR-1002',
-    date: '2026-07-14',
-    amount: 3200
-  }
-]
+const paymentMethodByLabel: Record<string, string> = {
+  'Bank Check': 'report-payment-method-check',
+  'Bank Transfer': 'report-payment-method-bank-transfer',
+  GCash: 'report-payment-method-gcash',
+  'Other e-wallet': 'report-payment-method-other-ewallet'
+}
 
-const paymentData: PaymentRow[] = [
-  {
-    id: 'payment-1',
-    type: 'Bank Check',
-    bankProvider: 'BDO',
-    accountName: 'Ana Santos',
-    referenceNo: 'CHK-1001',
-    date: '2026-07-14',
-    amount: 2500
-  },
-  {
-    id: 'payment-2',
-    type: 'GCash',
-    bankProvider: 'GCash',
-    accountName: 'Luis Cruz',
-    referenceNo: 'GC-84721',
-    date: '2026-07-14',
-    amount: 1800
+const paymentLabelByMethod = Object.fromEntries(
+  Object.entries(paymentMethodByLabel).map(([label, id]) => [id, label])
+) as Record<string, string>
+
+function incomeRow(record: IncomeEntryRecord): IncomeRow {
+  return {
+    id: record.id,
+    categoryId: record.categoryId,
+    particular: record.particular,
+    remarks: record.remarks ?? '',
+    receiptRefNo: record.receiptNumber ?? '',
+    date: record.transactionDate,
+    amount: record.amountCentavos / 100
   }
-]
+}
+
+function paymentRow(record: DailyReportPaymentEntryRecord): PaymentRow {
+  return {
+    id: record.id,
+    paymentMethodId: record.paymentMethodId,
+    type: paymentLabelByMethod[record.paymentMethodId] ?? 'Other e-wallet',
+    bankProvider: record.bankName ?? '',
+    accountName: record.payerName ?? '',
+    referenceNo: record.referenceNumber ?? '',
+    date: record.transactionDate,
+    amount: record.amountCentavos / 100
+  }
+}
 
 function acknowledgeRow(row: ReportRow): void {
   void row.id
@@ -522,6 +522,8 @@ function paymentRowActions(
 function ReportTab({
   tab,
   expenseRows,
+  incomeRows,
+  paymentRows,
   expenseQuery,
   onDeleteExpense,
   onDeleteSelectedExpenses,
@@ -535,6 +537,8 @@ function ReportTab({
 }: {
   tab: (typeof reportTabs)[number]
   expenseRows: ExpenseRow[]
+  incomeRows: IncomeRow[]
+  paymentRows: PaymentRow[]
   expenseQuery: ReturnType<typeof useExpenses>
   onDeleteExpense: (id: string) => Promise<void>
   onDeleteSelectedExpenses: (rows: ExpenseRow[]) => Promise<boolean>
@@ -590,7 +594,7 @@ function ReportTab({
       return (
         <ReportDataTable
           columns={incomeColumns}
-          data={incomeData}
+          data={incomeRows}
           filterPlaceholder="Filter income..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
@@ -603,7 +607,7 @@ function ReportTab({
       return (
         <ReportDataTable
           columns={paymentColumns}
-          data={paymentData}
+          data={paymentRows}
           filterPlaceholder="Filter payments..."
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
@@ -797,8 +801,8 @@ export function CashierReportsContent({
   const expenseQuery = useExpenses()
   const { reportId } = useActiveReport()
   const { createExpense, removeExpenses, updateExpense } = expenseQuery
-  const [incomes, setIncomes] = React.useState(incomeData)
-  const [payments, setPayments] = React.useState(paymentData)
+  const [incomes, setIncomes] = React.useState<IncomeRow[]>([])
+  const [payments, setPayments] = React.useState<PaymentRow[]>([])
   const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
   const [isSummaryVisible, setIsSummaryVisible] = React.useState(false)
   const [selectedHistory, setSelectedHistory] = React.useState<InstallmentHistoryRecord>()
@@ -806,9 +810,24 @@ export function CashierReportsContent({
   const isHistoryTab = activeTab === 'Activity'
   const showRightPanel = !isMobile && isEntryFormVisible
   const toggleEntryForm = React.useCallback(() => setIsEntryFormVisible((visible) => !visible), [])
+  const refreshEntries = React.useCallback(async (): Promise<void> => {
+    const [incomeResult, paymentResult] = await Promise.all([
+      window.api.dailyReports.listIncome({ dailyReportId: reportId, status: 'POSTED' }),
+      window.api.dailyReports.listPayments({ dailyReportId: reportId, status: 'POSTED' })
+    ])
+    setIncomes(incomeResult.rows.map(incomeRow))
+    setPayments(paymentResult.rows.map(paymentRow))
+  }, [reportId])
+
+  React.useEffect(() => {
+    void refreshEntries().catch(() => {
+      setIncomes([])
+      setPayments([])
+    })
+  }, [refreshEntries])
 
   const editAmount = React.useCallback(
-    (row: ExpenseRow | IncomeRow | PaymentRow): void => {
+    async (row: ExpenseRow | IncomeRow | PaymentRow): Promise<void> => {
       const nextAmount = window.prompt('Amount', String(row.amount))
       if (nextAmount === null) return
       if ('reportId' in row) {
@@ -818,7 +837,7 @@ export function CashierReportsContent({
         } catch {
           return
         }
-        void updateExpense({
+        await updateExpense({
           id: row.id,
           type: row.type,
           description: row.description,
@@ -826,22 +845,41 @@ export function CashierReportsContent({
           receiptNo: row.receiptNo,
           vat: row.vat,
           amountCentavos
-        }).catch(() => undefined)
+        })
         return
       }
       const amount = Number(nextAmount)
       if (!Number.isFinite(amount) || amount < 0) return
-      if ('particular' in row)
-        setIncomes((current) =>
-          current.map((item) => (item.id === row.id ? { ...item, amount } : item))
-        )
-      else if ('bankProvider' in row)
-        setPayments((current) =>
-          current.map((item) => (item.id === row.id ? { ...item, amount } : item))
-        )
-      else return
+      try {
+        const amountCentavos = parseAmountToCentavos(nextAmount)
+        if ('particular' in row) {
+          await window.api.dailyReports.updateIncome({
+            id: row.id,
+            categoryId: row.categoryId,
+            transactionDate: row.date,
+            particular: row.particular,
+            receiptNumber: row.receiptRefNo || null,
+            remarks: row.remarks || null,
+            amountCentavos
+          })
+        } else if ('bankProvider' in row) {
+          await window.api.dailyReports.updatePayment({
+            id: row.id,
+            paymentMethodId: row.paymentMethodId,
+            transactionDate: row.date,
+            referenceNumber: row.referenceNo || null,
+            bankName: row.bankProvider || null,
+            payerName: row.accountName || null,
+            remarks: null,
+            amountCentavos
+          })
+        } else return
+        await refreshEntries()
+      } catch {
+        return
+      }
     },
-    [updateExpense]
+    [refreshEntries, updateExpense]
   )
 
   const deleteExpense = React.useCallback(
@@ -870,20 +908,42 @@ export function CashierReportsContent({
     [removeExpenses]
   )
 
-  const deleteEntry = React.useCallback((id: string): void => {
-    const ids = new Set([id])
-    setIncomes((current) => current.filter((row) => !ids.has(row.id)))
-    setPayments((current) => current.filter((row) => !ids.has(row.id)))
-  }, [])
+  const deleteEntry = React.useCallback(
+    async (id: string): Promise<void> => {
+      const income = incomes.find((row) => row.id === id)
+      const payment = payments.find((row) => row.id === id)
+      try {
+        if (income) await window.api.dailyReports.voidIncome({ id, voidReason: 'Voided from Cashier Reports' })
+        else if (payment)
+          await window.api.dailyReports.voidPayment({ id, voidReason: 'Voided from Cashier Reports' })
+        else return
+        await refreshEntries()
+      } catch {
+        return
+      }
+    },
+    [incomes, payments, refreshEntries]
+  )
 
-  const deleteSelectedEntries = React.useCallback((rows: ReportRow[]): boolean => {
+  const deleteSelectedEntries = React.useCallback(async (rows: ReportRow[]): Promise<boolean> => {
     const ids = new Set(rows.map((row) => row.id))
     if (!window.confirm(`Delete ${ids.size} selected entr${ids.size === 1 ? 'y' : 'ies'}?`))
       return false
-    setIncomes((current) => current.filter((row) => !ids.has(row.id)))
-    setPayments((current) => current.filter((row) => !ids.has(row.id)))
-    return true
-  }, [])
+    try {
+      await Promise.all(
+        [...ids].map((id) => {
+          if (incomes.some((row) => row.id === id)) {
+            return window.api.dailyReports.voidIncome({ id, voidReason: 'Voided from Cashier Reports' })
+          }
+          return window.api.dailyReports.voidPayment({ id, voidReason: 'Voided from Cashier Reports' })
+        })
+      )
+      await refreshEntries()
+      return true
+    } catch {
+      return false
+    }
+  }, [incomes, refreshEntries])
 
   const saveEntry = React.useCallback(
     async (tab: (typeof reportTabs)[number], form: FormData): Promise<void> => {
@@ -905,38 +965,39 @@ export function CashierReportsContent({
         return
       }
 
-      const amount = Number(form.get(`${tab.toLowerCase()}-amount`) ?? 0)
-      if (!Number.isFinite(amount) || amount < 0) return
-      const id = `${tab.toLowerCase()}-${Date.now()}`
-      if (tab === 'Income') {
-        setIncomes((current) => [
-          ...current,
-          {
-            id,
-            particular: String(form.get('income-particular') || 'Other income'),
-            remarks: String(form.get('income-remarks') || ''),
-            receiptRefNo: String(form.get('income-receipt-reference-no-') || id.toUpperCase()),
-            date: String(form.get('income-date') || '2026-07-14'),
-            amount
-          }
-        ])
-      } else if (tab === 'Payment') {
-        setPayments((current) => [
-          ...current,
-          {
-            id,
-            type: String(form.get('payment-type') || 'Bank Check'),
-            bankProvider: String(form.get('payment-bank-provider') || ''),
-            accountName: String(form.get('payment-account-name') || ''),
-            referenceNo: String(form.get('payment-reference-no-') || id.toUpperCase()),
-            date: String(form.get('payment-date') || '2026-07-14'),
-            amount
-          }
-        ])
+      let amountCentavos: number
+      try {
+        amountCentavos = parseAmountToCentavos(String(form.get(`${tab.toLowerCase()}-amount`) ?? '0'))
+      } catch {
+        return
       }
+      if (tab === 'Income') {
+        await window.api.dailyReports.createIncome({
+          dailyReportId: reportId,
+          categoryId: 'income-category-other-income',
+          transactionDate: String(form.get('income-date') || format(new Date(), 'yyyy-MM-dd')),
+          particular: String(form.get('income-particular') || 'Other income'),
+          receiptNumber: String(form.get('income-receipt-reference-no-') || '') || null,
+          remarks: String(form.get('income-remarks') || '') || null,
+          amountCentavos
+        })
+      } else if (tab === 'Payment') {
+        const type = String(form.get('payment-type') || 'Bank Check')
+        await window.api.dailyReports.createPayment({
+          dailyReportId: reportId,
+          paymentMethodId: paymentMethodByLabel[type] ?? 'report-payment-method-other-ewallet',
+          transactionDate: String(form.get('payment-date') || format(new Date(), 'yyyy-MM-dd')),
+          referenceNumber: String(form.get('payment-reference-no-') || '') || null,
+          bankName: String(form.get('payment-bank-provider') || '') || null,
+          payerName: String(form.get('payment-account-name') || '') || null,
+          remarks: null,
+          amountCentavos
+        })
+      }
+      await refreshEntries()
       setIsEntryFormVisible(false)
     },
-    [createExpense, reportId]
+    [createExpense, refreshEntries, reportId]
   )
 
   React.useEffect(() => {
@@ -1006,6 +1067,8 @@ export function CashierReportsContent({
                     <ReportTab
                       tab={tab}
                       expenseRows={expenseQuery.rows}
+                      incomeRows={incomes}
+                      paymentRows={payments}
                       expenseQuery={expenseQuery}
                       onDeleteExpense={deleteExpense}
                       onDeleteSelectedExpenses={deleteSelectedExpenses}

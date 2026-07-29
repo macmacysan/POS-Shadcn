@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 
-import type { ReportRecord } from '../../shared/contracts'
+import type { AuthenticatedUser, ReportReconciliationUpsertRequest, ReportRecord } from '../../shared/contracts'
+import { AppError } from './errors'
 
 type ReportRow = {
   id: string
@@ -33,5 +34,34 @@ export class ReportRepository {
       .get(id) as ReportRow | undefined
 
     return row ? mapReport(row) : null
+  }
+
+  upsertReconciliation(
+    request: ReportReconciliationUpsertRequest,
+    user: AuthenticatedUser
+  ): void {
+    const report = this.findById(request.reportId)
+    if (!report) throw new AppError('NOT_FOUND', 'Cashier report was not found.')
+    if (user.role !== 'ADMIN' && report.cashierId !== user.id) {
+      throw new AppError('FORBIDDEN', 'You cannot reconcile another cashier report.')
+    }
+    this.db
+      .prepare(
+        `INSERT INTO report_reconciliations (
+          report_id, physical_cash_centavos, cash_remitted_centavos, cash_variance_centavos, updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(report_id) DO UPDATE SET
+          physical_cash_centavos = excluded.physical_cash_centavos,
+          cash_remitted_centavos = excluded.cash_remitted_centavos,
+          cash_variance_centavos = excluded.cash_variance_centavos,
+          updated_at = excluded.updated_at`
+      )
+      .run(
+        request.reportId,
+        request.physicalCashCentavos,
+        request.cashRemittedCentavos,
+        request.cashVarianceCentavos,
+        new Date().toISOString()
+      )
   }
 }

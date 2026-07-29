@@ -137,7 +137,7 @@ export type ExpenseSummaryTotals = {
 }
 
 export type IpcErrorPayload = {
-  code: 'VALIDATION_ERROR' | 'NOT_FOUND' | 'CONFLICT' | 'DATABASE_ERROR'
+  code: 'VALIDATION_ERROR' | 'NOT_FOUND' | 'CONFLICT' | 'FORBIDDEN' | 'DATABASE_ERROR'
   message: string
 }
 

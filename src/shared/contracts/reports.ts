@@ -19,12 +19,23 @@ export type ReportRecord = {
   status: ReportStatus
 }
 
+export const reportReconciliationUpsertRequestSchema = z.object({
+  reportId: reportIdSchema,
+  physicalCashCentavos: z.number().int(),
+  cashRemittedCentavos: z.number().int().nonnegative(),
+  cashVarianceCentavos: z.number().int()
+})
+
+export type ReportReconciliationUpsertRequest = z.infer<typeof reportReconciliationUpsertRequestSchema>
+
 export const reportIpcChannels = {
-  getById: 'reports:get-by-id'
+  getById: 'reports:get-by-id',
+  upsertReconciliation: 'reports:upsert-reconciliation'
 } as const
 
 export type ReportsApi = {
   reports: {
     getById(reportId: string): Promise<ReportRecord | null>
+    upsertReconciliation(request: ReportReconciliationUpsertRequest): Promise<void>
   }
 }

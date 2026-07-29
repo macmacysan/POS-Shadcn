@@ -57,6 +57,8 @@ type ReportDataTableProps<TData extends ReportRow> = {
     onGlobalFilterChange: OnChangeFn<string>
     totalRows: number
     loading: boolean
+    error?: string
+    refresh?: () => void
   }
   filterOptions?: Record<string, readonly string[]>
 }
@@ -276,6 +278,8 @@ export function ReportDataTable<TData extends ReportRow>({
         table={table}
         recordCount={filteredRowCount}
         isLoading={serverState?.loading}
+        error={serverState?.error}
+        onRetry={serverState?.refresh}
         onRowDoubleClick={onDefaultAction}
         onRowContextMenu={getRowActions ? handleRowContextMenu : undefined}
         emptyMessage="No matching entries."

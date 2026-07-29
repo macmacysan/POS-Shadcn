@@ -5,6 +5,12 @@ import { calculateFinanceAmounts } from '../finance-calculations'
 export const financeBranchValues = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const
 export const financeProviderValues = ['Home Credit', 'Salmon', 'Skyro'] as const
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+export const financeItemInputSchema = z.object({
+  item: z.string().trim().min(1).max(300),
+  serialNo: z.string().trim().max(200).optional(),
+  quantity: z.number().int().positive(),
+  itemPriceCentavos: z.number().int().positive()
+})
 
 export const financeAccountInputSchema = z
   .object({
@@ -16,10 +22,7 @@ export const financeAccountInputSchema = z
     firstName: z.string().trim().min(1).max(100),
     middleName: z.string().trim().max(100).optional(),
     suffix: z.string().trim().max(30).optional(),
-    quantity: z.number().int().positive(),
-    item: z.string().trim().min(1).max(300),
-    serialNo: z.string().trim().max(200).optional(),
-    itemPriceCentavos: z.number().int().positive(),
+    items: z.array(financeItemInputSchema).min(1).max(100),
     downpaymentCentavos: z.number().int().nonnegative(),
     orNumber: z.string().trim().max(100).optional(),
     orDate: dateSchema.optional(),
@@ -27,11 +30,7 @@ export const financeAccountInputSchema = z
     remarks: z.string().trim().max(1000).optional()
   })
   .superRefine((value, context) => {
-    const amounts = calculateFinanceAmounts(
-      value.quantity,
-      value.itemPriceCentavos,
-      value.downpaymentCentavos
-    )
+    const amounts = calculateFinanceAmounts(value.items, value.downpaymentCentavos)
     if (amounts.balanceCentavos < 0) {
       context.addIssue({
         code: 'custom',
@@ -51,15 +50,21 @@ export const financeAccountListRequestSchema = z.object({
 })
 
 export type FinanceAccountInput = z.infer<typeof financeAccountInputSchema>
+export type FinanceItemInput = z.infer<typeof financeItemInputSchema>
 export type FinanceAccountCreateRequest = z.infer<typeof financeAccountCreateRequestSchema>
 export type FinanceAccountUpdateRequest = z.infer<typeof financeAccountUpdateRequestSchema>
 export type FinanceAccountListRequest = z.infer<typeof financeAccountListRequestSchema>
-export type FinanceAccountRecord = FinanceAccountInput & {
+export type FinanceAccountRecord = Omit<FinanceAccountInput, 'items'> & {
+  items: FinanceItemRecord[]
   id: string
   grandTotalCentavos: number
   balanceCentavos: number
   createdAt: string
   updatedAt: string
+}
+export type FinanceItemRecord = FinanceItemInput & {
+  id: string
+  totalCentavos: number
 }
 export type FinanceAccountListResult = { rows: FinanceAccountRecord[] }
 

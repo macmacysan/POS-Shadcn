@@ -3,6 +3,9 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 import {
   expenseIpcChannels,
+  authIpcChannels,
+  dashboardIpcChannels,
+  dailyReportIpcChannels,
   financeAccountIpcChannels,
   installmentIpcChannels,
   reportIpcChannels,
@@ -10,16 +13,45 @@ import {
   type ExpenseListRequest,
   type ExpenseUpdateInput,
   type ExpensesApi,
+  type AuthApi,
+  type DashboardApi,
+  type DailyReportsApi,
   type FinanceAccountsApi,
   type InstallmentsApi,
   type ReportRecord
 } from '../shared/contracts'
 
 // Custom APIs for renderer
-const api: ExpensesApi & InstallmentsApi & FinanceAccountsApi = {
+const api: ExpensesApi &
+  InstallmentsApi &
+  FinanceAccountsApi &
+  AuthApi &
+  DashboardApi &
+  DailyReportsApi = {
+  auth: {
+    login: (request) => ipcRenderer.invoke(authIpcChannels.login, request),
+    logout: () => ipcRenderer.invoke(authIpcChannels.logout)
+  },
+  dashboard: {
+    get: (request) => ipcRenderer.invoke(dashboardIpcChannels.get, request)
+  },
+  dailyReports: {
+    resolveActive: (request) => ipcRenderer.invoke(dailyReportIpcChannels.resolveActive, request),
+    getSnapshot: (request) => ipcRenderer.invoke(dailyReportIpcChannels.getSnapshot, request),
+    listIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listIncome, request),
+    createIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.createIncome, request),
+    updateIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateIncome, request),
+    voidIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.voidIncome, request),
+    listPayments: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listPayments, request),
+    createPayment: (request) => ipcRenderer.invoke(dailyReportIpcChannels.createPayment, request),
+    updatePayment: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updatePayment, request),
+    voidPayment: (request) => ipcRenderer.invoke(dailyReportIpcChannels.voidPayment, request)
+  },
   reports: {
     getById: (reportId: string): Promise<ReportRecord | null> =>
       ipcRenderer.invoke(reportIpcChannels.getById, { reportId }),
+    upsertReconciliation: (request) =>
+      ipcRenderer.invoke(reportIpcChannels.upsertReconciliation, request),
     expenses: {
       list: (request: ExpenseListRequest) => ipcRenderer.invoke(expenseIpcChannels.list, request),
       getById: (id: string) => ipcRenderer.invoke(expenseIpcChannels.getById, { id }),

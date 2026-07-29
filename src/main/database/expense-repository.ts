@@ -53,7 +53,7 @@ export class ExpenseRepository {
   constructor(private readonly db: Database.Database) {}
 
   findPage(request: ExpenseListRequest): { rows: ExpenseRecord[]; totalRows: number } {
-    const where = ['report_id = @reportId']
+    const where = ["report_id = @reportId", "status = 'POSTED'"]
     const params: Record<string, string | number> = { reportId: request.reportId }
 
     if (request.search) {
@@ -151,7 +151,7 @@ export class ExpenseRepository {
                 vat = @vat,
                 amount_centavos = @amountCentavos,
                 updated_at = @updatedAt
-          WHERE id = @id`
+          WHERE id = @id AND status = 'POSTED'`
       )
       .run({ ...input, updatedAt: timestamp })
 
@@ -159,12 +159,16 @@ export class ExpenseRepository {
     return this.findById(input.id) as ExpenseRecord
   }
 
-  remove(ids: string[]): void {
-    const removeMany = this.db.transaction(() => {
-      const statement = this.db.prepare('DELETE FROM expenses WHERE id = ?')
-      for (const id of ids) statement.run(id)
+  remove(ids: string[], actorUserId: string, reason: string): void {
+    const voidMany = this.db.transaction(() => {
+      const now = new Date().toISOString()
+      const statement = this.db.prepare(
+        `UPDATE expenses SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?, void_reason = ?
+          WHERE id = ? AND status = 'POSTED'`
+      )
+      for (const id of ids) statement.run(now, actorUserId, reason, id)
     })
-    removeMany()
+    voidMany()
   }
 
   findSummaryTotals(reportId: string): ExpenseSummaryTotals {
@@ -180,7 +184,7 @@ export class ExpenseRepository {
            COALESCE(SUM(CASE WHEN type = 'Receivables'
              THEN amount_centavos ELSE 0 END), 0) AS receivables_centavos
          FROM expenses
-         WHERE report_id = ?`
+         WHERE report_id = ? AND status = 'POSTED'`
       )
       .get(reportId) as {
       company_expenses_centavos: number

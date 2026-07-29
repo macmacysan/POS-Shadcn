@@ -17,6 +17,15 @@ import { registerInstallmentIpc } from './ipc/installments'
 import { FinanceAccountRepository } from './database/finance-account-repository'
 import { FinanceAccountService } from './services/finance-account-service'
 import { registerFinanceAccountIpc } from './ipc/finance-accounts'
+import { UserRepository } from './database/user-repository'
+import { AuthService } from './services/auth-service'
+import { registerAuthIpc } from './ipc/auth'
+import { DashboardRepository } from './database/dashboard-repository'
+import { DashboardService } from './services/dashboard-service'
+import { registerDashboardIpc } from './ipc/dashboard'
+import { DailyReportRepository } from './database/daily-report-repository'
+import { DailyReportService } from './services/daily-report-service'
+import { registerDailyReportIpc } from './ipc/daily-reports'
 
 let database: ReturnType<typeof openDatabase> | undefined
 
@@ -77,8 +86,12 @@ app.whenReady().then(() => {
     database = openDatabase(databasePath, {
       seedDevelopmentData: is.dev
     })
-    registerExpenseIpc(new ExpenseService(new ExpenseRepository(database)))
-    registerReportIpc(new ReportService(new ReportRepository(database)))
+    const authService = new AuthService(new UserRepository(database))
+    registerAuthIpc(authService)
+    registerExpenseIpc(new ExpenseService(new ExpenseRepository(database), authService))
+    registerReportIpc(new ReportService(new ReportRepository(database), authService))
+    registerDailyReportIpc(new DailyReportService(new DailyReportRepository(database), authService))
+    registerDashboardIpc(new DashboardService(new DashboardRepository(database), authService))
     registerInstallmentIpc(new InstallmentService(new InstallmentRepository(database)))
     registerFinanceAccountIpc(new FinanceAccountService(new FinanceAccountRepository(database)))
   } catch (error) {

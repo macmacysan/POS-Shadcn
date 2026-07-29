@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import type { AuthenticatedUser } from '@/../../shared/contracts'
 
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -27,20 +28,24 @@ export function LoginForm({
   className,
   onSuccess,
   ...props
-}: React.ComponentProps<'div'> & { onSuccess?: (branch: Branch) => void }): React.JSX.Element {
+}: React.ComponentProps<'div'> & {
+  onSuccess?: (branch: Branch, user: AuthenticatedUser) => void
+}): React.JSX.Element {
   const [values, setValues] = useState<LoginValues>({
     branch: '',
     username: '',
     password: ''
   })
   const [errors, setErrors] = useState<LoginErrors>({})
+  const [submitError, setSubmitError] = useState<string>()
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   function updateValue<Key extends keyof LoginValues>(key: Key, value: LoginValues[Key]): void {
     setValues((current) => ({ ...current, [key]: value }))
     setErrors((current) => ({ ...current, [key]: undefined }))
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
 
     const nextErrors: LoginErrors = {}
@@ -51,7 +56,21 @@ export function LoginForm({
 
     setErrors(nextErrors)
     const isValid = Object.keys(nextErrors).length === 0
-    if (isValid) onSuccess?.(values.branch as Branch)
+    if (!isValid) return
+    setIsSubmitting(true)
+    setSubmitError(undefined)
+    try {
+      const user = await window.api.auth.login({
+        branch: values.branch as Branch,
+        username: values.username,
+        password: values.password
+      })
+      onSuccess?.(values.branch as Branch, user)
+    } catch {
+      setSubmitError('Unable to sign in with those credentials.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -114,8 +133,9 @@ export function LoginForm({
           </Field>
 
           <Button type="submit" className="w-full">
-            Continue
+            {isSubmitting ? 'Signing in…' : 'Continue'}
           </Button>
+          {submitError && <FieldError>{submitError}</FieldError>}
         </FieldGroup>
       </form>
     </div>
