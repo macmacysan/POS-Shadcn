@@ -28,14 +28,15 @@ export class UserRepository {
     if (!user || !verifyPassword(request.password, user.password_hash)) {
       throw new AppError('VALIDATION_ERROR', 'Invalid username or password.')
     }
+    if (user.role !== 'ADMIN' && user.role !== 'CASHIER') {
+      throw new AppError('FORBIDDEN', 'This account role is not supported.')
+    }
     if (user.role !== 'ADMIN' && user.branch !== request.branch) {
       throw new AppError('FORBIDDEN', 'This account is not assigned to the selected branch.')
     }
-    this.db.prepare('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?').run(
-      new Date().toISOString(),
-      new Date().toISOString(),
-      user.id
-    )
+    this.db
+      .prepare('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?')
+      .run(new Date().toISOString(), new Date().toISOString(), user.id)
     const branch = this.db
       .prepare('SELECT id FROM branches WHERE name = ? AND is_active = 1')
       .get(request.branch) as { id: string } | undefined

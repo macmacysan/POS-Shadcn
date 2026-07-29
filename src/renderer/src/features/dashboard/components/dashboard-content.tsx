@@ -89,7 +89,7 @@ function MetricCard({
 
 function DashboardLoading(): React.JSX.Element {
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-6">
+    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-5 w-44" />
@@ -118,18 +118,27 @@ export function DashboardContent({
   const [overview, setOverview] = React.useState<DashboardOverview>()
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string>()
+  const requestVersionRef = React.useRef(0)
 
-  const load = React.useCallback(async (): Promise<void> => {
-    setIsLoading(true)
-    setError(undefined)
-    try {
-      setOverview(await window.api.dashboard.get({ businessDate, branch: selectedBranch }))
-    } catch {
-      setError('Dashboard data could not be loaded.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [businessDate, selectedBranch])
+  const load = React.useCallback(
+    async (preserveOverview = false): Promise<void> => {
+      const requestVersion = ++requestVersionRef.current
+      setIsLoading(true)
+      setError(undefined)
+      if (!preserveOverview) setOverview(undefined)
+      try {
+        const next = await window.api.dashboard.get({ businessDate, branch: selectedBranch })
+        if (requestVersion !== requestVersionRef.current) return
+        setOverview(next)
+      } catch {
+        if (requestVersion !== requestVersionRef.current) return
+        setError('Dashboard data could not be loaded.')
+      } finally {
+        if (requestVersion === requestVersionRef.current) setIsLoading(false)
+      }
+    },
+    [businessDate, selectedBranch]
+  )
 
   React.useEffect(() => {
     void load()
@@ -179,13 +188,30 @@ export function DashboardContent({
   })
 
   if (isLoading && !overview) return <DashboardLoading />
+  if (error && !overview) {
+    return (
+      <main className="flex min-h-0 flex-1 items-center justify-center p-6">
+        <Card size="sm" className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Dashboard unavailable</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button variant="outline" size="sm" onClick={() => void load()}>
+              Retry
+            </Button>
+          </CardFooter>
+        </Card>
+      </main>
+    )
+  }
 
   const variance = overview?.cashVarianceCentavos ?? 0
   const hasVariance = variance !== 0
   const pendingReconciliations =
     (overview?.cashierReportCount ?? 0) - (overview?.reconciledReportCount ?? 0)
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-6">
+    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto p-6 xl:overflow-hidden">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">
@@ -204,7 +230,7 @@ export function DashboardContent({
             value={businessDate}
             onChange={(event) => setBusinessDate(event.target.value)}
           />
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={isLoading}>
+          <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={isLoading}>
             <RefreshCw
               data-icon="inline-start"
               className={isLoading ? 'animate-spin' : undefined}
@@ -218,10 +244,10 @@ export function DashboardContent({
         <Card size="sm" className="ring-destructive/30">
           <CardContent className="flex items-center justify-between gap-3 text-destructive">
             <span className="flex items-center gap-2">
-            <CircleAlert aria-hidden className="size-4" />
-            {error}
+              <CircleAlert aria-hidden className="size-4" />
+              {error}
             </span>
-            <Button variant="outline" size="xs" onClick={() => void load()}>
+            <Button variant="outline" size="xs" onClick={() => void load(true)}>
               Retry
             </Button>
           </CardContent>
@@ -237,7 +263,7 @@ export function DashboardContent({
           value={money(overview?.physicalCashCentavos ?? 0)}
           detail={`${overview?.reconciledReportCount ?? 0} of ${overview?.cashierReportCount ?? 0} reports have saved cash counts`}
           icon={Banknote}
-          actionLabel="Open reports"
+          actionLabel="Open today’s report"
           onOpen={onOpenCashierReports}
           attention={pendingReconciliations > 0}
         />
@@ -252,7 +278,7 @@ export function DashboardContent({
                 : 'Cash is balanced'
           }
           icon={WalletCards}
-          actionLabel="Review cash"
+          actionLabel="Review today’s cash"
           onOpen={onOpenCashierReports}
           attention={pendingReconciliations > 0 || hasVariance}
         />
@@ -274,8 +300,8 @@ export function DashboardContent({
         />
       </section>
 
-      <section className="grid min-h-0 gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
-        <Card className="min-h-0">
+      <section className="grid min-h-0 flex-1 grid-rows-[minmax(16rem,1fr)_auto] gap-5 xl:grid-cols-[minmax(0,1fr)_18rem] xl:grid-rows-1">
+        <Card className="flex min-h-0 flex-col">
           <CardHeader className="border-b">
             <CardDescription>Attention queue</CardDescription>
             <CardTitle className="flex items-center gap-2">
@@ -290,7 +316,7 @@ export function DashboardContent({
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 pt-0">
             <UniversalDataTable
-              className="min-h-52"
+              className="min-h-0"
               table={overdueTable}
               recordCount={overview?.overdueAccounts.length ?? 0}
               isLoading={isLoading}
@@ -336,7 +362,7 @@ export function DashboardContent({
           </CardContent>
           <CardFooter>
             <Button variant="outline" size="sm" onClick={onOpenCashierReports}>
-              Review cashier reports
+              Open today’s cashier report
               <ArrowUpRight data-icon="inline-end" />
             </Button>
           </CardFooter>

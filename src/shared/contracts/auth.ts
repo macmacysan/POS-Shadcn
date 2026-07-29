@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { financeBranchValues } from './finance-accounts'
 
-export const userRoleValues = ['CASHIER', 'ADMIN', 'SUPERVISOR', 'AUDITOR'] as const
+export const userRoleValues = ['CASHIER', 'ADMIN'] as const
 export const userRoleSchema = z.enum(userRoleValues)
 
 export const loginRequestSchema = z.object({

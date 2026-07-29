@@ -72,7 +72,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { formatPhilippinePeso } from '@/lib/currency'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { useMediaQuery } from '@/hooks/use-mobile'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
 import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hooks/use-expenses'
 import { useActiveReport } from '@/contexts/active-report-context'
@@ -225,6 +225,11 @@ type PaymentRow = ReportRow & {
   amount: number
 }
 
+type EntryLoadState = {
+  isLoading: boolean
+  error?: string
+}
+
 const money = formatPhilippinePeso
 
 function TypeBox({ value }: { value: string }): React.JSX.Element {
@@ -242,14 +247,38 @@ function TruncatedText({
   value: string
   className?: string
 }): React.JSX.Element {
+  const textRef = React.useRef<HTMLSpanElement>(null)
+  const [isTruncated, setIsTruncated] = React.useState(false)
+
+  React.useLayoutEffect(() => {
+    const text = textRef.current
+    if (!text) return
+    const update = (): void => {
+      const next = text.scrollWidth > text.clientWidth
+      setIsTruncated((current) => (current === next ? current : next))
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(text)
+    return () => observer.disconnect()
+  }, [value])
+
+  const text = (
+    <span
+      ref={textRef}
+      className={cn('block min-w-0 truncate', className)}
+      tabIndex={isTruncated ? 0 : undefined}
+    >
+      {value}
+    </span>
+  )
+
+  if (!isTruncated) return text
+
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger
-          render={<span className={cn('block min-w-0 truncate', className)} tabIndex={0} />}
-        >
-          {value}
-        </TooltipTrigger>
+        <TooltipTrigger render={text} />
         <TooltipContent className="max-w-80">{value}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -317,6 +346,9 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'receiptNo',
     header: 'Receipt No',
     size: 96,
+    cell: ({ getValue }) => (
+      <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
+    ),
     meta: { className: 'text-xs text-muted-foreground' }
   },
   {
@@ -354,6 +386,9 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     accessorKey: 'receiptRefNo',
     header: 'Receipt / Ref No.',
     size: 150,
+    cell: ({ getValue }) => (
+      <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
+    ),
     meta: {
       className: cn('w-48', 'text-muted-foreground')
     }
@@ -404,6 +439,9 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'referenceNo',
     header: 'REFERENCE NO.',
+    cell: ({ getValue }) => (
+      <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
+    ),
     meta: { className: 'text-muted-foreground' }
   },
   { accessorKey: 'date', header: 'DATE', meta: { className: 'text-muted-foreground' } },
@@ -533,7 +571,10 @@ function ReportTab({
   onSelectHistory,
   onDelete,
   onDeleteSelected,
-  onEdit
+  onEdit,
+  incomeLoadState,
+  paymentLoadState,
+  onRetryEntries
 }: {
   tab: (typeof reportTabs)[number]
   expenseRows: ExpenseRow[]
@@ -549,6 +590,9 @@ function ReportTab({
   onDelete: (id: string) => void
   onDeleteSelected: (rows: ReportRow[]) => boolean | Promise<boolean>
   onEdit: (row: ExpenseRow | IncomeRow | PaymentRow) => void
+  incomeLoadState: EntryLoadState
+  paymentLoadState: EntryLoadState
+  onRetryEntries: () => void
 }): React.JSX.Element {
   const getExpenseActions = React.useCallback(
     (row: ExpenseRow) => expenseRowActions(row, onDeleteExpense, onEdit),
@@ -601,6 +645,9 @@ function ReportTab({
           getRowActions={getIncomeActions}
           onDeleteSelected={onDeleteSelected}
           onDefaultAction={acknowledgeRow}
+          isLoading={incomeLoadState.isLoading}
+          loadError={incomeLoadState.error}
+          onRetry={onRetryEntries}
         />
       )
     case 'Payment':
@@ -614,6 +661,9 @@ function ReportTab({
           getRowActions={getPaymentActions}
           onDeleteSelected={onDeleteSelected}
           onDefaultAction={acknowledgeRow}
+          isLoading={paymentLoadState.isLoading}
+          loadError={paymentLoadState.error}
+          onRetry={onRetryEntries}
         />
       )
     case 'Activity':
@@ -771,19 +821,33 @@ function EntryFormActions(): React.JSX.Element {
 
 function EntryFormPanel({
   tab,
-  onSave
+  onSave,
+  onDirtyChange,
+  saveError
 }: {
   tab: (typeof reportTabs)[number]
   onSave: (form: FormData) => void
+  onDirtyChange: (isDirty: boolean) => void
+  saveError?: string
 }): React.JSX.Element {
   return (
     <form
       className="flex min-h-0 flex-1 flex-col"
+      onChange={() => onDirtyChange(true)}
+      onReset={() => onDirtyChange(false)}
       onSubmit={(event) => {
         event.preventDefault()
         onSave(new FormData(event.currentTarget))
       }}
     >
+      {saveError && (
+        <div
+          role="alert"
+          className="border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+        >
+          {saveError}
+        </div>
+      )}
       <ScrollArea className="min-h-0 flex-1">
         <ReportDetailsForm tab={tab} />
       </ScrollArea>
@@ -803,27 +867,71 @@ export function CashierReportsContent({
   const { createExpense, removeExpenses, updateExpense } = expenseQuery
   const [incomes, setIncomes] = React.useState<IncomeRow[]>([])
   const [payments, setPayments] = React.useState<PaymentRow[]>([])
+  const [incomeLoadState, setIncomeLoadState] = React.useState<EntryLoadState>({ isLoading: true })
+  const [paymentLoadState, setPaymentLoadState] = React.useState<EntryLoadState>({
+    isLoading: true
+  })
   const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
+  const [isEntryFormDirty, setIsEntryFormDirty] = React.useState(false)
+  const [entrySaveError, setEntrySaveError] = React.useState<string>()
   const [isSummaryVisible, setIsSummaryVisible] = React.useState(false)
   const [selectedHistory, setSelectedHistory] = React.useState<InstallmentHistoryRecord>()
-  const isMobile = useIsMobile()
+  const entriesRequestVersionRef = React.useRef(0)
+  const isEntryFormCompact = useMediaQuery('(max-width: 900px)')
+  const isSummaryCompact = useMediaQuery('(max-width: 760px)')
   const isHistoryTab = activeTab === 'Activity'
-  const showRightPanel = !isMobile && isEntryFormVisible
-  const toggleEntryForm = React.useCallback(() => setIsEntryFormVisible((visible) => !visible), [])
+  const showRightPanel = !isEntryFormCompact && isEntryFormVisible
+  const setEntryFormOpen = React.useCallback(
+    (open: boolean): void => {
+      if (open) {
+        setIsEntryFormDirty(false)
+        setEntrySaveError(undefined)
+        setIsEntryFormVisible(true)
+        return
+      }
+      if (isEntryFormDirty && !window.confirm('Discard unsaved entry changes?')) return
+      setIsEntryFormDirty(false)
+      setEntrySaveError(undefined)
+      setIsEntryFormVisible(false)
+    },
+    [isEntryFormDirty]
+  )
+  const toggleEntryForm = React.useCallback(
+    () => setEntryFormOpen(!isEntryFormVisible),
+    [isEntryFormVisible, setEntryFormOpen]
+  )
+  const summaryRefreshKey = [
+    expenseQuery.expenseTotals.companyExpensesCentavos,
+    expenseQuery.expenseTotals.drawingsCentavos,
+    expenseQuery.expenseTotals.purchasesCentavos,
+    expenseQuery.expenseTotals.receivablesCentavos,
+    ...incomes.map((income) => `${income.id}:${income.amount}`)
+  ].join(':')
   const refreshEntries = React.useCallback(async (): Promise<void> => {
-    const [incomeResult, paymentResult] = await Promise.all([
+    const requestVersion = ++entriesRequestVersionRef.current
+    setIncomeLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
+    setPaymentLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
+    const [incomeResult, paymentResult] = await Promise.allSettled([
       window.api.dailyReports.listIncome({ dailyReportId: reportId, status: 'POSTED' }),
       window.api.dailyReports.listPayments({ dailyReportId: reportId, status: 'POSTED' })
     ])
-    setIncomes(incomeResult.rows.map(incomeRow))
-    setPayments(paymentResult.rows.map(paymentRow))
+    if (requestVersion !== entriesRequestVersionRef.current) return
+    if (incomeResult.status === 'fulfilled') {
+      setIncomes(incomeResult.value.rows.map(incomeRow))
+      setIncomeLoadState({ isLoading: false })
+    } else {
+      setIncomeLoadState({ isLoading: false, error: 'Income entries could not be loaded.' })
+    }
+    if (paymentResult.status === 'fulfilled') {
+      setPayments(paymentResult.value.rows.map(paymentRow))
+      setPaymentLoadState({ isLoading: false })
+    } else {
+      setPaymentLoadState({ isLoading: false, error: 'Payment entries could not be loaded.' })
+    }
   }, [reportId])
 
   React.useEffect(() => {
-    void refreshEntries().catch(() => {
-      setIncomes([])
-      setPayments([])
-    })
+    void refreshEntries()
   }, [refreshEntries])
 
   const editAmount = React.useCallback(
@@ -913,9 +1021,16 @@ export function CashierReportsContent({
       const income = incomes.find((row) => row.id === id)
       const payment = payments.find((row) => row.id === id)
       try {
-        if (income) await window.api.dailyReports.voidIncome({ id, voidReason: 'Voided from Cashier Reports' })
+        if (income)
+          await window.api.dailyReports.voidIncome({
+            id,
+            voidReason: 'Voided from Cashier Reports'
+          })
         else if (payment)
-          await window.api.dailyReports.voidPayment({ id, voidReason: 'Voided from Cashier Reports' })
+          await window.api.dailyReports.voidPayment({
+            id,
+            voidReason: 'Voided from Cashier Reports'
+          })
         else return
         await refreshEntries()
       } catch {
@@ -925,28 +1040,38 @@ export function CashierReportsContent({
     [incomes, payments, refreshEntries]
   )
 
-  const deleteSelectedEntries = React.useCallback(async (rows: ReportRow[]): Promise<boolean> => {
-    const ids = new Set(rows.map((row) => row.id))
-    if (!window.confirm(`Delete ${ids.size} selected entr${ids.size === 1 ? 'y' : 'ies'}?`))
-      return false
-    try {
-      await Promise.all(
-        [...ids].map((id) => {
-          if (incomes.some((row) => row.id === id)) {
-            return window.api.dailyReports.voidIncome({ id, voidReason: 'Voided from Cashier Reports' })
-          }
-          return window.api.dailyReports.voidPayment({ id, voidReason: 'Voided from Cashier Reports' })
-        })
-      )
-      await refreshEntries()
-      return true
-    } catch {
-      return false
-    }
-  }, [incomes, refreshEntries])
+  const deleteSelectedEntries = React.useCallback(
+    async (rows: ReportRow[]): Promise<boolean> => {
+      const ids = new Set(rows.map((row) => row.id))
+      if (!window.confirm(`Delete ${ids.size} selected entr${ids.size === 1 ? 'y' : 'ies'}?`))
+        return false
+      try {
+        await Promise.all(
+          [...ids].map((id) => {
+            if (incomes.some((row) => row.id === id)) {
+              return window.api.dailyReports.voidIncome({
+                id,
+                voidReason: 'Voided from Cashier Reports'
+              })
+            }
+            return window.api.dailyReports.voidPayment({
+              id,
+              voidReason: 'Voided from Cashier Reports'
+            })
+          })
+        )
+        await refreshEntries()
+        return true
+      } catch {
+        return false
+      }
+    },
+    [incomes, refreshEntries]
+  )
 
   const saveEntry = React.useCallback(
     async (tab: (typeof reportTabs)[number], form: FormData): Promise<void> => {
+      setEntrySaveError(undefined)
       if (tab === 'Expenses') {
         try {
           await createExpense({
@@ -958,8 +1083,10 @@ export function CashierReportsContent({
             vat: String(form.get('expenses-vat') || '') as ExpenseVat,
             amountCentavos: parseAmountToCentavos(String(form.get('expenses-amount') || '0'))
           })
+          setIsEntryFormDirty(false)
           setIsEntryFormVisible(false)
         } catch {
+          setEntrySaveError('This entry could not be saved. Review the values and try again.')
           return
         }
         return
@@ -967,35 +1094,43 @@ export function CashierReportsContent({
 
       let amountCentavos: number
       try {
-        amountCentavos = parseAmountToCentavos(String(form.get(`${tab.toLowerCase()}-amount`) ?? '0'))
+        amountCentavos = parseAmountToCentavos(
+          String(form.get(`${tab.toLowerCase()}-amount`) ?? '0')
+        )
       } catch {
+        setEntrySaveError('Enter a valid amount before saving.')
         return
       }
-      if (tab === 'Income') {
-        await window.api.dailyReports.createIncome({
-          dailyReportId: reportId,
-          categoryId: 'income-category-other-income',
-          transactionDate: String(form.get('income-date') || format(new Date(), 'yyyy-MM-dd')),
-          particular: String(form.get('income-particular') || 'Other income'),
-          receiptNumber: String(form.get('income-receipt-reference-no-') || '') || null,
-          remarks: String(form.get('income-remarks') || '') || null,
-          amountCentavos
-        })
-      } else if (tab === 'Payment') {
-        const type = String(form.get('payment-type') || 'Bank Check')
-        await window.api.dailyReports.createPayment({
-          dailyReportId: reportId,
-          paymentMethodId: paymentMethodByLabel[type] ?? 'report-payment-method-other-ewallet',
-          transactionDate: String(form.get('payment-date') || format(new Date(), 'yyyy-MM-dd')),
-          referenceNumber: String(form.get('payment-reference-no-') || '') || null,
-          bankName: String(form.get('payment-bank-provider') || '') || null,
-          payerName: String(form.get('payment-account-name') || '') || null,
-          remarks: null,
-          amountCentavos
-        })
+      try {
+        if (tab === 'Income') {
+          await window.api.dailyReports.createIncome({
+            dailyReportId: reportId,
+            categoryId: 'income-category-other-income',
+            transactionDate: String(form.get('income-date') || format(new Date(), 'yyyy-MM-dd')),
+            particular: String(form.get('income-particular') || 'Other income'),
+            receiptNumber: String(form.get('income-receipt-reference-no-') || '') || null,
+            remarks: String(form.get('income-remarks') || '') || null,
+            amountCentavos
+          })
+        } else if (tab === 'Payment') {
+          const type = String(form.get('payment-type') || 'Bank Check')
+          await window.api.dailyReports.createPayment({
+            dailyReportId: reportId,
+            paymentMethodId: paymentMethodByLabel[type] ?? 'report-payment-method-other-ewallet',
+            transactionDate: String(form.get('payment-date') || format(new Date(), 'yyyy-MM-dd')),
+            referenceNumber: String(form.get('payment-reference-no-') || '') || null,
+            bankName: String(form.get('payment-bank-provider') || '') || null,
+            payerName: String(form.get('payment-account-name') || '') || null,
+            remarks: null,
+            amountCentavos
+          })
+        }
+        await refreshEntries()
+        setIsEntryFormDirty(false)
+        setIsEntryFormVisible(false)
+      } catch {
+        setEntrySaveError('This entry could not be saved. Review the values and try again.')
       }
-      await refreshEntries()
-      setIsEntryFormVisible(false)
     },
     [createExpense, refreshEntries, reportId]
   )
@@ -1011,22 +1146,16 @@ export function CashierReportsContent({
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
       <div
         className={
-          isMobile
+          isSummaryCompact
             ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-1 gap-3'
             : showRightPanel
-              ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(260px,302px)] gap-3 max-[900px]:grid-cols-[minmax(160px,190px)_minmax(0,1fr)]'
+              ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(260px,302px)] gap-3'
               : 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3'
         }
       >
-        {!isMobile && (
+        {!isSummaryCompact && (
           <Card className="flex min-h-0 min-w-0 flex-col">
-            <ReportSummary
-              expenseTotals={expenseQuery.expenseTotals}
-              incomes={incomes}
-              payments={payments}
-              installmentHistory={installmentHistoryData}
-              alwaysDark={summaryAlwaysDark}
-            />
+            <ReportSummary alwaysDark={summaryAlwaysDark} refreshKey={summaryRefreshKey} />
           </Card>
         )}
         <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
@@ -1035,6 +1164,15 @@ export function CashierReportsContent({
               value={activeTab}
               onValueChange={(value) => {
                 const nextTab = value as (typeof reportTabs)[number]
+                if (
+                  nextTab !== activeTab &&
+                  isEntryFormVisible &&
+                  isEntryFormDirty &&
+                  !window.confirm('Discard unsaved entry changes?')
+                ) {
+                  return
+                }
+                setIsEntryFormDirty(false)
                 setActiveTab(nextTab)
                 if (nextTab === 'Activity') setIsEntryFormVisible(false)
               }}
@@ -1079,6 +1217,9 @@ export function CashierReportsContent({
                       onDelete={deleteEntry}
                       onDeleteSelected={deleteSelectedEntries}
                       onEdit={editAmount}
+                      incomeLoadState={incomeLoadState}
+                      paymentLoadState={paymentLoadState}
+                      onRetryEntries={() => void refreshEntries()}
                     />
                   </TabsContent>
                 ))}
@@ -1088,11 +1229,19 @@ export function CashierReportsContent({
         </Card>
         {showRightPanel && !isHistoryTab && (
           <Card className="flex min-h-0 min-w-0 flex-col">
-            <EntryFormPanel tab={activeTab} onSave={(form) => saveEntry(activeTab, form)} />
+            <EntryFormPanel
+              tab={activeTab}
+              onSave={(form) => saveEntry(activeTab, form)}
+              onDirtyChange={(isDirty) => {
+                setIsEntryFormDirty(isDirty)
+                if (isDirty) setEntrySaveError(undefined)
+              }}
+              saveError={entrySaveError}
+            />
           </Card>
         )}
       </div>
-      {isMobile && (
+      {isSummaryCompact && (
         <>
           <Button
             type="button"
@@ -1108,19 +1257,13 @@ export function CashierReportsContent({
                 <SheetTitle>Today&apos;s Summary</SheetTitle>
                 <SheetDescription>Daily cashier report totals and cash variance.</SheetDescription>
               </SheetHeader>
-              <ReportSummary
-                expenseTotals={expenseQuery.expenseTotals}
-                incomes={incomes}
-                payments={payments}
-                installmentHistory={installmentHistoryData}
-                alwaysDark={summaryAlwaysDark}
-              />
+              <ReportSummary alwaysDark={summaryAlwaysDark} refreshKey={summaryRefreshKey} />
             </SheetContent>
           </Sheet>
         </>
       )}
-      {isMobile && !isHistoryTab && (
-        <Sheet open={isEntryFormVisible} onOpenChange={setIsEntryFormVisible}>
+      {isEntryFormCompact && !isHistoryTab && (
+        <Sheet open={isEntryFormVisible} onOpenChange={setEntryFormOpen}>
           <SheetContent side="right" className="w-[min(92vw,26rem)] p-0">
             <SheetHeader>
               <SheetTitle>{activeTab} Entry</SheetTitle>
@@ -1128,7 +1271,15 @@ export function CashierReportsContent({
                 Add a cashier report entry for {activeTab.toLowerCase()}.
               </SheetDescription>
             </SheetHeader>
-            <EntryFormPanel tab={activeTab} onSave={(form) => saveEntry(activeTab, form)} />
+            <EntryFormPanel
+              tab={activeTab}
+              onSave={(form) => saveEntry(activeTab, form)}
+              onDirtyChange={(isDirty) => {
+                setIsEntryFormDirty(isDirty)
+                if (isDirty) setEntrySaveError(undefined)
+              }}
+              saveError={entrySaveError}
+            />
           </SheetContent>
         </Sheet>
       )}

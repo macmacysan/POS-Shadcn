@@ -38,6 +38,7 @@ const api: ExpensesApi &
   dailyReports: {
     resolveActive: (request) => ipcRenderer.invoke(dailyReportIpcChannels.resolveActive, request),
     getSnapshot: (request) => ipcRenderer.invoke(dailyReportIpcChannels.getSnapshot, request),
+    updateSummary: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateSummary, request),
     listIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listIncome, request),
     createIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.createIncome, request),
     updateIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateIncome, request),

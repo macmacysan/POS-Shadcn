@@ -22,6 +22,8 @@ export class DashboardRepository {
                                  WHERE daily_report_id = dr.id), 0)
                     - COALESCE((SELECT SUM(amount_centavos) FROM cash_out_entries
                                  WHERE daily_report_id = dr.id AND status = 'POSTED'), 0)
+                    - COALESCE((SELECT SUM(amount_centavos) FROM expenses
+                                 WHERE report_id = dr.id AND status = 'POSTED'), 0)
                     AS expected_cash_centavos,
                   COALESCE((SELECT SUM(d.value_centavos * c.quantity)
                               FROM daily_report_cash_counts c

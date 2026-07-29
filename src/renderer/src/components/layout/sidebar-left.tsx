@@ -1,15 +1,13 @@
 import * as React from 'react'
 import {
   BarChart3Icon,
-  CircleHelpIcon,
   ClipboardListIcon,
   HouseIcon,
   LayoutDashboardIcon,
   MoonIcon,
   Settings2Icon,
   StoreIcon,
-  SunIcon,
-  UsersIcon
+  SunIcon
 } from 'lucide-react'
 
 import { NavMain } from '@/components/layout/navigation/nav-main'
@@ -62,20 +60,13 @@ const data = {
           title: 'Finance',
           url: '#',
           icon: <BarChart3Icon />,
-          children: [
-            { title: 'Dashboard', url: '#' },
-            { title: 'Accounts', url: '#' }
-          ]
+          children: [{ title: 'Accounts', url: '#' }]
         }
       ]
     }
   ],
   navSecondary: [
-    { title: 'Reports', url: '#', icon: <BarChart3Icon /> },
-    { title: 'Branches', url: '#', icon: <StoreIcon /> },
-    { title: 'Cashiers', url: '#', icon: <UsersIcon /> },
     { title: 'Settings', url: '#', icon: <Settings2Icon /> },
-    { title: 'Help', url: '#', icon: <CircleHelpIcon /> },
     { title: 'Dark mode', url: '#', icon: <MoonIcon /> }
   ]
 }

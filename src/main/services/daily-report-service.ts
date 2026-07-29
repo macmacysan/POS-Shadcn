@@ -5,6 +5,7 @@ import type {
   DailyReportPaymentUpdateRequest,
   DailyReportPaymentVoidRequest,
   DailyReportResolveActiveRequest,
+  DailyReportSummaryUpdateRequest,
   DailyReportSnapshotRequest,
   IncomeCreateRequest,
   IncomeListRequest,
@@ -35,6 +36,11 @@ export class DailyReportService {
   getSnapshot(request: DailyReportSnapshotRequest) {
     this.requireReportAccess(request.dailyReportId, this.auth.requireSession())
     return this.repository.snapshot(request.dailyReportId)
+  }
+
+  updateSummary(request: DailyReportSummaryUpdateRequest) {
+    this.requireReportAccess(request.dailyReportId, this.auth.requireSession())
+    return this.repository.updateSummary(request)
   }
 
   listIncome(request: IncomeListRequest) {

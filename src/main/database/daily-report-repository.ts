@@ -12,6 +12,7 @@ import type {
   DailyReportPaymentVoidRequest,
   DailyReportRecord,
   DailyReportResolveActiveRequest,
+  DailyReportSummaryUpdateRequest,
   DailyReportSnapshotResponse,
   IncomeCreateRequest,
   IncomeEntryRecord,
@@ -115,6 +116,20 @@ type CashCountRow = {
   quantity: number
   created_at: string
   updated_at: string
+}
+
+type ReferenceRow = {
+  id: string
+  name: string
+  sort_order: number
+}
+
+type DeductionTypeRow = Pick<ReferenceRow, 'id' | 'name'>
+
+type CashDenominationReferenceRow = {
+  id: string
+  value_centavos: number
+  sort_order: number
 }
 
 function reportRecord(row: DailyReportRow): DailyReportRecord {
@@ -452,6 +467,83 @@ export class DailyReportRepository {
     return paymentRecord(row)
   }
 
+  updateSummary(request: DailyReportSummaryUpdateRequest): DailyReportSnapshotResponse {
+    const update = this.db.transaction(() => {
+      const now = new Date().toISOString()
+      const report = this.db
+        .prepare(
+          `UPDATE daily_reports
+              SET opening_cash_centavos = ?, cash_remitted_centavos = ?, updated_at = ?
+            WHERE id = ?
+          RETURNING id`
+        )
+        .get(
+          request.openingCashCentavos,
+          request.cashRemittedCentavos,
+          now,
+          request.dailyReportId
+        ) as { id: string } | undefined
+      if (!report) throw new AppError('NOT_FOUND', 'Daily report was not found.')
+
+      const upsertReceipt = this.db.prepare(
+        `INSERT INTO daily_receipt_totals (
+          id, daily_report_id, receipt_type_id, quantity, amount_centavos, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(daily_report_id, receipt_type_id) DO UPDATE SET
+          quantity = excluded.quantity, amount_centavos = excluded.amount_centavos, updated_at = excluded.updated_at`
+      )
+      for (const item of request.receiptTotals) {
+        upsertReceipt.run(
+          randomUUID(),
+          request.dailyReportId,
+          item.receiptTypeId,
+          item.quantity,
+          item.amountCentavos,
+          now,
+          now
+        )
+      }
+
+      const upsertDeduction = this.db.prepare(
+        `INSERT INTO daily_report_deductions (
+          id, daily_report_id, deduction_type_id, amount_centavos, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(daily_report_id, deduction_type_id) DO UPDATE SET
+          amount_centavos = excluded.amount_centavos, updated_at = excluded.updated_at`
+      )
+      for (const item of request.deductions) {
+        upsertDeduction.run(
+          randomUUID(),
+          request.dailyReportId,
+          item.deductionTypeId,
+          item.amountCentavos,
+          now,
+          now
+        )
+      }
+
+      const upsertCashCount = this.db.prepare(
+        `INSERT INTO daily_report_cash_counts (
+          id, daily_report_id, denomination_id, quantity, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(daily_report_id, denomination_id) DO UPDATE SET
+          quantity = excluded.quantity, updated_at = excluded.updated_at`
+      )
+      for (const item of request.cashCounts) {
+        upsertCashCount.run(
+          randomUUID(),
+          request.dailyReportId,
+          item.denominationId,
+          item.quantity,
+          now,
+          now
+        )
+      }
+    })
+    update()
+    return this.snapshot(request.dailyReportId)
+  }
+
   snapshot(dailyReportId: string): DailyReportSnapshotResponse {
     const report = this.findById(dailyReportId)
     if (!report) throw new AppError('NOT_FOUND', 'Daily report was not found.')
@@ -472,6 +564,27 @@ export class DailyReportRepository {
     const cashCounts = (this.db
       .prepare('SELECT * FROM daily_report_cash_counts WHERE daily_report_id = ? ORDER BY denomination_id')
       .all(dailyReportId) as CashCountRow[]).map(cashCountRecord)
+    const receiptTypes = (this.db
+      .prepare('SELECT id, name, sort_order FROM receipt_types WHERE is_active = 1 ORDER BY sort_order, name')
+      .all() as ReferenceRow[]).map((row) => ({
+      id: row.id,
+      name: row.name,
+      sortOrder: row.sort_order
+    }))
+    const deductionTypes = (this.db
+      .prepare('SELECT id, name FROM deduction_types WHERE is_active = 1 ORDER BY name')
+      .all() as DeductionTypeRow[]).map((row, index) => ({
+      id: row.id,
+      name: row.name,
+      sortOrder: index
+    }))
+    const cashDenominations = (this.db
+      .prepare('SELECT id, value_centavos, sort_order FROM cash_denominations WHERE is_active = 1 ORDER BY sort_order')
+      .all() as CashDenominationReferenceRow[]).map((row) => ({
+      id: row.id,
+      valueCentavos: row.value_centavos,
+      sortOrder: row.sort_order
+    }))
     const totals = this.db
       .prepare(
         `SELECT
@@ -479,13 +592,15 @@ export class DailyReportRepository {
           COALESCE((SELECT SUM(i.amount_centavos) FROM income_entries i WHERE i.daily_report_id = ? AND i.status = 'POSTED'), 0) AS income_centavos,
           COALESCE((SELECT SUM(amount_centavos) FROM daily_report_deductions WHERE daily_report_id = ?), 0) AS deduction_centavos,
           COALESCE((SELECT SUM(amount_centavos) FROM cash_out_entries WHERE daily_report_id = ? AND status = 'POSTED'), 0) AS cash_out_centavos,
+          COALESCE((SELECT SUM(amount_centavos) FROM expenses WHERE report_id = ? AND status = 'POSTED'), 0) AS legacy_expense_cash_out_centavos,
           COALESCE((SELECT SUM(d.value_centavos * c.quantity) FROM daily_report_cash_counts c JOIN cash_denominations d ON d.id = c.denomination_id WHERE c.daily_report_id = ?), 0) AS physical_cash_centavos`
       )
-      .get(dailyReportId, dailyReportId, dailyReportId, dailyReportId, dailyReportId) as {
+      .get(dailyReportId, dailyReportId, dailyReportId, dailyReportId, dailyReportId, dailyReportId) as {
       receipt_centavos: number
       income_centavos: number
       deduction_centavos: number
       cash_out_centavos: number
+      legacy_expense_cash_out_centavos: number
       physical_cash_centavos: number
     }
     const expectedCashCentavos =
@@ -493,7 +608,8 @@ export class DailyReportRepository {
       totals.receipt_centavos +
       totals.income_centavos -
       totals.deduction_centavos -
-      totals.cash_out_centavos
+      totals.cash_out_centavos -
+      totals.legacy_expense_cash_out_centavos
     return {
       report,
       receiptTotals,
@@ -502,6 +618,10 @@ export class DailyReportRepository {
       cashOutEntries,
       deductions,
       cashCounts,
+      receiptTypes,
+      deductionTypes,
+      cashDenominations,
+      legacyExpenseCashOutCentavos: totals.legacy_expense_cash_out_centavos,
       expectedCashCentavos,
       physicalCashCentavos: totals.physical_cash_centavos,
       cashVarianceCentavos: totals.physical_cash_centavos - expectedCashCentavos

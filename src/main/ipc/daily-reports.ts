@@ -8,6 +8,7 @@ import {
   dailyReportPaymentVoidRequestSchema,
   dailyReportResolveActiveRequestSchema,
   dailyReportSnapshotRequestSchema,
+  dailyReportSummaryUpdateRequestSchema,
   incomeCreateRequestSchema,
   incomeListRequestSchema,
   incomeUpdateRequestSchema,
@@ -32,6 +33,9 @@ export function registerDailyReportIpc(service: DailyReportService): void {
   )
   handle(dailyReportIpcChannels.getSnapshot, dailyReportSnapshotRequestSchema.parse, (input) =>
     service.getSnapshot(input)
+  )
+  handle(dailyReportIpcChannels.updateSummary, dailyReportSummaryUpdateRequestSchema.parse, (input) =>
+    service.updateSummary(input)
   )
   handle(dailyReportIpcChannels.listIncome, incomeListRequestSchema.parse, (input) =>
     service.listIncome(input)

@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { Plus, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -11,73 +10,30 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle
+} from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useActiveReport } from '@/contexts/active-report-context'
 import { cn } from '@/lib/utils'
-import { formatPhilippinePeso } from '@/lib/currency'
-import type { InstallmentHistoryRecord } from '@/lib/installment-history'
-import { amountFromCentavos, type ExpenseSummaryTotals } from '@/../../shared/contracts'
+import { formatCentavos } from '@/lib/currency'
+import type { DailyReportSnapshotResponse } from '@/../../shared/contracts'
 
-export type SummaryExpense = { type: string; amount: number }
-export type SummaryIncome = { receiptType?: string; amount: number }
-export type SummaryPayment = { type: string; amount: number; isDownPayment?: boolean }
+type OpenDialog = 'cash-count' | null
+type Snapshot = DailyReportSnapshotResponse
 
-type ReceiptValue = { quantity: number; amount: number }
-type DeductionValues = Record<string, number>
-type CashDenominations = Record<string, number>
-type OpenDialog = 'deductions' | 'cash' | null
+const money = formatCentavos
 
-type SidebarOptions = {
-  receiptTypes: string[]
-  customReceiptTypes: string[]
-  receiptValues: Record<string, ReceiptValue>
-  deductions: boolean
-  deductionValues: DeductionValues
-  cashAmount: boolean
-  cashDenominations: CashDenominations
-  cashRemitted: boolean
-}
-
-type ReportSummaryProps = {
-  expenseTotals: ExpenseSummaryTotals
-  incomes: SummaryIncome[]
-  payments: SummaryPayment[]
-  installmentHistory: InstallmentHistoryRecord[]
-  alwaysDark?: boolean
-}
-
-const defaultReceiptTypes = ['Sales Invoice', 'SI Trading', 'Delivery Receipt', 'Pawnshop']
-const deductionTypes = ['SSS', 'PhilHealth', 'Pag-IBIG', 'Withholding Tax']
-const cashDenominationValues = ['0.25', '1', '5', '10', '20', '50', '100', '200', '500', '1000']
-const transferTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
-const optionsStorageKey = 'cashier-report-summary-options'
-const openingCashStorageKey = 'cashier-report-opening-cash'
-
-const money = formatPhilippinePeso
-
-const amountValue = (value: string): number => {
-  const parsed = Number(value.replace(/[^\d.-]/g, ''))
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
-}
-
-function useStoredNumber(key: string): [number, (value: number) => void] {
-  const [value, setValue] = React.useState(() => Number(localStorage.getItem(key) ?? 0) || 0)
-  const update = React.useCallback(
-    (nextValue: number) => {
-      setValue(nextValue)
-      localStorage.setItem(key, String(nextValue))
-    },
-    [key]
-  )
-  return [value, update]
+function amountToCentavos(value: string): number {
+  const normalized = value.trim()
+  if (!/^\d*(?:\.\d{0,2})?$/.test(normalized) || !normalized) return 0
+  return Math.round(Number(normalized) * 100)
 }
 
 function AmountInput({
@@ -91,6 +47,13 @@ function AmountInput({
   onChange: (value: number) => void
   className?: string
 }): React.JSX.Element {
+  const [text, setText] = React.useState(() => (value ? String(value / 100) : ''))
+  const [isFocused, setIsFocused] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!isFocused) setText(value ? String(value / 100) : '')
+  }, [isFocused, value])
+
   return (
     <div className={cn('flex items-center gap-1.5', className)}>
       <span className="text-xs text-muted-foreground">₱</span>
@@ -98,8 +61,14 @@ function AmountInput({
         aria-label={label}
         className="h-7 text-right tabular-nums"
         inputMode="decimal"
-        value={value || ''}
-        onChange={(event) => onChange(amountValue(event.target.value))}
+        value={text}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        onChange={(event) => {
+          const next = event.target.value
+          setText(next)
+          onChange(amountToCentavos(next))
+        }}
       />
     </div>
   )
@@ -109,16 +78,14 @@ function Section({
   label,
   children
 }: {
-  label?: string
+  label: string
   children: React.ReactNode
 }): React.JSX.Element {
   return (
     <section className="border-b border-border/60 py-2.5 last:border-b-0">
-      {label && (
-        <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
-          {label}
-        </p>
-      )}
+      <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+        {label}
+      </p>
       <div className="flex flex-col gap-1">{children}</div>
     </section>
   )
@@ -128,27 +95,19 @@ function SummaryRow({
   label,
   value,
   emphasis = false,
-  onClick
+  className
 }: {
   label: string
   value: number
   emphasis?: boolean
-  onClick?: () => void
+  className?: string
 }): React.JSX.Element {
   return (
-    <button
-      type="button"
-      className={cn(
-        'flex min-h-7 w-full items-center justify-between gap-3 rounded-md text-left text-xs',
-        onClick && 'cursor-pointer px-1.5 transition-colors hover:bg-muted/70'
-      )}
-      onClick={onClick}
-      disabled={!onClick}
-    >
+    <div className={cn('flex min-h-7 items-center justify-between gap-3 text-xs', className)}>
       <span
         className={cn(
-          'min-w-0 truncate',
-          emphasis ? 'font-light text-foreground' : 'text-muted-foreground'
+          'min-w-0 truncate text-muted-foreground',
+          emphasis && 'font-medium text-foreground'
         )}
       >
         {label}
@@ -156,285 +115,229 @@ function SummaryRow({
       <span className={cn('shrink-0 tabular-nums', emphasis && 'font-semibold text-foreground')}>
         {money(value)}
       </span>
-    </button>
-  )
-}
-
-function TotalRow({
-  label,
-  value,
-  className
-}: {
-  label: string
-  value: number
-  className?: string
-}): React.JSX.Element {
-  return (
-    <div
-      className={cn(
-        'mt-1 flex items-center justify-between border-t border-border/60 pt-2 text-xs',
-        className
-      )}
-    >
-      <span className="font-light text-foreground">{label}</span>
-      <span className="font-semibold tabular-nums text-foreground">{money(value)}</span>
     </div>
   )
 }
 
-function ReceiptRow({
-  type,
-  value,
-  onChange
-}: {
-  type: string
-  value: ReceiptValue
-  onChange: (value: ReceiptValue) => void
-}): React.JSX.Element {
-  const isEmpty = value.amount === 0
-
+function loadingSummary(): React.JSX.Element {
   return (
-    <div
-      className={cn(
-        'grid grid-cols-[minmax(0,1fr)_4rem_5.75rem] items-center gap-2 text-xs',
-        isEmpty && 'text-muted-foreground'
-      )}
-    >
-      <span className="min-w-0 truncate text-muted-foreground">{type}</span>
-      <Input
-        aria-label={`${type} quantity`}
-        className="h-7 px-1.5 text-right tabular-nums"
-        inputMode="numeric"
-        placeholder="0"
-        value={value.quantity || ''}
-        onChange={(event) =>
-          onChange({ ...value, quantity: Math.max(0, Math.floor(amountValue(event.target.value))) })
-        }
-      />
-      <AmountInput
-        label={`${type} amount`}
-        value={value.amount}
-        onChange={(amount) => onChange({ ...value, amount })}
-      />
-    </div>
+    <aside className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+      <Skeleton className="h-10 w-full" />
+      <Skeleton className="h-36 w-full" />
+      <Skeleton className="h-24 w-full" />
+    </aside>
   )
 }
 
-function initialOptions(): SidebarOptions {
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem(optionsStorageKey) ?? '{}'
-    ) as Partial<SidebarOptions>
-    return {
-      receiptTypes: saved.receiptTypes ?? [],
-      customReceiptTypes: saved.customReceiptTypes ?? [],
-      receiptValues: saved.receiptValues ?? {},
-      deductions: saved.deductions ?? false,
-      deductionValues: saved.deductionValues ?? {},
-      cashAmount: saved.cashAmount ?? false,
-      cashDenominations: saved.cashDenominations ?? {},
-      cashRemitted: saved.cashRemitted ?? false
-    }
-  } catch {
-    return {
-      receiptTypes: [],
-      customReceiptTypes: [],
-      receiptValues: {},
-      deductions: false,
-      deductionValues: {},
-      cashAmount: false,
-      cashDenominations: {},
-      cashRemitted: false
-    }
+function receiptTotal(snapshot: Snapshot, receiptTypeId: string) {
+  return snapshot.receiptTotals.find((item) => item.receiptTypeId === receiptTypeId)
+}
+
+function deduction(snapshot: Snapshot, deductionTypeId: string) {
+  return snapshot.deductions.find((item) => item.deductionTypeId === deductionTypeId)
+}
+
+function cashCount(snapshot: Snapshot, denominationId: string) {
+  return snapshot.cashCounts.find((item) => item.denominationId === denominationId)
+}
+
+function updateReceipt(
+  snapshot: Snapshot,
+  receiptTypeId: string,
+  patch: Partial<{ quantity: number; amountCentavos: number }>
+): Snapshot {
+  const existing = receiptTotal(snapshot, receiptTypeId)
+  const now = snapshot.report.updatedAt
+  const next = {
+    id: existing?.id ?? `draft-receipt-${receiptTypeId}`,
+    dailyReportId: snapshot.report.id,
+    receiptTypeId,
+    quantity: patch.quantity ?? existing?.quantity ?? 0,
+    amountCentavos: patch.amountCentavos ?? existing?.amountCentavos ?? 0,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now
+  }
+  return {
+    ...snapshot,
+    receiptTotals: existing
+      ? snapshot.receiptTotals.map((item) => (item.receiptTypeId === receiptTypeId ? next : item))
+      : [...snapshot.receiptTotals, next]
+  }
+}
+
+function updateDeduction(
+  snapshot: Snapshot,
+  deductionTypeId: string,
+  amountCentavos: number
+): Snapshot {
+  const existing = deduction(snapshot, deductionTypeId)
+  const now = snapshot.report.updatedAt
+  const next = {
+    id: existing?.id ?? `draft-deduction-${deductionTypeId}`,
+    dailyReportId: snapshot.report.id,
+    deductionTypeId,
+    amountCentavos,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now
+  }
+  return {
+    ...snapshot,
+    deductions: existing
+      ? snapshot.deductions.map((item) => (item.deductionTypeId === deductionTypeId ? next : item))
+      : [...snapshot.deductions, next]
+  }
+}
+
+function updateCashCount(snapshot: Snapshot, denominationId: string, quantity: number): Snapshot {
+  const existing = cashCount(snapshot, denominationId)
+  const now = snapshot.report.updatedAt
+  const next = {
+    id: existing?.id ?? `draft-cash-count-${denominationId}`,
+    dailyReportId: snapshot.report.id,
+    denominationId,
+    quantity,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now
+  }
+  return {
+    ...snapshot,
+    cashCounts: existing
+      ? snapshot.cashCounts.map((item) => (item.denominationId === denominationId ? next : item))
+      : [...snapshot.cashCounts, next]
+  }
+}
+
+function summaryRequest(snapshot: Snapshot) {
+  return {
+    dailyReportId: snapshot.report.id,
+    openingCashCentavos: snapshot.report.openingCashCentavos,
+    cashRemittedCentavos: snapshot.report.cashRemittedCentavos,
+    receiptTotals: snapshot.receiptTotals.map((item) => ({
+      receiptTypeId: item.receiptTypeId,
+      quantity: item.quantity,
+      amountCentavos: item.amountCentavos
+    })),
+    deductions: snapshot.deductions.map((item) => ({
+      deductionTypeId: item.deductionTypeId,
+      amountCentavos: item.amountCentavos
+    })),
+    cashCounts: snapshot.cashCounts.map((item) => ({
+      denominationId: item.denominationId,
+      quantity: item.quantity
+    }))
   }
 }
 
 export const ReportSummary = React.memo(function ReportSummary({
-  expenseTotals,
-  incomes,
-  payments,
-  installmentHistory,
-  alwaysDark = false
-}: ReportSummaryProps): React.JSX.Element {
-  const [options, setOptions] = React.useState<SidebarOptions>(initialOptions)
-  const [openingCash, setOpeningCash] = useStoredNumber(openingCashStorageKey)
-  const [cashRemitted, setCashRemitted] = React.useState(0)
+  alwaysDark = false,
+  refreshKey
+}: {
+  alwaysDark?: boolean
+  refreshKey?: string
+}): React.JSX.Element {
+  const { reportId } = useActiveReport()
+  const [snapshot, setSnapshot] = React.useState<Snapshot>()
+  const [error, setError] = React.useState<string>()
   const [openDialog, setOpenDialog] = React.useState<OpenDialog>(null)
-  const [customType, setCustomType] = React.useState('')
+  const [isSaving, setIsSaving] = React.useState(false)
+  const [hasSaved, setHasSaved] = React.useState(false)
+  const [saveError, setSaveError] = React.useState<string>()
+  const snapshotRef = React.useRef<Snapshot | undefined>(undefined)
+  const savingRef = React.useRef(false)
+  const pendingRef = React.useRef(false)
+  const snapshotVersionRef = React.useRef(0)
+
+  const load = React.useCallback(async (): Promise<void> => {
+    if (pendingRef.current || savingRef.current) return
+    const snapshotVersion = ++snapshotVersionRef.current
+    setError(undefined)
+    try {
+      const next = await window.api.dailyReports.getSnapshot({ dailyReportId: reportId })
+      if (snapshotVersion !== snapshotVersionRef.current) return
+      snapshotRef.current = next
+      setSnapshot(next)
+      setHasSaved(false)
+      setSaveError(undefined)
+    } catch {
+      if (snapshotVersion !== snapshotVersionRef.current) return
+      setError('Today’s report summary could not be loaded.')
+    }
+  }, [reportId])
 
   React.useEffect(() => {
-    localStorage.setItem(optionsStorageKey, JSON.stringify(options))
-  }, [options])
+    void load()
+  }, [load, refreshKey])
 
-  const allReceiptTypes = [...defaultReceiptTypes, ...options.customReceiptTypes]
-  const updateOption = (key: keyof SidebarOptions, value: boolean | string): void => {
-    setOptions((current) => {
-      if (key === 'receiptTypes' && typeof value === 'string') {
-        return {
-          ...current,
-          receiptTypes: current.receiptTypes.includes(value)
-            ? current.receiptTypes.filter((item) => item !== value)
-            : [...current.receiptTypes, value],
-          receiptValues: current.receiptValues[value]
-            ? current.receiptValues
-            : { ...current.receiptValues, [value]: { quantity: 0, amount: 0 } }
+  const flush = React.useCallback(async (): Promise<void> => {
+    if (savingRef.current) return
+    savingRef.current = true
+    setIsSaving(true)
+    try {
+      while (pendingRef.current && snapshotRef.current) {
+        pendingRef.current = false
+        const saved = await window.api.dailyReports.updateSummary(
+          summaryRequest(snapshotRef.current)
+        )
+        if (!pendingRef.current) {
+          snapshotVersionRef.current += 1
+          snapshotRef.current = saved
+          setSnapshot(saved)
+          setHasSaved(true)
         }
       }
-      return { ...current, [key]: value }
-    })
-  }
-
-  const addCustomReceiptType = (): void => {
-    const nextType = customType.trim()
-    if (!nextType || allReceiptTypes.some((type) => type.toLowerCase() === nextType.toLowerCase()))
-      return
-    setOptions((current) => ({
-      ...current,
-      customReceiptTypes: [...current.customReceiptTypes, nextType],
-      receiptTypes: [...current.receiptTypes, nextType],
-      receiptValues: { ...current.receiptValues, [nextType]: { quantity: 0, amount: 0 } }
-    }))
-    setCustomType('')
-  }
-
-  const removeCustomReceiptType = (type: string): void => {
-    setOptions((current) => ({
-      ...current,
-      customReceiptTypes: current.customReceiptTypes.filter((item) => item !== type),
-      receiptTypes: current.receiptTypes.filter((item) => item !== type),
-      receiptValues: Object.fromEntries(
-        Object.entries(current.receiptValues).filter(([key]) => key !== type)
-      )
-    }))
-  }
-
-  const updateReceipt = (type: string, value: ReceiptValue): void =>
-    setOptions((current) => ({
-      ...current,
-      receiptValues: { ...current.receiptValues, [type]: value }
-    }))
-
-  const updateDeduction = (type: string, value: number): void =>
-    setOptions((current) => ({
-      ...current,
-      deductionValues: { ...current.deductionValues, [type]: value }
-    }))
-
-  const updateDenomination = (denomination: string, quantity: number): void =>
-    setOptions((current) => ({
-      ...current,
-      cashDenominations: { ...current.cashDenominations, [denomination]: quantity }
-    }))
-
-  const {
-    receiptRows,
-    collections,
-    otherIncome,
-    finance,
-    totalReceipts,
-    expensesTotal,
-    deductions,
-    drawings,
-    purchases,
-    receivables,
-    cashOut,
-    transferRows,
-    countedCash,
-    expectedCash,
-    variance,
-    endingCash
-  } = React.useMemo(() => {
-    const receiptRows = options.receiptTypes.map((type) => ({
-      type,
-      ...(options.receiptValues[type] ?? { quantity: 0, amount: 0 })
-    }))
-    const cashSales = receiptRows.reduce((sum, row) => sum + row.amount, 0)
-    const collections = installmentHistory.reduce(
-      (sum, record) =>
-        sum +
-        (record.source === 'in-house' && record.action !== 'deleted'
-          ? (record.details.payment?.amountPaid ?? 0)
-          : 0),
-      0
-    )
-    const otherIncome = incomes.reduce((sum, row) => sum + row.amount, 0)
-    const finance = payments.reduce(
-      (sum, payment) => sum + (payment.isDownPayment ? payment.amount : 0),
-      0
-    )
-    const expenseSummary = {
-      expensesTotal: amountFromCentavos(expenseTotals.companyExpensesCentavos),
-      drawings: amountFromCentavos(expenseTotals.drawingsCentavos),
-      purchases: amountFromCentavos(expenseTotals.purchasesCentavos),
-      receivables: amountFromCentavos(expenseTotals.receivablesCentavos)
+    } catch {
+      pendingRef.current = true
+      setSaveError('Changes could not be saved. Review the values and try again.')
+    } finally {
+      savingRef.current = false
+      setIsSaving(false)
     }
-    const deductions = deductionTypes.reduce(
-      (sum, type) => sum + (options.deductionValues[type] ?? 0),
-      0
-    )
-    const transferRows = transferTypes.map((type) => ({
-      type,
-      amount: payments.reduce(
-        (sum, payment) => sum + (payment.type === type ? payment.amount : 0),
-        0
-      )
-    }))
-    const nonCash = transferRows.reduce((sum, row) => sum + row.amount, 0)
-    const cashOut =
-      expenseSummary.expensesTotal +
-      deductions +
-      expenseSummary.drawings +
-      expenseSummary.purchases +
-      expenseSummary.receivables
-    const totalReceipts = cashSales + collections + otherIncome + finance
-    const countedCash = cashDenominationValues.reduce(
-      (sum, denomination) =>
-        sum + Number(denomination) * (options.cashDenominations[denomination] ?? 0),
-      0
-    )
-    const expectedCash = openingCash + totalReceipts - cashOut - nonCash
-    const variance = countedCash - expectedCash
+  }, [])
 
-    return {
-      receiptRows,
-      collections,
-      otherIncome,
-      finance,
-      totalReceipts,
-      ...expenseSummary,
-      deductions,
-      cashOut,
-      transferRows,
-      countedCash,
-      expectedCash,
-      variance,
-      endingCash: expectedCash - cashRemitted
-    }
-  }, [cashRemitted, expenseTotals, incomes, installmentHistory, openingCash, options, payments])
+  const save = React.useCallback(
+    (next: Snapshot): void => {
+      snapshotVersionRef.current += 1
+      snapshotRef.current = next
+      setSnapshot(next)
+      setHasSaved(false)
+      setSaveError(undefined)
+      pendingRef.current = true
+      void flush()
+    },
+    [flush]
+  )
 
-  const visibleCashInRows = [
-    { label: 'Collections', value: collections },
-    { label: 'Other Income', value: otherIncome },
-    { label: 'Finance', value: finance },
-    { label: 'Total Receipts', value: totalReceipts, emphasis: true }
-  ].filter((row) => row.value !== 0)
-  const visibleCashOutRows = [
-    { label: 'Expenses', value: expensesTotal },
-    ...(options.deductions && deductions !== 0
-      ? [
-          {
-            label: 'Deductions',
-            value: deductions,
-            onClick: () => setOpenDialog('deductions' as const)
-          }
-        ]
-      : []),
-    { label: 'Drawings', value: drawings },
-    { label: 'Purchases', value: purchases },
-    { label: 'Receivables', value: receivables },
-    { label: 'Cash Out', value: cashOut, emphasis: true }
-  ].filter((row) => row.value !== 0)
-  const visibleTransferRows = transferRows.filter((row) => row.amount !== 0)
+  if (!snapshot && !error) return loadingSummary()
+  if (!snapshot) {
+    return (
+      <aside className={cn('flex min-h-0 flex-1 flex-col p-3', alwaysDark && 'dark')}>
+        <Empty className="m-auto border-0">
+          <EmptyHeader>
+            <EmptyTitle>Summary unavailable</EmptyTitle>
+            <EmptyDescription>{error}</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button type="button" variant="outline" size="sm" onClick={() => void load()}>
+              Retry
+            </Button>
+          </EmptyContent>
+        </Empty>
+      </aside>
+    )
+  }
+
+  const incomeCentavos = snapshot.incomeEntries
+    .filter((item) => item.status === 'POSTED')
+    .reduce((total, item) => total + item.amountCentavos, 0)
+  const deductionCentavos = snapshot.deductions.reduce(
+    (total, item) => total + item.amountCentavos,
+    0
+  )
+  const cashOutEntriesCentavos = snapshot.cashOutEntries
+    .filter((item) => item.status === 'POSTED')
+    .reduce((total, item) => total + item.amountCentavos, 0)
+  const cashOutCentavos = snapshot.legacyExpenseCashOutCentavos + cashOutEntriesCentavos
+  const variance = snapshot.cashVarianceCentavos
 
   return (
     <>
@@ -446,307 +349,241 @@ export const ReportSummary = React.memo(function ReportSummary({
       >
         <header className="flex shrink-0 items-center justify-between border-b border-border bg-muted/55 px-3 py-2.5">
           <div className="min-w-0">
-            <p className="truncate text-[10px] font-light uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Daily Cashier Report
             </p>
-            <h2 className="truncate text-sm font-semibold tracking-tight">Today&apos;s Summary</h2>
+            <h2 className="truncate text-sm font-semibold tracking-tight">Today’s Summary</h2>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-xs"
-                  aria-label="Customize sidebar"
-                />
-              }
-            >
-              <Plus aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuGroup>
-                <DropdownMenuLabel>Customize Sidebar</DropdownMenuLabel>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Receipt Types
-                </DropdownMenuLabel>
-                {allReceiptTypes.map((type) => {
-                  const isCustom = options.customReceiptTypes.includes(type)
-                  return (
-                    <div key={type} className="flex items-center">
-                      <DropdownMenuCheckboxItem
-                        checked={options.receiptTypes.includes(type)}
-                        onCheckedChange={() => updateOption('receiptTypes', type)}
-                        className="flex-1"
-                      >
-                        {type}
-                      </DropdownMenuCheckboxItem>
-                      {isCustom && (
-                        <Button
-                          type="button"
-                          size="icon-xs"
-                          variant="ghost"
-                          className="mr-1 shrink-0"
-                          aria-label={`Remove ${type}`}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={() => removeCustomReceiptType(type)}
-                        >
-                          <X aria-hidden="true" />
-                        </Button>
-                      )}
-                    </div>
-                  )
-                })}
-                <div className="mt-1 flex gap-1.5 px-1.5">
-                  <Input
-                    aria-label="Custom receipt type"
-                    className="h-7"
-                    placeholder="Custom type"
-                    value={customType}
-                    onChange={(event) => setCustomType(event.target.value)}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => {
-                      event.stopPropagation()
-                      if (event.key === 'Enter') {
-                        event.preventDefault()
-                        addCustomReceiptType()
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="secondary"
-                    aria-label="Add custom receipt type"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={addCustomReceiptType}
-                  >
-                    <Plus aria-hidden="true" />
-                  </Button>
-                </div>
-              </DropdownMenuGroup>
-              <DropdownMenuSeparator />
-              <DropdownMenuGroup>
-                <DropdownMenuLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Optional Fields
-                </DropdownMenuLabel>
-                <DropdownMenuCheckboxItem
-                  checked={options.deductions}
-                  onCheckedChange={(checked) => updateOption('deductions', checked)}
-                >
-                  Deductions
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={options.cashAmount}
-                  onCheckedChange={(checked) => updateOption('cashAmount', checked)}
-                >
-                  Cash Amount
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={options.cashRemitted}
-                  onCheckedChange={(checked) => updateOption('cashRemitted', checked)}
-                >
-                  Cash Remitted
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <span className="text-[10px] text-muted-foreground" aria-live="polite">
+            {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
+          </span>
         </header>
+
+        {error && (
+          <div className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <span>{error}</span>
+            <Button type="button" variant="outline" size="xs" onClick={() => void load()}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {saveError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          >
+            <span>{saveError}</span>
+            <Button type="button" variant="outline" size="xs" onClick={() => void flush()}>
+              Retry save
+            </Button>
+          </div>
+        )}
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="px-3 pb-3">
-            {openingCash !== 0 && (
-              <Section label="Opening">
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">Opening Cash</span>
+            <Section label="Opening">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="text-muted-foreground">Opening Cash</span>
+                <AmountInput
+                  label="Opening Cash"
+                  value={snapshot.report.openingCashCentavos}
+                  onChange={(openingCashCentavos) =>
+                    save({
+                      ...snapshot,
+                      report: { ...snapshot.report, openingCashCentavos }
+                    })
+                  }
+                  className="w-28"
+                />
+              </div>
+            </Section>
+            <Section label="Receipts">
+              <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_6rem] gap-2 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                <span>Type</span>
+                <span className="text-right">Qty</span>
+                <span className="text-right">Amount</span>
+              </div>
+              {snapshot.receiptTypes.map((type) => {
+                const value = receiptTotal(snapshot, type.id)
+                return (
+                  <div
+                    key={type.id}
+                    className="grid grid-cols-[minmax(0,1fr)_3.5rem_6rem] items-center gap-2 text-xs"
+                  >
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={<span className="min-w-0 truncate text-muted-foreground" />}
+                        >
+                          {type.name}
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-72">{type.name}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <Input
+                      aria-label={`${type.name} quantity`}
+                      className="h-7 px-1.5 text-right tabular-nums"
+                      inputMode="numeric"
+                      value={value?.quantity || ''}
+                      onChange={(event) =>
+                        save(
+                          updateReceipt(snapshot, type.id, {
+                            quantity: Math.max(0, Math.floor(Number(event.target.value) || 0))
+                          })
+                        )
+                      }
+                    />
+                    <AmountInput
+                      label={`${type.name} amount`}
+                      value={value?.amountCentavos ?? 0}
+                      onChange={(amountCentavos) =>
+                        save(updateReceipt(snapshot, type.id, { amountCentavos }))
+                      }
+                    />
+                  </div>
+                )
+              })}
+            </Section>
+            <Section label="Cash in">
+              <SummaryRow label="Posted Income" value={incomeCentavos} />
+              <SummaryRow
+                label="Total Receipts"
+                value={snapshot.receiptTotals.reduce(
+                  (total, item) => total + item.amountCentavos,
+                  0
+                )}
+                emphasis
+              />
+            </Section>
+            <Section label="Cash out">
+              <SummaryRow label="Expenses (posted)" value={snapshot.legacyExpenseCashOutCentavos} />
+              <SummaryRow label="Cash Out entries" value={cashOutEntriesCentavos} />
+              <SummaryRow label="Total Cash Out" value={cashOutCentavos} emphasis />
+            </Section>
+            <Section label="Deductions">
+              {snapshot.deductionTypes.map((type) => (
+                <div key={type.id} className="flex items-center justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">{type.name}</span>
                   <AmountInput
-                    label="Opening Cash"
-                    value={openingCash}
-                    onChange={setOpeningCash}
-                    className="w-24"
+                    label={`${type.name} deduction`}
+                    value={deduction(snapshot, type.id)?.amountCentavos ?? 0}
+                    onChange={(amountCentavos) =>
+                      save(updateDeduction(snapshot, type.id, amountCentavos))
+                    }
+                    className="w-28"
                   />
                 </div>
-              </Section>
-            )}
-            {receiptRows.length > 0 && (
-              <Section label="Receipts">
-                {receiptRows.length > 0 && (
-                  <div className="grid grid-cols-[minmax(0,1fr)_4rem_5.75rem] gap-2 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    <span>Type</span>
-                    <span className="text-right">Qty</span>
-                    <span className="text-right">Amount</span>
-                  </div>
-                )}
-                {receiptRows.map((row) => (
-                  <ReceiptRow
-                    key={row.type}
-                    type={row.type}
-                    value={row}
-                    onChange={(value) => updateReceipt(row.type, value)}
-                  />
-                ))}
-              </Section>
-            )}
-            {visibleCashInRows.length > 0 && (
-              <Section label="Cash in">
-                {visibleCashInRows.map((row) => (
-                  <SummaryRow key={row.label} {...row} />
-                ))}
-              </Section>
-            )}
-            {visibleCashOutRows.length > 0 && (
-              <Section label="Cash out">
-                {visibleCashOutRows.map((row) => (
-                  <SummaryRow key={row.label} {...row} />
-                ))}
-              </Section>
-            )}
-            {visibleTransferRows.length > 0 && (
-              <Section label="Transfers">
-                {visibleTransferRows.map((row) => (
-                  <SummaryRow key={row.type} label={row.type} value={row.amount} />
-                ))}
-              </Section>
-            )}
+              ))}
+              <SummaryRow label="Total Deductions" value={deductionCentavos} emphasis />
+            </Section>
           </div>
         </ScrollArea>
 
         <div className="shrink-0 border-t border-border bg-background px-3 py-2">
-          {expectedCash !== 0 && <SummaryRow label="Expected Cash" value={expectedCash} emphasis />}
-          {options.cashAmount && (
-            <SummaryRow
-              label="Cash Amount"
-              value={countedCash}
-              onClick={() => setOpenDialog('cash')}
-            />
-          )}
+          <SummaryRow label="Expected Cash" value={snapshot.expectedCashCentavos} emphasis />
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="mt-1 w-full justify-between"
+            onClick={() => setOpenDialog('cash-count')}
+          >
+            Counted Cash
+            <span className="tabular-nums">{money(snapshot.physicalCashCentavos)}</span>
+          </Button>
           <div
             className={cn(
-              'mt-1 flex flex-col gap-0 border-t py-2',
+              'mt-2 border-t py-2',
               variance === 0
                 ? 'border-border'
                 : variance > 0
-                  ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900 dark:bg-amber-950/30'
+                  ? 'border-warning bg-warning/10'
                   : 'border-destructive/30 bg-destructive/5'
             )}
           >
             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Variance
+              Cash Variance
             </span>
-            {variance === 0 ? (
-              <span className="text-xs font-medium text-muted-foreground">Cash is balanced</span>
-            ) : (
-              <span
-                className={cn(
-                  'flex flex-col leading-3',
-                  variance > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-destructive'
-                )}
-              >
-                <span className="text-base font-semibold tabular-nums">{money(variance)}</span>
-                <span className="text-[10px] font-light">
-                  {variance > 0 ? 'More than expected' : 'Less than expected'}
-                </span>
-              </span>
-            )}
+            <span
+              className={cn(
+                'mt-1 block text-lg font-semibold tabular-nums',
+                variance < 0 && 'text-destructive'
+              )}
+            >
+              {money(variance)}
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              {variance === 0
+                ? 'Cash is balanced'
+                : variance > 0
+                  ? 'More than expected'
+                  : 'Less than expected'}
+            </span>
           </div>
-          {options.cashRemitted && (
-            <div className="flex min-h-9 items-center justify-between gap-3 border-t border-border/60 text-xs">
-              <span className="text-muted-foreground">Cash Remitted</span>
-              <AmountInput
-                label="Cash Remitted"
-                value={cashRemitted}
-                onChange={setCashRemitted}
-                className="w-24"
-              />
-            </div>
-          )}
-          {options.cashRemitted && cashRemitted > 0 && (
-            <div className="flex items-end justify-between gap-3 pt-2">
-              <span className="pb-1 text-xs text-muted-foreground">Ending Cash</span>
-              <span className="text-xl font-semibold tracking-tight tabular-nums">
-                {money(endingCash)}
-              </span>
-            </div>
-          )}
+          <div className="flex min-h-9 items-center justify-between gap-3 border-t border-border/60 text-xs">
+            <span className="text-muted-foreground">Cash Remitted</span>
+            <AmountInput
+              label="Cash Remitted"
+              value={snapshot.report.cashRemittedCentavos ?? 0}
+              onChange={(cashRemittedCentavos) =>
+                save({
+                  ...snapshot,
+                  report: { ...snapshot.report, cashRemittedCentavos }
+                })
+              }
+              className="w-28"
+            />
+          </div>
         </div>
       </aside>
 
       <Dialog
-        open={openDialog === 'deductions'}
-        onOpenChange={(open) => setOpenDialog(open ? 'deductions' : null)}
+        open={openDialog === 'cash-count'}
+        onOpenChange={(open) => setOpenDialog(open ? 'cash-count' : null)}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Deductions</DialogTitle>
+            <DialogTitle>Cash Count</DialogTitle>
             <DialogDescription>
-              Enter statutory deductions included in today&apos;s cash out.
+              Count each denomination. The total and variance update automatically.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-[1fr_7rem] items-center gap-x-3 gap-y-2">
-            <span className="text-sm text-muted-foreground">Deduction</span>
-            <span className="text-right text-sm text-muted-foreground">Amount</span>
-            {deductionTypes.map((type) => (
-              <React.Fragment key={type}>
-                <span className="text-sm">{type}</span>
-                <AmountInput
-                  label={`${type} deduction`}
-                  value={options.deductionValues[type] ?? 0}
-                  onChange={(value) => updateDeduction(type, value)}
-                />
-              </React.Fragment>
-            ))}
-            <TotalRow label="Total Deductions" value={deductions} className="col-span-2" />
-          </div>
-          <DialogFooter>
-            <Button type="button" onClick={() => setOpenDialog(null)}>
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={openDialog === 'cash'}
-        onOpenChange={(open) => setOpenDialog(open ? 'cash' : null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cash Denomination</DialogTitle>
-            <DialogDescription>
-              Count each denomination to calculate the cash amount.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-[1fr_7rem_5rem] items-center gap-x-3 gap-y-2">
+          <div className="grid grid-cols-[1fr_6rem_6rem] items-center gap-x-3 gap-y-2">
             <span className="text-sm text-muted-foreground">Denomination</span>
             <span className="text-right text-sm text-muted-foreground">Qty</span>
             <span className="text-right text-sm text-muted-foreground">Total</span>
-            {[...cashDenominationValues].reverse().map((denomination) => {
-              const quantity = options.cashDenominations[denomination] ?? 0
+            {[...snapshot.cashDenominations].reverse().map((denomination) => {
+              const value = cashCount(snapshot, denomination.id)?.quantity ?? 0
               return (
-                <React.Fragment key={denomination}>
-                  <span className="text-sm">₱{denomination}</span>
+                <React.Fragment key={denomination.id}>
+                  <span className="text-sm">{money(denomination.valueCentavos)}</span>
                   <Input
-                    aria-label={`₱${denomination} quantity`}
+                    aria-label={`${money(denomination.valueCentavos)} quantity`}
                     className="h-7 text-center tabular-nums"
                     inputMode="numeric"
-                    value={quantity || ''}
+                    value={value || ''}
                     onChange={(event) =>
-                      updateDenomination(
-                        denomination,
-                        Math.max(0, Math.floor(amountValue(event.target.value)))
+                      save(
+                        updateCashCount(
+                          snapshot,
+                          denomination.id,
+                          Math.max(0, Math.floor(Number(event.target.value) || 0))
+                        )
                       )
                     }
                   />
                   <span className="text-right text-sm tabular-nums">
-                    {quantity ? money(Number(denomination) * quantity) : ''}
+                    {value ? money(denomination.valueCentavos * value) : ''}
                   </span>
                 </React.Fragment>
               )
             })}
-            <TotalRow label="Total Cash Amount" value={countedCash} className="col-span-3" />
+            <SummaryRow
+              label="Total Cash Amount"
+              value={snapshot.physicalCashCentavos}
+              emphasis
+              className="col-span-3"
+            />
           </div>
           <DialogFooter>
             <Button type="button" onClick={() => setOpenDialog(null)}>

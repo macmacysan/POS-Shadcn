@@ -44,7 +44,6 @@ export const dailyReportRecordSchema = z.object({
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-
 export const dailyReportResolveActiveResponseSchema = dailyReportRecordSchema
 
 export const incomeCategoryRecordSchema = z.object({
@@ -76,16 +75,11 @@ export const incomeEntryRecordSchema = z.object({
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-
 export const incomeListRequestSchema = z.object({
   dailyReportId: uuidSchema,
   status: postedVoidStatusSchema.optional()
 })
-
-export const incomeListResponseSchema = z.object({
-  rows: z.array(incomeEntryRecordSchema)
-})
-
+export const incomeListResponseSchema = z.object({ rows: z.array(incomeEntryRecordSchema) })
 export const incomeCreateRequestSchema = z.object({
   dailyReportId: uuidSchema,
   categoryId: uuidSchema,
@@ -95,20 +89,15 @@ export const incomeCreateRequestSchema = z.object({
   remarks: z.string().trim().max(500).nullable().optional(),
   amountCentavos: positiveCentavosSchema
 })
-
 export const incomeCreateResponseSchema = incomeEntryRecordSchema
-
 export const incomeUpdateRequestSchema = incomeCreateRequestSchema
   .omit({ dailyReportId: true })
   .extend({ id: uuidSchema })
-
 export const incomeUpdateResponseSchema = incomeEntryRecordSchema
-
 export const incomeVoidRequestSchema = z.object({
   id: uuidSchema,
   voidReason: z.string().trim().min(1).max(1000)
 })
-
 export const incomeVoidResponseSchema = incomeEntryRecordSchema
 
 export const reportPaymentMethodRecordSchema = z.object({
@@ -119,7 +108,6 @@ export const reportPaymentMethodRecordSchema = z.object({
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-
 export const dailyReportPaymentEntryRecordSchema = z.object({
   id: uuidSchema,
   dailyReportId: uuidSchema,
@@ -138,16 +126,13 @@ export const dailyReportPaymentEntryRecordSchema = z.object({
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-
 export const dailyReportPaymentListRequestSchema = z.object({
   dailyReportId: uuidSchema,
   status: postedVoidStatusSchema.optional()
 })
-
 export const dailyReportPaymentListResponseSchema = z.object({
   rows: z.array(dailyReportPaymentEntryRecordSchema)
 })
-
 export const dailyReportPaymentCreateRequestSchema = z.object({
   dailyReportId: uuidSchema,
   paymentMethodId: uuidSchema,
@@ -158,20 +143,15 @@ export const dailyReportPaymentCreateRequestSchema = z.object({
   payerName: z.string().trim().max(200).nullable().optional(),
   remarks: z.string().trim().max(500).nullable().optional()
 })
-
 export const dailyReportPaymentCreateResponseSchema = dailyReportPaymentEntryRecordSchema
-
 export const dailyReportPaymentUpdateRequestSchema = dailyReportPaymentCreateRequestSchema
   .omit({ dailyReportId: true })
   .extend({ id: uuidSchema })
-
 export const dailyReportPaymentUpdateResponseSchema = dailyReportPaymentEntryRecordSchema
-
 export const dailyReportPaymentVoidRequestSchema = z.object({
   id: uuidSchema,
   voidReason: z.string().trim().min(1).max(1000)
 })
-
 export const dailyReportPaymentVoidResponseSchema = dailyReportPaymentEntryRecordSchema
 
 export const dailyReceiptTotalRecordSchema = z.object({
@@ -183,7 +163,6 @@ export const dailyReceiptTotalRecordSchema = z.object({
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-
 export const cashOutEntryRecordSchema = z.object({
   id: uuidSchema,
   dailyReportId: uuidSchema,
@@ -198,7 +177,6 @@ export const cashOutEntryRecordSchema = z.object({
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-
 export const dailyReportDeductionRecordSchema = z.object({
   id: uuidSchema,
   dailyReportId: uuidSchema,
@@ -207,7 +185,6 @@ export const dailyReportDeductionRecordSchema = z.object({
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-
 export const dailyReportCashCountRecordSchema = z.object({
   id: uuidSchema,
   dailyReportId: uuidSchema,
@@ -216,11 +193,18 @@ export const dailyReportCashCountRecordSchema = z.object({
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-
-export const dailyReportSnapshotRequestSchema = z.object({
-  dailyReportId: uuidSchema
+export const dailyReportReferenceRecordSchema = z.object({
+  id: uuidSchema,
+  name: z.string().trim().min(1).max(200),
+  sortOrder: z.number().int()
+})
+export const cashDenominationRecordSchema = z.object({
+  id: uuidSchema,
+  valueCentavos: positiveCentavosSchema,
+  sortOrder: z.number().int()
 })
 
+export const dailyReportSnapshotRequestSchema = z.object({ dailyReportId: uuidSchema })
 export const dailyReportSnapshotResponseSchema = z.object({
   report: dailyReportRecordSchema,
   receiptTotals: z.array(dailyReceiptTotalRecordSchema),
@@ -229,10 +213,33 @@ export const dailyReportSnapshotResponseSchema = z.object({
   cashOutEntries: z.array(cashOutEntryRecordSchema),
   deductions: z.array(dailyReportDeductionRecordSchema),
   cashCounts: z.array(dailyReportCashCountRecordSchema),
+  receiptTypes: z.array(dailyReportReferenceRecordSchema),
+  deductionTypes: z.array(dailyReportReferenceRecordSchema),
+  cashDenominations: z.array(cashDenominationRecordSchema),
+  legacyExpenseCashOutCentavos: centavosSchema.nonnegative(),
   expectedCashCentavos: centavosSchema,
   physicalCashCentavos: centavosSchema.nonnegative(),
   cashVarianceCentavos: centavosSchema
 })
+export const dailyReportSummaryUpdateRequestSchema = z.object({
+  dailyReportId: uuidSchema,
+  openingCashCentavos: centavosSchema.nonnegative(),
+  cashRemittedCentavos: centavosSchema.nonnegative().nullable(),
+  receiptTotals: z.array(
+    dailyReceiptTotalRecordSchema.pick({
+      receiptTypeId: true,
+      quantity: true,
+      amountCentavos: true
+    })
+  ),
+  deductions: z.array(
+    dailyReportDeductionRecordSchema.pick({ deductionTypeId: true, amountCentavos: true })
+  ),
+  cashCounts: z.array(
+    dailyReportCashCountRecordSchema.pick({ denominationId: true, quantity: true })
+  )
+})
+export const dailyReportSummaryUpdateResponseSchema = dailyReportSnapshotResponseSchema
 
 export type DailyReportStatus = z.infer<typeof dailyReportStatusSchema>
 export type PostedVoidStatus = z.infer<typeof postedVoidStatusSchema>
@@ -272,10 +279,15 @@ export type DailyReportDeductionRecord = z.infer<typeof dailyReportDeductionReco
 export type DailyReportCashCountRecord = z.infer<typeof dailyReportCashCountRecordSchema>
 export type DailyReportSnapshotRequest = z.infer<typeof dailyReportSnapshotRequestSchema>
 export type DailyReportSnapshotResponse = z.infer<typeof dailyReportSnapshotResponseSchema>
+export type DailyReportSummaryUpdateRequest = z.infer<typeof dailyReportSummaryUpdateRequestSchema>
+export type DailyReportSummaryUpdateResponse = z.infer<
+  typeof dailyReportSummaryUpdateResponseSchema
+>
 
 export const dailyReportIpcChannels = {
   resolveActive: 'daily-reports:resolve-active',
   getSnapshot: 'daily-reports:get-snapshot',
+  updateSummary: 'daily-reports:summary:update',
   listIncome: 'daily-reports:income:list',
   createIncome: 'daily-reports:income:create',
   updateIncome: 'daily-reports:income:update',
@@ -288,8 +300,13 @@ export const dailyReportIpcChannels = {
 
 export type DailyReportsApi = {
   dailyReports: {
-    resolveActive(request: DailyReportResolveActiveRequest): Promise<DailyReportResolveActiveResponse>
+    resolveActive(
+      request: DailyReportResolveActiveRequest
+    ): Promise<DailyReportResolveActiveResponse>
     getSnapshot(request: DailyReportSnapshotRequest): Promise<DailyReportSnapshotResponse>
+    updateSummary(
+      request: DailyReportSummaryUpdateRequest
+    ): Promise<DailyReportSummaryUpdateResponse>
     listIncome(request: IncomeListRequest): Promise<IncomeListResponse>
     createIncome(request: IncomeCreateRequest): Promise<IncomeCreateResponse>
     updateIncome(request: IncomeUpdateRequest): Promise<IncomeUpdateResponse>
@@ -301,8 +318,6 @@ export type DailyReportsApi = {
     updatePayment(
       request: DailyReportPaymentUpdateRequest
     ): Promise<DailyReportPaymentUpdateResponse>
-    voidPayment(
-      request: DailyReportPaymentVoidRequest
-    ): Promise<DailyReportPaymentVoidResponse>
+    voidPayment(request: DailyReportPaymentVoidRequest): Promise<DailyReportPaymentVoidResponse>
   }
 }

@@ -424,19 +424,17 @@ export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Ele
               Add Finance Account
             </Button>
           </TableToolbar>
-          {loadError ? (
-            <p className="p-4 text-sm text-destructive">{loadError}</p>
-          ) : (
-            <UniversalDataTable
-              table={table}
-              recordCount={filteredRows.length}
-              isLoading={isLoading}
-              emptyMessage="No finance accounts found."
-              paginationSizes={[25, 50, 100]}
-              paginationInfo="Showing {from}-{to} of {count} items"
-              tableLayout={{ columnsResizable: true }}
-            />
-          )}
+          <UniversalDataTable
+            table={table}
+            recordCount={filteredRows.length}
+            isLoading={isLoading}
+            error={loadError}
+            onRetry={() => void reload()}
+            emptyMessage="No finance accounts found."
+            paginationSizes={[25, 50, 100]}
+            paginationInfo="Showing {from}-{to} of {count} items"
+            tableLayout={{ columnsResizable: true }}
+          />
         </CardContent>
       </Card>
       <FinanceAccountSheet

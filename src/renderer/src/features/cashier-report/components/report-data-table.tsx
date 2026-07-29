@@ -45,6 +45,9 @@ type ReportDataTableProps<TData extends ReportRow> = {
   getRowActions?: (row: TData) => readonly RowActionItem[]
   onDefaultAction?: (row: TData) => void
   onDeleteSelected?: (rows: TData[]) => boolean | Promise<boolean>
+  isLoading?: boolean
+  loadError?: string
+  onRetry?: () => void
   serverState?: {
     pagination: PaginationState
     pageCount: number
@@ -82,6 +85,9 @@ export function ReportDataTable<TData extends ReportRow>({
   getRowActions,
   onDefaultAction,
   onDeleteSelected,
+  isLoading,
+  loadError,
+  onRetry,
   serverState,
   filterOptions
 }: ReportDataTableProps<TData>): React.JSX.Element {
@@ -274,12 +280,26 @@ export function ReportDataTable<TData extends ReportRow>({
         </div>
       </TableToolbar>
 
+      {loadError && data.length > 0 && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-3 border-b border-destructive/30 bg-destructive/5 px-4 py-2 text-xs text-destructive"
+        >
+          <span>{loadError}</span>
+          {onRetry && (
+            <Button type="button" variant="outline" size="xs" onClick={onRetry}>
+              Retry
+            </Button>
+          )}
+        </div>
+      )}
+
       <UniversalDataTable
         table={table}
         recordCount={filteredRowCount}
-        isLoading={serverState?.loading}
-        error={serverState?.error}
-        onRetry={serverState?.refresh}
+        isLoading={serverState?.loading ?? isLoading}
+        error={serverState?.error ?? (data.length === 0 ? loadError : undefined)}
+        onRetry={serverState?.refresh ?? onRetry}
         onRowDoubleClick={onDefaultAction}
         onRowContextMenu={getRowActions ? handleRowContextMenu : undefined}
         emptyMessage="No matching entries."

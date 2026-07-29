@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { FileSearch, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -36,14 +36,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle
-} from '@/components/ui/empty'
 import { Label } from '@/components/ui/label'
 import {
   Sheet,
@@ -242,6 +234,7 @@ export function StatusAccountsContent({ view, onOpenPaymentWorkspace }: Props): 
   const [transition, setTransition] = React.useState<Transition>()
   const [remarks, setRemarks] = React.useState('')
   const [transitionError, setTransitionError] = React.useState<string>()
+  const [isTransitionSubmitting, setIsTransitionSubmitting] = React.useState(false)
   const isSheet = useMediaQuery('(max-width: 1099px)')
 
   const filteredRows = React.useMemo(() => {
@@ -299,10 +292,12 @@ export function StatusAccountsContent({ view, onOpenPaymentWorkspace }: Props): 
   )
 
   const submitTransition = async (): Promise<void> => {
+    if (isTransitionSubmitting) return
     if (!transition || !remarks.trim()) {
       setTransitionError('Remarks are required.')
       return
     }
+    setIsTransitionSubmitting(true)
     try {
       const input = {
         accountId: transition.row.account.id,
@@ -313,9 +308,11 @@ export function StatusAccountsContent({ view, onOpenPaymentWorkspace }: Props): 
       if (transition.kind === 'close') await window.api.installments.closeContract(input)
       else await window.api.installments.blacklistAccount(input)
       setTransition(undefined)
-      reload()
+      await reload()
     } catch (caught) {
       setTransitionError(errorMessage(caught))
+    } finally {
+      setIsTransitionSubmitting(false)
     }
   }
 
@@ -447,21 +444,19 @@ export function StatusAccountsContent({ view, onOpenPaymentWorkspace }: Props): 
                     </Button>
                   )}
                 </TableToolbar>
-                {error ? (
-                  <EmptyState message={error} />
-                ) : (
-                  <UniversalDataTable
-                    table={table}
-                    recordCount={filteredRows.length}
-                    isLoading={isLoading}
-                    emptyMessage={`No ${view} installment records found.`}
-                    onRowClick={(row) => setSelectedId(row.contractId)}
-                    onRowDoubleClick={(row) => setSelectedId(row.contractId)}
-                    paginationSizes={[25, 50, 100]}
-                    paginationInfo="Showing {from}-{to} of {count} records"
-                    tableLayout={{ columnsResizable: true }}
-                  />
-                )}
+                <UniversalDataTable
+                  table={table}
+                  recordCount={filteredRows.length}
+                  isLoading={isLoading}
+                  error={error}
+                  onRetry={() => void reload()}
+                  emptyMessage={`No ${view} installment records found.`}
+                  onRowClick={(row) => setSelectedId(row.contractId)}
+                  onRowDoubleClick={(row) => setSelectedId(row.contractId)}
+                  paginationSizes={[25, 50, 100]}
+                  paginationInfo="Showing {from}-{to} of {count} records"
+                  tableLayout={{ columnsResizable: true }}
+                />
               </CardContent>
             </Card>
             {!isSheet && isInspectorOpen && (
@@ -549,8 +544,13 @@ export function StatusAccountsContent({ view, onOpenPaymentWorkspace }: Props): 
             <Button type="button" variant="outline" onClick={() => setTransition(undefined)}>
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={() => void submitTransition()}>
-              Confirm
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void submitTransition()}
+              disabled={isTransitionSubmitting}
+            >
+              {isTransitionSubmitting ? 'Updating…' : 'Confirm'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -566,27 +566,6 @@ export function StatusAccountsContent({ view, onOpenPaymentWorkspace }: Props): 
           Show details
         </Button>
       )}
-    </div>
-  )
-}
-
-function EmptyState({ message }: { readonly message: string }): React.JSX.Element {
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-      <Empty className="border-0">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <FileSearch aria-hidden="true" />
-          </EmptyMedia>
-          <EmptyTitle>Unable to load records</EmptyTitle>
-          <EmptyDescription>{message}</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button type="button" variant="outline" onClick={() => window.location.reload()}>
-            Retry
-          </Button>
-        </EmptyContent>
-      </Empty>
     </div>
   )
 }
