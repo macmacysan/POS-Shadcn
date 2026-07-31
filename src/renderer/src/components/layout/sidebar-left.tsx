@@ -2,7 +2,6 @@ import * as React from 'react'
 import {
   BarChart3Icon,
   ClipboardListIcon,
-  HouseIcon,
   LayoutDashboardIcon,
   MoonIcon,
   Settings2Icon,
@@ -48,7 +47,6 @@ const data = {
         {
           title: 'In-house',
           url: '#',
-          icon: <HouseIcon />,
           children: [
             { title: 'Records', url: '#' },
             { title: 'Active', url: '#' },
@@ -59,7 +57,6 @@ const data = {
         {
           title: 'Finance',
           url: '#',
-          icon: <BarChart3Icon />,
           children: [{ title: 'Accounts', url: '#' }]
         }
       ]

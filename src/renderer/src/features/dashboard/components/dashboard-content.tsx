@@ -44,6 +44,14 @@ type OverdueRow = DashboardOverview['overdueAccounts'][number]
 const money = formatCentavos
 const today = (): string => format(new Date(), 'yyyy-MM-dd')
 
+function errorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string') return message
+  }
+  return 'Dashboard data could not be loaded.'
+}
+
 function MetricCard({
   title,
   value,
@@ -130,9 +138,9 @@ export function DashboardContent({
         const next = await window.api.dashboard.get({ businessDate, branch: selectedBranch })
         if (requestVersion !== requestVersionRef.current) return
         setOverview(next)
-      } catch {
+      } catch (caught) {
         if (requestVersion !== requestVersionRef.current) return
-        setError('Dashboard data could not be loaded.')
+        setError(errorMessage(caught))
       } finally {
         if (requestVersion === requestVersionRef.current) setIsLoading(false)
       }
