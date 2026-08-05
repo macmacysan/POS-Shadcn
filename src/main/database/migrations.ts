@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 14
+export const currentSchemaVersion = 16
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -737,7 +737,7 @@ export function runMigrations(db: Database.Database): void {
 
       const now = new Date().toISOString()
       const seed = db.prepare(
-      `INSERT OR IGNORE INTO receipt_types
+        `INSERT OR IGNORE INTO receipt_types
           (id, code, name, is_system, is_default_visible, sort_order, created_at, updated_at)
          VALUES (?, ?, ?, 1, ?, ?, ?, ?)`
       )
@@ -745,7 +745,13 @@ export function runMigrations(db: Database.Database): void {
         ['receipt-type-cash-sales', 'CASH_SALES', 'Cash Sales', 0, 10],
         ['receipt-type-collections', 'COLLECTIONS', 'Collections', 0, 20],
         ['receipt-type-sales-invoice', 'SALES_INVOICE', 'SALES INVOICE', 0, 30],
-        ['receipt-type-sales-invoice-trading', 'SALES_INVOICE_TRADING', 'SALES INVOICE - TRADING', 0, 40],
+        [
+          'receipt-type-sales-invoice-trading',
+          'SALES_INVOICE_TRADING',
+          'SALES INVOICE - TRADING',
+          0,
+          40
+        ],
         ['receipt-type-delivery-receipt', 'DELIVERY_RECEIPT', 'DELIVERY RECEIPT', 0, 50],
         ['receipt-type-bobs-pawnshop', 'BOBS_PAWNSHOP', 'BOBS PAWNSHOP', 0, 60]
       ]) {
@@ -785,9 +791,19 @@ export function runMigrations(db: Database.Database): void {
          VALUES (?, ?, ?, ?, ?, ?)`
       )
       for (const [id, code, name, contributionCode] of [
-        ['deduction-type-sss-ee', 'SSS_EE', 'SSS Employee Share', 'EE'],
-        ['deduction-type-philhealth-ee', 'PHILHEALTH_EE', 'PhilHealth Employee Share', 'EE'],
-        ['deduction-type-pagibig-ee', 'PAGIBIG_EE', 'Pag-IBIG Employee Share', 'EE']
+        ['deduction-type-sss-er', 'SSS_ER', 'SSS ER (EMPLOYER CONT.)', 'ER'],
+        ['deduction-type-sss-ee', 'SSS_EE', "SSS EC (EMPLOYEES' CONT.)", 'EE'],
+        ['deduction-type-sss-ee-loan', 'SSS_EE_LOAN', 'SSS EC/LOAN DEDUCTIONS', 'EE_LOAN'],
+        ['deduction-type-pagibig-er', 'PAGIBIG_ER', 'PAG-IBIG ER', 'ER'],
+        ['deduction-type-pagibig-ee', 'PAGIBIG_EE', 'PAG-IBIG EC', 'EE'],
+        [
+          'deduction-type-pagibig-ee-loan',
+          'PAGIBIG_EE_LOAN',
+          'PAG-IBIG EC/LOAN DEDUCTIONS',
+          'EE_LOAN'
+        ],
+        ['deduction-type-philhealth-er', 'PHILHEALTH_ER', 'PHILHEALTH ER', 'ER'],
+        ['deduction-type-philhealth-ee', 'PHILHEALTH_EE', 'PHILHEALTH EC', 'EE']
       ]) {
         seedDeductionType.run(id, code, name, contributionCode, now, now)
       }
@@ -864,7 +880,12 @@ export function runMigrations(db: Database.Database): void {
       )
       for (const [id, code, name, sortOrder] of [
         ['receipt-type-sales-invoice', 'SALES_INVOICE', 'SALES INVOICE', 30],
-        ['receipt-type-sales-invoice-trading', 'SALES_INVOICE_TRADING', 'SALES INVOICE - TRADING', 40],
+        [
+          'receipt-type-sales-invoice-trading',
+          'SALES_INVOICE_TRADING',
+          'SALES INVOICE - TRADING',
+          40
+        ],
         ['receipt-type-delivery-receipt', 'DELIVERY_RECEIPT', 'DELIVERY RECEIPT', 50],
         ['receipt-type-bobs-pawnshop', 'BOBS_PAWNSHOP', 'BOBS PAWNSHOP', 60]
       ]) {
@@ -933,6 +954,52 @@ export function runMigrations(db: Database.Database): void {
          )`
       ).run(now)
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(14, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 15) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      const updateDeductionType = db.prepare(
+        `UPDATE deduction_types SET name = ?, contribution_code = ?, updated_at = ? WHERE code = ?`
+      )
+      updateDeductionType.run("SSS EC (EMPLOYEES' CONT.)", 'EE', now, 'SSS_EE')
+      updateDeductionType.run('PAG-IBIG EC', 'EE', now, 'PAGIBIG_EE')
+      updateDeductionType.run('PHILHEALTH EC', 'EE', now, 'PHILHEALTH_EE')
+
+      const insertDeductionType = db.prepare(
+        `INSERT OR IGNORE INTO deduction_types
+          (id, code, name, contribution_code, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      for (const [id, code, name, contributionCode] of [
+        ['deduction-type-sss-er', 'SSS_ER', 'SSS ER (EMPLOYER CONT.)', 'ER'],
+        ['deduction-type-sss-ee-loan', 'SSS_EE_LOAN', 'SSS EC/LOAN DEDUCTIONS', 'EE_LOAN'],
+        ['deduction-type-pagibig-er', 'PAGIBIG_ER', 'PAG-IBIG ER', 'ER'],
+        [
+          'deduction-type-pagibig-ee-loan',
+          'PAGIBIG_EE_LOAN',
+          'PAG-IBIG EC/LOAN DEDUCTIONS',
+          'EE_LOAN'
+        ],
+        ['deduction-type-philhealth-er', 'PHILHEALTH_ER', 'PHILHEALTH ER', 'ER']
+      ]) {
+        insertDeductionType.run(id, code, name, contributionCode, now, now)
+      }
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(15, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 16) {
+    const migrate = db.transaction(() => {
+      db.exec(`ALTER TABLE receipt_types ADD COLUMN short_name TEXT NOT NULL DEFAULT ''`)
+      db.exec(`UPDATE receipt_types SET short_name = substr(name, 1, 7) WHERE short_name = ''`)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        16,
+        new Date().toISOString()
+      )
     })
     migrate()
   }

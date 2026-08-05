@@ -301,12 +301,6 @@ function CashierReportHeader({
 
   return (
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-1">
-      <div className="min-w-0">
-        <h1 className="truncate text-base font-semibold tracking-tight">Cashier reports</h1>
-        <p className="text-xs text-muted-foreground">
-          Review entries and reconciliation for a business date.
-        </p>
-      </div>
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
         <InputGroup className="w-[min(28rem,42vw)] min-w-56">
           <InputGroupAddon align="inline-start">
@@ -1420,132 +1414,139 @@ export function CashierReportsContent({
   }, [activeTab, isEntryFormVisible])
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
-      <CashierReportHeader
-        dateRange={dateRange}
-        search={reportSearch}
-        isLoading={isDateLoading}
-        error={dateError}
-        onDateRangeChange={changeDateRange}
-        onSearchChange={(value) => {
-          setReportSearch(value)
-          expenseQuery.onGlobalFilterChange(value)
-        }}
-      />
-      <div
-        className={
-          isSummaryCompact
-            ? 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3'
-            : showRightPanel
-              ? 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(260px,302px)] gap-3'
-              : 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3'
-        }
-      >
-        {!isSummaryCompact && (
-          <Card className="flex min-h-0 min-w-0 flex-col">
-            <ReportSummary
-              key={reportId}
-              alwaysDark={summaryAlwaysDark}
-              refreshKey={summaryRefreshKey}
-              reportId={reportId}
-              businessDate={selectedReport.businessDate}
-            />
-          </Card>
-        )}
-        <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
-          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-            <Tabs
-              value={activeTab}
-              onValueChange={(value) => {
-                const nextTab = value as (typeof reportTabs)[number]
-                if (
-                  nextTab !== activeTab &&
-                  isEntryFormVisible &&
-                  isEntryFormDirty &&
-                  !window.confirm('Discard unsaved entry changes?')
-                ) {
-                  return
-                }
-                setIsEntryFormDirty(false)
-                setActiveTab(nextTab)
-                if (nextTab === 'Activity') setIsEntryFormVisible(false)
-              }}
-              className="flex min-h-0 flex-1 flex-col gap-0"
-            >
-              <div className="shrink-0 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <TabsList
-                  aria-label="Cashier report sections"
-                  variant="line"
-                  className="h-9 w-max min-w-full justify-start rounded-none bg-transparent p-0"
-                >
+    <div
+      className={
+        isSummaryCompact
+          ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3'
+          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3 overflow-hidden p-3'
+      }
+    >
+      {!isSummaryCompact && (
+        <Card className="flex min-h-0 min-w-0 flex-col">
+          <ReportSummary
+            key={reportId}
+            alwaysDark={summaryAlwaysDark}
+            refreshKey={summaryRefreshKey}
+            reportId={reportId}
+            businessDate={selectedReport.businessDate}
+            expenseTotals={expenseQuery.expenseTotals}
+          />
+        </Card>
+      )}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+        <CashierReportHeader
+          dateRange={dateRange}
+          search={reportSearch}
+          isLoading={isDateLoading}
+          error={dateError}
+          onDateRangeChange={changeDateRange}
+          onSearchChange={(value) => {
+            setReportSearch(value)
+            expenseQuery.onGlobalFilterChange(value)
+          }}
+        />
+        <div
+          className={
+            showRightPanel
+              ? 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(260px,302px)] gap-3'
+              : 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3'
+          }
+        >
+          <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+              <Tabs
+                value={activeTab}
+                onValueChange={(value) => {
+                  const nextTab = value as (typeof reportTabs)[number]
+                  if (
+                    nextTab !== activeTab &&
+                    isEntryFormVisible &&
+                    isEntryFormDirty &&
+                    !window.confirm('Discard unsaved entry changes?')
+                  ) {
+                    return
+                  }
+                  setIsEntryFormDirty(false)
+                  setActiveTab(nextTab)
+                  if (nextTab === 'Activity') setIsEntryFormVisible(false)
+                }}
+                className="flex min-h-0 flex-1 flex-col gap-0"
+              >
+                <div className="shrink-0 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <TabsList
+                    aria-label="Cashier report sections"
+                    variant="line"
+                    className="h-9 w-max min-w-full justify-start rounded-none bg-transparent p-0"
+                  >
+                    {reportTabs.map((tab) => (
+                      <TabsTrigger
+                        key={tab}
+                        value={tab}
+                        className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-light"
+                      >
+                        {tab === 'Activity' ? 'Installment History' : tab}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {reportTabs.map((tab) => (
-                    <TabsTrigger
+                    <TabsContent
                       key={tab}
                       value={tab}
-                      className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-light"
+                      className="flex min-h-0 flex-1 flex-col overflow-hidden"
                     >
-                      {tab === 'Activity' ? 'Installment History' : tab}
-                    </TabsTrigger>
+                      <ReportTab
+                        tab={tab}
+                        showBranch={selectedBranch === 'All Branch'}
+                        globalFilter={reportSearch}
+                        onGlobalFilterChange={(value) => {
+                          setReportSearch(value)
+                          expenseQuery.onGlobalFilterChange(value)
+                        }}
+                        selectedBranch={selectedBranch}
+                        dateFrom={dateFrom}
+                        dateTo={dateTo}
+                        expenseRows={expenseQuery.rows}
+                        incomeRows={incomes}
+                        paymentRows={payments}
+                        expenseQuery={expenseQuery}
+                        onDeleteExpense={deleteExpense}
+                        onDeleteSelectedExpenses={deleteSelectedExpenses}
+                        onAddEntry={toggleEntryForm}
+                        addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
+                        selectedHistoryId={selectedHistory?.id}
+                        onSelectHistory={setSelectedHistory}
+                        onDelete={deleteEntry}
+                        onDeleteSelected={deleteSelectedEntries}
+                        onEdit={editAmount}
+                        incomeLoadState={incomeLoadState}
+                        paymentLoadState={paymentLoadState}
+                        onRetryEntries={() => void refreshEntries()}
+                        historyRecords={historyRecords}
+                        historyLoadState={historyLoadState}
+                        onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
+                      />
+                    </TabsContent>
                   ))}
-                </TabsList>
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                {reportTabs.map((tab) => (
-                  <TabsContent
-                    key={tab}
-                    value={tab}
-                    className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                  >
-                    <ReportTab
-                      tab={tab}
-                      showBranch={selectedBranch === 'All Branch'}
-                      globalFilter={reportSearch}
-                      onGlobalFilterChange={(value) => {
-                        setReportSearch(value)
-                        expenseQuery.onGlobalFilterChange(value)
-                      }}
-                      selectedBranch={selectedBranch}
-                      dateFrom={dateFrom}
-                      dateTo={dateTo}
-                      expenseRows={expenseQuery.rows}
-                      incomeRows={incomes}
-                      paymentRows={payments}
-                      expenseQuery={expenseQuery}
-                      onDeleteExpense={deleteExpense}
-                      onDeleteSelectedExpenses={deleteSelectedExpenses}
-                      onAddEntry={toggleEntryForm}
-                      addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
-                      selectedHistoryId={selectedHistory?.id}
-                      onSelectHistory={setSelectedHistory}
-                      onDelete={deleteEntry}
-                      onDeleteSelected={deleteSelectedEntries}
-                      onEdit={editAmount}
-                      incomeLoadState={incomeLoadState}
-                      paymentLoadState={paymentLoadState}
-                      onRetryEntries={() => void refreshEntries()}
-                      historyRecords={historyRecords}
-                      historyLoadState={historyLoadState}
-                      onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
-                    />
-                  </TabsContent>
-                ))}
-              </div>
-            </Tabs>
-          </CardContent>
-        </Card>
-        {showRightPanel && !isHistoryTab && (
-          <Card className="flex min-h-0 min-w-0 flex-col">
-            <EntryFormPanel
-              tab={activeTab}
-              onSave={(form) => saveEntry(activeTab, form)}
-              onDirtyChange={(isDirty) => {
-                setIsEntryFormDirty(isDirty)
-                if (isDirty) setEntrySaveError(undefined)
-              }}
-              saveError={entrySaveError}
-            />
+                </div>
+              </Tabs>
+            </CardContent>
           </Card>
-        )}
+          {showRightPanel && !isHistoryTab && (
+            <Card className="flex min-h-0 min-w-0 flex-col">
+              <EntryFormPanel
+                tab={activeTab}
+                onSave={(form) => saveEntry(activeTab, form)}
+                onDirtyChange={(isDirty) => {
+                  setIsEntryFormDirty(isDirty)
+                  if (isDirty) setEntrySaveError(undefined)
+                }}
+                saveError={entrySaveError}
+              />
+            </Card>
+          )}
+        </div>
       </div>
       {isSummaryCompact && (
         <>
@@ -1577,6 +1578,7 @@ export function CashierReportsContent({
                 refreshKey={summaryRefreshKey}
                 reportId={reportId}
                 businessDate={selectedReport.businessDate}
+                expenseTotals={expenseQuery.expenseTotals}
               />
             </SheetContent>
           </Sheet>

@@ -27,12 +27,24 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useActiveReport } from '@/contexts/active-report-context'
 import { cn } from '@/lib/utils'
 import { formatCentavos } from '@/lib/currency'
-import type { DailyReportSnapshotResponse } from '@/../../shared/contracts'
+import type { DailyReportSnapshotResponse, ExpenseSummaryTotals } from '@/../../shared/contracts'
 
-type OpenDialog = 'cash-count' | null
+type OpenDialog = 'cash-count' | 'deductions' | null
 type Snapshot = DailyReportSnapshotResponse
 
+const deductionDefinitions = [
+  { id: 'deduction-type-sss-er', label: 'SSS ER (EMPLOYER CONT.)' },
+  { id: 'deduction-type-sss-ee', label: "SSS EC (EMPLOYEES' CONT.)" },
+  { id: 'deduction-type-sss-ee-loan', label: 'SSS EC/LOAN DEDUCTIONS' },
+  { id: 'deduction-type-pagibig-er', label: 'PAG-IBIG ER' },
+  { id: 'deduction-type-pagibig-ee', label: 'PAG-IBIG EC' },
+  { id: 'deduction-type-pagibig-ee-loan', label: 'PAG-IBIG EC/LOAN DEDUCTIONS' },
+  { id: 'deduction-type-philhealth-er', label: 'PHILHEALTH ER' },
+  { id: 'deduction-type-philhealth-ee', label: 'PHILHEALTH EC' }
+] as const
+
 const receiptTypesExcludedFromPicker = new Set(['CASH SALES', 'COLLECTIONS'])
+const RECEIPT_VISIBILITY_STORAGE_KEY = 'cashiers-report-visible-receipt-types'
 const defaultReceiptTypeNames = new Set([
   'SALES INVOICE',
   'SALES INVOICE - TRADING',
@@ -45,7 +57,8 @@ const defaultReceiptTypeNames = new Set([
   'BP'
 ])
 
-function receiptTypeSummaryName(name: string): string {
+function receiptTypeSummaryName(name: string, shortName?: string, isSystem = false): string {
+  if (!isSystem && shortName?.trim()) return shortName.trim().slice(0, 7)
   switch (name.trim().toUpperCase()) {
     case 'SALES INVOICE':
     case 'SI':
@@ -61,11 +74,29 @@ function receiptTypeSummaryName(name: string): string {
     case 'BP':
       return 'BP'
     default:
-      return name
+      return isSystem ? name : name.trim().slice(0, 7)
   }
 }
 
 const money = formatCentavos
+
+function readReceiptVisibility(): Set<string> | undefined {
+  try {
+    const stored = localStorage.getItem(RECEIPT_VISIBILITY_STORAGE_KEY)
+    if (!stored) return undefined
+    const parsed: unknown = JSON.parse(stored)
+    if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === 'string')) {
+      return undefined
+    }
+    return new Set(parsed)
+  } catch {
+    return undefined
+  }
+}
+
+function writeReceiptVisibility(ids: Set<string>): void {
+  localStorage.setItem(RECEIPT_VISIBILITY_STORAGE_KEY, JSON.stringify([...ids]))
+}
 
 function amountToCentavos(value: string): number {
   const normalized = value.trim()
@@ -119,11 +150,11 @@ function Section({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className="border-b border-border/60 py-2.5 last:border-b-0">
-      <p className="mb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+    <section className="border-b border-border/60 py-1.5 last:border-b-0">
+      <p className="mb-0.5 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
         {label}
       </p>
-      <div className="flex flex-col gap-1">{children}</div>
+      <div className="flex flex-col gap-0.5">{children}</div>
     </section>
   )
 }
@@ -158,7 +189,7 @@ function SummaryRow({
 
 function loadingSummary(): React.JSX.Element {
   return (
-    <aside className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+    <aside className="flex min-h-0 flex-1 flex-col gap-3 p-1.5">
       <Skeleton className="h-10 w-full" />
       <Skeleton className="h-36 w-full" />
       <Skeleton className="h-24 w-full" />
@@ -269,12 +300,14 @@ export const ReportSummary = React.memo(function ReportSummary({
   alwaysDark = false,
   refreshKey,
   reportId: reportIdOverride,
-  businessDate
+  businessDate,
+  expenseTotals
 }: {
   alwaysDark?: boolean
   refreshKey?: string
   reportId?: string
   businessDate?: string
+  expenseTotals: ExpenseSummaryTotals
 }): React.JSX.Element {
   const { reportId: activeReportId, businessDate: activeBusinessDate } = useActiveReport()
   const reportId = reportIdOverride ?? activeReportId
@@ -285,7 +318,9 @@ export const ReportSummary = React.memo(function ReportSummary({
   const [openDialog, setOpenDialog] = React.useState<OpenDialog>(null)
   const [isReceiptPickerOpen, setIsReceiptPickerOpen] = React.useState(false)
   const [visibleReceiptTypeIds, setVisibleReceiptTypeIds] = React.useState<Set<string>>(new Set())
+  const [draftDeductions, setDraftDeductions] = React.useState<Record<string, number>>({})
   const [customReceiptName, setCustomReceiptName] = React.useState('')
+  const [customReceiptShortName, setCustomReceiptShortName] = React.useState('')
   const [receiptTypeError, setReceiptTypeError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
   const [hasSaved, setHasSaved] = React.useState(false)
@@ -304,8 +339,14 @@ export const ReportSummary = React.memo(function ReportSummary({
       if (snapshotVersion !== snapshotVersionRef.current) return
       snapshotRef.current = next
       setSnapshot(next)
+      const availableIds = new Set(next.receiptTypes.map((type) => type.id))
+      const storedIds = readReceiptVisibility()
       setVisibleReceiptTypeIds(
-        new Set(next.receiptTypes.filter((type) => type.isDefaultVisible).map((type) => type.id))
+        storedIds
+          ? new Set([...storedIds].filter((id) => availableIds.has(id)))
+          : new Set(
+              next.receiptTypes.filter((type) => type.isDefaultVisible).map((type) => type.id)
+            )
       )
       setHasSaved(false)
       setSaveError(undefined)
@@ -361,7 +402,7 @@ export const ReportSummary = React.memo(function ReportSummary({
   if (!snapshot && !error) return loadingSummary()
   if (!snapshot) {
     return (
-      <aside className={cn('flex min-h-0 flex-1 flex-col p-3', alwaysDark && 'dark')}>
+      <aside className={cn('flex min-h-0 flex-1 flex-col p-1.5', alwaysDark && 'dark')}>
         <Empty className="m-auto border-0">
           <EmptyHeader>
             <EmptyTitle>Summary unavailable</EmptyTitle>
@@ -386,9 +427,10 @@ export const ReportSummary = React.memo(function ReportSummary({
     .reduce((total, item) => total + item.amountCentavos, 0)
   const cashOutCentavos = snapshot.legacyExpenseCashOutCentavos + cashOutEntriesCentavos
   const variance = snapshot.cashVarianceCentavos
-  const visibleReceiptTypes = snapshot.receiptTypes.filter((type) =>
-    visibleReceiptTypeIds.has(type.id) &&
-    !receiptTypesExcludedFromPicker.has(type.name.trim().toUpperCase())
+  const visibleReceiptTypes = snapshot.receiptTypes.filter(
+    (type) =>
+      visibleReceiptTypeIds.has(type.id) &&
+      !receiptTypesExcludedFromPicker.has(type.name.trim().toUpperCase())
   )
   const selectableReceiptTypes = snapshot.receiptTypes.filter(
     (type) => !receiptTypesExcludedFromPicker.has(type.name.trim().toUpperCase())
@@ -405,24 +447,38 @@ export const ReportSummary = React.memo(function ReportSummary({
       const next = new Set(current)
       if (checked) next.add(receiptTypeId)
       else next.delete(receiptTypeId)
+      writeReceiptVisibility(next)
       return next
     })
   }
 
   const addCustomReceiptType = async (): Promise<void> => {
     const name = customReceiptName.trim()
-    if (!name) return
+    const shortName = customReceiptShortName.trim()
+    if (!name) {
+      setReceiptTypeError('Enter a full receipt name.')
+      return
+    }
+    if (!shortName) {
+      setReceiptTypeError('Enter a short name or abbreviation.')
+      return
+    }
     setReceiptTypeError(undefined)
     try {
-      const created = await window.api.dailyReports.createReceiptType({ name })
+      const created = await window.api.dailyReports.createReceiptType({ name, shortName })
       const current = snapshotRef.current
       if (current) {
         const next = { ...current, receiptTypes: [...current.receiptTypes, created] }
         snapshotRef.current = next
         setSnapshot(next)
       }
-      setVisibleReceiptTypeIds((current) => new Set(current).add(created.id))
+      setVisibleReceiptTypeIds((current) => {
+        const next = new Set(current).add(created.id)
+        writeReceiptVisibility(next)
+        return next
+      })
       setCustomReceiptName('')
+      setCustomReceiptShortName('')
     } catch {
       setReceiptTypeError('That receipt name already exists or could not be added.')
     }
@@ -444,11 +500,31 @@ export const ReportSummary = React.memo(function ReportSummary({
       setVisibleReceiptTypeIds((current) => {
         const next = new Set(current)
         next.delete(receiptTypeId)
+        writeReceiptVisibility(next)
         return next
       })
     } catch {
       setReceiptTypeError('This receipt type could not be deleted.')
     }
+  }
+
+  const openDeductions = (): void => {
+    setIsReceiptPickerOpen(false)
+    setDraftDeductions(
+      Object.fromEntries(
+        deductionDefinitions.map(({ id }) => [id, deduction(snapshot, id)?.amountCentavos ?? 0])
+      )
+    )
+    setOpenDialog('deductions')
+  }
+
+  const addDeductions = (): void => {
+    let next = snapshot
+    for (const { id } of deductionDefinitions) {
+      next = updateDeduction(next, id, draftDeductions[id] ?? 0)
+    }
+    save(next)
+    setOpenDialog(null)
   }
 
   return (
@@ -459,7 +535,7 @@ export const ReportSummary = React.memo(function ReportSummary({
           alwaysDark && 'dark'
         )}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-border bg-muted/55 px-3 py-2.5">
+        <header className="flex shrink-0 items-center justify-between border-b border-border bg-muted/55 px-3 py-1.5">
           <div className="min-w-0">
             <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Daily Cashier Report
@@ -478,7 +554,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    aria-label="Add receipt type"
+                    aria-label="Add receipt type or deductions"
                   />
                 }
               >
@@ -507,51 +583,89 @@ export const ReportSummary = React.memo(function ReportSummary({
                       </label>
                       {!type.isSystem &&
                         !defaultReceiptTypeNames.has(type.name.trim().toUpperCase()) && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          className="ml-auto"
-                          aria-label={`Delete ${type.name}`}
-                          onClick={() => void deleteCustomReceiptType(type.id)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            className="ml-auto"
+                            aria-label={`Delete ${type.name}`}
+                            onClick={() => void deleteCustomReceiptType(type.id)}
+                          >
+                            <Trash2 />
+                          </Button>
+                        )}
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center gap-1.5 border-t border-border pt-2">
+                <div className="flex flex-col gap-1 border-t border-border pt-1">
+                  <p className="text-[10px] leading-tight text-muted-foreground">
+                    Add a full receipt name and a short label for the summary.
+                  </p>
                   <Input
-                    aria-label="Custom receipt name"
+                    aria-label="Custom receipt full name"
                     className="h-7 min-w-0"
-                    placeholder="Custom name"
+                    placeholder="Full receipt name"
                     value={customReceiptName}
                     onChange={(event) => setCustomReceiptName(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') void addCustomReceiptType()
                     }}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    disabled={!customReceiptName.trim()}
-                    onClick={() => void addCustomReceiptType()}
-                  >
-                    Add
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      aria-label="Custom receipt short name"
+                      className="h-7 min-w-0"
+                      placeholder="Short name (max 7)"
+                      maxLength={7}
+                      disabled={!customReceiptName.trim()}
+                      value={customReceiptShortName}
+                      onChange={(event) => setCustomReceiptShortName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') void addCustomReceiptType()
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      disabled={!customReceiptName.trim() || !customReceiptShortName.trim()}
+                      onClick={() => void addCustomReceiptType()}
+                    >
+                      Add
+                    </Button>
+                  </div>
                 </div>
                 {receiptTypeError && (
                   <p className="text-[10px] text-destructive" role="alert">
                     {receiptTypeError}
                   </p>
                 )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  className="mt-1 w-full"
+                  onClick={openDeductions}
+                >
+                  Deductions
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  className="mt-1 w-full"
+                  onClick={() => {
+                    setIsReceiptPickerOpen(false)
+                    setOpenDialog('cash-count')
+                  }}
+                >
+                  Counted Cash
+                </Button>
               </PopoverContent>
             </Popover>
-          <span className="text-[10px] text-muted-foreground" aria-live="polite">
-            {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
-          </span>
+            <span className="text-[10px] text-muted-foreground" aria-live="polite">
+              {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
+            </span>
           </div>
         </header>
 
@@ -576,111 +690,86 @@ export const ReportSummary = React.memo(function ReportSummary({
         )}
 
         <ScrollArea className="min-h-0 flex-1">
-          <div className="px-3 pb-3">
-            <Section label="Opening">
-              <SummaryRow label="Opening Cash" value={snapshot.report.openingCashCentavos} />
-            </Section>
-            {visibleReceiptTypes.length > 0 && <Section label="Receipts">
-              <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_6rem] gap-2 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                <span>Type</span>
-                <span className="text-right">Qty</span>
-                <span className="text-right">Amount</span>
-              </div>
-              {visibleReceiptTypes.map((type) => {
-                const value = receiptTotal(snapshot, type.id)
-                return (
-                  <div
-                    key={type.id}
-                    className="grid grid-cols-[minmax(0,1fr)_3.5rem_6rem] items-center gap-2 text-xs"
-                  >
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger
-                          render={<span className="min-w-0 truncate text-muted-foreground" />}
-                        >
-                          {receiptTypeSummaryName(type.name)}
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-72">{type.name}</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <Input
-                      aria-label={`${type.name} quantity`}
-                      className="h-7 px-1.5 text-right tabular-nums"
-                      inputMode="numeric"
-                      value={value?.quantity || ''}
-                      onChange={(event) =>
-                        save(
-                          updateReceipt(snapshot, type.id, {
-                            quantity: Math.max(0, Math.floor(Number(event.target.value) || 0))
-                          })
-                        )
-                      }
-                    />
-                    <AmountInput
-                      label={`${type.name} amount`}
-                      value={value?.amountCentavos ?? 0}
-                      onChange={(amountCentavos) =>
-                        save(updateReceipt(snapshot, type.id, { amountCentavos }))
-                      }
-                    />
-                  </div>
-                )
-              })}
-            </Section>}
-            <Section label="Cash in">
+          <div className="px-3 pb-1.5">
+            {visibleReceiptTypes.length > 0 && (
+              <Section label="">
+                <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_6rem] gap-2 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <span>Type</span>
+                  <span className="text-right">Qty</span>
+                  <span className="text-right">Amount</span>
+                </div>
+                {visibleReceiptTypes.map((type) => {
+                  const value = receiptTotal(snapshot, type.id)
+                  return (
+                    <div
+                      key={type.id}
+                      className="grid grid-cols-[minmax(0,1fr)_3.5rem_6rem] items-center gap-2 text-xs"
+                    >
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger
+                            render={<span className="min-w-0 truncate text-muted-foreground" />}
+                          >
+                            {receiptTypeSummaryName(type.name, type.shortName, type.isSystem)}
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-72">{type.name}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <Input
+                        aria-label={`${type.name} quantity`}
+                        className="h-7 px-1.5 text-right tabular-nums"
+                        inputMode="numeric"
+                        value={value?.quantity || ''}
+                        onChange={(event) =>
+                          save(
+                            updateReceipt(snapshot, type.id, {
+                              quantity: Math.max(0, Math.floor(Number(event.target.value) || 0))
+                            })
+                          )
+                        }
+                      />
+                      <AmountInput
+                        label={`${type.name} amount`}
+                        value={value?.amountCentavos ?? 0}
+                        onChange={(amountCentavos) =>
+                          save(updateReceipt(snapshot, type.id, { amountCentavos }))
+                        }
+                      />
+                    </div>
+                  )
+                })}
+              </Section>
+            )}
+            <Section label="">
               <SummaryRow label="Collections" value={snapshot.cashCollectionsCentavos ?? 0} />
               <SummaryRow label="Other" value={snapshot.otherIncomeCentavos ?? 0} />
               <SummaryRow label="Finance Down" value={snapshot.financeDownCentavos ?? 0} />
               <SummaryRow label="Finance Bal" value={snapshot.financeBalanceCentavos ?? 0} />
               <SummaryRow
                 label="Total Receipts"
-                value={snapshot.receiptTotals.reduce(
-                  (total, item) => total + item.amountCentavos,
-                  0
-                ) -
+                value={
+                  snapshot.receiptTotals.reduce((total, item) => total + item.amountCentavos, 0) -
                   snapshot.financeBalanceCentavos +
                   snapshot.cashCollectionsCentavos +
                   snapshot.otherIncomeCentavos +
-                  snapshot.financeDownCentavos}
+                  snapshot.financeDownCentavos
+                }
                 emphasis
               />
             </Section>
-            <Section label="Cash out">
-              <SummaryRow label="Expenses (posted)" value={snapshot.legacyExpenseCashOutCentavos} />
-              <SummaryRow label="Cash Out entries" value={cashOutEntriesCentavos} />
+            <Section label="">
+              <SummaryRow label="Company Expenses" value={expenseTotals.companyExpensesCentavos} />
+              <SummaryRow label="Drawings" value={expenseTotals.drawingsCentavos} />
+              <SummaryRow label="Purchases" value={expenseTotals.purchasesCentavos} />
+              <SummaryRow label="Receivables" value={expenseTotals.receivablesCentavos} />
+              <SummaryRow label="Deductions" value={deductionCentavos} />
               <SummaryRow label="Total Cash Out" value={cashOutCentavos} emphasis />
-            </Section>
-            <Section label="Deductions">
-              {snapshot.deductionTypes.map((type) => (
-                <div key={type.id} className="flex items-center justify-between gap-3 text-xs">
-                  <span className="text-muted-foreground">{type.name}</span>
-                  <AmountInput
-                    label={`${type.name} deduction`}
-                    value={deduction(snapshot, type.id)?.amountCentavos ?? 0}
-                    onChange={(amountCentavos) =>
-                      save(updateDeduction(snapshot, type.id, amountCentavos))
-                    }
-                    className="w-28"
-                  />
-                </div>
-              ))}
-              <SummaryRow label="Total Deductions" value={deductionCentavos} emphasis />
             </Section>
           </div>
         </ScrollArea>
 
-        <div className="shrink-0 border-t border-border bg-background px-3 py-2">
+        <div className="shrink-0 border-t border-border bg-background px-3 py-1">
           <SummaryRow label="Expected Cash" value={snapshot.expectedCashCentavos} emphasis />
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className="mt-1 w-full justify-between"
-            onClick={() => setOpenDialog('cash-count')}
-          >
-            Counted Cash
-            <span className="tabular-nums">{money(snapshot.physicalCashCentavos)}</span>
-          </Button>
           <div
             className={cn(
               'mt-2 border-t py-2',
@@ -738,7 +827,7 @@ export const ReportSummary = React.memo(function ReportSummary({
               Count each denomination. The total and variance update automatically.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-[1fr_6rem_6rem] items-center gap-x-3 gap-y-2">
+          <div className="grid grid-cols-[1fr_6rem_6rem] items-center gap-x-3 gap-y-1">
             <span className="text-sm text-muted-foreground">Denomination</span>
             <span className="text-right text-sm text-muted-foreground">Qty</span>
             <span className="text-right text-sm text-muted-foreground">Total</span>
@@ -778,6 +867,50 @@ export const ReportSummary = React.memo(function ReportSummary({
           <DialogFooter>
             <Button type="button" onClick={() => setOpenDialog(null)}>
               Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={openDialog === 'deductions'}
+        onOpenChange={(open) => setOpenDialog(open ? 'deductions' : null)}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Monthly Deductions for Employees</DialogTitle>
+            <DialogDescription>Enter the employee deductions for this report.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {deductionDefinitions.map(({ id, label }) => (
+              <div key={id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 text-muted-foreground">{label}</span>
+                <AmountInput
+                  label={label}
+                  value={draftDeductions[id] ?? 0}
+                  onChange={(amountCentavos) =>
+                    setDraftDeductions((current) => ({ ...current, [id]: amountCentavos }))
+                  }
+                  className="w-32 shrink-0"
+                />
+              </div>
+            ))}
+            <SummaryRow
+              label="Total"
+              value={deductionDefinitions.reduce(
+                (total, { id }) => total + (draftDeductions[id] ?? 0),
+                0
+              )}
+              emphasis
+              className="border-t border-border pt-1"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpenDialog(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={addDeductions}>
+              Add
             </Button>
           </DialogFooter>
         </DialogContent>

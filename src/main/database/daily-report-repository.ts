@@ -131,6 +131,7 @@ type ReferenceRow = {
 }
 
 type ReceiptTypeReferenceRow = ReferenceRow & {
+  short_name: string
   is_default_visible: number
   is_system: number
 }
@@ -266,13 +267,16 @@ export class DailyReportRepository {
 
   branchIdForUser(userId: string): string | null {
     const row = this.db.prepare('SELECT branch_id FROM users WHERE id = ?').get(userId) as
-      | { branch_id: string | null }
-      | undefined
+      { branch_id: string | null } | undefined
     return row?.branch_id ?? null
   }
 
   resolveActive(request: DailyReportResolveActiveRequest): DailyReportRecord {
-    const existing = this.findByIdentity(request.branchId, request.cashierUserId, request.businessDate)
+    const existing = this.findByIdentity(
+      request.branchId,
+      request.cashierUserId,
+      request.businessDate
+    )
     if (existing) {
       if (existing.status === 'DRAFT' || existing.status === 'REOPENED') {
         const openingCashCentavos = this.previousEndingCashCentavos(
@@ -358,23 +362,54 @@ export class DailyReportRepository {
   ): DailyReportReceiptTypeRecord {
     const name = request.name.trim()
     const existing = this.db
-      .prepare('SELECT id FROM receipt_types WHERE name = ? COLLATE NOCASE')
-      .get(name) as { id: string } | undefined
-    if (existing) throw new AppError('CONFLICT', 'A receipt type with that name already exists.')
+      .prepare(
+        `SELECT id, name, short_name, sort_order, is_default_visible, is_system, is_active
+           FROM receipt_types
+          WHERE name = ? COLLATE NOCASE`
+      )
+      .get(name) as (ReceiptTypeReferenceRow & { is_active: number }) | undefined
+
+    if (existing?.is_active === 1) {
+      throw new AppError('CONFLICT', 'A receipt type with that name already exists.')
+    }
+
+    if (existing) {
+      const row = this.db
+        .prepare(
+          `UPDATE receipt_types
+              SET is_active = 1, short_name = ?, updated_at = ?
+            WHERE id = ?
+          RETURNING id, name, sort_order, is_default_visible, is_system`
+        )
+        .get(
+          request.shortName.trim(),
+          new Date().toISOString(),
+          existing.id
+        ) as ReceiptTypeReferenceRow
+      return {
+        id: row.id,
+        name: row.name,
+        shortName: request.shortName.trim(),
+        sortOrder: row.sort_order,
+        isDefaultVisible: row.is_default_visible === 1,
+        isSystem: row.is_system === 1
+      }
+    }
 
     const now = new Date().toISOString()
     const row = this.db
       .prepare(
         `INSERT INTO receipt_types (
-          id, code, name, is_system, is_default_visible, is_active, sort_order,
+          id, code, name, short_name, is_system, is_default_visible, is_active, sort_order,
           created_by_user_id, created_at, updated_at
-        ) VALUES (?, ?, ?, 0, 0, 1, ?, ?, ?, ?)
-        RETURNING id, name, sort_order, is_default_visible, is_system`
+        ) VALUES (?, ?, ?, ?, 0, 0, 1, ?, ?, ?, ?)
+        RETURNING id, name, short_name, sort_order, is_default_visible, is_system`
       )
       .get(
         randomUUID(),
         `CUSTOM_${randomUUID()}`,
         name,
+        request.shortName.trim(),
         this.nextReceiptTypeSortOrder(),
         createdByUserId,
         now,
@@ -383,6 +418,7 @@ export class DailyReportRepository {
     return {
       id: row.id,
       name: row.name,
+      shortName: row.short_name,
       sortOrder: row.sort_order,
       isDefaultVisible: row.is_default_visible === 1,
       isSystem: row.is_system === 1
@@ -411,7 +447,11 @@ export class DailyReportRepository {
     return row.sort_order
   }
 
-  findByIdentity(branchId: string, cashierUserId: string, businessDate: string): DailyReportRecord | null {
+  findByIdentity(
+    branchId: string,
+    cashierUserId: string,
+    businessDate: string
+  ): DailyReportRecord | null {
     const row = this.db
       .prepare(
         `SELECT * FROM daily_reports
@@ -423,8 +463,7 @@ export class DailyReportRepository {
 
   findById(id: string): DailyReportRecord | null {
     const row = this.db.prepare('SELECT * FROM daily_reports WHERE id = ?').get(id) as
-      | DailyReportRow
-      | undefined
+      DailyReportRow | undefined
     return row ? reportRecord(row) : null
   }
 
@@ -451,22 +490,24 @@ export class DailyReportRepository {
       where.push('i.status = @status')
       params.status = request.status
     }
-    return (this.db
-      .prepare(
-        `SELECT i.*, b.name AS branch
+    return (
+      this.db
+        .prepare(
+          `SELECT i.*, b.name AS branch
            FROM income_entries i
            JOIN daily_reports dr ON dr.id = i.daily_report_id
            JOIN branches b ON b.id = dr.branch_id
           WHERE ${where.join(' AND ')}
           ORDER BY i.transaction_date DESC, i.created_at DESC, i.id DESC`
-      )
-      .all(params) as IncomeRow[]).map(incomeRecord)
+        )
+        .all(params) as IncomeRow[]
+    ).map(incomeRecord)
   }
 
   incomeReportId(id: string): string | null {
-    const row = this.db.prepare('SELECT daily_report_id FROM income_entries WHERE id = ?').get(id) as
-      | { daily_report_id: string }
-      | undefined
+    const row = this.db
+      .prepare('SELECT daily_report_id FROM income_entries WHERE id = ?')
+      .get(id) as { daily_report_id: string } | undefined
     return row?.daily_report_id ?? null
   }
 
@@ -552,16 +593,18 @@ export class DailyReportRepository {
       where.push('p.status = @status')
       params.status = request.status
     }
-    return (this.db
-      .prepare(
-        `SELECT p.*, b.name AS branch
+    return (
+      this.db
+        .prepare(
+          `SELECT p.*, b.name AS branch
            FROM daily_report_payment_entries p
            JOIN daily_reports dr ON dr.id = p.daily_report_id
            JOIN branches b ON b.id = dr.branch_id
           WHERE ${where.join(' AND ')}
           ORDER BY p.transaction_date DESC, p.created_at DESC, p.id DESC`
-      )
-      .all(params) as PaymentRow[]).map(paymentRecord)
+        )
+        .all(params) as PaymentRow[]
+    ).map(paymentRecord)
   }
 
   paymentReportId(id: string): string | null {
@@ -649,11 +692,7 @@ export class DailyReportRepository {
             WHERE id = ?
           RETURNING id`
         )
-        .get(
-          request.cashRemittedCentavos,
-          now,
-          request.dailyReportId
-        ) as { id: string } | undefined
+        .get(request.cashRemittedCentavos, now, request.dailyReportId) as { id: string } | undefined
       if (!report) throw new AppError('NOT_FOUND', 'Daily report was not found.')
 
       const upsertReceipt = this.db.prepare(
@@ -720,44 +759,67 @@ export class DailyReportRepository {
     if (!report) throw new AppError('NOT_FOUND', 'Daily report was not found.')
     const incomeEntries = this.listIncome({ dailyReportId })
     const paymentEntries = this.listPayments({ dailyReportId })
-    const receiptTotals = (this.db
-      .prepare('SELECT * FROM daily_receipt_totals WHERE daily_report_id = ? ORDER BY receipt_type_id')
-      .all(dailyReportId) as ReceiptTotalRow[]).map(receiptTotalRecord)
-    const cashOutEntries = (this.db
-      .prepare(
-        `SELECT * FROM cash_out_entries WHERE daily_report_id = ?
+    const receiptTotals = (
+      this.db
+        .prepare(
+          'SELECT * FROM daily_receipt_totals WHERE daily_report_id = ? ORDER BY receipt_type_id'
+        )
+        .all(dailyReportId) as ReceiptTotalRow[]
+    ).map(receiptTotalRecord)
+    const cashOutEntries = (
+      this.db
+        .prepare(
+          `SELECT * FROM cash_out_entries WHERE daily_report_id = ?
          ORDER BY transaction_date DESC, created_at DESC, id DESC`
-      )
-      .all(dailyReportId) as CashOutRow[]).map(cashOutRecord)
-    const deductions = (this.db
-      .prepare('SELECT * FROM daily_report_deductions WHERE daily_report_id = ? ORDER BY deduction_type_id')
-      .all(dailyReportId) as DeductionRow[]).map(deductionRecord)
-    const cashCounts = (this.db
-      .prepare('SELECT * FROM daily_report_cash_counts WHERE daily_report_id = ? ORDER BY denomination_id')
-      .all(dailyReportId) as CashCountRow[]).map(cashCountRecord)
-    const receiptTypes = (this.db
-      .prepare(
-        'SELECT id, name, sort_order, is_default_visible FROM receipt_types WHERE is_active = 1 ORDER BY sort_order, name'
-      )
-      .all() as ReceiptTypeReferenceRow[]).map((row) => ({
+        )
+        .all(dailyReportId) as CashOutRow[]
+    ).map(cashOutRecord)
+    const deductions = (
+      this.db
+        .prepare(
+          'SELECT * FROM daily_report_deductions WHERE daily_report_id = ? ORDER BY deduction_type_id'
+        )
+        .all(dailyReportId) as DeductionRow[]
+    ).map(deductionRecord)
+    const cashCounts = (
+      this.db
+        .prepare(
+          'SELECT * FROM daily_report_cash_counts WHERE daily_report_id = ? ORDER BY denomination_id'
+        )
+        .all(dailyReportId) as CashCountRow[]
+    ).map(cashCountRecord)
+    const receiptTypes = (
+      this.db
+        .prepare(
+          'SELECT id, name, short_name, sort_order, is_default_visible, is_system FROM receipt_types WHERE is_active = 1 ORDER BY sort_order, name'
+        )
+        .all() as ReceiptTypeReferenceRow[]
+    ).map((row) => ({
       id: row.id,
       name: row.name,
+      shortName: row.short_name || row.name.slice(0, 7),
       sortOrder: row.sort_order,
       isDefaultVisible:
         row.is_default_visible === 1 &&
         !receiptTypesHiddenByDefault.has(row.name.trim().toUpperCase()),
       isSystem: row.is_system === 1
     }))
-    const deductionTypes = (this.db
-      .prepare('SELECT id, name FROM deduction_types WHERE is_active = 1 ORDER BY name')
-      .all() as DeductionTypeRow[]).map((row, index) => ({
+    const deductionTypes = (
+      this.db
+        .prepare('SELECT id, name FROM deduction_types WHERE is_active = 1 ORDER BY name')
+        .all() as DeductionTypeRow[]
+    ).map((row, index) => ({
       id: row.id,
       name: row.name,
       sortOrder: index
     }))
-    const cashDenominations = (this.db
-      .prepare('SELECT id, value_centavos, sort_order FROM cash_denominations WHERE is_active = 1 ORDER BY sort_order')
-      .all() as CashDenominationReferenceRow[]).map((row) => ({
+    const cashDenominations = (
+      this.db
+        .prepare(
+          'SELECT id, value_centavos, sort_order FROM cash_denominations WHERE is_active = 1 ORDER BY sort_order'
+        )
+        .all() as CashDenominationReferenceRow[]
+    ).map((row) => ({
       id: row.id,
       valueCentavos: row.value_centavos,
       sortOrder: row.sort_order

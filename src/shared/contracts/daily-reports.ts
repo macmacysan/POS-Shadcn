@@ -207,11 +207,13 @@ export const dailyReportReferenceRecordSchema = z.object({
   sortOrder: z.number().int()
 })
 export const dailyReportReceiptTypeRecordSchema = dailyReportReferenceRecordSchema.extend({
+  shortName: z.string().trim().min(1).max(7),
   isDefaultVisible: z.boolean(),
   isSystem: z.boolean()
 })
 export const dailyReportReceiptTypeCreateRequestSchema = z.object({
-  name: z.string().trim().min(1).max(200)
+  name: z.string().trim().min(1).max(200),
+  shortName: z.string().trim().min(1).max(7)
 })
 export const dailyReportReceiptTypeDeleteRequestSchema = z.object({ id: uuidSchema })
 export const dailyReportReceiptTypeDeleteResponseSchema = z.object({ id: uuidSchema })
