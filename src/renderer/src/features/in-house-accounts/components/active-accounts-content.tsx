@@ -1,6 +1,8 @@
 import { StatusAccountsContent } from './status-accounts-content'
 
 type Props = {
+  readonly initialBranch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
+  readonly initialSearch?: string
   readonly onOpenPaymentWorkspace?: (
     accountId: string,
     initialTab: 'schedule' | 'ledger',
@@ -8,6 +10,17 @@ type Props = {
   ) => void
 }
 
-export function InHouseActiveAccountsContent({ onOpenPaymentWorkspace }: Props): React.JSX.Element {
-  return <StatusAccountsContent view="active" onOpenPaymentWorkspace={onOpenPaymentWorkspace} />
+export function InHouseActiveAccountsContent({
+  initialBranch,
+  initialSearch,
+  onOpenPaymentWorkspace
+}: Props): React.JSX.Element {
+  return (
+    <StatusAccountsContent
+      view="active"
+      initialBranch={initialBranch}
+      initialSearch={initialSearch}
+      onOpenPaymentWorkspace={onOpenPaymentWorkspace}
+    />
+  )
 }

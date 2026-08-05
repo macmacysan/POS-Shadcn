@@ -14,6 +14,7 @@ import { AppError } from './errors'
 type ExpenseRow = {
   id: string
   report_id: string
+  branch: string
   type: ExpenseRecord['type']
   description: string
   category: ExpenseRecord['category']
@@ -38,6 +39,7 @@ function mapExpense(row: ExpenseRow): ExpenseRecord {
   return {
     id: row.id,
     reportId: row.report_id,
+    branch: row.branch,
     type: row.type,
     description: row.description,
     category: row.category,
@@ -53,8 +55,29 @@ export class ExpenseRepository {
   constructor(private readonly db: Database.Database) {}
 
   findPage(request: ExpenseListRequest): { rows: ExpenseRecord[]; totalRows: number } {
-    const where = ["report_id = @reportId", "status = 'POSTED'"]
-    const params: Record<string, string | number> = { reportId: request.reportId }
+    const where = ["e.status = 'POSTED'"]
+    const params: Record<string, string | number> = {}
+
+    if (request.reportId) {
+      where.push('e.report_id = @reportId')
+      params.reportId = request.reportId
+    }
+    if (request.branch && request.branch !== 'All Branch') {
+      where.push('b.name = @branch')
+      params.branch = request.branch
+    }
+    if (request.dateFrom) {
+      where.push('dr.business_date >= @dateFrom')
+      params.dateFrom = request.dateFrom
+    }
+    if (request.dateTo) {
+      where.push('dr.business_date <= @dateTo')
+      params.dateTo = request.dateTo
+    }
+    if (request.filters.branch) {
+      where.push('b.name = @branchFilter')
+      params.branchFilter = request.filters.branch
+    }
 
     if (request.search) {
       where.push(`(
@@ -87,17 +110,27 @@ export class ExpenseRepository {
 
     const readPage = this.db.transaction(() => {
       const totalRows = (
-        this.db.prepare(`SELECT COUNT(*) AS count FROM expenses WHERE ${whereSql}`).get(params) as {
+        this.db
+          .prepare(
+            `SELECT COUNT(*) AS count
+               FROM expenses e
+               JOIN daily_reports dr ON dr.id = e.report_id
+               JOIN branches b ON b.id = dr.branch_id
+              WHERE ${whereSql}`
+          )
+          .get(params) as {
           count: number
         }
       ).count
       const rows = this.db
         .prepare(
-          `SELECT id, report_id, type, description, category, receipt_no, vat,
-                  amount_centavos, created_at, updated_at
-             FROM expenses
+          `SELECT e.id, e.report_id, b.name AS branch, e.type, e.description, e.category, e.receipt_no, e.vat,
+                  e.amount_centavos, e.created_at, e.updated_at
+             FROM expenses e
+             JOIN daily_reports dr ON dr.id = e.report_id
+             JOIN branches b ON b.id = dr.branch_id
             WHERE ${whereSql}
-            ORDER BY ${sortColumn} ${sortDirection}, id ${sortDirection}
+            ORDER BY e.${sortColumn} ${sortDirection}, e.id ${sortDirection}
             LIMIT @limit OFFSET @offset`
         )
         .all({ ...params, limit: request.pageSize, offset }) as ExpenseRow[]
@@ -111,10 +144,12 @@ export class ExpenseRepository {
   findById(id: string): ExpenseRecord | null {
     const row = this.db
       .prepare(
-        `SELECT id, report_id, type, description, category, receipt_no, vat,
-                amount_centavos, created_at, updated_at
-           FROM expenses
-          WHERE id = ?`
+        `SELECT e.id, e.report_id, b.name AS branch, e.type, e.description, e.category, e.receipt_no, e.vat,
+                e.amount_centavos, e.created_at, e.updated_at
+           FROM expenses e
+           JOIN daily_reports dr ON dr.id = e.report_id
+           JOIN branches b ON b.id = dr.branch_id
+          WHERE e.id = ?`
       )
       .get(id) as ExpenseRow | undefined
     return row ? mapExpense(row) : null

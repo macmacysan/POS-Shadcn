@@ -11,6 +11,10 @@ import type {
   DailyReportPaymentUpdateRequest,
   DailyReportPaymentVoidRequest,
   DailyReportRecord,
+  DailyReportReceiptTypeCreateRequest,
+  DailyReportReceiptTypeDeleteRequest,
+  DailyReportReceiptTypeDeleteResponse,
+  DailyReportReceiptTypeRecord,
   DailyReportResolveActiveRequest,
   DailyReportSummaryUpdateRequest,
   DailyReportSnapshotResponse,
@@ -41,6 +45,7 @@ type DailyReportRow = {
 type IncomeRow = {
   id: string
   daily_report_id: string
+  branch: string
   category_id: string
   transaction_date: string
   particular: string
@@ -59,6 +64,7 @@ type IncomeRow = {
 type PaymentRow = {
   id: string
   daily_report_id: string
+  branch: string
   payment_method_id: string
   transaction_date: string
   amount_centavos: number
@@ -124,6 +130,18 @@ type ReferenceRow = {
   sort_order: number
 }
 
+type ReceiptTypeReferenceRow = ReferenceRow & {
+  is_default_visible: number
+  is_system: number
+}
+
+const receiptTypesHiddenByDefault = new Set([
+  'SALES INVOICE',
+  'SALES INVOICE - TRADING',
+  'DELIVERY RECEIPT',
+  'BOBS PAWNSHOP'
+])
+
 type DeductionTypeRow = Pick<ReferenceRow, 'id' | 'name'>
 
 type CashDenominationReferenceRow = {
@@ -153,6 +171,7 @@ function incomeRecord(row: IncomeRow): IncomeEntryRecord {
   return {
     id: row.id,
     dailyReportId: row.daily_report_id,
+    branch: row.branch ?? 'Unknown',
     categoryId: row.category_id,
     transactionDate: row.transaction_date,
     particular: row.particular,
@@ -173,6 +192,7 @@ function paymentRecord(row: PaymentRow): DailyReportPaymentEntryRecord {
   return {
     id: row.id,
     dailyReportId: row.daily_report_id,
+    branch: row.branch ?? 'Unknown',
     paymentMethodId: row.payment_method_id,
     transactionDate: row.transaction_date,
     amountCentavos: row.amount_centavos,
@@ -253,8 +273,33 @@ export class DailyReportRepository {
 
   resolveActive(request: DailyReportResolveActiveRequest): DailyReportRecord {
     const existing = this.findByIdentity(request.branchId, request.cashierUserId, request.businessDate)
-    if (existing) return existing
+    if (existing) {
+      if (existing.status === 'DRAFT' || existing.status === 'REOPENED') {
+        const openingCashCentavos = this.previousEndingCashCentavos(
+          request.branchId,
+          request.cashierUserId,
+          request.businessDate
+        )
+        if (existing.openingCashCentavos !== openingCashCentavos) {
+          const row = this.db
+            .prepare(
+              `UPDATE daily_reports
+                  SET opening_cash_centavos = ?, updated_at = ?
+                WHERE id = ?
+              RETURNING *`
+            )
+            .get(openingCashCentavos, new Date().toISOString(), existing.id) as DailyReportRow
+          return reportRecord(row)
+        }
+      }
+      return existing
+    }
 
+    const openingCashCentavos = this.previousEndingCashCentavos(
+      request.branchId,
+      request.cashierUserId,
+      request.businessDate
+    )
     const now = new Date().toISOString()
     const report = this.db.transaction(() => {
       const row = this.db
@@ -269,7 +314,7 @@ export class DailyReportRepository {
           request.branchId,
           request.cashierUserId,
           request.businessDate,
-          request.openingCashCentavos ?? 0,
+          openingCashCentavos,
           now,
           now
         ) as DailyReportRow
@@ -285,6 +330,85 @@ export class DailyReportRepository {
       return row
     })()
     return reportRecord(report)
+  }
+
+  private previousEndingCashCentavos(
+    branchId: string,
+    cashierUserId: string,
+    businessDate: string
+  ): number {
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(d.value_centavos * c.quantity), 0) AS ending_cash_centavos
+           FROM daily_reports previous
+           LEFT JOIN daily_report_cash_counts c ON c.daily_report_id = previous.id
+           LEFT JOIN cash_denominations d ON d.id = c.denomination_id
+          WHERE previous.branch_id = ?
+            AND previous.cashier_user_id = ?
+            AND previous.business_date = date(?, '-1 day')
+            AND previous.status <> 'VOIDED'`
+      )
+      .get(branchId, cashierUserId, businessDate) as { ending_cash_centavos: number }
+    return row.ending_cash_centavos
+  }
+
+  createReceiptType(
+    request: DailyReportReceiptTypeCreateRequest,
+    createdByUserId: string
+  ): DailyReportReceiptTypeRecord {
+    const name = request.name.trim()
+    const existing = this.db
+      .prepare('SELECT id FROM receipt_types WHERE name = ? COLLATE NOCASE')
+      .get(name) as { id: string } | undefined
+    if (existing) throw new AppError('CONFLICT', 'A receipt type with that name already exists.')
+
+    const now = new Date().toISOString()
+    const row = this.db
+      .prepare(
+        `INSERT INTO receipt_types (
+          id, code, name, is_system, is_default_visible, is_active, sort_order,
+          created_by_user_id, created_at, updated_at
+        ) VALUES (?, ?, ?, 0, 0, 1, ?, ?, ?, ?)
+        RETURNING id, name, sort_order, is_default_visible, is_system`
+      )
+      .get(
+        randomUUID(),
+        `CUSTOM_${randomUUID()}`,
+        name,
+        this.nextReceiptTypeSortOrder(),
+        createdByUserId,
+        now,
+        now
+      ) as ReceiptTypeReferenceRow
+    return {
+      id: row.id,
+      name: row.name,
+      sortOrder: row.sort_order,
+      isDefaultVisible: row.is_default_visible === 1,
+      isSystem: row.is_system === 1
+    }
+  }
+
+  deleteReceiptType(
+    request: DailyReportReceiptTypeDeleteRequest
+  ): DailyReportReceiptTypeDeleteResponse {
+    const row = this.db
+      .prepare(
+        `UPDATE receipt_types
+            SET is_active = 0, updated_at = ?
+          WHERE id = ? AND is_system = 0 AND is_active = 1
+        RETURNING id`
+      )
+      .get(new Date().toISOString(), request.id) as { id: string } | undefined
+    if (!row) throw new AppError('NOT_FOUND', 'Custom receipt type was not found.')
+    return row
+  }
+
+  private nextReceiptTypeSortOrder(): number {
+    const row = this.db
+      .prepare('SELECT COALESCE(MAX(sort_order), 0) + 10 AS sort_order FROM receipt_types')
+      .get() as { sort_order: number }
+    return row.sort_order
   }
 
   findByIdentity(branchId: string, cashierUserId: string, businessDate: string): DailyReportRecord | null {
@@ -305,13 +429,38 @@ export class DailyReportRepository {
   }
 
   listIncome(request: IncomeListRequest): IncomeEntryRecord[] {
+    const where = ['1 = 1']
+    const params: Record<string, string> = {}
+    if (request.dailyReportId) {
+      where.push('i.daily_report_id = @dailyReportId')
+      params.dailyReportId = request.dailyReportId
+    }
+    if (request.branch && request.branch !== 'All Branch') {
+      where.push('b.name = @branch')
+      params.branch = request.branch
+    }
+    if (request.dateFrom) {
+      where.push('dr.business_date >= @dateFrom')
+      params.dateFrom = request.dateFrom
+    }
+    if (request.dateTo) {
+      where.push('dr.business_date <= @dateTo')
+      params.dateTo = request.dateTo
+    }
+    if (request.status) {
+      where.push('i.status = @status')
+      params.status = request.status
+    }
     return (this.db
       .prepare(
-        `SELECT * FROM income_entries
-          WHERE daily_report_id = ? ${request.status ? 'AND status = ?' : ''}
-          ORDER BY transaction_date DESC, created_at DESC, id DESC`
+        `SELECT i.*, b.name AS branch
+           FROM income_entries i
+           JOIN daily_reports dr ON dr.id = i.daily_report_id
+           JOIN branches b ON b.id = dr.branch_id
+          WHERE ${where.join(' AND ')}
+          ORDER BY i.transaction_date DESC, i.created_at DESC, i.id DESC`
       )
-      .all(request.dailyReportId, ...(request.status ? [request.status] : [])) as IncomeRow[]).map(incomeRecord)
+      .all(params) as IncomeRow[]).map(incomeRecord)
   }
 
   incomeReportId(id: string): string | null {
@@ -381,15 +530,38 @@ export class DailyReportRepository {
   }
 
   listPayments(request: DailyReportPaymentListRequest): DailyReportPaymentEntryRecord[] {
+    const where = ['1 = 1']
+    const params: Record<string, string> = {}
+    if (request.dailyReportId) {
+      where.push('p.daily_report_id = @dailyReportId')
+      params.dailyReportId = request.dailyReportId
+    }
+    if (request.branch && request.branch !== 'All Branch') {
+      where.push('b.name = @branch')
+      params.branch = request.branch
+    }
+    if (request.dateFrom) {
+      where.push('dr.business_date >= @dateFrom')
+      params.dateFrom = request.dateFrom
+    }
+    if (request.dateTo) {
+      where.push('dr.business_date <= @dateTo')
+      params.dateTo = request.dateTo
+    }
+    if (request.status) {
+      where.push('p.status = @status')
+      params.status = request.status
+    }
     return (this.db
       .prepare(
-        `SELECT * FROM daily_report_payment_entries
-          WHERE daily_report_id = ? ${request.status ? 'AND status = ?' : ''}
-          ORDER BY transaction_date DESC, created_at DESC, id DESC`
+        `SELECT p.*, b.name AS branch
+           FROM daily_report_payment_entries p
+           JOIN daily_reports dr ON dr.id = p.daily_report_id
+           JOIN branches b ON b.id = dr.branch_id
+          WHERE ${where.join(' AND ')}
+          ORDER BY p.transaction_date DESC, p.created_at DESC, p.id DESC`
       )
-      .all(request.dailyReportId, ...(request.status ? [request.status] : [])) as PaymentRow[]).map(
-      paymentRecord
-    )
+      .all(params) as PaymentRow[]).map(paymentRecord)
   }
 
   paymentReportId(id: string): string | null {
@@ -473,12 +645,11 @@ export class DailyReportRepository {
       const report = this.db
         .prepare(
           `UPDATE daily_reports
-              SET opening_cash_centavos = ?, cash_remitted_centavos = ?, updated_at = ?
+              SET cash_remitted_centavos = ?, updated_at = ?
             WHERE id = ?
           RETURNING id`
         )
         .get(
-          request.openingCashCentavos,
           request.cashRemittedCentavos,
           now,
           request.dailyReportId
@@ -565,11 +736,17 @@ export class DailyReportRepository {
       .prepare('SELECT * FROM daily_report_cash_counts WHERE daily_report_id = ? ORDER BY denomination_id')
       .all(dailyReportId) as CashCountRow[]).map(cashCountRecord)
     const receiptTypes = (this.db
-      .prepare('SELECT id, name, sort_order FROM receipt_types WHERE is_active = 1 ORDER BY sort_order, name')
-      .all() as ReferenceRow[]).map((row) => ({
+      .prepare(
+        'SELECT id, name, sort_order, is_default_visible FROM receipt_types WHERE is_active = 1 ORDER BY sort_order, name'
+      )
+      .all() as ReceiptTypeReferenceRow[]).map((row) => ({
       id: row.id,
       name: row.name,
-      sortOrder: row.sort_order
+      sortOrder: row.sort_order,
+      isDefaultVisible:
+        row.is_default_visible === 1 &&
+        !receiptTypesHiddenByDefault.has(row.name.trim().toUpperCase()),
+      isSystem: row.is_system === 1
     }))
     const deductionTypes = (this.db
       .prepare('SELECT id, name FROM deduction_types WHERE is_active = 1 ORDER BY name')
@@ -593,14 +770,50 @@ export class DailyReportRepository {
           COALESCE((SELECT SUM(amount_centavos) FROM daily_report_deductions WHERE daily_report_id = ?), 0) AS deduction_centavos,
           COALESCE((SELECT SUM(amount_centavos) FROM cash_out_entries WHERE daily_report_id = ? AND status = 'POSTED'), 0) AS cash_out_centavos,
           COALESCE((SELECT SUM(amount_centavos) FROM expenses WHERE report_id = ? AND status = 'POSTED'), 0) AS legacy_expense_cash_out_centavos,
-          COALESCE((SELECT SUM(d.value_centavos * c.quantity) FROM daily_report_cash_counts c JOIN cash_denominations d ON d.id = c.denomination_id WHERE c.daily_report_id = ?), 0) AS physical_cash_centavos`
+          COALESCE((SELECT SUM(p.amount_centavos)
+                      FROM in_house_payments p
+                      JOIN installment_contracts c ON c.id = p.contract_id
+                     WHERE p.status = 'POSTED'
+                       AND p.payment_date = report.business_date
+                       AND c.branch_id = report.branch_id), 0) AS recorded_paid_amount_centavos,
+          COALESCE((SELECT SUM(i.amount_centavos)
+                      FROM income_entries i
+                     WHERE i.daily_report_id = ? AND i.status = 'POSTED'), 0) AS other_income_centavos,
+          COALESCE((SELECT SUM(f.downpayment_centavos)
+                      FROM finance_accounts f
+                      JOIN branches finance_branch ON finance_branch.name = f.branch
+                     WHERE COALESCE(f.paid_date, f.date_released) = ?
+                       AND finance_branch.id = report.branch_id), 0) AS finance_down_centavos,
+          COALESCE((SELECT SUM(f.balance_centavos)
+                      FROM finance_accounts f
+                      JOIN branches finance_branch ON finance_branch.name = f.branch
+                     WHERE COALESCE(f.paid_date, f.date_released) = ?
+                       AND finance_branch.id = report.branch_id), 0) AS finance_balance_centavos,
+          COALESCE((SELECT SUM(d.value_centavos * c.quantity) FROM daily_report_cash_counts c JOIN cash_denominations d ON d.id = c.denomination_id WHERE c.daily_report_id = ?), 0) AS physical_cash_centavos
+          FROM daily_reports report
+         WHERE report.id = ?`
       )
-      .get(dailyReportId, dailyReportId, dailyReportId, dailyReportId, dailyReportId, dailyReportId) as {
+      .get(
+        dailyReportId,
+        dailyReportId,
+        dailyReportId,
+        dailyReportId,
+        dailyReportId,
+        dailyReportId,
+        report.businessDate,
+        report.businessDate,
+        dailyReportId,
+        dailyReportId
+      ) as {
       receipt_centavos: number
       income_centavos: number
       deduction_centavos: number
       cash_out_centavos: number
       legacy_expense_cash_out_centavos: number
+      recorded_paid_amount_centavos: number
+      other_income_centavos: number
+      finance_down_centavos: number
+      finance_balance_centavos: number
       physical_cash_centavos: number
     }
     const expectedCashCentavos =
@@ -622,6 +835,10 @@ export class DailyReportRepository {
       deductionTypes,
       cashDenominations,
       legacyExpenseCashOutCentavos: totals.legacy_expense_cash_out_centavos,
+      cashCollectionsCentavos: totals.recorded_paid_amount_centavos,
+      otherIncomeCentavos: totals.other_income_centavos,
+      financeDownCentavos: totals.finance_down_centavos,
+      financeBalanceCentavos: totals.finance_balance_centavos,
       expectedCashCentavos,
       physicalCashCentavos: totals.physical_cash_centavos,
       cashVarianceCentavos: totals.physical_cash_centavos - expectedCashCentavos

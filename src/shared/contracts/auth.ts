@@ -5,8 +5,11 @@ import { financeBranchValues } from './finance-accounts'
 export const userRoleValues = ['CASHIER', 'ADMIN'] as const
 export const userRoleSchema = z.enum(userRoleValues)
 
+export const loginBranchValues = ['All Branch', ...financeBranchValues] as const
+export const loginBranchSchema = z.enum(loginBranchValues)
+
 export const loginRequestSchema = z.object({
-  branch: z.enum(financeBranchValues),
+  branch: loginBranchSchema,
   username: z.string().trim().min(1).max(100),
   password: z.string().min(1).max(200)
 })
@@ -14,12 +17,13 @@ export const loginRequestSchema = z.object({
 export type UserRole = z.infer<typeof userRoleSchema>
 export type LoginRequest = z.infer<typeof loginRequestSchema>
 export type FinanceBranch = (typeof financeBranchValues)[number]
+export type LoginBranch = (typeof loginBranchValues)[number]
 export type AuthenticatedUser = {
   id: string
   displayName: string
   role: UserRole
   branchId: string
-  branch?: FinanceBranch
+  branch: LoginBranch
 }
 
 export const authIpcChannels = {

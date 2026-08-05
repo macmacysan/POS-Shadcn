@@ -2,7 +2,7 @@ import { format } from 'date-fns'
 import { formatPhilippinePeso } from '@/lib/currency'
 
 export type InstallmentHistoryAction = 'new' | 'edited' | 'deleted'
-export type InstallmentHistorySource = 'in-house' | 'home-credit'
+export type InstallmentHistorySource = 'in-house' | 'home-credit' | 'finance'
 
 type HistoryBase = {
   id: string
@@ -10,6 +10,7 @@ type HistoryBase = {
   action: InstallmentHistoryAction
   source: InstallmentHistorySource
   accountId: string
+  branch: string
   accountName: string
   reference?: string
   activity: string
@@ -70,7 +71,8 @@ export const actionLabels: Record<InstallmentHistoryAction, string> = {
 
 export const sourceLabels: Record<InstallmentHistorySource, string> = {
   'in-house': 'In-house',
-  'home-credit': 'Home Credit'
+  'home-credit': 'Home Credit',
+  finance: 'Finance'
 }
 
 export function formatHistoryDateTime(value: string): string {
@@ -92,6 +94,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'new',
     source: 'in-house',
     accountId: 'IH-2026-0041',
+    branch: 'Goa',
     accountName: 'Maria Clara Villanueva Santos',
     reference: 'IH-2026-0041',
     activity: 'New installment account created',
@@ -123,6 +126,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'new',
     source: 'home-credit',
     accountId: 'HC-983104',
+    branch: 'Tinambac',
     accountName: 'Luis Miguel Cruz',
     reference: 'HC-983104',
     activity: 'Payment added for Schedule #5',
@@ -151,6 +155,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'edited',
     source: 'in-house',
     accountId: 'IH-2026-0037',
+    branch: 'Tigaon',
     accountName: 'Ana Sofia Santos',
     reference: 'IH-2026-0037',
     activity: 'Loan terms updated',
@@ -170,6 +175,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'edited',
     source: 'home-credit',
     accountId: 'HC-982771',
+    branch: 'Lagonoy',
     accountName: 'Jose Rizal Mercado',
     reference: 'HC-982771',
     activity: 'Payment record edited',
@@ -198,6 +204,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'deleted',
     source: 'in-house',
     accountId: 'IH-2026-0029',
+    branch: 'Goa',
     accountName: 'Beatriz de los Santos',
     reference: 'IH-2026-0029',
     activity: 'Payment record deleted',

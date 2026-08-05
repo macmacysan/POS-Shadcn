@@ -10,8 +10,8 @@ export class DashboardService {
 
   getOverview(request: DashboardGetRequest): DashboardOverview {
     const user = this.auth.requireSession()
-    const branch = user.role === 'ADMIN' ? request.branch : user.branch
-    return this.repository.getOverview(request.businessDate, {
+    const branch = (user.role === 'ADMIN' ? request.branch : user.branch) ?? null
+    return this.repository.getOverview(request.businessDate, request.rangeDays, {
       branch,
       label: branch ? `${branch} Branch` : 'All branches'
     })

@@ -1,4 +1,9 @@
-import type { AuthenticatedUser, LoginRequest, UserRole } from '../../shared/contracts'
+import {
+  loginBranchValues,
+  type AuthenticatedUser,
+  type LoginRequest,
+  type UserRole
+} from '../../shared/contracts'
 import type { AppDatabase } from './database'
 import { AppError } from './errors'
 import { verifyPassword } from '../security/passwords'
@@ -31,16 +36,29 @@ export class UserRepository {
     if (user.role !== 'ADMIN' && user.role !== 'CASHIER') {
       throw new AppError('FORBIDDEN', 'This account role is not supported.')
     }
+    if (request.branch === 'All Branch' && user.role !== 'ADMIN') {
+      throw new AppError('FORBIDDEN', 'Only administrators can view all branches.')
+    }
     if (user.role !== 'ADMIN' && user.branch !== request.branch) {
       throw new AppError('FORBIDDEN', 'This account is not assigned to the selected branch.')
     }
     this.db
       .prepare('UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?')
       .run(new Date().toISOString(), new Date().toISOString(), user.id)
-    const branch = this.db
-      .prepare('SELECT id FROM branches WHERE name = ? AND is_active = 1')
-      .get(request.branch) as { id: string } | undefined
+    const branch =
+      request.branch === 'All Branch'
+        ? user.branch_id
+          ? ({ id: user.branch_id } as { id: string })
+          : (this.db
+              .prepare('SELECT id FROM branches WHERE is_active = 1 ORDER BY name LIMIT 1')
+              .get() as { id: string } | undefined)
+        : (this.db
+            .prepare('SELECT id FROM branches WHERE name = ? AND is_active = 1')
+            .get(request.branch) as { id: string } | undefined)
     if (!branch) throw new AppError('NOT_FOUND', 'Selected branch was not found.')
+    if (!loginBranchValues.includes(request.branch)) {
+      throw new AppError('VALIDATION_ERROR', 'Selected branch is invalid.')
+    }
     return {
       id: user.id,
       displayName: user.display_name,

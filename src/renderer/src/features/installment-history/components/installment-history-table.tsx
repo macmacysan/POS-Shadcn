@@ -35,14 +35,38 @@ type InstallmentHistoryTableProps = {
   onSelect: (record: InstallmentHistoryRecord) => void
   onDoubleClick: (record: InstallmentHistoryRecord) => void
   isLoading?: boolean
+  selectedBranch?: string
+  dateFrom?: string
+  dateTo?: string
+  globalSearch?: string
+  onGlobalSearchChange?: (value: string) => void
 }
 
 type SortDirection = 'asc' | 'desc'
 
 const actionOptions: Array<InstallmentHistoryAction | 'all'> = ['all', 'new', 'edited', 'deleted']
-const sourceOptions: Array<InstallmentHistorySource | 'all'> = ['all', 'in-house', 'home-credit']
+const sourceOptions: Array<InstallmentHistorySource | 'all'> = [
+  'all',
+  'in-house',
+  'home-credit',
+  'finance'
+]
 const historyPaginationSizes = [15, 25, 50, 100]
 const historyTableLayout = { columnsResizable: true } as const
+
+const historyBranchColumn: ColumnDef<InstallmentHistoryRecord> = {
+  id: 'branch',
+  accessorKey: 'branch',
+  header: ({ column }) => <DataGridColumnHeader column={column} title="Branch" />,
+  enableSorting: false,
+  size: 90,
+  meta: {
+    headerTitle: 'Branch',
+    headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+    cellClassName: 'text-xs text-muted-foreground'
+  },
+  cell: ({ row }) => row.original.branch
+}
 
 function ActionBadge({ action }: { action: InstallmentHistoryAction }): React.JSX.Element {
   return (
@@ -100,11 +124,18 @@ export function InstallmentHistoryTable({
   selectedId,
   onSelect,
   onDoubleClick,
-  isLoading = false
+  isLoading = false,
+  selectedBranch = 'All Branch',
+  dateFrom,
+  dateTo,
+  globalSearch,
+  onGlobalSearchChange
 }: InstallmentHistoryTableProps): React.JSX.Element {
   const [search, setSearch] = React.useState('')
+  const searchValue = globalSearch ?? search
   const [action, setAction] = React.useState<InstallmentHistoryAction | 'all'>('all')
   const [source, setSource] = React.useState<InstallmentHistorySource | 'all'>('all')
+  const [branch, setBranch] = React.useState('all')
   const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc')
   const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
   const filterFields = React.useMemo(
@@ -130,22 +161,44 @@ export function InstallmentHistoryTable({
         options: sourceOptions
           .filter((option) => option !== 'all')
           .map((option) => ({ value: option, label: sourceLabels[option] }))
-      }
+      },
+      ...(selectedBranch === 'All Branch'
+        ? [
+            {
+              key: 'branch',
+              label: 'Branch',
+              type: 'select' as const,
+              options: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'].map((value) => ({
+                value,
+                label: value
+              }))
+            }
+          ]
+        : [])
     ],
-    []
+    [selectedBranch]
   )
   const filters = React.useMemo<Filter<string>[]>(() => {
     const next: Filter<string>[] = []
-    if (search.trim())
-      next.push({ id: 'history-search', field: 'search', operator: 'contains', values: [search] })
+    if (searchValue.trim())
+      next.push({
+        id: 'history-search',
+        field: 'search',
+        operator: 'contains',
+        values: [searchValue]
+      })
     if (action !== 'all')
       next.push({ id: 'history-action', field: 'action', operator: 'is', values: [action] })
     if (source !== 'all')
       next.push({ id: 'history-source', field: 'source', operator: 'is', values: [source] })
+    if (branch !== 'all')
+      next.push({ id: 'history-branch', field: 'branch', operator: 'is', values: [branch] })
     return next
-  }, [action, search, source])
+  }, [action, branch, searchValue, source])
   const handleFiltersChange = (next: Filter<string>[]): void => {
-    setSearch(next.find((filter) => filter.field === 'search')?.values[0] ?? '')
+    const nextSearch = next.find((filter) => filter.field === 'search')?.values[0] ?? ''
+    setSearch(nextSearch)
+    onGlobalSearchChange?.(nextSearch)
     setAction(
       (next.find((filter) => filter.field === 'action')?.values[0] as
         InstallmentHistoryAction | undefined) ?? 'all'
@@ -154,6 +207,7 @@ export function InstallmentHistoryTable({
       (next.find((filter) => filter.field === 'source')?.values[0] as
         InstallmentHistorySource | undefined) ?? 'all'
     )
+    setBranch(next.find((filter) => filter.field === 'branch')?.values[0] ?? 'all')
   }
   const handleRowContextMenu = React.useCallback(
     (record: InstallmentHistoryRecord, event: React.MouseEvent<HTMLTableRowElement>) => {
@@ -167,10 +221,14 @@ export function InstallmentHistoryTable({
   )
 
   const visibleRecords = React.useMemo(() => {
-    const query = search.trim().toLowerCase()
+    const query = searchValue.trim().toLowerCase()
     return records
       .filter((record) => action === 'all' || record.action === action)
       .filter((record) => source === 'all' || record.source === source)
+      .filter((record) => selectedBranch === 'All Branch' || record.branch === selectedBranch)
+      .filter((record) => branch === 'all' || record.branch === branch)
+      .filter((record) => !dateFrom || record.occurredAt.slice(0, 10) >= dateFrom)
+      .filter((record) => !dateTo || record.occurredAt.slice(0, 10) <= dateTo)
       .filter(
         (record) =>
           !query ||
@@ -182,10 +240,21 @@ export function InstallmentHistoryTable({
         const difference = left.occurredAt.localeCompare(right.occurredAt)
         return sortDirection === 'desc' ? -difference : difference
       })
-  }, [action, records, search, sortDirection, source])
+  }, [
+    action,
+    branch,
+    dateFrom,
+    dateTo,
+    records,
+    searchValue,
+    selectedBranch,
+    sortDirection,
+    source
+  ])
 
   const columns = React.useMemo<ColumnDef<InstallmentHistoryRecord>[]>(
     () => [
+      ...(selectedBranch === 'All Branch' ? [historyBranchColumn] : []),
       {
         id: 'action',
         accessorKey: 'action',
@@ -294,7 +363,7 @@ export function InstallmentHistoryTable({
         getOpenSignal: (rowId) => (contextMenu.rowId === rowId ? contextMenu.signal : undefined)
       })
     ],
-    [contextMenu, onSelect]
+    [contextMenu, historyBranchColumn, onSelect, selectedBranch]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table manages reactive table state internally.

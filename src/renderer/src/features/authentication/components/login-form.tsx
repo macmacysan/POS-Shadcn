@@ -1,5 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import type { AuthenticatedUser } from '@/../../shared/contracts'
+import {
+  loginBranchValues,
+  type AuthenticatedUser,
+  type LoginBranch
+} from '@/../../shared/contracts'
 
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -12,12 +16,8 @@ import {
   SelectValue
 } from '@/components/ui/select'
 
-const branches = ['Goa', 'Lagonoy', 'Tigaon', 'Tinambac'] as const
-
-type Branch = (typeof branches)[number]
-
 type LoginValues = {
-  branch: Branch | ''
+  branch: LoginBranch | ''
   username: string
   password: string
 }
@@ -29,7 +29,7 @@ export function LoginForm({
   onSuccess,
   ...props
 }: React.ComponentProps<'div'> & {
-  onSuccess?: (branch: Branch, user: AuthenticatedUser) => void
+  onSuccess?: (branch: LoginBranch, user: AuthenticatedUser) => void
 }): React.JSX.Element {
   const [values, setValues] = useState<LoginValues>({
     branch: '',
@@ -61,11 +61,11 @@ export function LoginForm({
     setSubmitError(undefined)
     try {
       const user = await window.api.auth.login({
-        branch: values.branch as Branch,
+        branch: values.branch as LoginBranch,
         username: values.username,
         password: values.password
       })
-      onSuccess?.(values.branch as Branch, user)
+      onSuccess?.(values.branch as LoginBranch, user)
     } catch {
       setSubmitError('Unable to sign in with those credentials.')
     } finally {
@@ -89,13 +89,13 @@ export function LoginForm({
             <FieldLabel htmlFor="branch">Branch</FieldLabel>
             <Select
               value={values.branch || null}
-              onValueChange={(value) => updateValue('branch', (value ?? '') as Branch | '')}
+              onValueChange={(value) => updateValue('branch', (value ?? '') as LoginBranch | '')}
             >
               <SelectTrigger id="branch" aria-invalid={Boolean(errors.branch)} className="w-full">
                 <SelectValue placeholder="Select a branch" />
               </SelectTrigger>
               <SelectContent>
-                {branches.map((branch) => (
+                {loginBranchValues.map((branch) => (
                   <SelectItem key={branch} value={branch}>
                     {branch}
                   </SelectItem>

@@ -19,6 +19,7 @@ import {
   Phone,
   Printer,
   ReceiptText,
+  Search,
   Scale,
   ShieldCheck,
   Soup,
@@ -37,6 +38,7 @@ import {
   type ReportRow
 } from '@/features/cashier-report/components/report-data-table'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -68,8 +70,9 @@ import {
   InstallmentHistoryTable
 } from '@/features/installment-history'
 import type { RowActionItem } from '@/components/shared/data-table/row-actions'
+import { DateSelector, type DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { installmentHistoryData, type InstallmentHistoryRecord } from '@/lib/installment-history'
+import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { formatPhilippinePeso } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
@@ -78,12 +81,15 @@ import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hoo
 import { useActiveReport } from '@/contexts/active-report-context'
 import {
   expenseTypeValues,
+  amountFromCentavos,
   parseAmountToCentavos,
   type DailyReportPaymentEntryRecord,
   type ExpenseCategory,
   type ExpenseType,
   type ExpenseVat,
-  type IncomeEntryRecord
+  type IncomeEntryRecord,
+  type InstallmentHistoryRecord as PersistedInstallmentHistoryRecord,
+  type LoginBranch
 } from '@/../../shared/contracts'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
@@ -208,6 +214,7 @@ const expenseCategoryConfigByValue = new Map<string, ExpenseCategoryConfig>(
 type ExpenseRow = ExpenseTableRow
 
 type IncomeRow = ReportRow & {
+  branch: string
   categoryId: string
   particular: string
   remarks: string
@@ -216,6 +223,7 @@ type IncomeRow = ReportRow & {
   amount: number
 }
 type PaymentRow = ReportRow & {
+  branch: string
   paymentMethodId: string
   type: string
   bankProvider: string
@@ -231,6 +239,132 @@ type EntryLoadState = {
 }
 
 const money = formatPhilippinePeso
+
+function installmentHistoryRow(
+  record: PersistedInstallmentHistoryRecord
+): InstallmentHistoryRecord {
+  const accountDetails = `${record.accountName} · ${record.accountNumber}`
+  const paymentDetails = {
+    datePaid: record.occurredAt.slice(0, 10),
+    referenceNumber: record.referenceNumber,
+    amountPaid:
+      record.amountCentavos === undefined ? undefined : amountFromCentavos(record.amountCentavos)
+  }
+  const details: InstallmentHistoryRecord['details'] =
+    record.action === 'deleted'
+      ? { kind: 'deleted', snapshot: { accountDetails }, payment: paymentDetails }
+      : record.action === 'edited'
+        ? { kind: 'edited', changes: [], payment: paymentDetails }
+        : { kind: 'new', snapshot: { accountDetails }, payment: paymentDetails }
+
+  return {
+    id: record.id,
+    occurredAt: record.occurredAt,
+    action: record.action,
+    source: record.source,
+    accountId: record.accountId,
+    branch: record.branch,
+    accountName: record.accountName,
+    reference: record.referenceNumber ?? record.accountNumber,
+    activity: record.activity,
+    amount:
+      record.amountCentavos === undefined ? undefined : amountFromCentavos(record.amountCentavos),
+    details
+  }
+}
+
+function CashierReportHeader({
+  dateRange,
+  search,
+  isLoading,
+  error,
+  onDateRangeChange,
+  onSearchChange
+}: {
+  dateRange: DateSelectorValue
+  search: string
+  isLoading: boolean
+  error?: string
+  onDateRangeChange: (value: DateSelectorValue) => void
+  onSearchChange: (value: string) => void
+}): React.JSX.Element {
+  const [open, setOpen] = React.useState(false)
+  const startDate = dateRange.startDate
+  const endDate = dateRange.endDate ?? startDate
+  const dateLabel = startDate
+    ? dateRange.operator === 'before'
+      ? `Before ${format(startDate, 'MMM d, yyyy')}`
+      : dateRange.operator === 'after'
+        ? `After ${format(startDate, 'MMM d, yyyy')}`
+        : `${format(startDate, 'MMM d, yyyy')}${endDate && endDate.getTime() !== startDate.getTime() ? ` - ${format(endDate, 'MMM d, yyyy')}` : ''}`
+    : 'Select date range'
+
+  return (
+    <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-1">
+      <div className="min-w-0">
+        <h1 className="truncate text-base font-semibold tracking-tight">Cashier reports</h1>
+        <p className="text-xs text-muted-foreground">
+          Review entries and reconciliation for a business date.
+        </p>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+        <InputGroup className="w-[min(28rem,42vw)] min-w-56">
+          <InputGroupAddon align="inline-start">
+            <Search aria-hidden="true" />
+          </InputGroupAddon>
+          <InputGroupInput
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search reports..."
+            aria-label="Search reports"
+          />
+        </InputGroup>
+        {error && (
+          <span className="text-xs text-destructive" role="alert">
+            {error}
+          </span>
+        )}
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="min-w-40 justify-center border-x border-border px-3 font-medium tabular-nums"
+                aria-label={`Change report date range${dateLabel === 'Select date range' ? '' : `, ${dateLabel}`}`}
+                disabled={isLoading}
+              />
+            }
+          >
+            {isLoading ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <CalendarIcon data-icon="inline-start" />
+            )}
+            {startDate
+              ? `${format(startDate, 'MMM d, yyyy')}${endDate && endDate.getTime() !== startDate.getTime() ? ` – ${format(endDate, 'MMM d, yyyy')}` : ''}`
+              : 'Select date range'}
+          </PopoverTrigger>
+          <PopoverContent className="w-auto overflow-hidden p-4" align="end">
+            <DateSelector
+              value={dateRange}
+              onChange={onDateRangeChange}
+              allowRange
+              periodTypes={['day']}
+              showInput={false}
+              showTwoMonths
+              minYear={2015}
+              maxYear={new Date().getFullYear()}
+              dayDateFormat="MMM d, yyyy"
+              className="sm:w-[470px]"
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+    </header>
+  )
+}
 
 function TypeBox({ value }: { value: string }): React.JSX.Element {
   return (
@@ -368,6 +502,13 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   }
 ]
 
+const branchColumn = {
+  accessorKey: 'branch',
+  header: 'Branch',
+  size: 90,
+  meta: { className: 'text-muted-foreground' }
+} as const
+
 const incomeColumns: ReportColumn<IncomeRow>[] = [
   {
     accessorKey: 'date',
@@ -468,6 +609,7 @@ const paymentLabelByMethod = Object.fromEntries(
 function incomeRow(record: IncomeEntryRecord): IncomeRow {
   return {
     id: record.id,
+    branch: record.branch,
     categoryId: record.categoryId,
     particular: record.particular,
     remarks: record.remarks ?? '',
@@ -480,6 +622,7 @@ function incomeRow(record: IncomeEntryRecord): IncomeRow {
 function paymentRow(record: DailyReportPaymentEntryRecord): PaymentRow {
   return {
     id: record.id,
+    branch: record.branch,
     paymentMethodId: record.paymentMethodId,
     type: paymentLabelByMethod[record.paymentMethodId] ?? 'Other e-wallet',
     bankProvider: record.bankName ?? '',
@@ -559,6 +702,12 @@ function paymentRowActions(
 
 function ReportTab({
   tab,
+  showBranch,
+  globalFilter,
+  onGlobalFilterChange,
+  selectedBranch,
+  dateFrom,
+  dateTo,
   expenseRows,
   incomeRows,
   paymentRows,
@@ -574,9 +723,18 @@ function ReportTab({
   onEdit,
   incomeLoadState,
   paymentLoadState,
-  onRetryEntries
+  onRetryEntries,
+  historyRecords,
+  historyLoadState,
+  onRetryHistory
 }: {
   tab: (typeof reportTabs)[number]
+  showBranch: boolean
+  globalFilter: string
+  onGlobalFilterChange: (value: string) => void
+  selectedBranch: LoginBranch
+  dateFrom?: string
+  dateTo?: string
   expenseRows: ExpenseRow[]
   incomeRows: IncomeRow[]
   paymentRows: PaymentRow[]
@@ -593,6 +751,9 @@ function ReportTab({
   incomeLoadState: EntryLoadState
   paymentLoadState: EntryLoadState
   onRetryEntries: () => void
+  historyRecords: InstallmentHistoryRecord[]
+  historyLoadState: EntryLoadState
+  onRetryHistory: () => void
 }): React.JSX.Element {
   const getExpenseActions = React.useCallback(
     (row: ExpenseRow) => expenseRowActions(row, onDeleteExpense, onEdit),
@@ -618,9 +779,11 @@ function ReportTab({
     case 'Expenses':
       return (
         <ReportDataTable
-          columns={expenseColumns}
+          columns={showBranch ? [branchColumn, ...expenseColumns] : expenseColumns}
           data={expenseRows}
           filterPlaceholder="Filter expenses..."
+          globalFilterValue={globalFilter}
+          onGlobalFilterValueChange={onGlobalFilterChange}
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={getExpenseActions}
@@ -630,16 +793,19 @@ function ReportTab({
           filterOptions={{
             type: expenseTypeValues,
             category: expenseCategories,
-            vat: vatOptions
+            vat: vatOptions,
+            ...(showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : {})
           }}
         />
       )
     case 'Income':
       return (
         <ReportDataTable
-          columns={incomeColumns}
+          columns={showBranch ? [branchColumn, ...incomeColumns] : incomeColumns}
           data={incomeRows}
           filterPlaceholder="Filter income..."
+          globalFilterValue={globalFilter}
+          onGlobalFilterValueChange={onGlobalFilterChange}
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={getIncomeActions}
@@ -648,14 +814,19 @@ function ReportTab({
           isLoading={incomeLoadState.isLoading}
           loadError={incomeLoadState.error}
           onRetry={onRetryEntries}
+          filterOptions={
+            showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : undefined
+          }
         />
       )
     case 'Payment':
       return (
         <ReportDataTable
-          columns={paymentColumns}
+          columns={showBranch ? [branchColumn, ...paymentColumns] : paymentColumns}
           data={paymentRows}
           filterPlaceholder="Filter payments..."
+          globalFilterValue={globalFilter}
+          onGlobalFilterValueChange={onGlobalFilterChange}
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={getPaymentActions}
@@ -664,16 +835,35 @@ function ReportTab({
           isLoading={paymentLoadState.isLoading}
           loadError={paymentLoadState.error}
           onRetry={onRetryEntries}
+          filterOptions={
+            showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : undefined
+          }
         />
       )
     case 'Activity':
       return (
-        <InstallmentHistoryTable
-          records={installmentHistoryData}
-          selectedId={selectedHistoryId}
-          onSelect={noopHistorySelect}
-          onDoubleClick={onSelectHistory}
-        />
+        <div className="flex min-h-0 flex-1 flex-col">
+          {historyLoadState.error && (
+            <div className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              <span>{historyLoadState.error}</span>
+              <Button type="button" variant="outline" size="xs" onClick={onRetryHistory}>
+                Retry
+              </Button>
+            </div>
+          )}
+          <InstallmentHistoryTable
+            records={historyRecords}
+            isLoading={historyLoadState.isLoading}
+            selectedBranch={selectedBranch}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            globalSearch={globalFilter}
+            onGlobalSearchChange={onGlobalFilterChange}
+            selectedId={selectedHistoryId}
+            onSelect={noopHistorySelect}
+            onDoubleClick={onSelectHistory}
+          />
+        </div>
       )
   }
 }
@@ -857,16 +1047,42 @@ function EntryFormPanel({
 }
 
 export function CashierReportsContent({
-  summaryAlwaysDark = false
+  summaryAlwaysDark = false,
+  selectedBranch = 'All Branch'
 }: {
   summaryAlwaysDark?: boolean
+  selectedBranch?: LoginBranch
 }): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
-  const expenseQuery = useExpenses()
-  const { reportId } = useActiveReport()
+  const activeReport = useActiveReport()
+  const [selectedReport, setSelectedReport] = React.useState(activeReport)
+  const [isDateLoading, setIsDateLoading] = React.useState(false)
+  const [dateError, setDateError] = React.useState<string>()
+  const [reportSearch, setReportSearch] = React.useState('')
+  const [dateRange, setDateRange] = React.useState<DateSelectorValue>(() => {
+    const today = new Date()
+    return { period: 'day', operator: 'between', startDate: today, endDate: today }
+  })
+  const dateRequestVersionRef = React.useRef(0)
+  const reportId = selectedReport.reportId
+  const selectedStartDate = dateRange.startDate
+    ? format(dateRange.startDate, 'yyyy-MM-dd')
+    : undefined
+  const selectedEndDate = dateRange.endDate
+    ? format(dateRange.endDate, 'yyyy-MM-dd')
+    : selectedStartDate
+  const dateFrom = dateRange.operator === 'before' ? undefined : selectedStartDate
+  const dateTo = dateRange.operator === 'after' ? undefined : selectedEndDate
+  const expenseQuery = useExpenses(reportId, selectedBranch, dateFrom, dateTo)
   const { createExpense, removeExpenses, updateExpense } = expenseQuery
   const [incomes, setIncomes] = React.useState<IncomeRow[]>([])
   const [payments, setPayments] = React.useState<PaymentRow[]>([])
+  const [historyRecords, setHistoryRecords] = React.useState<InstallmentHistoryRecord[]>([])
+  const [historyLoadState, setHistoryLoadState] = React.useState<EntryLoadState>({
+    isLoading: true
+  })
+  const [historyRefreshKey, setHistoryRefreshKey] = React.useState(0)
+  const historyRequestVersionRef = React.useRef(0)
   const [incomeLoadState, setIncomeLoadState] = React.useState<EntryLoadState>({ isLoading: true })
   const [paymentLoadState, setPaymentLoadState] = React.useState<EntryLoadState>({
     isLoading: true
@@ -881,6 +1097,57 @@ export function CashierReportsContent({
   const isSummaryCompact = useMediaQuery('(max-width: 760px)')
   const isHistoryTab = activeTab === 'Activity'
   const showRightPanel = !isEntryFormCompact && isEntryFormVisible
+  React.useEffect(() => {
+    const requestVersion = ++historyRequestVersionRef.current
+    setHistoryLoadState({ isLoading: true })
+    void window.api.installments
+      .listHistory({ dateFrom, dateTo })
+      .then((records) => {
+        if (requestVersion !== historyRequestVersionRef.current) return
+        setHistoryRecords(records.map(installmentHistoryRow))
+        setHistoryLoadState({ isLoading: false })
+      })
+      .catch(() => {
+        if (requestVersion !== historyRequestVersionRef.current) return
+        setHistoryRecords([])
+        setHistoryLoadState({
+          isLoading: false,
+          error: 'Installment history could not be loaded.'
+        })
+      })
+  }, [dateFrom, dateTo, historyRefreshKey])
+  const changeBusinessDate = React.useCallback(
+    async (date: Date): Promise<void> => {
+      const businessDate = format(date, 'yyyy-MM-dd')
+      if (businessDate === selectedReport.businessDate) return
+      const requestVersion = ++dateRequestVersionRef.current
+      setIsDateLoading(true)
+      setDateError(undefined)
+      try {
+        const report = await window.api.dailyReports.resolveActive({
+          branchId: activeReport.branchId,
+          cashierUserId: activeReport.cashierUserId,
+          businessDate
+        })
+        if (requestVersion !== dateRequestVersionRef.current) return
+        setSelectedReport({ ...report, reportId: report.id })
+      } catch {
+        if (requestVersion !== dateRequestVersionRef.current) return
+        setDateError('That report date could not be loaded.')
+      } finally {
+        if (requestVersion === dateRequestVersionRef.current) setIsDateLoading(false)
+      }
+    },
+    [activeReport.branchId, activeReport.cashierUserId, selectedReport.businessDate]
+  )
+  const changeDateRange = React.useCallback(
+    (value: DateSelectorValue): void => {
+      setDateRange(value)
+      if (value.operator !== 'is' || !value.startDate) return
+      void changeBusinessDate(value.startDate)
+    },
+    [changeBusinessDate]
+  )
   const setEntryFormOpen = React.useCallback(
     (open: boolean): void => {
       if (open) {
@@ -912,8 +1179,18 @@ export function CashierReportsContent({
     setIncomeLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
     setPaymentLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
     const [incomeResult, paymentResult] = await Promise.allSettled([
-      window.api.dailyReports.listIncome({ dailyReportId: reportId, status: 'POSTED' }),
-      window.api.dailyReports.listPayments({ dailyReportId: reportId, status: 'POSTED' })
+      window.api.dailyReports.listIncome({
+        branch: selectedBranch,
+        dateFrom,
+        dateTo,
+        status: 'POSTED'
+      }),
+      window.api.dailyReports.listPayments({
+        branch: selectedBranch,
+        dateFrom,
+        dateTo,
+        status: 'POSTED'
+      })
     ])
     if (requestVersion !== entriesRequestVersionRef.current) return
     if (incomeResult.status === 'fulfilled') {
@@ -928,7 +1205,7 @@ export function CashierReportsContent({
     } else {
       setPaymentLoadState({ isLoading: false, error: 'Payment entries could not be loaded.' })
     }
-  }, [reportId])
+  }, [dateFrom, dateTo, selectedBranch])
 
   React.useEffect(() => {
     void refreshEntries()
@@ -1143,19 +1420,36 @@ export function CashierReportsContent({
   }, [activeTab, isEntryFormVisible])
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3">
+      <CashierReportHeader
+        dateRange={dateRange}
+        search={reportSearch}
+        isLoading={isDateLoading}
+        error={dateError}
+        onDateRangeChange={changeDateRange}
+        onSearchChange={(value) => {
+          setReportSearch(value)
+          expenseQuery.onGlobalFilterChange(value)
+        }}
+      />
       <div
         className={
           isSummaryCompact
-            ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-1 gap-3'
+            ? 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3'
             : showRightPanel
-              ? 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(260px,302px)] gap-3'
-              : 'grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3'
+              ? 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-[minmax(180px,220px)_minmax(0,1fr)_minmax(260px,302px)] gap-3'
+              : 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3'
         }
       >
         {!isSummaryCompact && (
           <Card className="flex min-h-0 min-w-0 flex-col">
-            <ReportSummary alwaysDark={summaryAlwaysDark} refreshKey={summaryRefreshKey} />
+            <ReportSummary
+              key={reportId}
+              alwaysDark={summaryAlwaysDark}
+              refreshKey={summaryRefreshKey}
+              reportId={reportId}
+              businessDate={selectedReport.businessDate}
+            />
           </Card>
         )}
         <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
@@ -1204,6 +1498,15 @@ export function CashierReportsContent({
                   >
                     <ReportTab
                       tab={tab}
+                      showBranch={selectedBranch === 'All Branch'}
+                      globalFilter={reportSearch}
+                      onGlobalFilterChange={(value) => {
+                        setReportSearch(value)
+                        expenseQuery.onGlobalFilterChange(value)
+                      }}
+                      selectedBranch={selectedBranch}
+                      dateFrom={dateFrom}
+                      dateTo={dateTo}
                       expenseRows={expenseQuery.rows}
                       incomeRows={incomes}
                       paymentRows={payments}
@@ -1220,6 +1523,9 @@ export function CashierReportsContent({
                       incomeLoadState={incomeLoadState}
                       paymentLoadState={paymentLoadState}
                       onRetryEntries={() => void refreshEntries()}
+                      historyRecords={historyRecords}
+                      historyLoadState={historyLoadState}
+                      onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
                     />
                   </TabsContent>
                 ))}
@@ -1249,15 +1555,29 @@ export function CashierReportsContent({
             className="fixed right-4 bottom-4"
             onClick={() => setIsSummaryVisible(true)}
           >
-            Today&apos;s Summary
+            {selectedReport.businessDate === format(new Date(), 'yyyy-MM-dd')
+              ? 'Today’s Summary'
+              : `${format(parse(selectedReport.businessDate, 'yyyy-MM-dd', new Date()), 'MMM d')} Summary`}
           </Button>
           <Sheet open={isSummaryVisible} onOpenChange={setIsSummaryVisible}>
             <SheetContent side="left" className="w-[min(92vw,22rem)] p-0">
               <SheetHeader className="sr-only">
-                <SheetTitle>Today&apos;s Summary</SheetTitle>
-                <SheetDescription>Daily cashier report totals and cash variance.</SheetDescription>
+                <SheetTitle>
+                  {selectedReport.businessDate === format(new Date(), 'yyyy-MM-dd')
+                    ? 'Today’s Summary'
+                    : `${format(parse(selectedReport.businessDate, 'yyyy-MM-dd', new Date()), 'MMMM d, yyyy')} Summary`}
+                </SheetTitle>
+                <SheetDescription>
+                  Cashier report totals and cash variance for the selected business date.
+                </SheetDescription>
               </SheetHeader>
-              <ReportSummary alwaysDark={summaryAlwaysDark} refreshKey={summaryRefreshKey} />
+              <ReportSummary
+                key={reportId}
+                alwaysDark={summaryAlwaysDark}
+                refreshKey={summaryRefreshKey}
+                reportId={reportId}
+                businessDate={selectedReport.businessDate}
+              />
             </SheetContent>
           </Sheet>
         </>

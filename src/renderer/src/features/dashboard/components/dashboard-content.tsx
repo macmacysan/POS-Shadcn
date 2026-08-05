@@ -2,6 +2,15 @@ import * as React from 'react'
 import { format } from 'date-fns'
 import { useReactTable, getCoreRowModel, type ColumnDef } from '@tanstack/react-table'
 import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as ChartTooltip,
+  XAxis,
+  YAxis
+} from 'recharts'
+import {
   ArrowUpRight,
   Banknote,
   CalendarDays,
@@ -10,6 +19,7 @@ import {
   Landmark,
   ReceiptText,
   RefreshCw,
+  TrendingUp,
   WalletCards
 } from 'lucide-react'
 
@@ -29,10 +39,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { AccountBranchBadge } from '@/features/in-house-accounts/components/account-badges'
 import { formatCentavos } from '@/lib/currency'
-import type { DashboardOverview } from '@/../../shared/contracts'
+import type { DashboardOverview, LoginBranch } from '@/../../shared/contracts'
 
 type Props = {
-  selectedBranch: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
+  selectedBranch: LoginBranch
   onOpenCashierReports: () => void
   onOpenInHouse: () => void
   onOpenFinance: () => void
@@ -40,6 +50,7 @@ type Props = {
 }
 
 type OverdueRow = DashboardOverview['overdueAccounts'][number]
+type TrendPoint = DashboardOverview['collectionTrend'][number]
 
 const money = formatCentavos
 const today = (): string => format(new Date(), 'yyyy-MM-dd')
@@ -50,6 +61,56 @@ function errorMessage(error: unknown): string {
     if (typeof message === 'string') return message
   }
   return 'Dashboard data could not be loaded.'
+}
+
+function compactMoney(value: number): string {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    notation: 'compact',
+    maximumFractionDigits: 1
+  }).format(value / 100)
+}
+
+function shortDate(value: string): string {
+  return format(new Date(`${value}T00:00:00`), 'MMM d')
+}
+
+function TrendTooltip({
+  active,
+  payload,
+  label
+}: {
+  active?: boolean
+  payload?: Array<{ payload: TrendPoint }>
+  label?: string
+}): React.JSX.Element | null {
+  if (!active || !payload?.length || !label) return null
+  const point = payload[0].payload
+  return (
+    <div className="min-w-48 rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">
+        {format(new Date(`${label}T00:00:00`), 'EEEE, MMMM d')}
+      </p>
+      <div className="flex flex-col gap-1.5 text-xs">
+        <span className="flex justify-between gap-4">
+          Sales <strong className="font-mono tabular-nums">{money(point.salesCentavos)}</strong>
+        </span>
+        <span className="flex justify-between gap-4 text-muted-foreground">
+          In-house
+          <strong className="font-mono font-medium tabular-nums">
+            {money(point.inHouseCollectionsCentavos)}
+          </strong>
+        </span>
+        <span className="flex justify-between gap-4 text-muted-foreground">
+          Finance
+          <strong className="font-mono font-medium tabular-nums">
+            {money(point.financeCollectionsCentavos)}
+          </strong>
+        </span>
+      </div>
+    </div>
+  )
 }
 
 function MetricCard({
@@ -85,7 +146,7 @@ function MetricCard({
           {detail}
         </p>
       </CardContent>
-      <CardFooter className="justify-between gap-2">
+      <CardFooter>
         <Button variant="ghost" size="xs" onClick={onOpen}>
           {actionLabel}
           <ArrowUpRight data-icon="inline-end" />
@@ -97,7 +158,7 @@ function MetricCard({
 
 function DashboardLoading(): React.JSX.Element {
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden p-6">
+    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-6">
       <div className="flex items-center justify-between gap-4">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-5 w-44" />
@@ -110,7 +171,7 @@ function DashboardLoading(): React.JSX.Element {
           <Skeleton key={index} className="h-38" />
         ))}
       </div>
-      <Skeleton className="min-h-72 flex-1" />
+      <Skeleton className="min-h-80 flex-1" />
     </main>
   )
 }
@@ -123,6 +184,7 @@ export function DashboardContent({
   onOpenPaymentWorkspace
 }: Props): React.JSX.Element {
   const [businessDate, setBusinessDate] = React.useState(today)
+  const [rangeDays, setRangeDays] = React.useState<7 | 14 | 30>(14)
   const [overview, setOverview] = React.useState<DashboardOverview>()
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string>()
@@ -135,7 +197,11 @@ export function DashboardContent({
       setError(undefined)
       if (!preserveOverview) setOverview(undefined)
       try {
-        const next = await window.api.dashboard.get({ businessDate, branch: selectedBranch })
+        const next = await window.api.dashboard.get({
+          businessDate,
+          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch,
+          rangeDays
+        })
         if (requestVersion !== requestVersionRef.current) return
         setOverview(next)
       } catch (caught) {
@@ -145,7 +211,7 @@ export function DashboardContent({
         if (requestVersion === requestVersionRef.current) setIsLoading(false)
       }
     },
-    [businessDate, selectedBranch]
+    [businessDate, rangeDays, selectedBranch]
   )
 
   React.useEffect(() => {
@@ -218,16 +284,23 @@ export function DashboardContent({
   const hasVariance = variance !== 0
   const pendingReconciliations =
     (overview?.cashierReportCount ?? 0) - (overview?.reconciledReportCount ?? 0)
+  const totalCollections =
+    (overview?.inHouseCollectionsCentavos ?? 0) + (overview?.financeCollectionsCentavos ?? 0)
+  const previousSales = overview?.collectionTrend.at(-2)?.salesCentavos ?? 0
+  const salesChange = previousSales
+    ? (((overview?.salesCentavos ?? 0) - previousSales) / previousSales) * 100
+    : undefined
+
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-x-hidden overflow-y-auto p-6 xl:overflow-hidden">
+    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto p-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">
             Dashboard · {overview?.scopeLabel ?? `${selectedBranch} Branch`}
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Daily report overview</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Daily sales overview</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cash, collections, and accounts requiring attention.
+            Sales performance, collections, and reconciliation exceptions.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -262,56 +335,156 @@ export function DashboardContent({
         </Card>
       )}
 
-      <section
-        className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
-        aria-label="Cash and collection summary"
-      >
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label="Daily summary">
         <MetricCard
-          title="Physical cash"
-          value={money(overview?.physicalCashCentavos ?? 0)}
-          detail={`${overview?.reconciledReportCount ?? 0} of ${overview?.cashierReportCount ?? 0} reports have saved cash counts`}
-          icon={Banknote}
-          actionLabel="Open today’s report"
-          onOpen={onOpenCashierReports}
-          attention={pendingReconciliations > 0}
-        />
-        <MetricCard
-          title="Cash remitted"
-          value={money(overview?.remittedCashCentavos ?? 0)}
+          title="Recorded sales"
+          value={money(overview?.salesCentavos ?? 0)}
           detail={
-            pendingReconciliations > 0
-              ? `${pendingReconciliations} cash count${pendingReconciliations === 1 ? '' : 's'} pending`
-              : hasVariance
-                ? `Variance: ${money(variance)}`
-                : 'Cash is balanced'
+            salesChange === undefined
+              ? 'No prior-day comparison available'
+              : `${salesChange >= 0 ? '+' : ''}${salesChange.toFixed(1)}% from previous day`
           }
-          icon={WalletCards}
-          actionLabel="Review today’s cash"
+          icon={TrendingUp}
+          actionLabel="Open cashier reports"
           onOpen={onOpenCashierReports}
-          attention={pendingReconciliations > 0 || hasVariance}
         />
         <MetricCard
-          title="In-house collections"
-          value={money(overview?.inHouseCollectionsCentavos ?? 0)}
-          detail="Posted payments for this business date"
+          title="Collections"
+          value={money(totalCollections)}
+          detail={`${money(overview?.inHouseCollectionsCentavos ?? 0)} in-house · ${money(overview?.financeCollectionsCentavos ?? 0)} finance`}
           icon={HandCoins}
           actionLabel="Open in-house"
           onOpen={onOpenInHouse}
         />
         <MetricCard
-          title="Finance collections"
-          value={money(overview?.financeCollectionsCentavos ?? 0)}
-          detail="Recorded finance downpayments"
-          icon={Landmark}
-          actionLabel="Open finance"
-          onOpen={onOpenFinance}
+          title="Cash variance"
+          value={pendingReconciliations > 0 ? `${pendingReconciliations} pending` : money(variance)}
+          detail={
+            pendingReconciliations > 0
+              ? `${pendingReconciliations} cash count${pendingReconciliations === 1 ? '' : 's'} pending`
+              : hasVariance
+                ? 'Variance requires review'
+                : 'Cash is balanced'
+          }
+          icon={Banknote}
+          actionLabel="Review reconciliation"
+          onOpen={onOpenCashierReports}
+          attention={pendingReconciliations > 0 || hasVariance}
+        />
+        <MetricCard
+          title="Report completion"
+          value={`${overview?.reconciledReportCount ?? 0} / ${overview?.cashierReportCount ?? 0}`}
+          detail={
+            pendingReconciliations > 0
+              ? 'Reports still require cash counts'
+              : 'All reports reconciled'
+          }
+          icon={ReceiptText}
+          actionLabel="Open reports"
+          onOpen={onOpenCashierReports}
+          attention={pendingReconciliations > 0}
         />
       </section>
 
-      <section className="grid min-h-0 flex-1 grid-rows-[minmax(16rem,1fr)_auto] gap-5 xl:grid-cols-[minmax(0,1fr)_18rem] xl:grid-rows-1">
+      <section className="grid min-h-80 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
+        <Card className="min-w-0">
+          <CardHeader className="border-b">
+            <CardDescription>Performance trend</CardDescription>
+            <CardTitle>Recorded sales</CardTitle>
+            <CardAction className="flex items-center gap-1">
+              {([7, 14, 30] as const).map((days) => (
+                <Button
+                  key={days}
+                  size="xs"
+                  variant={rangeDays === days ? 'secondary' : 'ghost'}
+                  aria-pressed={rangeDays === days}
+                  onClick={() => setRangeDays(days)}
+                >
+                  {days}D
+                </Button>
+              ))}
+            </CardAction>
+          </CardHeader>
+          <CardContent className="h-72 pt-5">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={overview?.collectionTrend ?? []} margin={{ left: 4, right: 8 }}>
+                <defs>
+                  <linearGradient id="sales-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.24} />
+                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="businessDate"
+                  tickFormatter={shortDate}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={28}
+                />
+                <YAxis tickFormatter={compactMoney} tickLine={false} axisLine={false} width={68} />
+                <ChartTooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--border)' }} />
+                <Area
+                  type="monotone"
+                  dataKey="salesCentavos"
+                  stroke="var(--primary)"
+                  strokeWidth={2}
+                  fill="url(#sales-fill)"
+                  activeDot={{ r: 4 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardDescription>Today at a glance</CardDescription>
+            <CardTitle>Cash position</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1 border-b pb-3">
+              <span className="text-xs text-muted-foreground">Physical cash</span>
+              <strong className="font-mono text-lg font-semibold tabular-nums">
+                {money(overview?.physicalCashCentavos ?? 0)}
+              </strong>
+            </div>
+            <div className="flex flex-col gap-1 border-b pb-3">
+              <span className="text-xs text-muted-foreground">Cash remitted</span>
+              <strong className="font-mono text-lg font-semibold tabular-nums">
+                {money(overview?.remittedCashCentavos ?? 0)}
+              </strong>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <Landmark aria-hidden className="size-4" /> Finance
+              </span>
+              <strong className="font-mono font-medium tabular-nums">
+                {money(overview?.financeCollectionsCentavos ?? 0)}
+              </strong>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <WalletCards aria-hidden className="size-4" /> In-house
+              </span>
+              <strong className="font-mono font-medium tabular-nums">
+                {money(overview?.inHouseCollectionsCentavos ?? 0)}
+              </strong>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button variant="outline" size="sm" onClick={onOpenFinance}>
+              Open finance
+              <ArrowUpRight data-icon="inline-end" />
+            </Button>
+          </CardFooter>
+        </Card>
+      </section>
+
+      <section className="grid min-h-72 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
         <Card className="flex min-h-0 flex-col">
           <CardHeader className="border-b">
-            <CardDescription>Attention queue</CardDescription>
+            <CardDescription>Exception queue</CardDescription>
             <CardTitle className="flex items-center gap-2">
               Overdue in-house accounts
               <Badge variant={overview?.overdueCount ? 'destructive' : 'secondary'}>
@@ -335,10 +508,11 @@ export function DashboardContent({
             />
           </CardContent>
         </Card>
-        <Card className="animate-in fade-in slide-in-from-right-1 duration-300">
+
+        <Card>
           <CardHeader>
             <CardDescription>Reconciliation</CardDescription>
-            <CardTitle>Cash variance</CardTitle>
+            <CardTitle>Cash status</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <div
@@ -361,7 +535,7 @@ export function DashboardContent({
             </div>
             <div className="flex items-start gap-2 text-sm text-muted-foreground">
               <ReceiptText aria-hidden className="mt-0.5 size-4 shrink-0" />
-              Cash figures are consolidated from saved daily reports and cash counts.
+              Consolidated from saved daily reports and cash counts.
             </div>
             <div className="flex items-start gap-2 text-sm text-muted-foreground">
               <CalendarDays aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -370,7 +544,7 @@ export function DashboardContent({
           </CardContent>
           <CardFooter>
             <Button variant="outline" size="sm" onClick={onOpenCashierReports}>
-              Open today’s cashier report
+              Open cashier reports
               <ArrowUpRight data-icon="inline-end" />
             </Button>
           </CardFooter>

@@ -7,15 +7,17 @@ import { FinanceAccountsContent } from '@/features/finance-accounts'
 import { StatusAccountsContent } from '@/features/in-house-accounts/components/status-accounts-content'
 import { InstallmentPaymentWorkspace } from '@/features/in-house-payments'
 import { DashboardContent } from '@/features/dashboard'
+import { InstallmentOverviewContent } from '@/features/installment-overview'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ActiveReportProvider } from '@/contexts/active-report-context'
-import type { AuthenticatedUser } from '@/../../shared/contracts'
+import type { AuthenticatedUser, LoginBranch } from '@/../../shared/contracts'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 const SUMMARY_DARK_STORAGE_KEY = 'cashiers-report-summary-dark'
 type ActiveView =
   | 'dashboard'
+  | 'installment-overview'
   | 'cashier-reports'
   | 'in-house-accounts'
   | 'in-house-active-accounts'
@@ -70,13 +72,17 @@ function Workspace({
   onToggleTheme: () => void
   summaryAlwaysDark: boolean
   onSummaryAlwaysDarkChange: (value: boolean) => void
-  selectedBranch: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
+  selectedBranch: LoginBranch
 }): React.JSX.Element {
   const initialPaymentRoute = readPaymentRoute()
   const [activeView, setActiveView] = useState<ActiveView>(
     initialPaymentRoute ? paymentOriginView(initialPaymentRoute.origin) : 'dashboard'
   )
   const [paymentRoute, setPaymentRoute] = useState<PaymentRoute | undefined>(initialPaymentRoute)
+  const [installmentFilter, setInstallmentFilter] = useState<{
+    branch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
+    search?: string
+  }>({})
 
   useEffect(() => {
     const syncRoute = (): void => {
@@ -108,12 +114,18 @@ function Workspace({
     setActiveView(view)
   }
 
+  const openInstallmentOverview = (): void => {
+    setInstallmentFilter({})
+    selectView('installment-overview')
+  }
+
   return (
     <SidebarProvider className="h-svh min-h-0 overflow-hidden">
       <SidebarLeft
         activeView={activeView}
         isDark={isDark}
         onDashboard={() => selectView('dashboard')}
+        onInstallmentOverview={openInstallmentOverview}
         onCashierReports={() => selectView('cashier-reports')}
         onAllAccounts={() => selectView('in-house-accounts')}
         onActiveAccounts={() => selectView('in-house-active-accounts')}
@@ -133,9 +145,30 @@ function Workspace({
             onBack={closePaymentWorkspace}
           />
         ) : activeView === 'cashier-reports' ? (
-          <CashierReportsContent summaryAlwaysDark={summaryAlwaysDark} />
+          <CashierReportsContent
+            summaryAlwaysDark={summaryAlwaysDark}
+            selectedBranch={selectedBranch}
+          />
+        ) : activeView === 'installment-overview' ? (
+          <InstallmentOverviewContent
+            onOpenInHouse={(branch, search) => {
+              setInstallmentFilter({ branch, search })
+              selectView('in-house-active-accounts')
+            }}
+            onOpenFinance={(branch, search) => {
+              setInstallmentFilter({ branch, search })
+              selectView('finance-accounts')
+            }}
+          />
         ) : activeView === 'in-house-active-accounts' ? (
-          <InHouseActiveAccountsContent onOpenPaymentWorkspace={openPaymentWorkspace} />
+          <InHouseActiveAccountsContent
+            initialBranch={
+              installmentFilter.branch ??
+              (selectedBranch === 'All Branch' ? undefined : selectedBranch)
+            }
+            initialSearch={installmentFilter.search}
+            onOpenPaymentWorkspace={openPaymentWorkspace}
+          />
         ) : activeView === 'in-house-closed-accounts' ? (
           <StatusAccountsContent view="closed" onOpenPaymentWorkspace={openPaymentWorkspace} />
         ) : activeView === 'in-house-blacklisted-accounts' ? (
@@ -143,14 +176,19 @@ function Workspace({
         ) : activeView === 'in-house-accounts' ? (
           <InHouseAccountsContent onOpenPaymentWorkspace={openPaymentWorkspace} />
         ) : activeView === 'finance-accounts' ? (
-          <FinanceAccountsContent selectedBranch={selectedBranch} />
+          <FinanceAccountsContent
+            selectedBranch={installmentFilter.branch ?? selectedBranch}
+            initialSearch={installmentFilter.search}
+          />
         ) : (
           <DashboardContent
             selectedBranch={selectedBranch}
             onOpenCashierReports={() => selectView('cashier-reports')}
             onOpenInHouse={() => selectView('in-house-active-accounts')}
             onOpenFinance={() => selectView('finance-accounts')}
-            onOpenPaymentWorkspace={(accountId) => openPaymentWorkspace(accountId, 'schedule', 'active')}
+            onOpenPaymentWorkspace={(accountId) =>
+              openPaymentWorkspace(accountId, 'schedule', 'active')
+            }
           />
         )}
       </SidebarInset>
@@ -167,9 +205,7 @@ function App(): React.JSX.Element {
   const [summaryAlwaysDark, setSummaryAlwaysDark] = useState(() => {
     return localStorage.getItem(SUMMARY_DARK_STORAGE_KEY) === 'true'
   })
-  const [selectedBranch, setSelectedBranch] = useState<'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'>(
-    'Lagonoy'
-  )
+  const [selectedBranch, setSelectedBranch] = useState<LoginBranch>('Lagonoy')
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)

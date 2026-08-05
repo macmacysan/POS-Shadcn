@@ -4,6 +4,8 @@ import type {
   DailyReportPaymentListRequest,
   DailyReportPaymentUpdateRequest,
   DailyReportPaymentVoidRequest,
+  DailyReportReceiptTypeCreateRequest,
+  DailyReportReceiptTypeDeleteRequest,
   DailyReportResolveActiveRequest,
   DailyReportSummaryUpdateRequest,
   DailyReportSnapshotRequest,
@@ -44,8 +46,14 @@ export class DailyReportService {
   }
 
   listIncome(request: IncomeListRequest) {
-    this.requireReportAccess(request.dailyReportId, this.auth.requireSession())
-    return { rows: this.repository.listIncome(request) }
+    const user = this.auth.requireSession()
+    if (request.dailyReportId) this.requireReportAccess(request.dailyReportId, user)
+    return {
+      rows: this.repository.listIncome({
+        ...request,
+        branch: user.role === 'ADMIN' ? request.branch : user.branch
+      })
+    }
   }
 
   createIncome(request: IncomeCreateRequest) {
@@ -67,8 +75,14 @@ export class DailyReportService {
   }
 
   listPayments(request: DailyReportPaymentListRequest) {
-    this.requireReportAccess(request.dailyReportId, this.auth.requireSession())
-    return { rows: this.repository.listPayments(request) }
+    const user = this.auth.requireSession()
+    if (request.dailyReportId) this.requireReportAccess(request.dailyReportId, user)
+    return {
+      rows: this.repository.listPayments({
+        ...request,
+        branch: user.role === 'ADMIN' ? request.branch : user.branch
+      })
+    }
   }
 
   createPayment(request: DailyReportPaymentCreateRequest) {
@@ -87,6 +101,16 @@ export class DailyReportService {
     const user = this.auth.requireSession()
     this.requireEntryAccess(this.repository.paymentReportId(request.id), user)
     return this.repository.voidPayment(request, user.id)
+  }
+
+  createReceiptType(request: DailyReportReceiptTypeCreateRequest) {
+    const user = this.auth.requireSession()
+    return this.repository.createReceiptType(request, user.id)
+  }
+
+  deleteReceiptType(request: DailyReportReceiptTypeDeleteRequest) {
+    this.auth.requireSession()
+    return this.repository.deleteReceiptType(request)
   }
 
   private requireEntryAccess(reportId: string | null, user: AuthenticatedUser): void {

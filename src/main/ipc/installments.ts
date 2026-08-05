@@ -7,6 +7,7 @@ import {
   installmentIpcChannels,
   installmentListRequestSchema,
   installmentPaymentWorkspaceRequestSchema,
+  installmentHistoryRequestSchema,
   installmentTransitionRequestSchema
 } from '../../shared/contracts'
 import { toIpcError } from '../database/errors'
@@ -52,6 +53,14 @@ export function registerInstallmentIpc(service: InstallmentService): void {
   ipcMain.handle(installmentIpcChannels.paymentWorkspace, (_event, input: unknown) => {
     try {
       return service.getPaymentWorkspace(installmentPaymentWorkspaceRequestSchema.parse(input))
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+
+  ipcMain.handle(installmentIpcChannels.history, (_event, input: unknown) => {
+    try {
+      return service.listHistory(installmentHistoryRequestSchema.parse(input))
     } catch (error) {
       return rethrowIpcError(error)
     }

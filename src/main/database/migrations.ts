@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 11
+export const currentSchemaVersion = 14
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -737,15 +737,19 @@ export function runMigrations(db: Database.Database): void {
 
       const now = new Date().toISOString()
       const seed = db.prepare(
-        `INSERT OR IGNORE INTO receipt_types
+      `INSERT OR IGNORE INTO receipt_types
           (id, code, name, is_system, is_default_visible, sort_order, created_at, updated_at)
-         VALUES (?, ?, ?, 1, 1, ?, ?, ?)`
+         VALUES (?, ?, ?, 1, ?, ?, ?, ?)`
       )
-      for (const [id, code, name, sortOrder] of [
-        ['receipt-type-cash-sales', 'CASH_SALES', 'Cash Sales', 10],
-        ['receipt-type-collections', 'COLLECTIONS', 'Collections', 20]
+      for (const [id, code, name, isDefaultVisible, sortOrder] of [
+        ['receipt-type-cash-sales', 'CASH_SALES', 'Cash Sales', 0, 10],
+        ['receipt-type-collections', 'COLLECTIONS', 'Collections', 0, 20],
+        ['receipt-type-sales-invoice', 'SALES_INVOICE', 'SALES INVOICE', 0, 30],
+        ['receipt-type-sales-invoice-trading', 'SALES_INVOICE_TRADING', 'SALES INVOICE - TRADING', 0, 40],
+        ['receipt-type-delivery-receipt', 'DELIVERY_RECEIPT', 'DELIVERY RECEIPT', 0, 50],
+        ['receipt-type-bobs-pawnshop', 'BOBS_PAWNSHOP', 'BOBS PAWNSHOP', 0, 60]
       ]) {
-        seed.run(id, code, name, sortOrder, now, now)
+        seed.run(id, code, name, isDefaultVisible, sortOrder, now, now)
       }
 
       const seedPaymentMethod = db.prepare(
@@ -846,6 +850,89 @@ export function runMigrations(db: Database.Database): void {
         11,
         new Date().toISOString()
       )
+    })
+    migrate()
+  }
+
+  if (applied.version < 12) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      const seed = db.prepare(
+        `INSERT OR IGNORE INTO receipt_types
+          (id, code, name, is_system, is_default_visible, sort_order, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 0, ?, ?, ?)`
+      )
+      for (const [id, code, name, sortOrder] of [
+        ['receipt-type-sales-invoice', 'SALES_INVOICE', 'SALES INVOICE', 30],
+        ['receipt-type-sales-invoice-trading', 'SALES_INVOICE_TRADING', 'SALES INVOICE - TRADING', 40],
+        ['receipt-type-delivery-receipt', 'DELIVERY_RECEIPT', 'DELIVERY RECEIPT', 50],
+        ['receipt-type-bobs-pawnshop', 'BOBS_PAWNSHOP', 'BOBS PAWNSHOP', 60]
+      ]) {
+        seed.run(id, code, name, sortOrder, now, now)
+      }
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(12, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 13) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.prepare(
+        `UPDATE receipt_types
+         SET name = CASE id
+           WHEN 'receipt-type-sales-invoice' THEN 'SALES INVOICE'
+           WHEN 'receipt-type-sales-invoice-trading' THEN 'SALES INVOICE - TRADING'
+           WHEN 'receipt-type-delivery-receipt' THEN 'DELIVERY RECEIPT'
+           ELSE name
+         END,
+         is_system = CASE id
+           WHEN 'receipt-type-sales-invoice' THEN 1
+           WHEN 'receipt-type-sales-invoice-trading' THEN 1
+           WHEN 'receipt-type-delivery-receipt' THEN 1
+           WHEN 'receipt-type-bobs-pawnshop' THEN 1
+           ELSE is_system
+         END,
+         updated_at = ?
+         WHERE id IN (
+           'receipt-type-sales-invoice',
+           'receipt-type-sales-invoice-trading',
+           'receipt-type-delivery-receipt',
+           'receipt-type-bobs-pawnshop'
+         )`
+      ).run(now)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(13, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 14) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.prepare(
+        `UPDATE receipt_types
+         SET name = CASE id
+           WHEN 'receipt-type-sales-invoice' THEN 'SALES INVOICE'
+           WHEN 'receipt-type-sales-invoice-trading' THEN 'SALES INVOICE - TRADING'
+           WHEN 'receipt-type-delivery-receipt' THEN 'DELIVERY RECEIPT'
+           ELSE name
+         END,
+         is_system = CASE id
+           WHEN 'receipt-type-sales-invoice' THEN 1
+           WHEN 'receipt-type-sales-invoice-trading' THEN 1
+           WHEN 'receipt-type-delivery-receipt' THEN 1
+           WHEN 'receipt-type-bobs-pawnshop' THEN 1
+           ELSE is_system
+         END,
+         updated_at = ?
+         WHERE id IN (
+           'receipt-type-sales-invoice',
+           'receipt-type-sales-invoice-trading',
+           'receipt-type-delivery-receipt',
+           'receipt-type-bobs-pawnshop'
+         )`
+      ).run(now)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(14, now)
     })
     migrate()
   }

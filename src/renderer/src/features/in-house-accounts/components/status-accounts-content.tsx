@@ -67,6 +67,8 @@ import { cn } from '@/lib/utils'
 
 type Props = {
   readonly view: InstallmentView
+  readonly initialBranch?: BranchName
+  readonly initialSearch?: string
   readonly onOpenPaymentWorkspace?: (
     accountId: string,
     initialTab: 'schedule' | 'ledger',
@@ -219,11 +221,16 @@ function statusColumns(view: InstallmentView): ColumnDef<PersistedInstallmentRow
   return base
 }
 
-export function StatusAccountsContent({ view, onOpenPaymentWorkspace }: Props): React.JSX.Element {
+export function StatusAccountsContent({
+  view,
+  initialBranch,
+  initialSearch,
+  onOpenPaymentWorkspace
+}: Props): React.JSX.Element {
   const { rows, isLoading, error, reload } = useInstallmentData(view)
   const [selectedId, setSelectedId] = React.useState<string>()
-  const [search, setSearch] = React.useState('')
-  const [branch, setBranch] = React.useState<BranchName | 'all'>('all')
+  const [search, setSearch] = React.useState(initialSearch ?? '')
+  const [branch, setBranch] = React.useState<BranchName | 'all'>(initialBranch ?? 'all')
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'account', desc: false }])
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,

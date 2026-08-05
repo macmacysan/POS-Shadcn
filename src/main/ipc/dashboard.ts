@@ -9,7 +9,8 @@ export function registerDashboardIpc(service: DashboardService): void {
     try {
       return service.getOverview(dashboardGetRequestSchema.parse(input))
     } catch (error) {
-      throw toIpcError(error)
+      const payload = toIpcError(error)
+      throw Object.assign(new Error(payload.message), payload)
     }
   })
 }

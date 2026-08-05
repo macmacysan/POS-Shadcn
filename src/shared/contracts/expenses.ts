@@ -46,6 +46,7 @@ const expenseCategorySchema = z.enum(expenseCategoryValues)
 const expenseVatSchema = z.enum(expenseVatValues)
 const uuidSchema = z.string().uuid()
 const expenseIdSchemaValue = z.string().trim().min(1).max(100)
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 export const expenseSortFieldSchema = z.enum([
   'type',
@@ -58,7 +59,10 @@ export const expenseSortFieldSchema = z.enum([
 ])
 
 export const expenseListRequestSchema = z.object({
-  reportId: uuidSchema,
+  reportId: uuidSchema.optional(),
+  branch: z.string().trim().max(100).optional(),
+  dateFrom: dateSchema.optional(),
+  dateTo: dateSchema.optional(),
   pageIndex: z.number().int().min(0),
   pageSize: z.union(
     expensePageSizes.map((size) => z.literal(size)) as [
@@ -78,6 +82,7 @@ export const expenseListRequestSchema = z.object({
     .default([]),
   filters: z
     .object({
+      branch: z.string().trim().max(100).optional(),
       type: expenseTypeSchema.optional(),
       category: expenseCategorySchema.optional(),
       vat: expenseVatSchema.optional()
@@ -114,6 +119,7 @@ export type ExpenseUpdateInput = z.infer<typeof expenseUpdateInputSchema>
 export type ExpenseRecord = {
   id: string
   reportId: string
+  branch: string
   type: ExpenseType
   description: string
   category: ExpenseCategory

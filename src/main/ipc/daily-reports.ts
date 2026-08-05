@@ -6,6 +6,8 @@ import {
   dailyReportPaymentListRequestSchema,
   dailyReportPaymentUpdateRequestSchema,
   dailyReportPaymentVoidRequestSchema,
+  dailyReportReceiptTypeCreateRequestSchema,
+  dailyReportReceiptTypeDeleteRequestSchema,
   dailyReportResolveActiveRequestSchema,
   dailyReportSnapshotRequestSchema,
   dailyReportSummaryUpdateRequestSchema,
@@ -60,5 +62,15 @@ export function registerDailyReportIpc(service: DailyReportService): void {
   )
   handle(dailyReportIpcChannels.voidPayment, dailyReportPaymentVoidRequestSchema.parse, (input) =>
     service.voidPayment(input)
+  )
+  handle(
+    dailyReportIpcChannels.createReceiptType,
+    dailyReportReceiptTypeCreateRequestSchema.parse,
+    (input) => service.createReceiptType(input)
+  )
+  handle(
+    dailyReportIpcChannels.deleteReceiptType,
+    dailyReportReceiptTypeDeleteRequestSchema.parse,
+    (input) => service.deleteReceiptType(input)
   )
 }

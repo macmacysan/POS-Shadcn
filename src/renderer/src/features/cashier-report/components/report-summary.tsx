@@ -1,6 +1,9 @@
 import * as React from 'react'
+import { format } from 'date-fns'
+import { Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -17,6 +20,7 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -27,6 +31,39 @@ import type { DailyReportSnapshotResponse } from '@/../../shared/contracts'
 
 type OpenDialog = 'cash-count' | null
 type Snapshot = DailyReportSnapshotResponse
+
+const receiptTypesExcludedFromPicker = new Set(['CASH SALES', 'COLLECTIONS'])
+const defaultReceiptTypeNames = new Set([
+  'SALES INVOICE',
+  'SALES INVOICE - TRADING',
+  'DELIVERY RECEIPT',
+  'BOBS PAWNSHOP',
+  'SI',
+  'SI TRADING',
+  'SI-T',
+  'DR',
+  'BP'
+])
+
+function receiptTypeSummaryName(name: string): string {
+  switch (name.trim().toUpperCase()) {
+    case 'SALES INVOICE':
+    case 'SI':
+      return 'SI'
+    case 'SALES INVOICE - TRADING':
+    case 'SI TRADING':
+    case 'SI-T':
+      return 'SI-T'
+    case 'DELIVERY RECEIPT':
+    case 'DR':
+      return 'DR'
+    case 'BOBS PAWNSHOP':
+    case 'BP':
+      return 'BP'
+    default:
+      return name
+  }
+}
 
 const money = formatCentavos
 
@@ -230,15 +267,26 @@ function summaryRequest(snapshot: Snapshot) {
 
 export const ReportSummary = React.memo(function ReportSummary({
   alwaysDark = false,
-  refreshKey
+  refreshKey,
+  reportId: reportIdOverride,
+  businessDate
 }: {
   alwaysDark?: boolean
   refreshKey?: string
+  reportId?: string
+  businessDate?: string
 }): React.JSX.Element {
-  const { reportId } = useActiveReport()
+  const { reportId: activeReportId, businessDate: activeBusinessDate } = useActiveReport()
+  const reportId = reportIdOverride ?? activeReportId
+  const reportBusinessDate = businessDate ?? activeBusinessDate
+  const isToday = reportBusinessDate === format(new Date(), 'yyyy-MM-dd')
   const [snapshot, setSnapshot] = React.useState<Snapshot>()
   const [error, setError] = React.useState<string>()
   const [openDialog, setOpenDialog] = React.useState<OpenDialog>(null)
+  const [isReceiptPickerOpen, setIsReceiptPickerOpen] = React.useState(false)
+  const [visibleReceiptTypeIds, setVisibleReceiptTypeIds] = React.useState<Set<string>>(new Set())
+  const [customReceiptName, setCustomReceiptName] = React.useState('')
+  const [receiptTypeError, setReceiptTypeError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
   const [hasSaved, setHasSaved] = React.useState(false)
   const [saveError, setSaveError] = React.useState<string>()
@@ -256,11 +304,14 @@ export const ReportSummary = React.memo(function ReportSummary({
       if (snapshotVersion !== snapshotVersionRef.current) return
       snapshotRef.current = next
       setSnapshot(next)
+      setVisibleReceiptTypeIds(
+        new Set(next.receiptTypes.filter((type) => type.isDefaultVisible).map((type) => type.id))
+      )
       setHasSaved(false)
       setSaveError(undefined)
     } catch {
       if (snapshotVersion !== snapshotVersionRef.current) return
-      setError('Today’s report summary could not be loaded.')
+      setError('The report summary could not be loaded.')
     }
   }, [reportId])
 
@@ -326,9 +377,6 @@ export const ReportSummary = React.memo(function ReportSummary({
     )
   }
 
-  const incomeCentavos = snapshot.incomeEntries
-    .filter((item) => item.status === 'POSTED')
-    .reduce((total, item) => total + item.amountCentavos, 0)
   const deductionCentavos = snapshot.deductions.reduce(
     (total, item) => total + item.amountCentavos,
     0
@@ -338,6 +386,70 @@ export const ReportSummary = React.memo(function ReportSummary({
     .reduce((total, item) => total + item.amountCentavos, 0)
   const cashOutCentavos = snapshot.legacyExpenseCashOutCentavos + cashOutEntriesCentavos
   const variance = snapshot.cashVarianceCentavos
+  const visibleReceiptTypes = snapshot.receiptTypes.filter((type) =>
+    visibleReceiptTypeIds.has(type.id) &&
+    !receiptTypesExcludedFromPicker.has(type.name.trim().toUpperCase())
+  )
+  const selectableReceiptTypes = snapshot.receiptTypes.filter(
+    (type) => !receiptTypesExcludedFromPicker.has(type.name.trim().toUpperCase())
+  )
+  const standardReceiptTypes = selectableReceiptTypes.filter((type) =>
+    defaultReceiptTypeNames.has(type.name.trim().toUpperCase())
+  )
+  const customReceiptTypes = selectableReceiptTypes.filter(
+    (type) => !defaultReceiptTypeNames.has(type.name.trim().toUpperCase())
+  )
+
+  const toggleReceiptType = (receiptTypeId: string, checked: boolean): void => {
+    setVisibleReceiptTypeIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(receiptTypeId)
+      else next.delete(receiptTypeId)
+      return next
+    })
+  }
+
+  const addCustomReceiptType = async (): Promise<void> => {
+    const name = customReceiptName.trim()
+    if (!name) return
+    setReceiptTypeError(undefined)
+    try {
+      const created = await window.api.dailyReports.createReceiptType({ name })
+      const current = snapshotRef.current
+      if (current) {
+        const next = { ...current, receiptTypes: [...current.receiptTypes, created] }
+        snapshotRef.current = next
+        setSnapshot(next)
+      }
+      setVisibleReceiptTypeIds((current) => new Set(current).add(created.id))
+      setCustomReceiptName('')
+    } catch {
+      setReceiptTypeError('That receipt name already exists or could not be added.')
+    }
+  }
+
+  const deleteCustomReceiptType = async (receiptTypeId: string): Promise<void> => {
+    setReceiptTypeError(undefined)
+    try {
+      await window.api.dailyReports.deleteReceiptType({ id: receiptTypeId })
+      const current = snapshotRef.current
+      if (current) {
+        const next = {
+          ...current,
+          receiptTypes: current.receiptTypes.filter((type) => type.id !== receiptTypeId)
+        }
+        snapshotRef.current = next
+        setSnapshot(next)
+      }
+      setVisibleReceiptTypeIds((current) => {
+        const next = new Set(current)
+        next.delete(receiptTypeId)
+        return next
+      })
+    } catch {
+      setReceiptTypeError('This receipt type could not be deleted.')
+    }
+  }
 
   return (
     <>
@@ -352,11 +464,95 @@ export const ReportSummary = React.memo(function ReportSummary({
             <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Daily Cashier Report
             </p>
-            <h2 className="truncate text-sm font-semibold tracking-tight">Today’s Summary</h2>
+            <h2 className="truncate text-sm font-semibold tracking-tight">
+              {isToday
+                ? 'Today’s Summary'
+                : `${format(new Date(`${reportBusinessDate}T00:00:00`), 'MMM d')} Summary`}
+            </h2>
           </div>
+          <div className="flex items-center gap-1.5">
+            <Popover open={isReceiptPickerOpen} onOpenChange={setIsReceiptPickerOpen}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Add receipt type"
+                  />
+                }
+              >
+                <Plus />
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64">
+                <p className="text-xs font-medium">Show receipt types</p>
+                <p className="text-[10px] text-muted-foreground">
+                  Select the receipt types needed in this summary.
+                </p>
+                <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+                  {[...standardReceiptTypes, ...customReceiptTypes].map((type) => (
+                    <div
+                      key={type.id}
+                      className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-xs hover:bg-muted"
+                    >
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                        <Checkbox
+                          checked={visibleReceiptTypeIds.has(type.id)}
+                          onCheckedChange={(checked) =>
+                            toggleReceiptType(type.id, checked === true)
+                          }
+                          aria-label={`Show ${type.name}`}
+                        />
+                        <span className="min-w-0 truncate">{type.name}</span>
+                      </label>
+                      {!type.isSystem &&
+                        !defaultReceiptTypeNames.has(type.name.trim().toUpperCase()) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="ml-auto"
+                          aria-label={`Delete ${type.name}`}
+                          onClick={() => void deleteCustomReceiptType(type.id)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5 border-t border-border pt-2">
+                  <Input
+                    aria-label="Custom receipt name"
+                    className="h-7 min-w-0"
+                    placeholder="Custom name"
+                    value={customReceiptName}
+                    onChange={(event) => setCustomReceiptName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') void addCustomReceiptType()
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    disabled={!customReceiptName.trim()}
+                    onClick={() => void addCustomReceiptType()}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {receiptTypeError && (
+                  <p className="text-[10px] text-destructive" role="alert">
+                    {receiptTypeError}
+                  </p>
+                )}
+              </PopoverContent>
+            </Popover>
           <span className="text-[10px] text-muted-foreground" aria-live="polite">
             {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
           </span>
+          </div>
         </header>
 
         {error && (
@@ -382,28 +578,15 @@ export const ReportSummary = React.memo(function ReportSummary({
         <ScrollArea className="min-h-0 flex-1">
           <div className="px-3 pb-3">
             <Section label="Opening">
-              <div className="flex items-center justify-between gap-3 text-xs">
-                <span className="text-muted-foreground">Opening Cash</span>
-                <AmountInput
-                  label="Opening Cash"
-                  value={snapshot.report.openingCashCentavos}
-                  onChange={(openingCashCentavos) =>
-                    save({
-                      ...snapshot,
-                      report: { ...snapshot.report, openingCashCentavos }
-                    })
-                  }
-                  className="w-28"
-                />
-              </div>
+              <SummaryRow label="Opening Cash" value={snapshot.report.openingCashCentavos} />
             </Section>
-            <Section label="Receipts">
+            {visibleReceiptTypes.length > 0 && <Section label="Receipts">
               <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_6rem] gap-2 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 <span>Type</span>
                 <span className="text-right">Qty</span>
                 <span className="text-right">Amount</span>
               </div>
-              {snapshot.receiptTypes.map((type) => {
+              {visibleReceiptTypes.map((type) => {
                 const value = receiptTotal(snapshot, type.id)
                 return (
                   <div
@@ -415,7 +598,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                         <TooltipTrigger
                           render={<span className="min-w-0 truncate text-muted-foreground" />}
                         >
-                          {type.name}
+                          {receiptTypeSummaryName(type.name)}
                         </TooltipTrigger>
                         <TooltipContent className="max-w-72">{type.name}</TooltipContent>
                       </Tooltip>
@@ -443,15 +626,22 @@ export const ReportSummary = React.memo(function ReportSummary({
                   </div>
                 )
               })}
-            </Section>
+            </Section>}
             <Section label="Cash in">
-              <SummaryRow label="Posted Income" value={incomeCentavos} />
+              <SummaryRow label="Collections" value={snapshot.cashCollectionsCentavos ?? 0} />
+              <SummaryRow label="Other" value={snapshot.otherIncomeCentavos ?? 0} />
+              <SummaryRow label="Finance Down" value={snapshot.financeDownCentavos ?? 0} />
+              <SummaryRow label="Finance Bal" value={snapshot.financeBalanceCentavos ?? 0} />
               <SummaryRow
                 label="Total Receipts"
                 value={snapshot.receiptTotals.reduce(
                   (total, item) => total + item.amountCentavos,
                   0
-                )}
+                ) -
+                  snapshot.financeBalanceCentavos +
+                  snapshot.cashCollectionsCentavos +
+                  snapshot.otherIncomeCentavos +
+                  snapshot.financeDownCentavos}
                 emphasis
               />
             </Section>

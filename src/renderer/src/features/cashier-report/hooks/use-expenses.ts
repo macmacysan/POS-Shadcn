@@ -46,7 +46,12 @@ function resolveUpdater<T>(updater: T | ((current: T) => T), current: T): T {
   return typeof updater === 'function' ? (updater as (current: T) => T)(current) : updater
 }
 
-export function useExpenses(): {
+export function useExpenses(
+  reportIdOverride?: string,
+  branch?: string,
+  dateFrom?: string,
+  dateTo?: string
+): {
   rows: ExpenseTableRow[]
   page: PaginationState
   pagination: PaginationState
@@ -70,7 +75,8 @@ export function useExpenses(): {
   removeExpenses: (ids: string[]) => Promise<void>
   expenseTotals: ExpenseSummaryTotals
 } {
-  const { reportId } = useActiveReport()
+  const { reportId: activeReportId } = useActiveReport()
+  const reportId = reportIdOverride ?? activeReportId
   const [rows, setRows] = React.useState<ExpenseTableRow[]>([])
   const [page, setPage] = React.useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
   const [totalRows, setTotalRows] = React.useState(0)
@@ -132,7 +138,10 @@ export function useExpenses(): {
         ]
       : []
     const request: ExpenseListRequest = {
-      reportId,
+      reportId: branch === 'All Branch' || dateFrom !== dateTo ? undefined : reportId,
+      branch,
+      dateFrom,
+      dateTo,
       pageIndex: page.pageIndex,
       pageSize: expensePageSizes.includes(page.pageSize as (typeof expensePageSizes)[number])
         ? (page.pageSize as ExpenseListRequest['pageSize'])
@@ -174,7 +183,7 @@ export function useExpenses(): {
     return () => {
       cancelled = true
     }
-  }, [columnFilters, debouncedSearch, page, refreshToken, reportId, sorting])
+  }, [branch, columnFilters, dateFrom, dateTo, debouncedSearch, page, refreshToken, reportId, sorting])
 
   const refreshSummaryTotals = React.useCallback(() => {
     void window.api.reports.expenses

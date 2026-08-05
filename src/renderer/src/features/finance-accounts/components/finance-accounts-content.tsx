@@ -51,8 +51,12 @@ import {
   type FinanceItemInput,
   type FinanceItemRecord
 } from '../../../../../shared/contracts'
+import type { LoginBranch } from '../../../../../shared/contracts'
 
-type Props = { readonly selectedBranch: FinanceAccountRecord['branch'] }
+type Props = {
+  readonly selectedBranch: LoginBranch
+  readonly initialSearch?: string
+}
 type FinanceItemFormValues = Omit<FinanceItemInput, 'itemPriceCentavos'> & {
   id: string
   itemPrice: string
@@ -319,11 +323,14 @@ function financeColumns(): ColumnDef<FinanceTableRow>[] {
   ]
 }
 
-export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Element {
+export function FinanceAccountsContent({
+  selectedBranch,
+  initialSearch
+}: Props): React.JSX.Element {
   const [accounts, setAccounts] = React.useState<FinanceAccountRecord[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [loadError, setLoadError] = React.useState<string>()
-  const [search, setSearch] = React.useState('')
+  const [search, setSearch] = React.useState(initialSearch ?? '')
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'dateReleased', desc: true }])
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
@@ -354,8 +361,12 @@ export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Ele
   )
   const filteredRows = React.useMemo(() => {
     const query = search.trim().toLowerCase()
-    if (!query) return rows
-    return rows.filter(({ account, item, serialNo }) =>
+    const scopedRows =
+      selectedBranch === 'All Branch'
+        ? rows
+        : rows.filter(({ account }) => account.branch === selectedBranch)
+    if (!query) return scopedRows
+    return scopedRows.filter(({ account, item, serialNo }) =>
       [
         account.branch,
         account.provider,
@@ -373,7 +384,7 @@ export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Ele
         .toLowerCase()
         .includes(query)
     )
-  }, [rows, search])
+  }, [rows, search, selectedBranch])
   const actions = React.useCallback(
     (row: FinanceTableRow): readonly RowActionItem[] => [
       { id: 'edit', label: 'Edit finance account', onSelect: () => setEditing(row.account) }
@@ -440,7 +451,7 @@ export function FinanceAccountsContent({ selectedBranch }: Props): React.JSX.Ele
       <FinanceAccountSheet
         open={isCreating || Boolean(editing)}
         record={editing}
-        initialBranch={selectedBranch}
+        initialBranch={selectedBranch === 'All Branch' ? financeBranchValues[0] : selectedBranch}
         onClose={closeForm}
         onSaved={() => {
           closeForm()

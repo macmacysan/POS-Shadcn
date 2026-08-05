@@ -6,6 +6,8 @@ import type {
   InstallmentListResult,
   InstallmentPaymentWorkspace,
   InstallmentPaymentWorkspaceRequest,
+  InstallmentHistoryRecord,
+  InstallmentHistoryRequest,
   InstallmentTransitionRequest
 } from '../../shared/contracts'
 import { InstallmentRepository } from '../database/installment-repository'
@@ -31,6 +33,10 @@ export class InstallmentService {
 
   getPaymentWorkspace(request: InstallmentPaymentWorkspaceRequest): InstallmentPaymentWorkspace {
     return this.repository.getPaymentWorkspace(request)
+  }
+
+  listHistory(request: InstallmentHistoryRequest): InstallmentHistoryRecord[] {
+    return this.repository.listHistory(request)
   }
 
   createPayment(request: InstallmentCreatePaymentRequest): void {

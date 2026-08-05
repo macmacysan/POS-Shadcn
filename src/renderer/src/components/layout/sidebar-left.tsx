@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button'
 
 type ActiveView =
   | 'dashboard'
+  | 'installment-overview'
   | 'cashier-reports'
   | 'in-house-accounts'
   | 'in-house-active-accounts'
@@ -72,6 +73,7 @@ export function SidebarLeft({
   activeView = 'dashboard',
   isDark,
   onDashboard,
+  onInstallmentOverview,
   onCashierReports,
   onAllAccounts,
   onActiveAccounts,
@@ -86,6 +88,7 @@ export function SidebarLeft({
   activeView?: ActiveView
   isDark: boolean
   onDashboard?: () => void
+  onInstallmentOverview?: () => void
   onCashierReports?: () => void
   onAllAccounts?: () => void
   onActiveAccounts?: () => void
@@ -126,51 +129,57 @@ export function SidebarLeft({
             return {
               ...item,
               children: item.children.map((child) =>
-                child.title === 'In-house'
+                child.title === 'Overview'
                   ? {
                       ...child,
-                      children: child.children?.map((entry) => {
-                        if (entry.title === 'Records')
-                          return {
-                            ...entry,
-                            isActive: activeView === 'in-house-accounts',
-                            onClick: onAllAccounts
-                          }
-                        if (entry.title === 'Active')
-                          return {
-                            ...entry,
-                            isActive: activeView === 'in-house-active-accounts',
-                            onClick: onActiveAccounts
-                          }
-                        if (entry.title === 'Closed')
-                          return {
-                            ...entry,
-                            isActive: activeView === 'in-house-closed-accounts',
-                            onClick: onClosedAccounts
-                          }
-                        if (entry.title === 'Blacklisted')
-                          return {
-                            ...entry,
-                            isActive: activeView === 'in-house-blacklisted-accounts',
-                            onClick: onBlacklistedAccounts
-                          }
-                        return entry
-                      })
+                      isActive: activeView === 'installment-overview',
+                      onClick: onInstallmentOverview
                     }
-                  : child.title === 'Finance'
+                  : child.title === 'In-house'
                     ? {
                         ...child,
-                        children: child.children?.map((entry) =>
-                          entry.title === 'Accounts'
-                            ? {
-                                ...entry,
-                                isActive: activeView === 'finance-accounts',
-                                onClick: onFinanceAccounts
-                              }
-                            : entry
-                        )
+                        children: child.children?.map((entry) => {
+                          if (entry.title === 'Records')
+                            return {
+                              ...entry,
+                              isActive: activeView === 'in-house-accounts',
+                              onClick: onAllAccounts
+                            }
+                          if (entry.title === 'Active')
+                            return {
+                              ...entry,
+                              isActive: activeView === 'in-house-active-accounts',
+                              onClick: onActiveAccounts
+                            }
+                          if (entry.title === 'Closed')
+                            return {
+                              ...entry,
+                              isActive: activeView === 'in-house-closed-accounts',
+                              onClick: onClosedAccounts
+                            }
+                          if (entry.title === 'Blacklisted')
+                            return {
+                              ...entry,
+                              isActive: activeView === 'in-house-blacklisted-accounts',
+                              onClick: onBlacklistedAccounts
+                            }
+                          return entry
+                        })
                       }
-                    : child
+                    : child.title === 'Finance'
+                      ? {
+                          ...child,
+                          children: child.children?.map((entry) =>
+                            entry.title === 'Accounts'
+                              ? {
+                                  ...entry,
+                                  isActive: activeView === 'finance-accounts',
+                                  onClick: onFinanceAccounts
+                                }
+                              : entry
+                          )
+                        }
+                      : child
               )
             }
           })}

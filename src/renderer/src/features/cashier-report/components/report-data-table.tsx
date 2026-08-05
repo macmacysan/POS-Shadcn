@@ -48,6 +48,8 @@ type ReportDataTableProps<TData extends ReportRow> = {
   isLoading?: boolean
   loadError?: string
   onRetry?: () => void
+  globalFilterValue?: string
+  onGlobalFilterValueChange?: (value: string) => void
   serverState?: {
     pagination: PaginationState
     pageCount: number
@@ -76,6 +78,10 @@ function getHeaderTitle<TData extends ReportRow>(column: ReportColumn<TData>): s
   return column.id ?? 'Column'
 }
 
+function resolveUpdater<T>(updater: T | ((current: T) => T), current: T): T {
+  return typeof updater === 'function' ? (updater as (current: T) => T)(current) : updater
+}
+
 export function ReportDataTable<TData extends ReportRow>({
   columns,
   data,
@@ -88,6 +94,8 @@ export function ReportDataTable<TData extends ReportRow>({
   isLoading,
   loadError,
   onRetry,
+  globalFilterValue,
+  onGlobalFilterValueChange,
   serverState,
   filterOptions
 }: ReportDataTableProps<TData>): React.JSX.Element {
@@ -160,14 +168,20 @@ export function ReportDataTable<TData extends ReportRow>({
     state: {
       sorting: serverState?.sorting ?? sorting,
       columnFilters: serverState?.columnFilters ?? columnFilters,
-      globalFilter: serverState?.globalFilter ?? globalFilter,
+      globalFilter: serverState?.globalFilter ?? globalFilterValue ?? globalFilter,
       rowSelection,
       ...(serverState ? { pagination: serverState.pagination } : {})
     },
     enableRowSelection: true,
     onSortingChange: serverState?.onSortingChange ?? setSorting,
     onColumnFiltersChange: serverState?.onColumnFiltersChange ?? setColumnFilters,
-    onGlobalFilterChange: serverState?.onGlobalFilterChange ?? setGlobalFilter,
+    onGlobalFilterChange: serverState?.onGlobalFilterChange ??
+      (onGlobalFilterValueChange
+        ? (updater) => {
+            const next = resolveUpdater(updater, globalFilterValue ?? globalFilter)
+            onGlobalFilterValueChange(next)
+          }
+        : setGlobalFilter),
     onRowSelectionChange: setRowSelection,
     getRowId: (row) => row.id,
     getCoreRowModel: getCoreRowModel(),
@@ -189,7 +203,7 @@ export function ReportDataTable<TData extends ReportRow>({
   )
   const selectedRows = table.getSelectedRowModel().rows.map((row) => row.original)
   const filteredRowCount = serverState?.totalRows ?? table.getFilteredRowModel().rows.length
-  const currentGlobalFilter = serverState?.globalFilter ?? globalFilter
+  const currentGlobalFilter = serverState?.globalFilter ?? globalFilterValue ?? globalFilter
   const currentColumnFilters = serverState?.columnFilters ?? columnFilters
   const filterFields = React.useMemo(
     () => [
@@ -245,6 +259,7 @@ export function ReportDataTable<TData extends ReportRow>({
       .filter((filter) => filter.field !== 'global' && filter.values[0])
       .map((filter) => ({ id: filter.field, value: filter.values[0] }))
     table.setGlobalFilter(global)
+    onGlobalFilterValueChange?.(global)
     table.setColumnFilters(columns)
   }
 

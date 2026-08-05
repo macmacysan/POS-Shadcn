@@ -46,7 +46,11 @@ const api: ExpensesApi &
     listPayments: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listPayments, request),
     createPayment: (request) => ipcRenderer.invoke(dailyReportIpcChannels.createPayment, request),
     updatePayment: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updatePayment, request),
-    voidPayment: (request) => ipcRenderer.invoke(dailyReportIpcChannels.voidPayment, request)
+    voidPayment: (request) => ipcRenderer.invoke(dailyReportIpcChannels.voidPayment, request),
+    createReceiptType: (request) =>
+      ipcRenderer.invoke(dailyReportIpcChannels.createReceiptType, request),
+    deleteReceiptType: (request) =>
+      ipcRenderer.invoke(dailyReportIpcChannels.deleteReceiptType, request)
   },
   reports: {
     getById: (reportId: string): Promise<ReportRecord | null> =>
@@ -71,6 +75,7 @@ const api: ExpensesApi &
       ipcRenderer.invoke(installmentIpcChannels.blacklistAccount, request),
     getPaymentWorkspace: (request) =>
       ipcRenderer.invoke(installmentIpcChannels.paymentWorkspace, request),
+    listHistory: (request) => ipcRenderer.invoke(installmentIpcChannels.history, request),
     createPayment: (request) => ipcRenderer.invoke(installmentIpcChannels.createPayment, request),
     adjustPayment: (request) => ipcRenderer.invoke(installmentIpcChannels.adjustPayment, request)
   },

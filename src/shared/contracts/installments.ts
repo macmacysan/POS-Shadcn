@@ -50,6 +50,17 @@ export const installmentAdjustPaymentRequestSchema = z.object({
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
 })
 
+export const installmentHistoryRequestSchema = z.object({
+  dateFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  dateTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+})
+
 export type InstallmentListRequest = z.infer<typeof installmentListRequestSchema>
 export type InstallmentBootstrapRequest = z.infer<typeof installmentBootstrapRequestSchema>
 export type InstallmentTransitionRequest = z.infer<typeof installmentTransitionRequestSchema>
@@ -58,6 +69,7 @@ export type InstallmentPaymentWorkspaceRequest = z.infer<
 >
 export type InstallmentCreatePaymentRequest = z.infer<typeof installmentCreatePaymentRequestSchema>
 export type InstallmentAdjustPaymentRequest = z.infer<typeof installmentAdjustPaymentRequestSchema>
+export type InstallmentHistoryRequest = z.infer<typeof installmentHistoryRequestSchema>
 
 export type InstallmentAccountStatus = 'ACTIVE' | 'BLACKLISTED'
 export type InstallmentContractStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'VOIDED' | 'DEFAULTED'
@@ -163,6 +175,20 @@ export type InHousePaymentRecord = {
   createdAt: string
 }
 
+export type InstallmentHistoryRecord = {
+  id: string
+  occurredAt: string
+  action: 'new' | 'edited' | 'deleted'
+  source: 'in-house' | 'finance'
+  activity: string
+  amountCentavos?: number
+  referenceNumber?: string
+  accountId: string
+  accountNumber: string
+  accountName: string
+  branch: string
+}
+
 export type InstallmentPaymentWorkspace = {
   account: InstallmentAccountRecord['account']
   accountStatus: InstallmentAccountStatus
@@ -185,6 +211,7 @@ export const installmentIpcChannels = {
   closeContract: 'installments:close-contract',
   blacklistAccount: 'installments:blacklist-account',
   paymentWorkspace: 'installments:payment-workspace',
+  history: 'installments:history',
   createPayment: 'installments:create-payment',
   adjustPayment: 'installments:adjust-payment'
 } as const
@@ -198,6 +225,7 @@ export type InstallmentsApi = {
     getPaymentWorkspace(
       request: InstallmentPaymentWorkspaceRequest
     ): Promise<InstallmentPaymentWorkspace>
+    listHistory(request: InstallmentHistoryRequest): Promise<InstallmentHistoryRecord[]>
     createPayment(request: InstallmentCreatePaymentRequest): Promise<void>
     adjustPayment(request: InstallmentAdjustPaymentRequest): Promise<void>
   }

@@ -10,6 +10,8 @@ import type {
   InstallmentListRequest,
   InstallmentPaymentWorkspace,
   InstallmentPaymentWorkspaceRequest,
+  InstallmentHistoryRecord,
+  InstallmentHistoryRequest,
   InstallmentTransitionRequest
 } from '../../shared/contracts'
 import { AppError } from './errors'
@@ -593,6 +595,75 @@ export class InstallmentRepository {
         createdAt: payment.created_at
       }))
     }
+  }
+
+  listHistory(request: InstallmentHistoryRequest): InstallmentHistoryRecord[] {
+    const where = [
+      request.dateFrom ? 'substr(events.occurred_at, 1, 10) >= @dateFrom' : undefined,
+      request.dateTo ? 'substr(events.occurred_at, 1, 10) <= @dateTo' : undefined
+    ].filter(Boolean)
+    return this.db
+      .prepare(
+        `WITH events AS (
+           SELECT c.id || ':created' AS id, c.created_at AS occurred_at, 'new' AS action,
+                  'in-house' AS source, 'Installment record added' AS activity,
+                  c.total_payable_centavos AS amount_centavos, c.contract_number AS reference_number,
+                  a.id AS account_id, a.account_number, a.display_name AS account_name, b.name AS branch
+             FROM installment_contracts c
+             JOIN accounts a ON a.id = c.account_id
+             JOIN branches b ON b.id = c.branch_id
+           UNION ALL
+           SELECT p.id, p.payment_date || 'T00:00:00',
+                  CASE WHEN p.status = 'VOIDED' THEN 'deleted'
+                       WHEN p.replaces_payment_id IS NOT NULL THEN 'edited' ELSE 'new' END,
+                  'in-house',
+                  CASE WHEN p.status = 'VOIDED' THEN 'Active payment deleted'
+                       WHEN p.replaces_payment_id IS NOT NULL THEN 'Active payment edited'
+                       ELSE 'Active payment added' END,
+                  p.amount_centavos, p.reference_number, a.id, a.account_number,
+                  a.display_name, b.name
+             FROM in_house_payments p
+             JOIN installment_contracts c ON c.id = p.contract_id
+             JOIN accounts a ON a.id = c.account_id
+             JOIN branches b ON b.id = c.branch_id
+           UNION ALL
+           SELECT c.id || ':closed', c.closed_at, 'edited', 'in-house',
+                  'Installment record closed', c.total_payable_centavos, c.contract_number,
+                  a.id, a.account_number, a.display_name, b.name
+             FROM installment_contracts c
+             JOIN accounts a ON a.id = c.account_id
+             JOIN branches b ON b.id = c.branch_id
+            WHERE c.closed_at IS NOT NULL
+           UNION ALL
+           SELECT a.id || ':blacklisted', a.blacklisted_at, 'edited', 'in-house',
+                  'Installment record blacklisted', NULL, a.account_number,
+                  a.id, a.account_number, a.display_name, b.name
+             FROM accounts a
+             JOIN installment_contracts c ON c.account_id = a.id
+             JOIN branches b ON b.id = c.branch_id
+            WHERE a.blacklisted_at IS NOT NULL
+           UNION ALL
+           SELECT f.id || ':created', f.created_at, 'new', 'finance',
+                  'Finance account added', f.grand_total_centavos, COALESCE(f.or_number, f.provider),
+                  f.id, f.id, trim(f.first_name || ' ' || f.last_name), f.branch
+             FROM finance_accounts f
+           UNION ALL
+           SELECT f.id || ':updated', f.updated_at, 'edited', 'finance',
+                  'Finance account edited', f.grand_total_centavos, COALESCE(f.or_number, f.provider),
+                  f.id, f.id, trim(f.first_name || ' ' || f.last_name), f.branch
+             FROM finance_accounts f
+            WHERE f.updated_at <> f.created_at
+         )
+         SELECT events.id, events.occurred_at AS occurredAt, events.action, events.source,
+                events.activity, events.amount_centavos AS amountCentavos,
+                events.reference_number AS referenceNumber, events.account_id AS accountId,
+                events.account_number AS accountNumber, events.account_name AS accountName,
+                events.branch
+           FROM events
+          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+          ORDER BY events.occurred_at DESC, events.id DESC`
+      )
+      .all(request) as InstallmentHistoryRecord[]
   }
 
   createPayment(request: InstallmentCreatePaymentRequest): void {

@@ -13,7 +13,11 @@ export class ExpenseService {
   ) {}
 
   list(request: ExpenseListRequest) {
-    return this.repository.findPage(request)
+    const user = this.auth.requireSession()
+    return this.repository.findPage({
+      ...request,
+      branch: user.role === 'ADMIN' ? request.branch : user.branch
+    })
   }
 
   getById(id: string) {
