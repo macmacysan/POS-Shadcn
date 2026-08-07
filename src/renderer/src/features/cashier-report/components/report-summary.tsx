@@ -44,6 +44,12 @@ const deductionDefinitions = [
 ] as const
 
 const receiptTypesExcludedFromPicker = new Set(['CASH SALES', 'COLLECTIONS'])
+const paymentMethodIds = {
+  bankCheck: 'report-payment-method-check',
+  bankTransfer: 'report-payment-method-bank-transfer',
+  gcash: 'report-payment-method-gcash',
+  otherEwallet: 'report-payment-method-other-ewallet'
+} as const
 const RECEIPT_VISIBILITY_STORAGE_KEY = 'cashiers-report-visible-receipt-types'
 const defaultReceiptTypeNames = new Set([
   'SALES INVOICE',
@@ -426,6 +432,22 @@ export const ReportSummary = React.memo(function ReportSummary({
     .filter((item) => item.status === 'POSTED')
     .reduce((total, item) => total + item.amountCentavos, 0)
   const cashOutCentavos = snapshot.legacyExpenseCashOutCentavos + cashOutEntriesCentavos
+  const paymentTotals = snapshot.paymentEntries
+    .filter((item) => item.status === 'POSTED')
+    .reduce(
+      (totals, item) => {
+        if (item.paymentMethodId === paymentMethodIds.bankCheck)
+          totals.bankCheck += item.amountCentavos
+        else if (item.paymentMethodId === paymentMethodIds.bankTransfer)
+          totals.bankTransfer += item.amountCentavos
+        else if (item.paymentMethodId === paymentMethodIds.gcash)
+          totals.gcash += item.amountCentavos
+        else totals.otherEwallet += item.amountCentavos
+        totals.total += item.amountCentavos
+        return totals
+      },
+      { bankCheck: 0, bankTransfer: 0, gcash: 0, otherEwallet: 0, total: 0 }
+    )
   const variance = snapshot.cashVarianceCentavos
   const visibleReceiptTypes = snapshot.receiptTypes.filter(
     (type) =>
@@ -764,6 +786,11 @@ export const ReportSummary = React.memo(function ReportSummary({
               <SummaryRow label="Receivables" value={expenseTotals.receivablesCentavos} />
               <SummaryRow label="Deductions" value={deductionCentavos} />
               <SummaryRow label="Total Cash Out" value={cashOutCentavos} emphasis />
+              <SummaryRow label="Bank Check" value={paymentTotals.bankCheck} />
+              <SummaryRow label="Bank Transfer" value={paymentTotals.bankTransfer} />
+              <SummaryRow label="Gcash" value={paymentTotals.gcash} />
+              <SummaryRow label="Other e-wallet" value={paymentTotals.otherEwallet} />
+              <SummaryRow label="Total Payments" value={paymentTotals.total} emphasis />
             </Section>
           </div>
         </ScrollArea>

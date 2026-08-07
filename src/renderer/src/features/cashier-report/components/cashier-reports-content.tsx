@@ -1166,7 +1166,8 @@ export function CashierReportsContent({
     expenseQuery.expenseTotals.drawingsCentavos,
     expenseQuery.expenseTotals.purchasesCentavos,
     expenseQuery.expenseTotals.receivablesCentavos,
-    ...incomes.map((income) => `${income.id}:${income.amount}`)
+    ...incomes.map((income) => `${income.id}:${income.amount}`),
+    ...payments.map((payment) => `${payment.id}:${payment.paymentMethodId}:${payment.amount}`)
   ].join(':')
   const refreshEntries = React.useCallback(async (): Promise<void> => {
     const requestVersion = ++entriesRequestVersionRef.current
