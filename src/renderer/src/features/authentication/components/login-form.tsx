@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import {
   loginBranchValues,
   type AuthenticatedUser,
@@ -7,7 +8,14 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput
+} from '@/components/ui/input-group'
 import { Input } from '@/components/ui/input'
+import { useNotifications } from '@/hooks/use-notifications'
 import {
   Select,
   SelectContent,
@@ -24,6 +32,19 @@ type LoginValues = {
 
 type LoginErrors = Partial<Record<keyof LoginValues, string>>
 
+const LAST_LOGIN_BRANCH_STORAGE_KEY = 'cashiers-report-last-login-branch'
+
+function getLastLoginBranch(): LoginBranch | '' {
+  const branch = window.localStorage.getItem(LAST_LOGIN_BRANCH_STORAGE_KEY)
+  return loginBranchValues.includes(branch as LoginBranch) ? (branch as LoginBranch) : ''
+}
+
+function companyNameForBranch(branch: LoginBranch | ''): string {
+  return branch === 'All Branch' || branch === 'Goa'
+    ? 'Nueva Camsur Home Furnishing'
+    : 'Nueva Camsur Trading'
+}
+
 export function LoginForm({
   className,
   onSuccess,
@@ -32,13 +53,15 @@ export function LoginForm({
   onSuccess?: (branch: LoginBranch, user: AuthenticatedUser) => void
 }): React.JSX.Element {
   const [values, setValues] = useState<LoginValues>({
-    branch: '',
+    branch: getLastLoginBranch(),
     username: '',
     password: ''
   })
   const [errors, setErrors] = useState<LoginErrors>({})
   const [submitError, setSubmitError] = useState<string>()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
+  const { notify } = useNotifications()
 
   function updateValue<Key extends keyof LoginValues>(key: Key, value: LoginValues[Key]): void {
     setValues((current) => ({ ...current, [key]: value }))
@@ -65,9 +88,13 @@ export function LoginForm({
         username: values.username,
         password: values.password
       })
+      window.localStorage.setItem(LAST_LOGIN_BRANCH_STORAGE_KEY, values.branch)
+      notify({ type: 'success', title: 'Signed in successfully.' })
       onSuccess?.(values.branch as LoginBranch, user)
     } catch {
-      setSubmitError('Unable to sign in with those credentials.')
+      const message = 'Unable to sign in. Check your details or contact an administrator.'
+      setSubmitError(message)
+      notify({ type: 'error', title: 'Sign-in failed.', description: message, id: 'auth:login' })
     } finally {
       setIsSubmitting(false)
     }
@@ -76,12 +103,9 @@ export function LoginForm({
   return (
     <div className={className} {...props}>
       <form className="flex w-full max-w-sm flex-col gap-8" onSubmit={handleSubmit} noValidate>
-        <div className="flex flex-col gap-3">
-          <div className="brand-mark size-9 text-xs">CR</div>
-          <div className="flex flex-col gap-1">
-            <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
-            <p className="text-sm text-muted-foreground">Access your cashier workspace.</p>
-          </div>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold tracking-tight">Cashier Daily Report</h1>
+          <p className="text-sm text-muted-foreground">{companyNameForBranch(values.branch)}</p>
         </div>
 
         <FieldGroup>
@@ -120,15 +144,27 @@ export function LoginForm({
 
           <Field data-invalid={Boolean(errors.password)}>
             <FieldLabel htmlFor="password">Password</FieldLabel>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="Enter your password"
-              value={values.password}
-              aria-invalid={Boolean(errors.password)}
-              onChange={(event) => updateValue('password', event.target.value)}
-            />
+            <InputGroup>
+              <InputGroupInput
+                id="password"
+                type={isPasswordVisible ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={values.password}
+                aria-invalid={Boolean(errors.password)}
+                onChange={(event) => updateValue('password', event.target.value)}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  type="button"
+                  size="icon-xs"
+                  aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+                  onClick={() => setIsPasswordVisible((current) => !current)}
+                >
+                  {isPasswordVisible ? <EyeOff /> : <Eye />}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
             {errors.password && <FieldError>{errors.password}</FieldError>}
           </Field>
 

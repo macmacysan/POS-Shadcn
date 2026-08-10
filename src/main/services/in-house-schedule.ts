@@ -11,8 +11,10 @@ function termCount(terms: string): number {
 
 function addFrequency(date: Date, frequency: string, count: number): Date {
   const next = new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`)
-  if (frequency === 'Weekly') next.setUTCDate(next.getUTCDate() + count * 7)
+  if (frequency === 'Daily') next.setUTCDate(next.getUTCDate() + count)
+  else if (frequency === 'Weekly') next.setUTCDate(next.getUTCDate() + count * 7)
   else if (frequency === 'Bi-weekly') next.setUTCDate(next.getUTCDate() + count * 14)
+  else if (frequency === 'Semi-monthly') next.setUTCDate(next.getUTCDate() + count * 15)
   else next.setUTCMonth(next.getUTCMonth() + count)
   return next
 }

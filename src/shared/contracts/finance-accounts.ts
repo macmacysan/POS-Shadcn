@@ -15,9 +15,9 @@ export const financeItemInputSchema = z.object({
 export const financeAccountInputSchema = z
   .object({
     branch: z.enum(financeBranchValues),
-    provider: z.enum(financeProviderValues),
+    provider: z.string().trim().min(1).max(200),
     dateReleased: dateSchema,
-    termsMonths: z.number().int().min(1).max(12),
+    termsMonths: z.number().int().min(1).max(24),
     lastName: z.string().trim().min(1).max(100),
     firstName: z.string().trim().min(1).max(100),
     middleName: z.string().trim().max(100).optional(),

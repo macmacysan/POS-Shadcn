@@ -4,6 +4,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import {
   expenseIpcChannels,
   authIpcChannels,
+  catalogOptionIpcChannels,
   dashboardIpcChannels,
   dailyReportIpcChannels,
   financeAccountIpcChannels,
@@ -14,6 +15,7 @@ import {
   type ExpenseUpdateInput,
   type ExpensesApi,
   type AuthApi,
+  type CatalogOptionsApi,
   type DashboardApi,
   type DailyReportsApi,
   type FinanceAccountsApi,
@@ -26,8 +28,16 @@ const api: ExpensesApi &
   InstallmentsApi &
   FinanceAccountsApi &
   AuthApi &
+  CatalogOptionsApi &
   DashboardApi &
   DailyReportsApi = {
+  catalogOptions: {
+    list: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.list, request),
+    create: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.create, request),
+    rename: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.rename, request),
+    retire: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.retire, request),
+    restore: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.restore, request)
+  },
   auth: {
     login: (request) => ipcRenderer.invoke(authIpcChannels.login, request),
     logout: () => ipcRenderer.invoke(authIpcChannels.logout)
@@ -50,7 +60,10 @@ const api: ExpensesApi &
     createReceiptType: (request) =>
       ipcRenderer.invoke(dailyReportIpcChannels.createReceiptType, request),
     deleteReceiptType: (request) =>
-      ipcRenderer.invoke(dailyReportIpcChannels.deleteReceiptType, request)
+      ipcRenderer.invoke(dailyReportIpcChannels.deleteReceiptType, request),
+    listReceiptTypes: () => ipcRenderer.invoke(dailyReportIpcChannels.listReceiptTypes),
+    restoreReceiptType: (request) =>
+      ipcRenderer.invoke(dailyReportIpcChannels.restoreReceiptType, request)
   },
   reports: {
     getById: (reportId: string): Promise<ReportRecord | null> =>

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 16
+export const currentSchemaVersion = 20
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -812,6 +812,13 @@ export function runMigrations(db: Database.Database): void {
         `INSERT OR IGNORE INTO cash_denominations (id, value_centavos, sort_order)
          VALUES (?, ?, ?)`
       )
+      db.exec(`
+        DELETE FROM daily_report_cash_counts
+        WHERE denomination_id IN (
+          SELECT id FROM cash_denominations WHERE value_centavos < 25
+        );
+        DELETE FROM cash_denominations WHERE value_centavos < 25;
+      `)
       for (const [valueCentavos, sortOrder] of [
         [100000, 10],
         [50000, 20],
@@ -822,10 +829,7 @@ export function runMigrations(db: Database.Database): void {
         [1000, 70],
         [500, 80],
         [100, 90],
-        [25, 100],
-        [10, 110],
-        [5, 120],
-        [1, 130]
+        [25, 100]
       ]) {
         seedDenomination.run(`cash-denomination-${valueCentavos}`, valueCentavos, sortOrder)
       }
@@ -1000,6 +1004,118 @@ export function runMigrations(db: Database.Database): void {
         16,
         new Date().toISOString()
       )
+    })
+    migrate()
+  }
+
+  if (applied.version < 17) {
+    const migrate = db.transaction(() => {
+      db.exec(`ALTER TABLE daily_receipt_totals ADD COLUMN receipt_name TEXT NOT NULL DEFAULT ''`)
+      db.exec(
+        `ALTER TABLE daily_receipt_totals ADD COLUMN receipt_short_name TEXT NOT NULL DEFAULT ''`
+      )
+      db.exec(`
+        UPDATE daily_receipt_totals
+           SET receipt_name = receipt_types.name,
+               receipt_short_name = receipt_types.short_name
+          FROM receipt_types
+         WHERE receipt_types.id = daily_receipt_totals.receipt_type_id
+           AND daily_receipt_totals.receipt_name = ''
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        17,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 18) {
+    const migrate = db.transaction(() => {
+      db.exec(
+        `ALTER TABLE installment_contracts ADD COLUMN schedule_frequency TEXT NOT NULL DEFAULT ''`
+      )
+      db.exec(
+        `UPDATE installment_contracts SET schedule_frequency = payment_frequency WHERE schedule_frequency = ''`
+      )
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        18,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 19) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE catalog_options (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL CHECK (kind IN ('CASHIER_EXPENSE_TYPE', 'CASHIER_PAYMENT_TYPE', 'IN_HOUSE_AGENT', 'IN_HOUSE_LOAN_TERM', 'FINANCE_TYPE', 'FINANCE_TERM')),
+          value TEXT NOT NULL,
+          reference_id TEXT,
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(kind, value)
+        );
+        CREATE INDEX catalog_options_kind_active_idx ON catalog_options (kind, is_active, value);
+      `)
+      const seed = db.prepare(
+        `INSERT OR IGNORE INTO catalog_options (id, kind, value, reference_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      for (const [id, kind, value, referenceId] of [
+        ['catalog-expense-company', 'CASHIER_EXPENSE_TYPE', 'Company Expenses', null],
+        ['catalog-expense-drawings', 'CASHIER_EXPENSE_TYPE', 'Drawings', null],
+        ['catalog-expense-purchases', 'CASHIER_EXPENSE_TYPE', 'Purchases', null],
+        ['catalog-expense-receivables', 'CASHIER_EXPENSE_TYPE', 'Receivables', null],
+        [
+          'catalog-payment-check',
+          'CASHIER_PAYMENT_TYPE',
+          'Bank Check',
+          'report-payment-method-check'
+        ],
+        [
+          'catalog-payment-transfer',
+          'CASHIER_PAYMENT_TYPE',
+          'Bank Transfer',
+          'report-payment-method-bank-transfer'
+        ],
+        ['catalog-payment-gcash', 'CASHIER_PAYMENT_TYPE', 'GCash', 'report-payment-method-gcash'],
+        [
+          'catalog-payment-ewallet',
+          'CASHIER_PAYMENT_TYPE',
+          'Other e-wallet',
+          'report-payment-method-other-ewallet'
+        ],
+        ['catalog-agent-mark', 'IN_HOUSE_AGENT', 'Mark Rivera', null],
+        ['catalog-agent-nina', 'IN_HOUSE_AGENT', 'Nina Dela Cruz', null],
+        ['catalog-agent-paolo', 'IN_HOUSE_AGENT', 'Paolo Santos', null],
+        ['catalog-finance-home-credit', 'FINANCE_TYPE', 'Home Credit', null],
+        ['catalog-finance-salmon', 'FINANCE_TYPE', 'Salmon', null],
+        ['catalog-finance-skyro', 'FINANCE_TYPE', 'Skyro', null]
+      ])
+        seed.run(id, kind, value, referenceId, now, now)
+      for (let term = 1; term <= 12; term += 1)
+        seed.run(`catalog-loan-term-${term}`, 'IN_HOUSE_LOAN_TERM', String(term), null, now, now)
+      for (let term = 1; term <= 24; term += 1)
+        seed.run(`catalog-finance-term-${term}`, 'FINANCE_TERM', String(term), null, now, now)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(19, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 20) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(
+        `ALTER TABLE daily_report_payment_entries ADD COLUMN payment_method_name TEXT NOT NULL DEFAULT ''`
+      )
+      db.prepare(
+        `UPDATE daily_report_payment_entries SET payment_method_name = report_payment_methods.name FROM report_payment_methods WHERE report_payment_methods.id = daily_report_payment_entries.payment_method_id AND payment_method_name = ''`
+      ).run()
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(20, now)
     })
     migrate()
   }

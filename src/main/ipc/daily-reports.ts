@@ -8,6 +8,7 @@ import {
   dailyReportPaymentVoidRequestSchema,
   dailyReportReceiptTypeCreateRequestSchema,
   dailyReportReceiptTypeDeleteRequestSchema,
+  dailyReportReceiptTypeRestoreRequestSchema,
   dailyReportResolveActiveRequestSchema,
   dailyReportSnapshotRequestSchema,
   dailyReportSummaryUpdateRequestSchema,
@@ -20,7 +21,11 @@ import { toIpcError } from '../database/errors'
 import { DailyReportService } from '../services/daily-report-service'
 
 export function registerDailyReportIpc(service: DailyReportService): void {
-  const handle = <T>(channel: string, parse: (input: unknown) => T, run: (input: T) => unknown): void => {
+  const handle = <T>(
+    channel: string,
+    parse: (input: unknown) => T,
+    run: (input: T) => unknown
+  ): void => {
     ipcMain.handle(channel, (_event, input: unknown) => {
       try {
         return run(parse(input))
@@ -30,14 +35,18 @@ export function registerDailyReportIpc(service: DailyReportService): void {
     })
   }
 
-  handle(dailyReportIpcChannels.resolveActive, dailyReportResolveActiveRequestSchema.parse, (input) =>
-    service.resolveActive(input)
+  handle(
+    dailyReportIpcChannels.resolveActive,
+    dailyReportResolveActiveRequestSchema.parse,
+    (input) => service.resolveActive(input)
   )
   handle(dailyReportIpcChannels.getSnapshot, dailyReportSnapshotRequestSchema.parse, (input) =>
     service.getSnapshot(input)
   )
-  handle(dailyReportIpcChannels.updateSummary, dailyReportSummaryUpdateRequestSchema.parse, (input) =>
-    service.updateSummary(input)
+  handle(
+    dailyReportIpcChannels.updateSummary,
+    dailyReportSummaryUpdateRequestSchema.parse,
+    (input) => service.updateSummary(input)
   )
   handle(dailyReportIpcChannels.listIncome, incomeListRequestSchema.parse, (input) =>
     service.listIncome(input)
@@ -54,11 +63,15 @@ export function registerDailyReportIpc(service: DailyReportService): void {
   handle(dailyReportIpcChannels.listPayments, dailyReportPaymentListRequestSchema.parse, (input) =>
     service.listPayments(input)
   )
-  handle(dailyReportIpcChannels.createPayment, dailyReportPaymentCreateRequestSchema.parse, (input) =>
-    service.createPayment(input)
+  handle(
+    dailyReportIpcChannels.createPayment,
+    dailyReportPaymentCreateRequestSchema.parse,
+    (input) => service.createPayment(input)
   )
-  handle(dailyReportIpcChannels.updatePayment, dailyReportPaymentUpdateRequestSchema.parse, (input) =>
-    service.updatePayment(input)
+  handle(
+    dailyReportIpcChannels.updatePayment,
+    dailyReportPaymentUpdateRequestSchema.parse,
+    (input) => service.updatePayment(input)
   )
   handle(dailyReportIpcChannels.voidPayment, dailyReportPaymentVoidRequestSchema.parse, (input) =>
     service.voidPayment(input)
@@ -72,5 +85,15 @@ export function registerDailyReportIpc(service: DailyReportService): void {
     dailyReportIpcChannels.deleteReceiptType,
     dailyReportReceiptTypeDeleteRequestSchema.parse,
     (input) => service.deleteReceiptType(input)
+  )
+  handle(
+    dailyReportIpcChannels.listReceiptTypes,
+    () => undefined,
+    () => service.listReceiptTypes()
+  )
+  handle(
+    dailyReportIpcChannels.restoreReceiptType,
+    dailyReportReceiptTypeRestoreRequestSchema.parse,
+    (input) => service.restoreReceiptType(input)
   )
 }

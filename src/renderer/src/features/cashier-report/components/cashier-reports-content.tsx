@@ -82,6 +82,7 @@ import { useActiveReport } from '@/contexts/active-report-context'
 import {
   expenseTypeValues,
   amountFromCentavos,
+  type CatalogOptionRecord,
   parseAmountToCentavos,
   type DailyReportPaymentEntryRecord,
   type ExpenseCategory,
@@ -618,7 +619,8 @@ function paymentRow(record: DailyReportPaymentEntryRecord): PaymentRow {
     id: record.id,
     branch: record.branch,
     paymentMethodId: record.paymentMethodId,
-    type: paymentLabelByMethod[record.paymentMethodId] ?? 'Other e-wallet',
+    type:
+      record.paymentMethodName ?? paymentLabelByMethod[record.paymentMethodId] ?? 'Other e-wallet',
     bankProvider: record.bankName ?? '',
     accountName: record.payerName ?? '',
     referenceNo: record.referenceNumber ?? '',
@@ -927,7 +929,15 @@ function ReportDatePicker({ id, label }: { id: string; label: string }): React.J
   )
 }
 
-function ReportDetailsForm({ tab }: { tab: (typeof reportTabs)[number] }): React.JSX.Element {
+function ReportDetailsForm({
+  tab,
+  expenseTypes,
+  paymentTypes
+}: {
+  tab: (typeof reportTabs)[number]
+  expenseTypes: readonly string[]
+  paymentTypes: readonly string[]
+}): React.JSX.Element {
   return (
     <FieldGroup className="p-4">
       {formFields[tab].map((field) => {
@@ -1007,12 +1017,16 @@ function EntryFormPanel({
   tab,
   onSave,
   onDirtyChange,
-  saveError
+  saveError,
+  expenseTypes,
+  paymentTypes
 }: {
   tab: (typeof reportTabs)[number]
   onSave: (form: FormData) => void
   onDirtyChange: (isDirty: boolean) => void
   saveError?: string
+  expenseTypes: readonly string[]
+  paymentTypes: readonly string[]
 }): React.JSX.Element {
   return (
     <form
@@ -1033,7 +1047,7 @@ function EntryFormPanel({
         </div>
       )}
       <ScrollArea className="min-h-0 flex-1">
-        <ReportDetailsForm tab={tab} />
+        <ReportDetailsForm tab={tab} expenseTypes={expenseTypes} paymentTypes={paymentTypes} />
       </ScrollArea>
       <EntryFormActions />
     </form>
@@ -1071,6 +1085,7 @@ export function CashierReportsContent({
   const { createExpense, removeExpenses, updateExpense } = expenseQuery
   const [incomes, setIncomes] = React.useState<IncomeRow[]>([])
   const [payments, setPayments] = React.useState<PaymentRow[]>([])
+  const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
   const [historyRecords, setHistoryRecords] = React.useState<InstallmentHistoryRecord[]>([])
   const [historyLoadState, setHistoryLoadState] = React.useState<EntryLoadState>({
     isLoading: true
@@ -1090,6 +1105,23 @@ export function CashierReportsContent({
   const isEntryFormCompact = useMediaQuery('(max-width: 900px)')
   const isSummaryCompact = useMediaQuery('(max-width: 760px)')
   const isHistoryTab = activeTab === 'Activity'
+  const activeCatalogValues = React.useCallback(
+    (kind: CatalogOptionRecord['kind'], fallback: readonly string[]) => {
+      const values = catalogOptions
+        .filter((option) => option.kind === kind && option.isActive)
+        .map((option) => option.value)
+      return values.length ? values : fallback
+    },
+    [catalogOptions]
+  )
+  const activeExpenseTypes = activeCatalogValues('CASHIER_EXPENSE_TYPE', expenseTypes)
+  const activePaymentTypes = activeCatalogValues('CASHIER_PAYMENT_TYPE', paymentTypes)
+  React.useEffect(() => {
+    void window.api.catalogOptions
+      .list({ activeOnly: true })
+      .then(({ rows }) => setCatalogOptions(rows))
+      .catch(() => undefined)
+  }, [])
   const showRightPanel = !isEntryFormCompact && isEntryFormVisible
   React.useEffect(() => {
     const requestVersion = ++historyRequestVersionRef.current
@@ -1385,10 +1417,15 @@ export function CashierReportsContent({
             amountCentavos
           })
         } else if (tab === 'Payment') {
-          const type = String(form.get('payment-type') || 'Bank Check')
+          const type = String(form.get('payment-type') || activePaymentTypes[0] || 'Bank Check')
+          const paymentMethodId = catalogOptions.find(
+            (option) =>
+              option.kind === 'CASHIER_PAYMENT_TYPE' && option.value === type && option.isActive
+          )?.referenceId
+          if (!paymentMethodId) throw new Error('Payment type is unavailable.')
           await window.api.dailyReports.createPayment({
             dailyReportId: reportId,
-            paymentMethodId: paymentMethodByLabel[type] ?? 'report-payment-method-other-ewallet',
+            paymentMethodId,
             transactionDate: String(form.get('payment-date') || format(new Date(), 'yyyy-MM-dd')),
             referenceNumber: String(form.get('payment-reference-no-') || '') || null,
             bankName: String(form.get('payment-bank-provider') || '') || null,
@@ -1404,7 +1441,7 @@ export function CashierReportsContent({
         setEntrySaveError('This entry could not be saved. Review the values and try again.')
       }
     },
-    [createExpense, refreshEntries, reportId]
+    [activePaymentTypes, catalogOptions, createExpense, refreshEntries, reportId]
   )
 
   React.useEffect(() => {
@@ -1544,6 +1581,8 @@ export function CashierReportsContent({
                   if (isDirty) setEntrySaveError(undefined)
                 }}
                 saveError={entrySaveError}
+                expenseTypes={activeExpenseTypes}
+                paymentTypes={activePaymentTypes}
               />
             </Card>
           )}
@@ -1602,6 +1641,8 @@ export function CashierReportsContent({
                 if (isDirty) setEntrySaveError(undefined)
               }}
               saveError={entrySaveError}
+              expenseTypes={activeExpenseTypes}
+              paymentTypes={activePaymentTypes}
             />
           </SheetContent>
         </Sheet>

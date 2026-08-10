@@ -59,7 +59,7 @@ export type AccountDraft = Omit<InHouseAccount, 'id' | 'createdAt' | 'updatedAt'
 
 export type AccountValidationErrors = Partial<Record<keyof AccountDraft | 'form', string>>
 
-export type PaymentFrequency = 'Weekly' | 'Bi-weekly' | 'Monthly'
+export type PaymentFrequency = 'Daily' | 'Weekly' | 'Semi-monthly' | 'Monthly' | 'Bi-weekly'
 
 export type InHouseLoanItem = {
   readonly id: string
@@ -74,7 +74,7 @@ export type InHouseLoan = {
   readonly dateReleased: string
   readonly startDate: string
   readonly firstDueDate: string
-  readonly paymentFrequency: PaymentFrequency
+  readonly paymentFrequency: string
   readonly terms: string
   readonly principal: number
   readonly interest: number
@@ -94,8 +94,9 @@ export type LoanValidationErrors = Partial<Record<keyof LoanDraft | 'form', stri
 export const suffixOptions = ['Jr.', 'Sr.', 'II', 'III', 'IV', 'V'] as const
 export const agentOptions = ['Mark Rivera', 'Nina Dela Cruz', 'Paolo Santos'] as const
 export const paymentFrequencyOptions: readonly PaymentFrequency[] = [
+  'Daily',
   'Weekly',
-  'Bi-weekly',
+  'Semi-monthly',
   'Monthly'
 ]
 export const loanTermOptions: readonly string[] = Array.from({ length: 12 }, (_, index) => {
@@ -290,9 +291,10 @@ export function validateLoanDraft(draft: LoanDraft): LoanValidationErrors {
   if (!draft.startDate) errors.startDate = 'Start Date is required.'
   if (!draft.firstDueDate) errors.firstDueDate = 'First Due Date is required.'
   if (!draft.paymentFrequency) errors.paymentFrequency = 'Payment Frequency is required.'
-  if (!loanTermOptions.includes(draft.terms.trim())) {
-    errors.terms = 'Select terms from 1 to 12 months.'
-  }
+  const termCount = Number.parseInt(draft.terms, 10)
+  if (!Number.isFinite(termCount) || termCount < 1) errors.terms = 'Enter a positive number of terms.'
+  else if (draft.paymentFrequency === 'Monthly' && termCount > 12)
+    errors.terms = 'Monthly terms must be from 1 to 12.'
   if (draft.principal <= 0) errors.principal = 'Principal must be greater than zero.'
   if (draft.installmentAmount <= 0)
     errors.installmentAmount = 'Installment Amount must be greater than zero.'

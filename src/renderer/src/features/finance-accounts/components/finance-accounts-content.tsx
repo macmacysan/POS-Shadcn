@@ -46,6 +46,7 @@ import {
   financeAccountInputSchema,
   financeBranchValues,
   financeProviderValues,
+  type CatalogOptionRecord,
   type FinanceAccountInput,
   type FinanceAccountRecord,
   type FinanceItemInput,
@@ -479,8 +480,28 @@ function FinanceAccountSheet({
     record ? recordForm(record) : blankForm(initialBranch)
   )
   const [errors, setErrors] = React.useState<Record<string, string>>({})
+  const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
   const [submitError, setSubmitError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
+  React.useEffect(() => {
+    void window.api.catalogOptions
+      .list({ activeOnly: true })
+      .then(({ rows }) => setCatalogOptions(rows))
+      .catch(() => undefined)
+  }, [])
+  const activeProviders = catalogOptions
+    .filter((option) => option.kind === 'FINANCE_TYPE')
+    .map((option) => option.value)
+  const providers = activeProviders.includes(values.provider)
+    ? activeProviders
+    : [values.provider, ...activeProviders]
+  const activeTerms = catalogOptions
+    .filter((option) => option.kind === 'FINANCE_TERM')
+    .map((option) => Number(option.value))
+    .filter(Number.isInteger)
+  const terms = activeTerms.includes(values.termsMonths)
+    ? activeTerms
+    : [values.termsMonths, ...activeTerms]
   React.useEffect(() => {
     if (open) {
       setValues(record ? recordForm(record) : blankForm(initialBranch))
@@ -580,7 +601,7 @@ function FinanceAccountSheet({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        {financeProviderValues.map((provider) => (
+                        {(providers.length ? providers : financeProviderValues).map((provider) => (
                           <SelectItem key={provider} value={provider}>
                             {provider}
                           </SelectItem>
@@ -612,7 +633,10 @@ function FinanceAccountSheet({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        {Array.from({ length: 12 }, (_, index) => index + 1).map((months) => (
+                        {(terms.length
+                          ? terms
+                          : Array.from({ length: 24 }, (_, index) => index + 1)
+                        ).map((months) => (
                           <SelectItem key={months} value={String(months)}>
                             {months} month{months === 1 ? '' : 's'}
                           </SelectItem>

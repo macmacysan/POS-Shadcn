@@ -11,6 +11,8 @@ import { InstallmentOverviewContent } from '@/features/installment-overview'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ActiveReportProvider } from '@/contexts/active-report-context'
+import { NotificationProvider } from '@/contexts/notification-context'
+import { Toaster } from '@/components/ui/sonner'
 import type { AuthenticatedUser, LoginBranch } from '@/../../shared/contracts'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
@@ -66,13 +68,17 @@ function Workspace({
   onToggleTheme,
   summaryAlwaysDark,
   onSummaryAlwaysDarkChange,
-  selectedBranch
+  onLogout,
+  selectedBranch,
+  isAdmin
 }: {
   isDark: boolean
   onToggleTheme: () => void
   summaryAlwaysDark: boolean
   onSummaryAlwaysDarkChange: (value: boolean) => void
+  onLogout: () => void
   selectedBranch: LoginBranch
+  isAdmin: boolean
 }): React.JSX.Element {
   const initialPaymentRoute = readPaymentRoute()
   const [activeView, setActiveView] = useState<ActiveView>(
@@ -135,6 +141,8 @@ function Workspace({
         onToggleTheme={onToggleTheme}
         summaryAlwaysDark={summaryAlwaysDark}
         onSummaryAlwaysDarkChange={onSummaryAlwaysDarkChange}
+        onLogout={onLogout}
+        isAdmin={isAdmin}
       />
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
         {paymentRoute ? (
@@ -217,33 +225,42 @@ function App(): React.JSX.Element {
   }, [summaryAlwaysDark])
 
   const toggleTheme = (): void => setIsDark((current) => !current)
-
-  if (isLoggedIn && authenticatedUser) {
-    return (
-      <ActiveReportProvider user={authenticatedUser}>
-        <div className="relative h-full w-full">
-          <Workspace
-            isDark={isDark}
-            onToggleTheme={toggleTheme}
-            summaryAlwaysDark={summaryAlwaysDark}
-            onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
-            selectedBranch={selectedBranch}
-          />
-        </div>
-      </ActiveReportProvider>
-    )
+  const logout = async (): Promise<void> => {
+    await window.api.auth.logout()
+    window.location.hash = ''
+    setAuthenticatedUser(undefined)
+    setIsLoggedIn(false)
   }
 
   return (
-    <main className="flex min-h-screen w-full items-center justify-center bg-background px-6 py-8">
-      <LoginForm
-        onSuccess={(branch, user) => {
-          setSelectedBranch(branch)
-          setAuthenticatedUser(user)
-          setIsLoggedIn(true)
-        }}
-      />
-    </main>
+    <NotificationProvider>
+      <Toaster theme={isDark ? 'dark' : 'light'} />
+      {isLoggedIn && authenticatedUser ? (
+        <ActiveReportProvider user={authenticatedUser}>
+          <div className="relative h-full w-full">
+            <Workspace
+              isDark={isDark}
+              onToggleTheme={toggleTheme}
+              summaryAlwaysDark={summaryAlwaysDark}
+              onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
+              onLogout={() => void logout()}
+              selectedBranch={selectedBranch}
+              isAdmin={authenticatedUser.role === 'ADMIN'}
+            />
+          </div>
+        </ActiveReportProvider>
+      ) : (
+        <main className="flex min-h-screen w-full items-center justify-center bg-background px-6 py-8">
+          <LoginForm
+            onSuccess={(branch, user) => {
+              setSelectedBranch(branch)
+              setAuthenticatedUser(user)
+              setIsLoggedIn(true)
+            }}
+          />
+        </main>
+      )}
+    </NotificationProvider>
   )
 }
 

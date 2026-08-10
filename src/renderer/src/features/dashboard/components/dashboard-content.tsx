@@ -449,7 +449,7 @@ export function DashboardContent({
                 {money(overview?.physicalCashCentavos ?? 0)}
               </strong>
             </div>
-            <div className="flex flex-col gap-1 border-b pb-3">
+            <div className="flex flex-col gap-1 pb-3">
               <span className="text-xs text-muted-foreground">Cash remitted</span>
               <strong className="font-mono text-lg font-semibold tabular-nums">
                 {money(overview?.remittedCashCentavos ?? 0)}

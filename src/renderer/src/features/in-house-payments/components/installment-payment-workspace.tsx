@@ -41,6 +41,7 @@ import { formatPhilippinePeso } from '@/lib/currency'
 import { branchNames, formatAccountName, type InHouseAccount } from '@/lib/in-house-accounts'
 import { type AccountMonitoringMeta } from '@/lib/in-house-account-monitoring'
 import { cn } from '@/lib/utils'
+import { useNotifications } from '@/hooks/use-notifications'
 import type {
   InHousePaymentRecord,
   InHouseScheduleRecord,
@@ -334,6 +335,7 @@ export function InstallmentPaymentWorkspace({
   const [adjustmentReason, setAdjustmentReason] = React.useState('')
   const [formError, setFormError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
+  const { notify } = useNotifications()
   const loadRequestId = React.useRef(0)
   const isSubmittingRef = React.useRef(false)
   const submissionIdRef = React.useRef<string | undefined>(undefined)
@@ -354,14 +356,16 @@ export function InstallmentPaymentWorkspace({
       if (requestId === loadRequestId.current) setWorkspace(nextWorkspace)
     } catch (caught) {
       if (requestId !== loadRequestId.current) return
-      const message =
-        caught instanceof Error ? caught.message : 'Payment workspace could not be loaded.'
-      if (/not found/i.test(message)) setIsNotFound(true)
-      else setError(message)
+      const message = 'Payment workspace could not be loaded.'
+      if (caught instanceof Error && /not found/i.test(caught.message)) setIsNotFound(true)
+      else {
+        setError(message)
+        notify({ type: 'error', title: 'Could not open payment workspace.', description: message })
+      }
     } finally {
       if (requestId === loadRequestId.current) setIsLoading(false)
     }
-  }, [accountId])
+  }, [accountId, notify])
 
   React.useEffect(() => {
     void load()
@@ -482,8 +486,17 @@ export function InstallmentPaymentWorkspace({
       }
       setIsPaymentOpen(false)
       await load()
-    } catch (caught) {
-      setFormError(caught instanceof Error ? caught.message : 'Payment could not be posted.')
+      notify({
+        type: 'success',
+        title: paymentMode === 'adjust' ? 'Payment adjustment posted.' : 'Payment posted.'
+      })
+    } catch {
+      const message =
+        paymentMode === 'adjust'
+          ? 'Payment adjustment could not be posted.'
+          : 'Payment could not be posted.'
+      setFormError(message)
+      notify({ type: 'error', title: 'Payment action failed.', description: message })
     } finally {
       isSubmittingRef.current = false
       setIsSaving(false)

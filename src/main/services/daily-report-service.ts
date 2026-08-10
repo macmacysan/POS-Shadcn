@@ -26,7 +26,8 @@ export class DailyReportService {
 
   resolveActive(request: DailyReportResolveActiveRequest) {
     const user = this.auth.requireSession()
-    const branchId = user.role === 'ADMIN' ? request.branchId : this.repository.branchIdForUser(user.id)
+    const branchId =
+      user.role === 'ADMIN' ? request.branchId : this.repository.branchIdForUser(user.id)
     if (!branchId) throw new AppError('FORBIDDEN', 'Your account is not assigned to a branch.')
     return this.repository.resolveActive({
       ...request,
@@ -105,12 +106,28 @@ export class DailyReportService {
 
   createReceiptType(request: DailyReportReceiptTypeCreateRequest) {
     const user = this.auth.requireSession()
+    this.requireAdmin(user)
     return this.repository.createReceiptType(request, user.id)
   }
 
   deleteReceiptType(request: DailyReportReceiptTypeDeleteRequest) {
-    this.auth.requireSession()
+    this.requireAdmin(this.auth.requireSession())
     return this.repository.deleteReceiptType(request)
+  }
+
+  listReceiptTypes() {
+    this.requireAdmin(this.auth.requireSession())
+    return { rows: this.repository.listReceiptTypes() }
+  }
+
+  restoreReceiptType(request: DailyReportReceiptTypeDeleteRequest) {
+    this.requireAdmin(this.auth.requireSession())
+    return this.repository.restoreReceiptType(request)
+  }
+
+  private requireAdmin(user: AuthenticatedUser): void {
+    if (user.role !== 'ADMIN')
+      throw new AppError('FORBIDDEN', 'Only administrators can manage receipt names.')
   }
 
   private requireEntryAccess(reportId: string | null, user: AuthenticatedUser): void {

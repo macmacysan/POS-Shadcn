@@ -66,6 +66,7 @@ type PaymentRow = {
   daily_report_id: string
   branch: string
   payment_method_id: string
+  payment_method_name: string
   transaction_date: string
   amount_centavos: number
   reference_number: string | null
@@ -85,6 +86,8 @@ type ReceiptTotalRow = {
   id: string
   daily_report_id: string
   receipt_type_id: string
+  receipt_name: string
+  receipt_short_name: string
   quantity: number
   amount_centavos: number
   created_at: string
@@ -134,6 +137,7 @@ type ReceiptTypeReferenceRow = ReferenceRow & {
   short_name: string
   is_default_visible: number
   is_system: number
+  is_active: number
 }
 
 const receiptTypesHiddenByDefault = new Set([
@@ -195,6 +199,7 @@ function paymentRecord(row: PaymentRow): DailyReportPaymentEntryRecord {
     dailyReportId: row.daily_report_id,
     branch: row.branch ?? 'Unknown',
     paymentMethodId: row.payment_method_id,
+    paymentMethodName: row.payment_method_name,
     transactionDate: row.transaction_date,
     amountCentavos: row.amount_centavos,
     referenceNumber: row.reference_number,
@@ -216,6 +221,8 @@ function receiptTotalRecord(row: ReceiptTotalRow): DailyReceiptTotalRecord {
     id: row.id,
     dailyReportId: row.daily_report_id,
     receiptTypeId: row.receipt_type_id,
+    receiptName: row.receipt_name,
+    receiptShortName: row.receipt_short_name,
     quantity: row.quantity,
     amountCentavos: row.amount_centavos,
     createdAt: row.created_at,
@@ -373,28 +380,7 @@ export class DailyReportRepository {
       throw new AppError('CONFLICT', 'A receipt type with that name already exists.')
     }
 
-    if (existing) {
-      const row = this.db
-        .prepare(
-          `UPDATE receipt_types
-              SET is_active = 1, short_name = ?, updated_at = ?
-            WHERE id = ?
-          RETURNING id, name, sort_order, is_default_visible, is_system`
-        )
-        .get(
-          request.shortName.trim(),
-          new Date().toISOString(),
-          existing.id
-        ) as ReceiptTypeReferenceRow
-      return {
-        id: row.id,
-        name: row.name,
-        shortName: request.shortName.trim(),
-        sortOrder: row.sort_order,
-        isDefaultVisible: row.is_default_visible === 1,
-        isSystem: row.is_system === 1
-      }
-    }
+    if (existing) throw new AppError('CONFLICT', 'Restore the retired receipt type instead.')
 
     const now = new Date().toISOString()
     const row = this.db
@@ -403,7 +389,7 @@ export class DailyReportRepository {
           id, code, name, short_name, is_system, is_default_visible, is_active, sort_order,
           created_by_user_id, created_at, updated_at
         ) VALUES (?, ?, ?, ?, 0, 0, 1, ?, ?, ?, ?)
-        RETURNING id, name, short_name, sort_order, is_default_visible, is_system`
+          RETURNING id, name, short_name, sort_order, is_default_visible, is_system, is_active`
       )
       .get(
         randomUUID(),
@@ -421,7 +407,8 @@ export class DailyReportRepository {
       shortName: row.short_name,
       sortOrder: row.sort_order,
       isDefaultVisible: row.is_default_visible === 1,
-      isSystem: row.is_system === 1
+      isSystem: row.is_system === 1,
+      isActive: row.is_active === 1
     }
   }
 
@@ -438,6 +425,48 @@ export class DailyReportRepository {
       .get(new Date().toISOString(), request.id) as { id: string } | undefined
     if (!row) throw new AppError('NOT_FOUND', 'Custom receipt type was not found.')
     return row
+  }
+
+  listReceiptTypes(): DailyReportReceiptTypeRecord[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT id, name, short_name, sort_order, is_default_visible, is_system, is_active
+           FROM receipt_types
+          WHERE is_system = 0
+          ORDER BY is_active DESC, sort_order, name`
+        )
+        .all() as ReceiptTypeReferenceRow[]
+    ).map((row) => ({
+      id: row.id,
+      name: row.name,
+      shortName: row.short_name || row.name.slice(0, 7),
+      sortOrder: row.sort_order,
+      isDefaultVisible: row.is_default_visible === 1,
+      isSystem: row.is_system === 1,
+      isActive: row.is_active === 1
+    }))
+  }
+
+  restoreReceiptType(request: DailyReportReceiptTypeDeleteRequest): DailyReportReceiptTypeRecord {
+    const row = this.db
+      .prepare(
+        `UPDATE receipt_types
+            SET is_active = 1, updated_at = ?
+          WHERE id = ? AND is_system = 0 AND is_active = 0
+        RETURNING id, name, short_name, sort_order, is_default_visible, is_system, is_active`
+      )
+      .get(new Date().toISOString(), request.id) as ReceiptTypeReferenceRow | undefined
+    if (!row) throw new AppError('NOT_FOUND', 'Retired receipt type was not found.')
+    return {
+      id: row.id,
+      name: row.name,
+      shortName: row.short_name || row.name.slice(0, 7),
+      sortOrder: row.sort_order,
+      isDefaultVisible: row.is_default_visible === 1,
+      isSystem: row.is_system === 1,
+      isActive: row.is_active === 1
+    }
   }
 
   private nextReceiptTypeSortOrder(): number {
@@ -622,13 +651,14 @@ export class DailyReportRepository {
     const row = this.db
       .prepare(
         `INSERT INTO daily_report_payment_entries (
-          id, daily_report_id, payment_method_id, transaction_date, amount_centavos, reference_number,
+          id, daily_report_id, payment_method_id, payment_method_name, transaction_date, amount_centavos, reference_number,
           bank_name, payer_name, remarks, created_by_user_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+        ) VALUES (?, ?, ?, (SELECT name FROM report_payment_methods WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
       )
       .get(
         randomUUID(),
         request.dailyReportId,
+        request.paymentMethodId,
         request.paymentMethodId,
         request.transactionDate,
         request.amountCentavos,
@@ -648,11 +678,12 @@ export class DailyReportRepository {
     const row = this.db
       .prepare(
         `UPDATE daily_report_payment_entries
-            SET payment_method_id = ?, transaction_date = ?, amount_centavos = ?, reference_number = ?,
+            SET payment_method_id = ?, payment_method_name = (SELECT name FROM report_payment_methods WHERE id = ?), transaction_date = ?, amount_centavos = ?, reference_number = ?,
                 bank_name = ?, payer_name = ?, remarks = ?, updated_at = ?
           WHERE id = ? AND status = 'POSTED' RETURNING *`
       )
       .get(
+        request.paymentMethodId,
         request.paymentMethodId,
         request.transactionDate,
         request.amountCentavos,
@@ -697,16 +728,23 @@ export class DailyReportRepository {
 
       const upsertReceipt = this.db.prepare(
         `INSERT INTO daily_receipt_totals (
-          id, daily_report_id, receipt_type_id, quantity, amount_centavos, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          id, daily_report_id, receipt_type_id, receipt_name, receipt_short_name,
+          quantity, amount_centavos, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(daily_report_id, receipt_type_id) DO UPDATE SET
           quantity = excluded.quantity, amount_centavos = excluded.amount_centavos, updated_at = excluded.updated_at`
       )
+      const receiptType = this.db.prepare('SELECT name, short_name FROM receipt_types WHERE id = ?')
       for (const item of request.receiptTotals) {
+        const type = receiptType.get(item.receiptTypeId) as
+          { name: string; short_name: string } | undefined
+        if (!type) throw new AppError('NOT_FOUND', 'Receipt type was not found.')
         upsertReceipt.run(
           randomUUID(),
           request.dailyReportId,
           item.receiptTypeId,
+          type.name,
+          type.short_name || type.name.slice(0, 7),
           item.quantity,
           item.amountCentavos,
           now,
@@ -784,14 +822,17 @@ export class DailyReportRepository {
     const cashCounts = (
       this.db
         .prepare(
-          'SELECT * FROM daily_report_cash_counts WHERE daily_report_id = ? ORDER BY denomination_id'
+          `SELECT c.* FROM daily_report_cash_counts c
+            JOIN cash_denominations d ON d.id = c.denomination_id
+           WHERE c.daily_report_id = ? AND d.value_centavos >= 25
+           ORDER BY c.denomination_id`
         )
         .all(dailyReportId) as CashCountRow[]
     ).map(cashCountRecord)
     const receiptTypes = (
       this.db
         .prepare(
-          'SELECT id, name, short_name, sort_order, is_default_visible, is_system FROM receipt_types WHERE is_active = 1 ORDER BY sort_order, name'
+          'SELECT id, name, short_name, sort_order, is_default_visible, is_system, is_active FROM receipt_types WHERE is_active = 1 ORDER BY sort_order, name'
         )
         .all() as ReceiptTypeReferenceRow[]
     ).map((row) => ({
@@ -802,7 +843,8 @@ export class DailyReportRepository {
       isDefaultVisible:
         row.is_default_visible === 1 &&
         !receiptTypesHiddenByDefault.has(row.name.trim().toUpperCase()),
-      isSystem: row.is_system === 1
+      isSystem: row.is_system === 1,
+      isActive: row.is_active === 1
     }))
     const deductionTypes = (
       this.db
@@ -816,7 +858,7 @@ export class DailyReportRepository {
     const cashDenominations = (
       this.db
         .prepare(
-          'SELECT id, value_centavos, sort_order FROM cash_denominations WHERE is_active = 1 ORDER BY sort_order'
+          'SELECT id, value_centavos, sort_order FROM cash_denominations WHERE is_active = 1 AND value_centavos >= 25 ORDER BY sort_order'
         )
         .all() as CashDenominationReferenceRow[]
     ).map((row) => ({
@@ -851,7 +893,7 @@ export class DailyReportRepository {
                       JOIN branches finance_branch ON finance_branch.name = f.branch
                      WHERE COALESCE(f.paid_date, f.date_released) = ?
                        AND finance_branch.id = report.branch_id), 0) AS finance_balance_centavos,
-          COALESCE((SELECT SUM(d.value_centavos * c.quantity) FROM daily_report_cash_counts c JOIN cash_denominations d ON d.id = c.denomination_id WHERE c.daily_report_id = ?), 0) AS physical_cash_centavos
+          COALESCE((SELECT SUM(d.value_centavos * c.quantity) FROM daily_report_cash_counts c JOIN cash_denominations d ON d.id = c.denomination_id WHERE c.daily_report_id = ? AND d.value_centavos >= 25), 0) AS physical_cash_centavos
           FROM daily_reports report
          WHERE report.id = ?`
       )

@@ -41,7 +41,7 @@ export const expenseCategoryValues = [
 export const expenseVatValues = ['VAT', 'Non-VAT', ''] as const
 export const expensePageSizes = [15, 25, 50, 100] as const
 
-const expenseTypeSchema = z.enum(expenseTypeValues)
+const expenseTypeSchema = z.string().trim().min(1).max(200)
 const expenseCategorySchema = z.enum(expenseCategoryValues)
 const expenseVatSchema = z.enum(expenseVatValues)
 const uuidSchema = z.string().uuid()

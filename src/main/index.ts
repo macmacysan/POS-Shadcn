@@ -26,6 +26,9 @@ import { registerDashboardIpc } from './ipc/dashboard'
 import { DailyReportRepository } from './database/daily-report-repository'
 import { DailyReportService } from './services/daily-report-service'
 import { registerDailyReportIpc } from './ipc/daily-reports'
+import { CatalogOptionRepository } from './database/catalog-option-repository'
+import { CatalogOptionService } from './services/catalog-option-service'
+import { registerCatalogOptionIpc } from './ipc/catalog-options'
 
 let database: ReturnType<typeof openDatabase> | undefined
 
@@ -46,6 +49,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
+    mainWindow.maximize()
     mainWindow.show()
   })
 
@@ -88,6 +92,9 @@ app.whenReady().then(() => {
     })
     const authService = new AuthService(new UserRepository(database))
     registerAuthIpc(authService)
+    registerCatalogOptionIpc(
+      new CatalogOptionService(new CatalogOptionRepository(database), authService)
+    )
     registerExpenseIpc(new ExpenseService(new ExpenseRepository(database), authService))
     registerReportIpc(new ReportService(new ReportRepository(database), authService))
     registerDailyReportIpc(new DailyReportService(new DailyReportRepository(database), authService))

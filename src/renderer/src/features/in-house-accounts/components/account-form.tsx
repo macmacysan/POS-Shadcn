@@ -71,6 +71,7 @@ import {
   type PsgcOption
 } from '@/lib/psgc'
 import { cn } from '@/lib/utils'
+import type { CatalogOptionRecord } from '../../../../../shared/contracts'
 
 export type InHouseAccountWorkflowSave =
   | {
@@ -372,12 +373,26 @@ export function InHouseAccountForm({
   const [loanDraft, setLoanDraft] = React.useState<LoanDraft>(emptyLoanDraft)
   const [loanErrors, setLoanErrors] = React.useState<LoanValidationErrors>({})
   const [formError, setFormError] = React.useState<string>()
+  const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
   const [address, setAddress] = React.useState<{
     province?: PsgcOption
     cityMunicipality?: PsgcOption
     barangay?: PsgcOption
   }>({})
   const selectedCustomer = accounts.find((account) => account.id === selectedCustomerId)
+  React.useEffect(() => {
+    void window.api.catalogOptions
+      .list({ activeOnly: true })
+      .then(({ rows }) => setCatalogOptions(rows))
+      .catch(() => undefined)
+  }, [])
+  const agents = catalogOptions
+    .filter((option) => option.kind === 'IN_HOUSE_AGENT')
+    .map((option) => option.value)
+  const monthlyTerms = catalogOptions
+    .filter((option) => option.kind === 'IN_HOUSE_LOAN_TERM')
+    .map((option) => Number(option.value))
+    .filter(Number.isInteger)
   const filteredAccounts = React.useMemo(() => {
     const query = customerSearch.trim().toLowerCase()
     if (!query) return accounts
@@ -831,7 +846,7 @@ export function InHouseAccountForm({
                             <SelectValue placeholder="Select agent" />
                           </SelectTrigger>
                           <SelectContent>
-                            {agentOptions.map((agent) => (
+                            {(agents.length ? agents : agentOptions).map((agent) => (
                               <SelectItem key={agent} value={agent}>
                                 {agent}
                               </SelectItem>
@@ -896,9 +911,18 @@ export function InHouseAccountForm({
                     <FieldLabel htmlFor="payment-frequency">Payment Frequency</FieldLabel>
                     <Select
                       value={loanDraft.paymentFrequency}
-                      onValueChange={(value) =>
-                        setLoan('paymentFrequency', value as LoanDraft['paymentFrequency'])
-                      }
+                      onValueChange={(value) => {
+                        const paymentFrequency = value as LoanDraft['paymentFrequency']
+                        const count = Math.max(1, Number.parseInt(loanDraft.terms, 10) || 1)
+                        setLoanDraft((current) => ({
+                          ...current,
+                          paymentFrequency,
+                          terms:
+                            paymentFrequency === 'Monthly'
+                              ? `${Math.min(count, 12)} month${count === 1 ? '' : 's'}`
+                              : String(count)
+                        }))
+                      }}
                     >
                       <SelectTrigger id="payment-frequency">
                         <SelectValue />
@@ -915,21 +939,36 @@ export function InHouseAccountForm({
                   </Field>
                   <Field data-invalid={Boolean(loanErrors.terms)}>
                     <FieldLabel htmlFor="terms">Terms</FieldLabel>
-                    <Select
-                      value={loanDraft.terms}
-                      onValueChange={(value) => setLoan('terms', value ?? '')}
-                    >
-                      <SelectTrigger id="terms" aria-invalid={Boolean(loanErrors.terms)}>
-                        <SelectValue placeholder="Select terms" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {loanTermOptions.map((term) => (
-                          <SelectItem key={term} value={term}>
-                            {term}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {loanDraft.paymentFrequency === 'Monthly' ? (
+                      <Select
+                        value={loanDraft.terms}
+                        onValueChange={(value) => setLoan('terms', value ?? '')}
+                      >
+                        <SelectTrigger id="terms" aria-invalid={Boolean(loanErrors.terms)}>
+                          <SelectValue placeholder="Select terms" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(monthlyTerms.length
+                            ? monthlyTerms.map((term) => `${term} month${term === 1 ? '' : 's'}`)
+                            : loanTermOptions
+                          ).map((term) => (
+                            <SelectItem key={term} value={term}>
+                              {term}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="terms"
+                        type="number"
+                        min={1}
+                        inputMode="numeric"
+                        value={loanDraft.terms}
+                        aria-invalid={Boolean(loanErrors.terms)}
+                        onChange={(event) => setLoan('terms', event.target.value)}
+                      />
+                    )}
                     <FieldError>{loanErrors.terms}</FieldError>
                   </Field>
                 </FieldGroup>

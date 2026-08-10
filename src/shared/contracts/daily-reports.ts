@@ -117,6 +117,7 @@ export const dailyReportPaymentEntryRecordSchema = z.object({
   dailyReportId: uuidSchema,
   branch: z.string().trim().min(1).max(100),
   paymentMethodId: uuidSchema,
+  paymentMethodName: z.string().trim().min(1).max(200),
   transactionDate: businessDateSchema,
   amountCentavos: positiveCentavosSchema,
   referenceNumber: z.string().trim().max(100).nullable(),
@@ -166,6 +167,8 @@ export const dailyReceiptTotalRecordSchema = z.object({
   id: uuidSchema,
   dailyReportId: uuidSchema,
   receiptTypeId: uuidSchema,
+  receiptName: z.string().trim().min(1).max(200),
+  receiptShortName: z.string().trim().min(1).max(7),
   quantity: z.number().int().nonnegative(),
   amountCentavos: centavosSchema.nonnegative(),
   createdAt: isoTimestampSchema,
@@ -209,7 +212,8 @@ export const dailyReportReferenceRecordSchema = z.object({
 export const dailyReportReceiptTypeRecordSchema = dailyReportReferenceRecordSchema.extend({
   shortName: z.string().trim().min(1).max(7),
   isDefaultVisible: z.boolean(),
-  isSystem: z.boolean()
+  isSystem: z.boolean(),
+  isActive: z.boolean()
 })
 export const dailyReportReceiptTypeCreateRequestSchema = z.object({
   name: z.string().trim().min(1).max(200),
@@ -217,6 +221,11 @@ export const dailyReportReceiptTypeCreateRequestSchema = z.object({
 })
 export const dailyReportReceiptTypeDeleteRequestSchema = z.object({ id: uuidSchema })
 export const dailyReportReceiptTypeDeleteResponseSchema = z.object({ id: uuidSchema })
+export const dailyReportReceiptTypeListResponseSchema = z.object({
+  rows: z.array(dailyReportReceiptTypeRecordSchema)
+})
+export const dailyReportReceiptTypeRestoreRequestSchema = z.object({ id: uuidSchema })
+export const dailyReportReceiptTypeRestoreResponseSchema = dailyReportReceiptTypeRecordSchema
 export const cashDenominationRecordSchema = z.object({
   id: uuidSchema,
   valueCentavos: positiveCentavosSchema,
@@ -309,6 +318,15 @@ export type DailyReportReceiptTypeDeleteRequest = z.infer<
 export type DailyReportReceiptTypeDeleteResponse = z.infer<
   typeof dailyReportReceiptTypeDeleteResponseSchema
 >
+export type DailyReportReceiptTypeListResponse = z.infer<
+  typeof dailyReportReceiptTypeListResponseSchema
+>
+export type DailyReportReceiptTypeRestoreRequest = z.infer<
+  typeof dailyReportReceiptTypeRestoreRequestSchema
+>
+export type DailyReportReceiptTypeRestoreResponse = z.infer<
+  typeof dailyReportReceiptTypeRestoreResponseSchema
+>
 export type DailyReportCashCountRecord = z.infer<typeof dailyReportCashCountRecordSchema>
 export type DailyReportSnapshotRequest = z.infer<typeof dailyReportSnapshotRequestSchema>
 export type DailyReportSnapshotResponse = z.infer<typeof dailyReportSnapshotResponseSchema>
@@ -330,7 +348,9 @@ export const dailyReportIpcChannels = {
   updatePayment: 'daily-reports:payments:update',
   voidPayment: 'daily-reports:payments:void',
   createReceiptType: 'daily-reports:receipt-types:create',
-  deleteReceiptType: 'daily-reports:receipt-types:delete'
+  deleteReceiptType: 'daily-reports:receipt-types:delete',
+  listReceiptTypes: 'daily-reports:receipt-types:list',
+  restoreReceiptType: 'daily-reports:receipt-types:restore'
 } as const
 
 export type DailyReportsApi = {
@@ -360,5 +380,9 @@ export type DailyReportsApi = {
     deleteReceiptType(
       request: DailyReportReceiptTypeDeleteRequest
     ): Promise<DailyReportReceiptTypeDeleteResponse>
+    listReceiptTypes(): Promise<DailyReportReceiptTypeListResponse>
+    restoreReceiptType(
+      request: DailyReportReceiptTypeRestoreRequest
+    ): Promise<DailyReportReceiptTypeRestoreResponse>
   }
 }

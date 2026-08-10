@@ -130,6 +130,20 @@ Rules:
 - Use shadcn/ReUI skeleton rows during table loading so column geometry remains stable and the workspace does not jump.
 - Do not compress columns until values become unreadable.
 
+## Notifications and alerts
+
+Use the shared notification provider for transient operation outcomes across login and the authenticated workspace.
+
+- Place notifications at the top center of the window, above dialogs and drawers, with a responsive width of `min(28rem, calc(100vw - 2rem))` and safe-area-aware top spacing.
+- Use success and informational notifications for 3 seconds; keep warnings and errors visible for 6 seconds. Always provide a close button.
+- Show at most three notifications at once, newest first, and deduplicate identical active messages.
+- Animate notifications with a short top-center slide and fade; respect `prefers-reduced-motion`.
+- Use notifications for load, save, create, update, delete, restore, submit, and authentication outcomes.
+- Keep field-level validation inline and adjacent to its field. Use both inline validation and a notification when a failed operation also needs correction.
+- Keep destructive confirmations in dialogs; show a notification only for the completed action result.
+- Convert backend failures to user-safe copy before notifying. Never display raw database, IPC, or stack details.
+- Expose notifications through the typed shared notification API rather than page-specific toast implementations.
+
 ## Branch Badges
 
 Use the shared `AccountBranchBadge` for every account branch label. Do not create page-specific

@@ -43,7 +43,7 @@ type ContractRow = {
   date_released: string
   start_date: string
   first_due_date: string
-  payment_frequency: 'Weekly' | 'Bi-weekly' | 'Monthly'
+  payment_frequency: string
   terms: string
   principal_centavos: number
   interest_centavos: number
@@ -167,7 +167,8 @@ export class InstallmentRepository {
                 a.blacklist_reason, a.created_at AS account_created_at,
                 a.updated_at AS account_updated_at, c.id AS contract_id,
                 c.status AS contract_status, c.contract_date, c.date_released,
-                c.start_date, c.first_due_date, c.payment_frequency, c.terms,
+                c.start_date, c.first_due_date,
+                COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) AS payment_frequency, c.terms,
                 c.principal_centavos, c.interest_centavos, c.down_payment_centavos,
                 c.fees_centavos, c.installment_amount_centavos, c.total_payable_centavos,
                 c.remarks, c.created_at AS contract_created_at,
@@ -219,11 +220,11 @@ export class InstallmentRepository {
       const insertContract = this.db.prepare(
         `INSERT OR IGNORE INTO installment_contracts
           (id, account_id, branch_id, installment_type_id, contract_number, contract_date,
-           date_released, start_date, first_due_date, payment_frequency, terms,
+            date_released, start_date, first_due_date, payment_frequency, schedule_frequency, terms,
            principal_centavos, interest_centavos, down_payment_centavos, fees_centavos,
            installment_amount_centavos, financed_amount_centavos, total_payable_centavos,
            remarks, created_at, updated_at)
-         VALUES (?, ?, ?, 'installment-type-in-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, 'installment-type-in-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const insertItem = this.db.prepare(
         `INSERT OR IGNORE INTO installment_items
@@ -311,6 +312,10 @@ export class InstallmentRepository {
           const startDate = dateValue(loan.startDate, released)
           const firstDueDate = dateValue(loan.firstDueDate, startDate)
           const paymentFrequency = stringValue(loan.paymentFrequency, 'Monthly')
+          const legacyPaymentFrequency =
+            paymentFrequency === 'Daily' || paymentFrequency === 'Semi-monthly'
+              ? 'Monthly'
+              : paymentFrequency
           const terms = stringValue(loan.terms, '1 month')
           const principal = centavos(loan.principal)
           const interest = centavos(loan.interest)
@@ -327,6 +332,7 @@ export class InstallmentRepository {
             released,
             startDate,
             firstDueDate,
+            legacyPaymentFrequency,
             paymentFrequency,
             terms,
             principal,
@@ -465,7 +471,9 @@ export class InstallmentRepository {
 
     const contract = this.db
       .prepare(
-        `SELECT contract_number, first_due_date, payment_frequency, terms, total_payable_centavos
+        `SELECT contract_number, first_due_date,
+                COALESCE(NULLIF(schedule_frequency, ''), payment_frequency) AS payment_frequency,
+                terms, total_payable_centavos
            FROM installment_contracts WHERE id = ? AND account_id = ?`
       )
       .get(record.contractId, request.accountId) as

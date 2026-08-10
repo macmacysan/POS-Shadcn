@@ -104,7 +104,7 @@ export type InstallmentAccountRecord = {
     dateReleased: string
     startDate: string
     firstDueDate: string
-    paymentFrequency: 'Weekly' | 'Bi-weekly' | 'Monthly'
+    paymentFrequency: string
     terms: string
     principal: number
     interest: number

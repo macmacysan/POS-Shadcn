@@ -3,6 +3,7 @@ import {
   BarChart3Icon,
   ClipboardListIcon,
   LayoutDashboardIcon,
+  LogOutIcon,
   MoonIcon,
   Settings2Icon,
   StoreIcon,
@@ -24,6 +25,8 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { ReceiptNamesSettings } from '@/components/layout/receipt-names-settings'
+import { CatalogOptionsSettings } from '@/components/layout/catalog-options-settings'
 
 type ActiveView =
   | 'dashboard'
@@ -65,7 +68,8 @@ const data = {
   ],
   navSecondary: [
     { title: 'Settings', url: '#', icon: <Settings2Icon /> },
-    { title: 'Dark mode', url: '#', icon: <MoonIcon /> }
+    { title: 'Dark mode', url: '#', icon: <MoonIcon /> },
+    { title: 'Log out', url: '#', icon: <LogOutIcon /> }
   ]
 }
 
@@ -83,6 +87,8 @@ export function SidebarLeft({
   onToggleTheme,
   summaryAlwaysDark,
   onSummaryAlwaysDarkChange,
+  onLogout,
+  isAdmin,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   activeView?: ActiveView
@@ -98,6 +104,8 @@ export function SidebarLeft({
   onToggleTheme: () => void
   summaryAlwaysDark: boolean
   onSummaryAlwaysDarkChange: (value: boolean) => void
+  onLogout: () => void
+  isAdmin: boolean
 }): React.JSX.Element {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false)
 
@@ -199,13 +207,15 @@ export function SidebarLeft({
                     icon: isDark ? <SunIcon /> : <MoonIcon />,
                     onClick: onToggleTheme
                   }
-                : item
+                : item.title === 'Log out'
+                  ? { ...item, onClick: onLogout }
+                  : item
           )}
           className="mt-auto"
         />
       </SidebarContent>
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
             <DialogDescription>Customize the cashier report workspace.</DialogDescription>
@@ -223,6 +233,8 @@ export function SidebarLeft({
               </span>
             </span>
           </Label>
+          {isAdmin && <ReceiptNamesSettings />}
+          {isAdmin && <CatalogOptionsSettings />}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsSettingsOpen(false)}>
               Done

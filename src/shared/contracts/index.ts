@@ -1,4 +1,5 @@
 export * from './auth'
+export * from './catalog-options'
 export * from './dashboard'
 export * from './daily-reports'
 export * from './expenses'

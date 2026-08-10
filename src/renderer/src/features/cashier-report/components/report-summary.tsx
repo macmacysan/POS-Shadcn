@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { format } from 'date-fns'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -221,11 +221,14 @@ function updateReceipt(
   patch: Partial<{ quantity: number; amountCentavos: number }>
 ): Snapshot {
   const existing = receiptTotal(snapshot, receiptTypeId)
+  const type = snapshot.receiptTypes.find((item) => item.id === receiptTypeId)
   const now = snapshot.report.updatedAt
   const next = {
     id: existing?.id ?? `draft-receipt-${receiptTypeId}`,
     dailyReportId: snapshot.report.id,
     receiptTypeId,
+    receiptName: existing?.receiptName ?? type?.name ?? 'Receipt',
+    receiptShortName: existing?.receiptShortName ?? type?.shortName ?? 'Receipt',
     quantity: patch.quantity ?? existing?.quantity ?? 0,
     amountCentavos: patch.amountCentavos ?? existing?.amountCentavos ?? 0,
     createdAt: existing?.createdAt ?? now,
@@ -325,9 +328,6 @@ export const ReportSummary = React.memo(function ReportSummary({
   const [isReceiptPickerOpen, setIsReceiptPickerOpen] = React.useState(false)
   const [visibleReceiptTypeIds, setVisibleReceiptTypeIds] = React.useState<Set<string>>(new Set())
   const [draftDeductions, setDraftDeductions] = React.useState<Record<string, number>>({})
-  const [customReceiptName, setCustomReceiptName] = React.useState('')
-  const [customReceiptShortName, setCustomReceiptShortName] = React.useState('')
-  const [receiptTypeError, setReceiptTypeError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
   const [hasSaved, setHasSaved] = React.useState(false)
   const [saveError, setSaveError] = React.useState<string>()
@@ -345,14 +345,19 @@ export const ReportSummary = React.memo(function ReportSummary({
       if (snapshotVersion !== snapshotVersionRef.current) return
       snapshotRef.current = next
       setSnapshot(next)
-      const availableIds = new Set(next.receiptTypes.map((type) => type.id))
+      const availableIds = new Set([
+        ...next.receiptTypes.map((type) => type.id),
+        ...next.receiptTotals.map((item) => item.receiptTypeId)
+      ])
       const storedIds = readReceiptVisibility()
       setVisibleReceiptTypeIds(
-        storedIds
-          ? new Set([...storedIds].filter((id) => availableIds.has(id)))
-          : new Set(
-              next.receiptTypes.filter((type) => type.isDefaultVisible).map((type) => type.id)
-            )
+        !isToday
+          ? new Set(next.receiptTotals.map((item) => item.receiptTypeId))
+          : storedIds
+            ? new Set([...storedIds].filter((id) => availableIds.has(id)))
+            : new Set(
+                next.receiptTypes.filter((type) => type.isDefaultVisible).map((type) => type.id)
+              )
       )
       setHasSaved(false)
       setSaveError(undefined)
@@ -360,7 +365,7 @@ export const ReportSummary = React.memo(function ReportSummary({
       if (snapshotVersion !== snapshotVersionRef.current) return
       setError('The report summary could not be loaded.')
     }
-  }, [reportId])
+  }, [isToday, reportId])
 
   React.useEffect(() => {
     void load()
@@ -449,7 +454,24 @@ export const ReportSummary = React.memo(function ReportSummary({
       { bankCheck: 0, bankTransfer: 0, gcash: 0, otherEwallet: 0, total: 0 }
     )
   const variance = snapshot.cashVarianceCentavos
-  const visibleReceiptTypes = snapshot.receiptTypes.filter(
+  const receiptTypesByReport = [
+    ...snapshot.receiptTypes.map((type) => {
+      const total = receiptTotal(snapshot, type.id)
+      return total ? { ...type, name: total.receiptName, shortName: total.receiptShortName } : type
+    }),
+    ...snapshot.receiptTotals
+      .filter((total) => !snapshot.receiptTypes.some((type) => type.id === total.receiptTypeId))
+      .map((total, index) => ({
+        id: total.receiptTypeId,
+        name: total.receiptName,
+        shortName: total.receiptShortName,
+        sortOrder: Number.MAX_SAFE_INTEGER + index,
+        isDefaultVisible: false,
+        isSystem: false,
+        isActive: false
+      }))
+  ]
+  const visibleReceiptTypes = receiptTypesByReport.filter(
     (type) =>
       visibleReceiptTypeIds.has(type.id) &&
       !receiptTypesExcludedFromPicker.has(type.name.trim().toUpperCase())
@@ -472,62 +494,6 @@ export const ReportSummary = React.memo(function ReportSummary({
       writeReceiptVisibility(next)
       return next
     })
-  }
-
-  const addCustomReceiptType = async (): Promise<void> => {
-    const name = customReceiptName.trim()
-    const shortName = customReceiptShortName.trim()
-    if (!name) {
-      setReceiptTypeError('Enter a full receipt name.')
-      return
-    }
-    if (!shortName) {
-      setReceiptTypeError('Enter a short name or abbreviation.')
-      return
-    }
-    setReceiptTypeError(undefined)
-    try {
-      const created = await window.api.dailyReports.createReceiptType({ name, shortName })
-      const current = snapshotRef.current
-      if (current) {
-        const next = { ...current, receiptTypes: [...current.receiptTypes, created] }
-        snapshotRef.current = next
-        setSnapshot(next)
-      }
-      setVisibleReceiptTypeIds((current) => {
-        const next = new Set(current).add(created.id)
-        writeReceiptVisibility(next)
-        return next
-      })
-      setCustomReceiptName('')
-      setCustomReceiptShortName('')
-    } catch {
-      setReceiptTypeError('That receipt name already exists or could not be added.')
-    }
-  }
-
-  const deleteCustomReceiptType = async (receiptTypeId: string): Promise<void> => {
-    setReceiptTypeError(undefined)
-    try {
-      await window.api.dailyReports.deleteReceiptType({ id: receiptTypeId })
-      const current = snapshotRef.current
-      if (current) {
-        const next = {
-          ...current,
-          receiptTypes: current.receiptTypes.filter((type) => type.id !== receiptTypeId)
-        }
-        snapshotRef.current = next
-        setSnapshot(next)
-      }
-      setVisibleReceiptTypeIds((current) => {
-        const next = new Set(current)
-        next.delete(receiptTypeId)
-        writeReceiptVisibility(next)
-        return next
-      })
-    } catch {
-      setReceiptTypeError('This receipt type could not be deleted.')
-    }
   }
 
   const openDeductions = (): void => {
@@ -603,65 +569,9 @@ export const ReportSummary = React.memo(function ReportSummary({
                         />
                         <span className="min-w-0 truncate">{type.name}</span>
                       </label>
-                      {!type.isSystem &&
-                        !defaultReceiptTypeNames.has(type.name.trim().toUpperCase()) && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-xs"
-                            className="ml-auto"
-                            aria-label={`Delete ${type.name}`}
-                            onClick={() => void deleteCustomReceiptType(type.id)}
-                          >
-                            <Trash2 />
-                          </Button>
-                        )}
                     </div>
                   ))}
                 </div>
-                <div className="flex flex-col gap-1 border-t border-border pt-1">
-                  <p className="text-[10px] leading-tight text-muted-foreground">
-                    Add a full receipt name and a short label for the summary.
-                  </p>
-                  <Input
-                    aria-label="Custom receipt full name"
-                    className="h-7 min-w-0"
-                    placeholder="Full receipt name"
-                    value={customReceiptName}
-                    onChange={(event) => setCustomReceiptName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') void addCustomReceiptType()
-                    }}
-                  />
-                  <div className="flex items-center gap-1.5">
-                    <Input
-                      aria-label="Custom receipt short name"
-                      className="h-7 min-w-0"
-                      placeholder="Short name (max 7)"
-                      maxLength={7}
-                      disabled={!customReceiptName.trim()}
-                      value={customReceiptShortName}
-                      onChange={(event) => setCustomReceiptShortName(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') void addCustomReceiptType()
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      disabled={!customReceiptName.trim() || !customReceiptShortName.trim()}
-                      onClick={() => void addCustomReceiptType()}
-                    >
-                      Add
-                    </Button>
-                  </div>
-                </div>
-                {receiptTypeError && (
-                  <p className="text-[10px] text-destructive" role="alert">
-                    {receiptTypeError}
-                  </p>
-                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -733,6 +643,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                             render={<span className="min-w-0 truncate text-muted-foreground" />}
                           >
                             {receiptTypeSummaryName(type.name, type.shortName, type.isSystem)}
+                            {!isToday && ` · ${type.isActive ? 'Frozen' : 'Archived'}`}
                           </TooltipTrigger>
                           <TooltipContent className="max-w-72">{type.name}</TooltipContent>
                         </Tooltip>
@@ -795,8 +706,23 @@ export const ReportSummary = React.memo(function ReportSummary({
           </div>
         </ScrollArea>
 
-        <div className="shrink-0 border-t border-border bg-background px-3 py-1">
+        <div className="shrink-0 bg-background px-3 py-1">
           <SummaryRow label="Expected Cash" value={snapshot.expectedCashCentavos} emphasis />
+          <SummaryRow label="Cash Denominations" value={snapshot.physicalCashCentavos} />
+          <div className="flex min-h-9 items-center justify-between gap-3 text-xs">
+            <span className="text-muted-foreground">Cash Remitted</span>
+            <AmountInput
+              label="Cash Remitted"
+              value={snapshot.report.cashRemittedCentavos ?? 0}
+              onChange={(cashRemittedCentavos) =>
+                save({
+                  ...snapshot,
+                  report: { ...snapshot.report, cashRemittedCentavos }
+                })
+              }
+              className="w-28"
+            />
+          </div>
           <div
             className={cn(
               'mt-2 border-t py-2',
@@ -818,27 +744,6 @@ export const ReportSummary = React.memo(function ReportSummary({
             >
               {money(variance)}
             </span>
-            <span className="text-[10px] text-muted-foreground">
-              {variance === 0
-                ? 'Cash is balanced'
-                : variance > 0
-                  ? 'More than expected'
-                  : 'Less than expected'}
-            </span>
-          </div>
-          <div className="flex min-h-9 items-center justify-between gap-3 border-t border-border/60 text-xs">
-            <span className="text-muted-foreground">Cash Remitted</span>
-            <AmountInput
-              label="Cash Remitted"
-              value={snapshot.report.cashRemittedCentavos ?? 0}
-              onChange={(cashRemittedCentavos) =>
-                save({
-                  ...snapshot,
-                  report: { ...snapshot.report, cashRemittedCentavos }
-                })
-              }
-              className="w-28"
-            />
           </div>
         </div>
       </aside>
@@ -858,32 +763,41 @@ export const ReportSummary = React.memo(function ReportSummary({
             <span className="text-sm text-muted-foreground">Denomination</span>
             <span className="text-right text-sm text-muted-foreground">Qty</span>
             <span className="text-right text-sm text-muted-foreground">Total</span>
-            {[...snapshot.cashDenominations].reverse().map((denomination) => {
-              const value = cashCount(snapshot, denomination.id)?.quantity ?? 0
-              return (
-                <React.Fragment key={denomination.id}>
-                  <span className="text-sm">{money(denomination.valueCentavos)}</span>
-                  <Input
-                    aria-label={`${money(denomination.valueCentavos)} quantity`}
-                    className="h-7 text-center tabular-nums"
-                    inputMode="numeric"
-                    value={value || ''}
-                    onChange={(event) =>
-                      save(
-                        updateCashCount(
-                          snapshot,
-                          denomination.id,
-                          Math.max(0, Math.floor(Number(event.target.value) || 0))
+            {snapshot.cashDenominations
+              .filter((denomination) => denomination.valueCentavos >= 25)
+              .sort((a, b) => b.valueCentavos - a.valueCentavos)
+              .map((denomination) => {
+                const value = cashCount(snapshot, denomination.id)?.quantity ?? 0
+                return (
+                  <div
+                    key={denomination.id}
+                    className={cn('contents', !value && 'text-muted-foreground opacity-60')}
+                  >
+                    <span className="text-sm">{money(denomination.valueCentavos)}</span>
+                    <Input
+                      aria-label={`${money(denomination.valueCentavos)} quantity`}
+                      className={cn(
+                        'h-7 text-center tabular-nums',
+                        !value && 'text-muted-foreground'
+                      )}
+                      inputMode="numeric"
+                      value={value || ''}
+                      onChange={(event) =>
+                        save(
+                          updateCashCount(
+                            snapshot,
+                            denomination.id,
+                            Math.max(0, Math.floor(Number(event.target.value) || 0))
+                          )
                         )
-                      )
-                    }
-                  />
-                  <span className="text-right text-sm tabular-nums">
-                    {value ? money(denomination.valueCentavos * value) : ''}
-                  </span>
-                </React.Fragment>
-              )
-            })}
+                      }
+                    />
+                    <span className="text-right text-sm tabular-nums">
+                      {value ? money(denomination.valueCentavos * value) : ''}
+                    </span>
+                  </div>
+                )
+              })}
             <SummaryRow
               label="Total Cash Amount"
               value={snapshot.physicalCashCentavos}

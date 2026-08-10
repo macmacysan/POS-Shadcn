@@ -1,6 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import type {
   AuthApi,
+  CatalogOptionsApi,
   DashboardApi,
   DailyReportsApi,
   ExpensesApi,
@@ -15,6 +16,7 @@ declare global {
       InstallmentsApi &
       FinanceAccountsApi &
       AuthApi &
+      CatalogOptionsApi &
       DashboardApi &
       DailyReportsApi
   }
