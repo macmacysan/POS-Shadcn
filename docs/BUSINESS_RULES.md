@@ -18,6 +18,16 @@ Applies to calculations, report identity, reconciliation, payments, deductions, 
 - Validate reports using the established branch, cashier, and business-date identity rules.
 - Do not rely on visual labels or UI state as the authoritative source of report identity.
 - Preserve existing uniqueness and ownership rules unless the task explicitly changes them.
+- A report `business_date` identifies the cashier's reporting day. A financial row's `transaction_date` identifies when the transaction occurred. `created_at` identifies when the row was persisted; these values must not be substituted for one another.
+
+## Database calculation contract
+
+- All money persisted in SQLite is integer centavos. IDs are `TEXT` UUID/ULID values; dates are `YYYY-MM-DD`; timestamps are ISO-8601 UTC strings.
+- Item total = quantity × unit price. Contract-level financed amount and total payable are stored at contract creation; installment balance, provider balance, total paid, next due, and due amount are calculated from active contract rows, posted payments, allocations, schedules, and settlements.
+- Expected cash = opening cash + posted cash receipts + posted cash income − posted deductions − posted cash-outs.
+- Physical cash counted = sum of denomination value × counted quantity. Cash variance = physical cash counted − expected cash. Cash remitted is the stored amount actually remitted and is distinct from both expected and physical cash.
+- Sidebar totals are projections of these calculations and are not independent database fields.
+- Posted income, expenses, daily-report payment entries, installment payments, and settlements are voided rather than deleted. Void rows are excluded from calculations.
 
 ## Rule Changes
 

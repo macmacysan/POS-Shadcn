@@ -1,41 +1,97 @@
 # Verification Rules
 
-Use verification proportional to the change.
+Use the lightest verification that can reliably validate the change.
 
-## By Change Type
+Do not run broad test suites, Playwright, production builds, or full-project checks for small isolated changes unless the task explicitly requires them or the change affects a critical workflow.
 
-- TypeScript logic: run the project type-check command.
-- Calculation changes: run targeted unit tests.
-- Form or component behavior: run relevant component or integration tests.
-- Database changes: run migrations and targeted persistence tests.
-- User workflow changes: run targeted Playwright tests.
-- Styling changes: inspect affected screens at supported viewport sizes.
-- Broad structural changes: run lint, tests, type checking, and the production build.
-- High-risk changes: verify both success and failure paths.
+## Verification Tiers
+
+### Tier 1 — Small isolated change
+
+Examples:
+
+- copy changes
+- icon changes
+- spacing adjustments
+- color or typography changes
+- canonical Tailwind class fixes
+- isolated one-file styling corrections
+
+Required verification:
+
+- inspect the changed file
+- run formatter or lint only if the edited file requires it
+- perform a targeted visual check when practical
+
+Do not run:
+
+- Playwright
+- full test suite
+- production build
+- repository-wide type check
+
+### Tier 2 — Local functional change
+
+Examples:
+
+- form interaction
+- local state behavior
+- table sorting or filtering
+- reusable component changes
+- drawer open or close behavior
+- validation behavior
+
+Required verification:
+
+- run the narrowest relevant type check, test, or component check available
+- inspect the affected screen or interaction
+
+Run Playwright only when:
+
+- the change affects a complete user workflow
+- the behavior cannot be reliably checked with a smaller test
+- an existing targeted Playwright test already covers the exact flow
+
+### Tier 3 — High-risk or broad change
+
+Examples:
+
+- financial calculations
+- authentication or authorization
+- Electron IPC
+- persistence
+- migrations
+- report submission
+- destructive operations
+- cross-module refactors
+
+Required verification:
+
+- targeted tests for affected logic
+- relevant integration tests
+- type checking
+- failure-path verification
+- Playwright only for affected end-to-end workflows
+- production build only when the change affects packaging, build configuration, preload, IPC, or broad application structure
 
 ## Frontend and Theme Verification
 
 For UI changes:
 
-- Fix avoidable `suggestCanonicalClasses` diagnostics.
-- Confirm canonical Tailwind utilities are used where exact equivalents exist.
-- Confirm no unnecessary arbitrary utilities were introduced.
-- Confirm no conflicting, duplicated, or redundant classes remain.
-- Confirm semantic theme tokens are used instead of hard-coded theme-sensitive values.
-- Confirm changed components respond to global theme-variable changes.
-- Run the configured formatter or Tailwind class sorter when available.
-- Inspect affected screens at supported viewport sizes.
+- fix avoidable `suggestCanonicalClasses` diagnostics
+- confirm no unnecessary arbitrary utilities were introduced
+- confirm no conflicting or duplicate classes remain
+- confirm semantic theme tokens are used
+- inspect only the affected viewport and component
 
-Use Chrome DevTools when runtime layout, rendering, console, network, or performance diagnosis is required.
+Do not run Playwright for purely visual changes unless the task explicitly requests automated visual verification.
 
 ## Completion Criteria
 
-A task is complete only when:
+A task is complete when:
 
 - requested behavior is implemented
-- acceptance criteria are satisfied
-- relevant failure cases are handled
-- applicable verification has passed
+- the smallest appropriate verification passed
+- relevant failure cases were considered
 - no unrelated behavior was intentionally changed
-- newly introduced warnings or errors are resolved
 - remaining risks or unverified areas are reported

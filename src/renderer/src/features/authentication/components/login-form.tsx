@@ -1,0 +1,179 @@
+import { useState, type FormEvent } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import {
+  loginBranchValues,
+  type AuthenticatedUser,
+  type LoginBranch
+} from '@/../../shared/contracts'
+
+import { Button } from '@/components/ui/button'
+import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput
+} from '@/components/ui/input-group'
+import { Input } from '@/components/ui/input'
+import { useNotifications } from '@/hooks/use-notifications'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+
+type LoginValues = {
+  branch: LoginBranch | ''
+  username: string
+  password: string
+}
+
+type LoginErrors = Partial<Record<keyof LoginValues, string>>
+
+const LAST_LOGIN_BRANCH_STORAGE_KEY = 'cashiers-report-last-login-branch'
+
+function getLastLoginBranch(): LoginBranch | '' {
+  const branch = window.localStorage.getItem(LAST_LOGIN_BRANCH_STORAGE_KEY)
+  return loginBranchValues.includes(branch as LoginBranch) ? (branch as LoginBranch) : ''
+}
+
+function companyNameForBranch(branch: LoginBranch | ''): string {
+  return branch === 'All Branch' || branch === 'Goa'
+    ? 'Nueva Camsur Home Furnishing'
+    : 'Nueva Camsur Trading'
+}
+
+export function LoginForm({
+  className,
+  onSuccess,
+  ...props
+}: React.ComponentProps<'div'> & {
+  onSuccess?: (branch: LoginBranch, user: AuthenticatedUser) => void
+}): React.JSX.Element {
+  const [values, setValues] = useState<LoginValues>({
+    branch: getLastLoginBranch(),
+    username: '',
+    password: ''
+  })
+  const [errors, setErrors] = useState<LoginErrors>({})
+  const [submitError, setSubmitError] = useState<string>()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
+  const { notify } = useNotifications()
+
+  function updateValue<Key extends keyof LoginValues>(key: Key, value: LoginValues[Key]): void {
+    setValues((current) => ({ ...current, [key]: value }))
+    setErrors((current) => ({ ...current, [key]: undefined }))
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault()
+
+    const nextErrors: LoginErrors = {}
+
+    if (!values.branch) nextErrors.branch = 'Select a branch.'
+    if (!values.username.trim()) nextErrors.username = 'Enter your username.'
+    if (!values.password) nextErrors.password = 'Enter your password.'
+
+    setErrors(nextErrors)
+    const isValid = Object.keys(nextErrors).length === 0
+    if (!isValid) return
+    setIsSubmitting(true)
+    setSubmitError(undefined)
+    try {
+      const user = await window.api.auth.login({
+        branch: values.branch as LoginBranch,
+        username: values.username,
+        password: values.password
+      })
+      window.localStorage.setItem(LAST_LOGIN_BRANCH_STORAGE_KEY, values.branch)
+      notify({ type: 'success', title: 'Signed in successfully.' })
+      onSuccess?.(values.branch as LoginBranch, user)
+    } catch {
+      const message = 'Unable to sign in. Check your details or contact an administrator.'
+      setSubmitError(message)
+      notify({ type: 'error', title: 'Sign-in failed.', description: message, id: 'auth:login' })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <div className={className} {...props}>
+      <form className="flex w-full max-w-sm flex-col gap-8" onSubmit={handleSubmit} noValidate>
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold tracking-tight">Cashier Daily Report</h1>
+          <p className="text-sm text-muted-foreground">{companyNameForBranch(values.branch)}</p>
+        </div>
+
+        <FieldGroup>
+          <Field data-invalid={Boolean(errors.branch)}>
+            <FieldLabel htmlFor="branch">Branch</FieldLabel>
+            <Select
+              value={values.branch || null}
+              onValueChange={(value) => updateValue('branch', (value ?? '') as LoginBranch | '')}
+            >
+              <SelectTrigger id="branch" aria-invalid={Boolean(errors.branch)} className="w-full">
+                <SelectValue placeholder="Select a branch" />
+              </SelectTrigger>
+              <SelectContent>
+                {loginBranchValues.map((branch) => (
+                  <SelectItem key={branch} value={branch}>
+                    {branch}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.branch && <FieldError>{errors.branch}</FieldError>}
+          </Field>
+
+          <Field data-invalid={Boolean(errors.username)}>
+            <FieldLabel htmlFor="username">Username</FieldLabel>
+            <Input
+              id="username"
+              autoComplete="username"
+              placeholder="Enter your username"
+              value={values.username}
+              aria-invalid={Boolean(errors.username)}
+              onChange={(event) => updateValue('username', event.target.value)}
+            />
+            {errors.username && <FieldError>{errors.username}</FieldError>}
+          </Field>
+
+          <Field data-invalid={Boolean(errors.password)}>
+            <FieldLabel htmlFor="password">Password</FieldLabel>
+            <InputGroup>
+              <InputGroupInput
+                id="password"
+                type={isPasswordVisible ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={values.password}
+                aria-invalid={Boolean(errors.password)}
+                onChange={(event) => updateValue('password', event.target.value)}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  type="button"
+                  size="icon-xs"
+                  aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+                  onClick={() => setIsPasswordVisible((current) => !current)}
+                >
+                  {isPasswordVisible ? <EyeOff /> : <Eye />}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+            {errors.password && <FieldError>{errors.password}</FieldError>}
+          </Field>
+
+          <Button type="submit" className="w-full">
+            {isSubmitting ? 'Signing in…' : 'Continue'}
+          </Button>
+          {submitError && <FieldError>{submitError}</FieldError>}
+        </FieldGroup>
+      </form>
+    </div>
+  )
+}

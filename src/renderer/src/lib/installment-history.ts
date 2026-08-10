@@ -1,7 +1,8 @@
 import { format } from 'date-fns'
+import { formatPhilippinePeso } from '@/lib/currency'
 
 export type InstallmentHistoryAction = 'new' | 'edited' | 'deleted'
-export type InstallmentHistorySource = 'in-house' | 'home-credit'
+export type InstallmentHistorySource = 'in-house' | 'home-credit' | 'finance'
 
 type HistoryBase = {
   id: string
@@ -9,6 +10,7 @@ type HistoryBase = {
   action: InstallmentHistoryAction
   source: InstallmentHistorySource
   accountId: string
+  branch: string
   accountName: string
   reference?: string
   activity: string
@@ -69,7 +71,8 @@ export const actionLabels: Record<InstallmentHistoryAction, string> = {
 
 export const sourceLabels: Record<InstallmentHistorySource, string> = {
   'in-house': 'In-house',
-  'home-credit': 'Home Credit'
+  'home-credit': 'Home Credit',
+  finance: 'Finance'
 }
 
 export function formatHistoryDateTime(value: string): string {
@@ -77,13 +80,11 @@ export function formatHistoryDateTime(value: string): string {
 }
 
 export function formatHistoryDate(value: string | undefined): string {
-  return value ? format(new Date(value), 'MMM d, yyyy') : '—'
+  return value ? format(new Date(value), 'MMM d, yyyy') : '-'
 }
 
 export function formatHistoryMoney(value: number | undefined): string {
-  return value === undefined
-    ? '—'
-    : `₱${value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  return value === undefined ? '-' : formatPhilippinePeso(value)
 }
 
 export const installmentHistoryData: InstallmentHistoryRecord[] = [
@@ -93,6 +94,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'new',
     source: 'in-house',
     accountId: 'IH-2026-0041',
+    branch: 'Goa',
     accountName: 'Maria Clara Villanueva Santos',
     reference: 'IH-2026-0041',
     activity: 'New installment account created',
@@ -104,7 +106,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
       snapshot: {
         accountDetails: 'Maria Clara Villanueva Santos · IH-2026-0041',
         loanDetails: 'In-house installment account',
-        terms: '₱85,000.00 total with ₱10,000.00 downpayment',
+        terms: '12 months',
         frequency: 'Monthly',
         startDate: '2026-07-14',
         endDate: '2027-07-14',
@@ -124,6 +126,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'new',
     source: 'home-credit',
     accountId: 'HC-983104',
+    branch: 'Tinambac',
     accountName: 'Luis Miguel Cruz',
     reference: 'HC-983104',
     activity: 'Payment added for Schedule #5',
@@ -152,6 +155,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'edited',
     source: 'in-house',
     accountId: 'IH-2026-0037',
+    branch: 'Tigaon',
     accountName: 'Ana Sofia Santos',
     reference: 'IH-2026-0037',
     activity: 'Loan terms updated',
@@ -171,6 +175,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'edited',
     source: 'home-credit',
     accountId: 'HC-982771',
+    branch: 'Lagonoy',
     accountName: 'Jose Rizal Mercado',
     reference: 'HC-982771',
     activity: 'Payment record edited',
@@ -199,6 +204,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
     action: 'deleted',
     source: 'in-house',
     accountId: 'IH-2026-0029',
+    branch: 'Goa',
     accountName: 'Beatriz de los Santos',
     reference: 'IH-2026-0029',
     activity: 'Payment record deleted',
@@ -209,7 +215,7 @@ export const installmentHistoryData: InstallmentHistoryRecord[] = [
       snapshot: {
         accountDetails: 'Beatriz de los Santos · IH-2026-0029',
         loanDetails: 'In-house installment account',
-        terms: '₱54,000.00 total',
+        terms: '12 months',
         frequency: 'Monthly',
         items: [{ name: 'Bedroom cabinet', quantity: 1, price: 54000 }],
         grandTotal: 54000,
