@@ -1460,7 +1460,12 @@ export function CashierReportsContent({
       }
     >
       {!isSummaryCompact && (
-        <Card className="flex min-h-0 min-w-0 flex-col">
+        <Card
+          className={cn(
+            'flex min-h-0 min-w-0 flex-col',
+            summaryAlwaysDark && 'dark bg-sidebar py-0 text-sidebar-foreground ring-sidebar-border'
+          )}
+        >
           <ReportSummary
             key={reportId}
             alwaysDark={summaryAlwaysDark}
