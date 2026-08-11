@@ -2,6 +2,7 @@ import * as React from 'react'
 import { ArchiveRestoreIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { useNotifications } from '@/hooks/use-notifications'
 import type { DailyReportReceiptTypeRecord } from '@/../../shared/contracts'
@@ -151,25 +152,32 @@ export function ReceiptNamesSettings(): React.JSX.Element {
         )}
       </div>
       {retiredRows.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-            Retired
-          </p>
-          {retiredRows.map((row) => (
-            <div
-              key={row.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-dashed px-3 py-2"
-            >
-              <span className="min-w-0 truncate text-xs text-muted-foreground">
-                {row.name} · {row.shortName}
-              </span>
-              <Button type="button" variant="ghost" size="xs" onClick={() => void restore(row.id)}>
-                <ArchiveRestoreIcon data-icon="inline-start" />
-                Restore
-              </Button>
-            </div>
-          ))}
-        </div>
+        <Collapsible className="flex flex-col gap-2">
+          <CollapsibleTrigger className="rounded-md border border-dashed px-3 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-muted">
+            Retired ({retiredRows.length})
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex flex-col gap-2 pt-2">
+            {retiredRows.map((row) => (
+              <div
+                key={row.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-dashed px-3 py-2"
+              >
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                  {row.name} · {row.shortName}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => void restore(row.id)}
+                >
+                  <ArchiveRestoreIcon data-icon="inline-start" />
+                  Restore
+                </Button>
+              </div>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </section>
   )

@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { CardFooter, CardHeader } from '@/components/ui/card'
+import { CardFooter } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Field,
   FieldError,
@@ -13,7 +14,6 @@ import {
   FieldSet
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import {
   Combobox,
   ComboboxContent,
@@ -33,15 +33,6 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatPhilippinePeso } from '@/lib/currency'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Stepper,
-  StepperIndicator,
-  StepperItem,
-  StepperNav,
-  StepperSeparator,
-  StepperTitle,
-  StepperTrigger
-} from '@/components/ui/reui/stepper'
-import {
   agentOptions,
   branchLabels,
   branchNames,
@@ -54,7 +45,6 @@ import {
   type AccountDraft,
   type AccountEmail,
   type AccountValidationErrors,
-  type InHouseAccount,
   type LoanDraft,
   type LoanValidationErrors,
   normalizeAccountDraft,
@@ -70,7 +60,6 @@ import {
   psgcRegions,
   type PsgcOption
 } from '@/lib/psgc'
-import { cn } from '@/lib/utils'
 import type { CatalogOptionRecord } from '../../../../../shared/contracts'
 
 export type InHouseAccountWorkflowSave =
@@ -86,9 +75,9 @@ export type InHouseAccountWorkflowSave =
     }
 
 type InHouseAccountFormProps = {
-  readonly accounts: readonly InHouseAccount[]
-  readonly onSave: (payload: InHouseAccountWorkflowSave) => void
+  readonly onSave: (payload: InHouseAccountWorkflowSave) => Promise<void>
   readonly onCancel: () => void
+  readonly onDirtyChange?: (dirty: boolean) => void
 }
 
 const emptyAccountDraft: AccountDraft = {
@@ -360,26 +349,22 @@ function ReviewValue({
 }
 
 export function InHouseAccountForm({
-  accounts,
   onSave,
-  onCancel
+  onCancel,
+  onDirtyChange
 }: InHouseAccountFormProps): React.JSX.Element {
-  const [step, setStep] = React.useState(1)
-  const [entryPath, setEntryPath] = React.useState<'new' | 'existing'>('new')
-  const [selectedCustomerId, setSelectedCustomerId] = React.useState(accounts[0]?.id ?? '')
-  const [customerSearch, setCustomerSearch] = React.useState('')
   const [accountDraft, setAccountDraft] = React.useState<AccountDraft>(emptyAccountDraft)
   const [accountErrors, setAccountErrors] = React.useState<AccountValidationErrors>({})
   const [loanDraft, setLoanDraft] = React.useState<LoanDraft>(emptyLoanDraft)
   const [loanErrors, setLoanErrors] = React.useState<LoanValidationErrors>({})
   const [formError, setFormError] = React.useState<string>()
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
   const [address, setAddress] = React.useState<{
     province?: PsgcOption
     cityMunicipality?: PsgcOption
     barangay?: PsgcOption
   }>({})
-  const selectedCustomer = accounts.find((account) => account.id === selectedCustomerId)
   React.useEffect(() => {
     void window.api.catalogOptions
       .list({ activeOnly: true })
@@ -389,68 +374,19 @@ export function InHouseAccountForm({
   const agents = catalogOptions
     .filter((option) => option.kind === 'IN_HOUSE_AGENT')
     .map((option) => option.value)
-  const monthlyTerms = catalogOptions
-    .filter((option) => option.kind === 'IN_HOUSE_LOAN_TERM')
-    .map((option) => Number(option.value))
-    .filter(Number.isInteger)
-  const filteredAccounts = React.useMemo(() => {
-    const query = customerSearch.trim().toLowerCase()
-    if (!query) return accounts
-    return accounts.filter((account) =>
-      [
-        formatAccountName(account),
-        account.id,
-        ...account.contacts.map((contact) => contact.value),
-        ...account.emails.map((email) => email.value)
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
-    )
-  }, [accounts, customerSearch])
-
+  const monthlyTerms = Array.from({ length: 12 }, (_, index) => index + 1)
   const setAccount = <K extends keyof AccountDraft>(key: K, value: AccountDraft[K]): void =>
     setAccountDraft((current) => ({ ...current, [key]: value }))
   const setLoan = <K extends keyof LoanDraft>(key: K, value: LoanDraft[K]): void =>
     setLoanDraft((current) => ({ ...current, [key]: value }))
 
-  const continueFromCustomer = (): void => {
+  const save = async (): Promise<void> => {
+    if (isSubmitting) return
     setFormError(undefined)
-    if (entryPath === 'existing') {
-      if (selectedCustomerId) setStep(2)
-      else setFormError('Select an existing customer before continuing.')
-      return
-    }
-
-    const errors = validateAccountDraft(accountDraft)
-    setAccountErrors(errors)
-    if (!Object.keys(errors).length) setStep(2)
-  }
-
-  const continueFromLoan = (): void => {
-    const normalized = normalizeLoanDraft(loanDraft)
-    const errors = validateLoanDraft(normalized)
-    setLoanDraft(normalized)
-    setLoanErrors(errors)
-    if (!Object.keys(errors).length) setStep(3)
-  }
-
-  const save = (): void => {
     const normalizedLoan = normalizeLoanDraft(loanDraft)
     const loanValidation = validateLoanDraft(normalizedLoan)
     setLoanErrors(loanValidation)
     if (Object.keys(loanValidation).length) {
-      setStep(2)
-      return
-    }
-
-    if (entryPath === 'existing') {
-      if (!selectedCustomerId) {
-        setFormError('Select an existing customer before saving.')
-        setStep(1)
-        return
-      }
-      onSave({ mode: 'existing', customerId: selectedCustomerId, loanDraft: normalizedLoan })
       return
     }
 
@@ -458,10 +394,16 @@ export function InHouseAccountForm({
     const accountValidation = validateAccountDraft(normalizedAccount)
     setAccountErrors(accountValidation)
     if (Object.keys(accountValidation).length) {
-      setStep(1)
       return
     }
-    onSave({ mode: 'new', accountDraft: normalizedAccount, loanDraft: normalizedLoan })
+    setIsSubmitting(true)
+    try {
+      await onSave({ mode: 'new', accountDraft: normalizedAccount, loanDraft: normalizedLoan })
+    } catch {
+      setFormError('The account and loan could not be created. Your entries are still available.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const addLoanItem = (): void =>
@@ -475,203 +417,103 @@ export function InHouseAccountForm({
         : emptyLoanDraft.items
     )
 
-  const customerName =
-    entryPath === 'existing' && selectedCustomer
-      ? formatAccountName(selectedCustomer)
-      : formatAccountName(accountDraft)
+  const customerName = formatAccountName(accountDraft)
 
   return (
     <form
       className="flex min-h-0 flex-1 flex-col"
+      onInputCapture={() => onDirtyChange?.(true)}
       onSubmit={(event) => {
         event.preventDefault()
-        if (step === 1) continueFromCustomer()
-        else if (step === 2) continueFromLoan()
-        else save()
+        void save()
       }}
     >
-      <CardHeader className="sticky top-0 z-10 shrink-0 gap-3 border-b bg-card px-4 py-3">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-foreground">Add Account & Loan</h2>
-            <p className="truncate text-xs text-muted-foreground">
-              {entryPath === 'existing'
-                ? 'Search Customer -> Loan -> Review'
-                : 'Customer -> Loan -> Review'}
-            </p>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-            Hide Form
-          </Button>
-        </div>
-        <Stepper value={step} onValueChange={(value) => value < step && setStep(value)}>
-          <StepperNav>
-            {[entryPath === 'existing' ? 'Search Customer' : 'Customer', 'Loan', 'Review'].map(
-              (label, index) => {
-                const stepNumber = index + 1
-                return (
-                  <StepperItem
-                    key={label}
-                    step={stepNumber}
-                    completed={stepNumber < step}
-                    disabled={stepNumber > step}
-                  >
-                    <StepperTrigger className="gap-2">
-                      <StepperIndicator>{stepNumber}</StepperIndicator>
-                      <StepperTitle className="hidden sm:block">{label}</StepperTitle>
-                    </StepperTrigger>
-                    {stepNumber < 3 && <StepperSeparator />}
-                  </StepperItem>
-                )
-              }
-            )}
-          </StepperNav>
-        </Stepper>
-      </CardHeader>
-
       <ScrollArea className="min-h-0 flex-1">
-        <div className="p-4">
-          {formError && <FieldError className="mb-3">{formError}</FieldError>}
+        <div className="grid gap-6 p-6 xl:grid-cols-2">
+          {formError && <FieldError className="xl:col-span-2">{formError}</FieldError>}
 
-          {step === 1 && (
-            <FieldGroup className="gap-4">
-              <div className="flex w-full flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant={entryPath === 'new' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setEntryPath('new')}
-                >
-                  New Customer
-                </Button>
-                <Button
-                  type="button"
-                  variant={entryPath === 'existing' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setEntryPath('existing')}
-                >
-                  Existing Customer
-                </Button>
-              </div>
-
-              {entryPath === 'existing' ? (
-                <FieldSet className="gap-3">
-                  <FieldLegend variant="label">Search customer</FieldLegend>
-                  <InputGroup className="h-9">
-                    <InputGroupAddon>
-                      <Search aria-hidden="true" />
-                    </InputGroupAddon>
-                    <InputGroupInput
-                      aria-label="Search existing customers"
-                      placeholder="Search name, account ID, contact, or email..."
-                      value={customerSearch}
-                      onChange={(event) => setCustomerSearch(event.target.value)}
+          <FieldGroup className="gap-4">
+            <>
+              <FieldSet className="gap-3">
+                <FieldLegend variant="label">Customer classification</FieldLegend>
+                <Field data-invalid={Boolean(accountErrors.branch)}>
+                  <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
+                  <Select
+                    value={accountDraft.branch}
+                    onValueChange={(value) => setAccount('branch', value as AccountDraft['branch'])}
+                  >
+                    <SelectTrigger id="account-branch" aria-invalid={Boolean(accountErrors.branch)}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branchNames.map((branch) => (
+                        <SelectItem key={branch} value={branch}>
+                          {branchLabels[branch]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError>{accountErrors.branch}</FieldError>
+                </Field>
+              </FieldSet>
+              <FieldSeparator />
+              <FieldSet className="gap-3">
+                <FieldLegend variant="label">Name</FieldLegend>
+                <FieldGroup className="grid gap-3 sm:grid-cols-2">
+                  <Field data-invalid={Boolean(accountErrors.lastName)}>
+                    <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
+                    <Input
+                      id="last-name"
+                      value={accountDraft.lastName}
+                      aria-invalid={Boolean(accountErrors.lastName)}
+                      onChange={(event) => setAccount('lastName', event.target.value)}
                     />
-                  </InputGroup>
-                  <div className="grid gap-2">
-                    {filteredAccounts.map((account) => (
-                      <button
-                        key={account.id}
-                        type="button"
-                        className={cn(
-                          'rounded-lg border p-3 text-left text-sm transition-colors hover:bg-muted/60',
-                          selectedCustomerId === account.id && 'border-primary bg-muted'
-                        )}
-                        onClick={() => setSelectedCustomerId(account.id)}
-                      >
-                        <span className="block font-light">{formatAccountName(account)}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {account.id} - {branchLabels[account.branch]}
-                        </span>
-                      </button>
-                    ))}
-                    {!filteredAccounts.length && (
-                      <p className="text-sm text-muted-foreground">No matching customers found.</p>
-                    )}
-                  </div>
-                </FieldSet>
-              ) : (
-                <>
-                  <FieldSet className="gap-3">
-                    <FieldLegend variant="label">Customer classification</FieldLegend>
-                    <Field data-invalid={Boolean(accountErrors.branch)}>
-                      <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
-                      <Select
-                        value={accountDraft.branch}
-                        onValueChange={(value) =>
-                          setAccount('branch', value as AccountDraft['branch'])
-                        }
-                      >
-                        <SelectTrigger
-                          id="account-branch"
-                          aria-invalid={Boolean(accountErrors.branch)}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {branchNames.map((branch) => (
-                            <SelectItem key={branch} value={branch}>
-                              {branchLabels[branch]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldError>{accountErrors.branch}</FieldError>
-                    </Field>
-                  </FieldSet>
-                  <FieldSeparator />
-                  <FieldSet className="gap-3">
-                    <FieldLegend variant="label">Name</FieldLegend>
-                    <FieldGroup className="grid gap-3 sm:grid-cols-2">
-                      <Field data-invalid={Boolean(accountErrors.lastName)}>
-                        <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
-                        <Input
-                          id="last-name"
-                          value={accountDraft.lastName}
-                          aria-invalid={Boolean(accountErrors.lastName)}
-                          onChange={(event) => setAccount('lastName', event.target.value)}
-                        />
-                        <FieldError>{accountErrors.lastName}</FieldError>
-                      </Field>
-                      <Field data-invalid={Boolean(accountErrors.firstName)}>
-                        <FieldLabel htmlFor="first-name">First Name</FieldLabel>
-                        <Input
-                          id="first-name"
-                          value={accountDraft.firstName}
-                          aria-invalid={Boolean(accountErrors.firstName)}
-                          onChange={(event) => setAccount('firstName', event.target.value)}
-                        />
-                        <FieldError>{accountErrors.firstName}</FieldError>
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="middle-name">Middle Name</FieldLabel>
-                        <Input
-                          id="middle-name"
-                          value={accountDraft.middleName}
-                          onChange={(event) => setAccount('middleName', event.target.value)}
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="suffix">Suffix</FieldLabel>
-                        <Select
-                          value={accountDraft.suffix || undefined}
-                          onValueChange={(value) => setAccount('suffix', value ?? '')}
-                        >
-                          <SelectTrigger id="suffix">
-                            <SelectValue placeholder="Select suffix" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {suffixOptions.map((suffix) => (
-                              <SelectItem key={suffix} value={suffix}>
-                                {suffix}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                    </FieldGroup>
-                  </FieldSet>
-                  <FieldSeparator />
+                    <FieldError>{accountErrors.lastName}</FieldError>
+                  </Field>
+                  <Field data-invalid={Boolean(accountErrors.firstName)}>
+                    <FieldLabel htmlFor="first-name">First Name</FieldLabel>
+                    <Input
+                      id="first-name"
+                      value={accountDraft.firstName}
+                      aria-invalid={Boolean(accountErrors.firstName)}
+                      onChange={(event) => setAccount('firstName', event.target.value)}
+                    />
+                    <FieldError>{accountErrors.firstName}</FieldError>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="middle-name">Middle Name</FieldLabel>
+                    <Input
+                      id="middle-name"
+                      value={accountDraft.middleName}
+                      onChange={(event) => setAccount('middleName', event.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="suffix">Suffix</FieldLabel>
+                    <Select
+                      value={accountDraft.suffix || undefined}
+                      onValueChange={(value) => setAccount('suffix', value ?? '')}
+                    >
+                      <SelectTrigger id="suffix">
+                        <SelectValue placeholder="Select suffix" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {suffixOptions.map((suffix) => (
+                          <SelectItem key={suffix} value={suffix}>
+                            {suffix}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </FieldGroup>
+              </FieldSet>
+              <FieldSeparator />
+              <Collapsible>
+                <CollapsibleTrigger className="w-full rounded-md border border-dashed px-3 py-2 text-left text-sm font-medium hover:bg-muted">
+                  Address &amp; location
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
                   <FieldSet className="gap-3">
                     <FieldLegend variant="label">Address</FieldLegend>
                     <FieldGroup className="grid gap-3 sm:grid-cols-2">
@@ -746,416 +588,404 @@ export function InHouseAccountForm({
                       </Field>
                     </FieldGroup>
                   </FieldSet>
-                  <FieldSeparator />
-                  <FieldSet className="gap-3">
-                    <FieldLegend variant="label">Contact information</FieldLegend>
-                    <FieldGroup className="gap-3">
-                      <ContactRows
-                        contacts={accountDraft.contacts}
-                        onChange={(contacts) => setAccount('contacts', contacts)}
-                        errors={accountErrors.contacts}
-                        actions={
-                          <div className="flex flex-nowrap items-center gap-1 overflow-x-auto text-muted-foreground">
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="xs"
-                              onClick={() =>
-                                setAccount('contacts', [
-                                  ...accountDraft.contacts,
-                                  {
-                                    id: id('mobile'),
-                                    kind: 'mobile',
-                                    value: '',
-                                    isPrimary: false
-                                  }
-                                ])
-                              }
-                            >
-                              <Plus data-icon="inline-start" />
-                              Add contact
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="xs"
-                              onClick={() =>
-                                setAccount('contacts', [
-                                  ...accountDraft.contacts,
-                                  {
-                                    id: id('telephone'),
-                                    kind: 'telephone',
-                                    value: '',
-                                    isPrimary: false
-                                  }
-                                ])
-                              }
-                            >
-                              <Plus data-icon="inline-start" />
-                              Add telephone
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="xs"
-                              onClick={() =>
-                                setAccount('emails', [
-                                  ...accountDraft.emails,
-                                  {
-                                    id: id('email'),
-                                    value: '',
-                                    isPrimary: accountDraft.emails.length === 0
-                                  }
-                                ])
-                              }
-                            >
-                              <Plus data-icon="inline-start" />
-                              Add email
-                            </Button>
-                          </div>
-                        }
-                      />
-                      {(accountDraft.emails.length > 0 || accountErrors.emails) && (
-                        <EmailRows
-                          emails={accountDraft.emails}
-                          onChange={(emails) => setAccount('emails', emails)}
-                          error={accountErrors.emails}
-                        />
-                      )}
-                    </FieldGroup>
-                  </FieldSet>
-                  <FieldSeparator />
-                  <FieldSet className="gap-3">
-                    <FieldLegend variant="label">Customer attribution</FieldLegend>
-                    <FieldGroup className="grid gap-3 sm:grid-cols-2">
-                      <Field>
-                        <FieldLabel htmlFor="occupation">Occupation</FieldLabel>
-                        <Input
-                          id="occupation"
-                          value={accountDraft.occupation}
-                          onChange={(event) => setAccount('occupation', event.target.value)}
-                        />
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="agent">Agent</FieldLabel>
-                        <Select
-                          value={accountDraft.agent || undefined}
-                          onValueChange={(value) => setAccount('agent', value ?? '')}
-                        >
-                          <SelectTrigger id="agent">
-                            <SelectValue placeholder="Select agent" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(agents.length ? agents : agentOptions).map((agent) => (
-                              <SelectItem key={agent} value={agent}>
-                                {agent}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="referred-by">Referred By</FieldLabel>
-                        <Input
-                          id="referred-by"
-                          value={accountDraft.referredBy}
-                          onChange={(event) => setAccount('referredBy', event.target.value)}
-                        />
-                      </Field>
-                    </FieldGroup>
-                  </FieldSet>
-                </>
-              )}
-            </FieldGroup>
-          )}
-
-          {step === 2 && (
-            <FieldGroup className="gap-4">
+                </CollapsibleContent>
+              </Collapsible>
+              <FieldSeparator />
               <FieldSet className="gap-3">
-                <FieldLegend variant="label">Loan schedule</FieldLegend>
-                <FieldGroup className="grid gap-3 sm:grid-cols-3">
-                  <Field data-invalid={Boolean(loanErrors.dateReleased)}>
-                    <FieldLabel htmlFor="date-released">Date Released</FieldLabel>
-                    <Input
-                      id="date-released"
-                      type="date"
-                      value={loanDraft.dateReleased}
-                      aria-invalid={Boolean(loanErrors.dateReleased)}
-                      onChange={(event) => setLoan('dateReleased', event.target.value)}
+                <FieldLegend variant="label">Contact information</FieldLegend>
+                <FieldGroup className="gap-3">
+                  <ContactRows
+                    contacts={accountDraft.contacts}
+                    onChange={(contacts) => setAccount('contacts', contacts)}
+                    errors={accountErrors.contacts}
+                    actions={
+                      <div className="flex flex-nowrap items-center gap-1 overflow-x-auto text-muted-foreground">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="xs"
+                          onClick={() =>
+                            setAccount('contacts', [
+                              ...accountDraft.contacts,
+                              {
+                                id: id('mobile'),
+                                kind: 'mobile',
+                                value: '',
+                                isPrimary: false
+                              }
+                            ])
+                          }
+                        >
+                          <Plus data-icon="inline-start" />
+                          Add contact
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() =>
+                            setAccount('contacts', [
+                              ...accountDraft.contacts,
+                              {
+                                id: id('telephone'),
+                                kind: 'telephone',
+                                value: '',
+                                isPrimary: false
+                              }
+                            ])
+                          }
+                        >
+                          <Plus data-icon="inline-start" />
+                          Add telephone
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() =>
+                            setAccount('emails', [
+                              ...accountDraft.emails,
+                              {
+                                id: id('email'),
+                                value: '',
+                                isPrimary: accountDraft.emails.length === 0
+                              }
+                            ])
+                          }
+                        >
+                          <Plus data-icon="inline-start" />
+                          Add email
+                        </Button>
+                      </div>
+                    }
+                  />
+                  {(accountDraft.emails.length > 0 || accountErrors.emails) && (
+                    <EmailRows
+                      emails={accountDraft.emails}
+                      onChange={(emails) => setAccount('emails', emails)}
+                      error={accountErrors.emails}
                     />
-                    <FieldError>{loanErrors.dateReleased}</FieldError>
-                  </Field>
-                  <Field data-invalid={Boolean(loanErrors.startDate)}>
-                    <FieldLabel htmlFor="start-date">Start Date</FieldLabel>
+                  )}
+                </FieldGroup>
+              </FieldSet>
+              <FieldSeparator />
+              <FieldSet className="gap-3">
+                <FieldLegend variant="label">Customer attribution</FieldLegend>
+                <FieldGroup className="grid gap-3 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="occupation">Occupation</FieldLabel>
                     <Input
-                      id="start-date"
-                      type="date"
-                      value={loanDraft.startDate}
-                      aria-invalid={Boolean(loanErrors.startDate)}
-                      onChange={(event) => setLoan('startDate', event.target.value)}
+                      id="occupation"
+                      value={accountDraft.occupation}
+                      onChange={(event) => setAccount('occupation', event.target.value)}
                     />
-                    <FieldError>{loanErrors.startDate}</FieldError>
                   </Field>
-                  <Field data-invalid={Boolean(loanErrors.firstDueDate)}>
-                    <FieldLabel htmlFor="first-due-date">First Due Date</FieldLabel>
-                    <Input
-                      id="first-due-date"
-                      type="date"
-                      value={loanDraft.firstDueDate}
-                      aria-invalid={Boolean(loanErrors.firstDueDate)}
-                      onChange={(event) => setLoan('firstDueDate', event.target.value)}
-                    />
-                    <FieldError>{loanErrors.firstDueDate}</FieldError>
-                  </Field>
-                  <Field data-invalid={Boolean(loanErrors.paymentFrequency)}>
-                    <FieldLabel htmlFor="payment-frequency">Payment Frequency</FieldLabel>
+                  <Field>
+                    <FieldLabel htmlFor="agent">Agent</FieldLabel>
                     <Select
-                      value={loanDraft.paymentFrequency}
-                      onValueChange={(value) => {
-                        const paymentFrequency = value as LoanDraft['paymentFrequency']
-                        const count = Math.max(1, Number.parseInt(loanDraft.terms, 10) || 1)
-                        setLoanDraft((current) => ({
-                          ...current,
-                          paymentFrequency,
-                          terms:
-                            paymentFrequency === 'Monthly'
-                              ? `${Math.min(count, 12)} month${count === 1 ? '' : 's'}`
-                              : String(count)
-                        }))
-                      }}
+                      value={accountDraft.agent || undefined}
+                      onValueChange={(value) => setAccount('agent', value ?? '')}
                     >
-                      <SelectTrigger id="payment-frequency">
-                        <SelectValue />
+                      <SelectTrigger id="agent">
+                        <SelectValue placeholder="Select agent" />
                       </SelectTrigger>
                       <SelectContent>
-                        {paymentFrequencyOptions.map((frequency) => (
-                          <SelectItem key={frequency} value={frequency}>
-                            {frequency}
+                        {(agents.length ? agents : agentOptions).map((agent) => (
+                          <SelectItem key={agent} value={agent}>
+                            {agent}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <FieldError>{loanErrors.paymentFrequency}</FieldError>
                   </Field>
-                  <Field data-invalid={Boolean(loanErrors.terms)}>
-                    <FieldLabel htmlFor="terms">Terms</FieldLabel>
-                    {loanDraft.paymentFrequency === 'Monthly' ? (
-                      <Select
-                        value={loanDraft.terms}
-                        onValueChange={(value) => setLoan('terms', value ?? '')}
-                      >
-                        <SelectTrigger id="terms" aria-invalid={Boolean(loanErrors.terms)}>
-                          <SelectValue placeholder="Select terms" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(monthlyTerms.length
-                            ? monthlyTerms.map((term) => `${term} month${term === 1 ? '' : 's'}`)
-                            : loanTermOptions
-                          ).map((term) => (
-                            <SelectItem key={term} value={term}>
-                              {term}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        id="terms"
-                        type="number"
-                        min={1}
-                        inputMode="numeric"
-                        value={loanDraft.terms}
-                        aria-invalid={Boolean(loanErrors.terms)}
-                        onChange={(event) => setLoan('terms', event.target.value)}
-                      />
-                    )}
-                    <FieldError>{loanErrors.terms}</FieldError>
+                  <Field>
+                    <FieldLabel htmlFor="referred-by">Referred By</FieldLabel>
+                    <Input
+                      id="referred-by"
+                      value={accountDraft.referredBy}
+                      onChange={(event) => setAccount('referredBy', event.target.value)}
+                    />
                   </Field>
                 </FieldGroup>
               </FieldSet>
-              <FieldSeparator />
-              <FieldSet className="gap-3">
-                <FieldLegend variant="label">Financial summary</FieldLegend>
-                <FieldGroup className="grid gap-3 sm:grid-cols-3">
-                  {(
-                    [
-                      ['principal', 'Principal'],
-                      ['interest', 'Interest'],
-                      ['downPayment', 'Down Payment'],
-                      ['fees', 'Fees'],
-                      ['installmentAmount', 'Installment Amount'],
-                      ['grandTotal', 'Grand Total']
-                    ] as const
-                  ).map(([key, label]) => (
-                    <Field key={key} data-invalid={Boolean(loanErrors[key])}>
-                      <FieldLabel htmlFor={key}>{label}</FieldLabel>
-                      <Input
-                        id={key}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={loanDraft[key] || ''}
-                        aria-invalid={Boolean(loanErrors[key])}
-                        onChange={(event) => setLoan(key, Number(event.target.value))}
-                      />
-                      <FieldError>{loanErrors[key]}</FieldError>
-                    </Field>
-                  ))}
-                </FieldGroup>
-              </FieldSet>
-              <FieldSeparator />
-              <FieldSet className="gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <FieldLegend variant="label">Items / Collateral</FieldLegend>
-                  <Button type="button" variant="secondary" size="xs" onClick={addLoanItem}>
-                    <Plus data-icon="inline-start" />
-                    Add item
-                  </Button>
-                </div>
-                <FieldGroup className="gap-2">
-                  {loanDraft.items.map((item) => (
-                    <div
-                      className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_8rem_auto]"
-                      key={item.id}
-                    >
-                      <Input
-                        aria-label="Item or collateral"
-                        placeholder="Item / collateral"
-                        value={item.name}
-                        onChange={(event) =>
-                          setLoan(
-                            'items',
-                            loanDraft.items.map((current) =>
-                              current.id === item.id
-                                ? { ...current, name: event.target.value }
-                                : current
-                            )
-                          )
-                        }
-                      />
-                      <Input
-                        aria-label="Quantity"
-                        type="number"
-                        min="0"
-                        value={item.quantity || ''}
-                        onChange={(event) =>
-                          setLoan(
-                            'items',
-                            loanDraft.items.map((current) =>
-                              current.id === item.id
-                                ? { ...current, quantity: Number(event.target.value) }
-                                : current
-                            )
-                          )
-                        }
-                      />
-                      <Input
-                        aria-label="Price"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.price || ''}
-                        onChange={(event) =>
-                          setLoan(
-                            'items',
-                            loanDraft.items.map((current) =>
-                              current.id === item.id
-                                ? { ...current, price: Number(event.target.value) }
-                                : current
-                            )
-                          )
-                        }
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Remove item"
-                        onClick={() => removeLoanItem(item.id)}
-                      >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  ))}
-                </FieldGroup>
-              </FieldSet>
-              <Field>
-                <FieldLabel htmlFor="remarks">Remarks</FieldLabel>
-                <Textarea
-                  id="remarks"
-                  value={loanDraft.remarks}
-                  onChange={(event) => setLoan('remarks', event.target.value)}
-                />
-              </Field>
-            </FieldGroup>
-          )}
+            </>
+          </FieldGroup>
 
-          {step === 3 && (
-            <div className="grid gap-3">
-              <ReviewSection title="Customer">
-                <ReviewValue label="Name" value={customerName} />
-                <ReviewValue
-                  label="Branch"
-                  value={
-                    entryPath === 'existing' && selectedCustomer
-                      ? branchLabels[selectedCustomer.branch]
-                      : branchLabels[accountDraft.branch]
-                  }
-                />
-                <ReviewValue
-                  label="Contact"
-                  value={
-                    entryPath === 'existing' && selectedCustomer
-                      ? selectedCustomer.contacts.find((contact) => contact.isPrimary)?.value
-                      : accountDraft.contacts.find((contact) => contact.isPrimary)?.value
-                  }
-                />
-                <ReviewValue
-                  label="Entry"
-                  value={entryPath === 'existing' ? 'Existing customer' : 'New customer'}
-                />
-              </ReviewSection>
-              <ReviewSection title="Loan">
-                <ReviewValue label="Date Released" value={loanDraft.dateReleased} />
-                <ReviewValue label="Start Date" value={loanDraft.startDate} />
-                <ReviewValue label="First Due Date" value={loanDraft.firstDueDate} />
-                <ReviewValue label="Frequency" value={loanDraft.paymentFrequency} />
-                <ReviewValue label="Terms" value={loanDraft.terms} />
-                <ReviewValue label="Installment" value={money(loanDraft.installmentAmount)} />
-              </ReviewSection>
-              <ReviewSection title="Financial Summary">
-                <ReviewValue label="Principal" value={money(loanDraft.principal)} />
-                <ReviewValue label="Interest" value={money(loanDraft.interest)} />
-                <ReviewValue label="Down Payment" value={money(loanDraft.downPayment)} />
-                <ReviewValue label="Fees" value={money(loanDraft.fees)} />
-                <ReviewValue label="Grand Total" value={money(loanDraft.grandTotal)} />
-                <ReviewValue
-                  label="Balance after down payment"
-                  value={money(Math.max(loanDraft.grandTotal - loanDraft.downPayment, 0))}
-                />
-              </ReviewSection>
-              <ReviewSection title="Items / Collateral">
-                <div className="sm:col-span-2">
-                  {loanDraft.items.filter((item) => item.name.trim()).length ? (
-                    <ul className="space-y-1">
-                      {loanDraft.items
-                        .filter((item) => item.name.trim())
-                        .map((item) => (
-                          <li key={item.id} className="flex justify-between gap-2">
-                            <span className="truncate">
-                              {item.name} x {item.quantity || 0}
-                            </span>
-                            <span className="shrink-0 tabular-nums">{money(item.price)}</span>
-                          </li>
+          <FieldGroup className="gap-4">
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Loan schedule</FieldLegend>
+              <FieldGroup className="grid gap-3 sm:grid-cols-3">
+                <Field data-invalid={Boolean(loanErrors.dateReleased)}>
+                  <FieldLabel htmlFor="date-released">Date Released</FieldLabel>
+                  <Input
+                    id="date-released"
+                    type="date"
+                    value={loanDraft.dateReleased}
+                    aria-invalid={Boolean(loanErrors.dateReleased)}
+                    onChange={(event) => setLoan('dateReleased', event.target.value)}
+                  />
+                  <FieldError>{loanErrors.dateReleased}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(loanErrors.startDate)}>
+                  <FieldLabel htmlFor="start-date">Start Date</FieldLabel>
+                  <Input
+                    id="start-date"
+                    type="date"
+                    value={loanDraft.startDate}
+                    aria-invalid={Boolean(loanErrors.startDate)}
+                    onChange={(event) => setLoan('startDate', event.target.value)}
+                  />
+                  <FieldError>{loanErrors.startDate}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(loanErrors.firstDueDate)}>
+                  <FieldLabel htmlFor="first-due-date">First Due Date</FieldLabel>
+                  <Input
+                    id="first-due-date"
+                    type="date"
+                    value={loanDraft.firstDueDate}
+                    aria-invalid={Boolean(loanErrors.firstDueDate)}
+                    onChange={(event) => setLoan('firstDueDate', event.target.value)}
+                  />
+                  <FieldError>{loanErrors.firstDueDate}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(loanErrors.paymentFrequency)}>
+                  <FieldLabel htmlFor="payment-frequency">Payment Frequency</FieldLabel>
+                  <Select
+                    value={loanDraft.paymentFrequency}
+                    onValueChange={(value) => {
+                      const paymentFrequency = value as LoanDraft['paymentFrequency']
+                      const count = Math.max(1, Number.parseInt(loanDraft.terms, 10) || 1)
+                      setLoanDraft((current) => ({
+                        ...current,
+                        paymentFrequency,
+                        terms:
+                          paymentFrequency === 'Monthly'
+                            ? `${Math.min(count, 12)} month${count === 1 ? '' : 's'}`
+                            : String(count)
+                      }))
+                    }}
+                  >
+                    <SelectTrigger id="payment-frequency">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentFrequencyOptions.map((frequency) => (
+                        <SelectItem key={frequency} value={frequency}>
+                          {frequency}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError>{loanErrors.paymentFrequency}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(loanErrors.terms)}>
+                  <FieldLabel htmlFor="terms">Terms</FieldLabel>
+                  {loanDraft.paymentFrequency === 'Monthly' ? (
+                    <Select
+                      value={loanDraft.terms}
+                      onValueChange={(value) => setLoan('terms', value ?? '')}
+                    >
+                      <SelectTrigger id="terms" aria-invalid={Boolean(loanErrors.terms)}>
+                        <SelectValue placeholder="Select terms" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(monthlyTerms.length
+                          ? monthlyTerms.map((term) => `${term} month${term === 1 ? '' : 's'}`)
+                          : loanTermOptions
+                        ).map((term) => (
+                          <SelectItem key={term} value={term}>
+                            {term}
+                          </SelectItem>
                         ))}
-                    </ul>
+                      </SelectContent>
+                    </Select>
                   ) : (
-                    <p className="text-muted-foreground">No items listed.</p>
+                    <Input
+                      id="terms"
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      value={loanDraft.terms}
+                      aria-invalid={Boolean(loanErrors.terms)}
+                      onChange={(event) => setLoan('terms', event.target.value)}
+                    />
                   )}
-                </div>
-              </ReviewSection>
-            </div>
-          )}
+                  <FieldError>{loanErrors.terms}</FieldError>
+                </Field>
+              </FieldGroup>
+            </FieldSet>
+            <FieldSeparator />
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Financial summary</FieldLegend>
+              <FieldGroup className="grid gap-3 sm:grid-cols-3">
+                {(
+                  [
+                    ['principal', 'Principal'],
+                    ['interest', 'Interest'],
+                    ['downPayment', 'Down Payment'],
+                    ['fees', 'Fees'],
+                    ['installmentAmount', 'Installment Amount'],
+                    ['grandTotal', 'Grand Total']
+                  ] as const
+                ).map(([key, label]) => (
+                  <Field key={key} data-invalid={Boolean(loanErrors[key])}>
+                    <FieldLabel htmlFor={key}>{label}</FieldLabel>
+                    <Input
+                      id={key}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={loanDraft[key] || ''}
+                      aria-invalid={Boolean(loanErrors[key])}
+                      onChange={(event) => setLoan(key, Number(event.target.value))}
+                    />
+                    <FieldError>{loanErrors[key]}</FieldError>
+                  </Field>
+                ))}
+              </FieldGroup>
+            </FieldSet>
+            <Collapsible>
+              <CollapsibleTrigger className="w-full rounded-md border border-dashed px-3 py-2 text-left text-sm font-medium hover:bg-muted">
+                Items, collateral &amp; remarks
+              </CollapsibleTrigger>
+              <CollapsibleContent className="flex flex-col gap-4 pt-3">
+                <FieldSet className="gap-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLegend variant="label">Items / Collateral</FieldLegend>
+                    <Button type="button" variant="secondary" size="xs" onClick={addLoanItem}>
+                      <Plus data-icon="inline-start" />
+                      Add item
+                    </Button>
+                  </div>
+                  <FieldGroup className="gap-2">
+                    {loanDraft.items.map((item) => (
+                      <div
+                        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_8rem_auto]"
+                        key={item.id}
+                      >
+                        <Input
+                          aria-label="Item or collateral"
+                          placeholder="Item / collateral"
+                          value={item.name}
+                          onChange={(event) =>
+                            setLoan(
+                              'items',
+                              loanDraft.items.map((current) =>
+                                current.id === item.id
+                                  ? { ...current, name: event.target.value }
+                                  : current
+                              )
+                            )
+                          }
+                        />
+                        <Input
+                          aria-label="Quantity"
+                          type="number"
+                          min="0"
+                          value={item.quantity || ''}
+                          onChange={(event) =>
+                            setLoan(
+                              'items',
+                              loanDraft.items.map((current) =>
+                                current.id === item.id
+                                  ? { ...current, quantity: Number(event.target.value) }
+                                  : current
+                              )
+                            )
+                          }
+                        />
+                        <Input
+                          aria-label="Price"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.price || ''}
+                          onChange={(event) =>
+                            setLoan(
+                              'items',
+                              loanDraft.items.map((current) =>
+                                current.id === item.id
+                                  ? { ...current, price: Number(event.target.value) }
+                                  : current
+                              )
+                            )
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Remove item"
+                          onClick={() => removeLoanItem(item.id)}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    ))}
+                  </FieldGroup>
+                </FieldSet>
+                <Field>
+                  <FieldLabel htmlFor="remarks">Remarks</FieldLabel>
+                  <Textarea
+                    id="remarks"
+                    value={loanDraft.remarks}
+                    onChange={(event) => setLoan('remarks', event.target.value)}
+                  />
+                </Field>
+              </CollapsibleContent>
+            </Collapsible>
+          </FieldGroup>
+
+          <div className="grid gap-3 xl:col-span-2">
+            <ReviewSection title="Customer">
+              <ReviewValue label="Name" value={customerName} />
+              <ReviewValue label="Branch" value={branchLabels[accountDraft.branch]} />
+              <ReviewValue
+                label="Contact"
+                value={accountDraft.contacts.find((contact) => contact.isPrimary)?.value}
+              />
+              <ReviewValue label="Entry" value="New customer" />
+            </ReviewSection>
+            <ReviewSection title="Loan">
+              <ReviewValue label="Date Released" value={loanDraft.dateReleased} />
+              <ReviewValue label="Start Date" value={loanDraft.startDate} />
+              <ReviewValue label="First Due Date" value={loanDraft.firstDueDate} />
+              <ReviewValue label="Frequency" value={loanDraft.paymentFrequency} />
+              <ReviewValue label="Terms" value={loanDraft.terms} />
+              <ReviewValue label="Installment" value={money(loanDraft.installmentAmount)} />
+            </ReviewSection>
+            <ReviewSection title="Financial Summary">
+              <ReviewValue label="Principal" value={money(loanDraft.principal)} />
+              <ReviewValue label="Interest" value={money(loanDraft.interest)} />
+              <ReviewValue label="Down Payment" value={money(loanDraft.downPayment)} />
+              <ReviewValue label="Fees" value={money(loanDraft.fees)} />
+              <ReviewValue label="Grand Total" value={money(loanDraft.grandTotal)} />
+              <ReviewValue
+                label="Balance after down payment"
+                value={money(Math.max(loanDraft.grandTotal - loanDraft.downPayment, 0))}
+              />
+            </ReviewSection>
+            <ReviewSection title="Items / Collateral">
+              <div className="sm:col-span-2">
+                {loanDraft.items.filter((item) => item.name.trim()).length ? (
+                  <ul className="space-y-1">
+                    {loanDraft.items
+                      .filter((item) => item.name.trim())
+                      .map((item) => (
+                        <li key={item.id} className="flex justify-between gap-2">
+                          <span className="truncate">
+                            {item.name} x {item.quantity || 0}
+                          </span>
+                          <span className="shrink-0 tabular-nums">{money(item.price)}</span>
+                        </li>
+                      ))}
+                  </ul>
+                ) : (
+                  <p className="text-muted-foreground">No items listed.</p>
+                )}
+              </div>
+            </ReviewSection>
+          </div>
         </div>
       </ScrollArea>
 
@@ -1163,17 +993,8 @@ export function InHouseAccountForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        {step > 1 && (
-          <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
-            Back
-          </Button>
-        )}
-        <Button type="submit">
-          {step === 1
-            ? 'Continue to Loan'
-            : step === 2
-              ? 'Continue to Review'
-              : 'Create Account & Loan'}
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Creating…' : 'Create Account & Loan'}
         </Button>
       </CardFooter>
     </form>

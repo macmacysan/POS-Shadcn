@@ -495,13 +495,7 @@ function FinanceAccountSheet({
   const providers = activeProviders.includes(values.provider)
     ? activeProviders
     : [values.provider, ...activeProviders]
-  const activeTerms = catalogOptions
-    .filter((option) => option.kind === 'FINANCE_TERM')
-    .map((option) => Number(option.value))
-    .filter(Number.isInteger)
-  const terms = activeTerms.includes(values.termsMonths)
-    ? activeTerms
-    : [values.termsMonths, ...activeTerms]
+  const terms = Array.from({ length: 12 }, (_, index) => index + 1)
   React.useEffect(() => {
     if (open) {
       setValues(record ? recordForm(record) : blankForm(initialBranch))
@@ -633,10 +627,7 @@ function FinanceAccountSheet({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        {(terms.length
-                          ? terms
-                          : Array.from({ length: 24 }, (_, index) => index + 1)
-                        ).map((months) => (
+                        {terms.map((months) => (
                           <SelectItem key={months} value={String(months)}>
                             {months} month{months === 1 ? '' : 's'}
                           </SelectItem>

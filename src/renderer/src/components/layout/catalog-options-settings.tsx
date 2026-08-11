@@ -2,6 +2,7 @@ import * as React from 'react'
 import { ArchiveRestoreIcon, PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { useNotifications } from '@/hooks/use-notifications'
 import type { CatalogOptionKind, CatalogOptionRecord } from '@/../../shared/contracts'
@@ -31,28 +32,18 @@ const groups: readonly {
     placeholder: 'Agent name'
   },
   {
-    kind: 'IN_HOUSE_LOAN_TERM',
-    title: 'Loan terms',
-    description: 'Whole months, from 1 to 12.',
-    placeholder: 'Months'
-  },
-  {
     kind: 'FINANCE_TYPE',
     title: 'Finance types',
     description: 'Available to new finance accounts.',
     placeholder: 'Finance type'
-  },
-  {
-    kind: 'FINANCE_TERM',
-    title: 'Finance terms',
-    description: 'Whole months, from 1 to 24.',
-    placeholder: 'Months'
   }
 ]
 
 export function CatalogOptionsSettings(): React.JSX.Element {
   const [rows, setRows] = React.useState<CatalogOptionRecord[]>([])
   const [values, setValues] = React.useState<Record<string, string>>({})
+  const [editingId, setEditingId] = React.useState<string>()
+  const [editingValue, setEditingValue] = React.useState('')
   const [error, setError] = React.useState<string>()
   const { notify } = useNotifications()
 
@@ -84,10 +75,12 @@ export function CatalogOptionsSettings(): React.JSX.Element {
     }
   }
   const rename = async (row: CatalogOptionRecord): Promise<void> => {
-    const value = window.prompt(`Rename ${row.value}`, row.value)?.trim()
+    const value = editingValue.trim()
     if (!value || value === row.value) return
     try {
       change(row.id, await window.api.catalogOptions.rename({ id: row.id, value }))
+      setEditingId(undefined)
+      setEditingValue('')
     } catch {
       const message = 'That option could not be renamed.'
       setError(message)
@@ -128,6 +121,8 @@ export function CatalogOptionsSettings(): React.JSX.Element {
       <div className="grid gap-5 md:grid-cols-2">
         {groups.map((group) => {
           const groupRows = rows.filter((row) => row.kind === group.kind)
+          const activeRows = groupRows.filter((row) => row.isActive)
+          const retiredRows = groupRows.filter((row) => !row.isActive)
           return (
             <div key={group.kind} className="flex min-w-0 flex-col gap-2">
               <p className="text-xs font-medium">{group.title}</p>
@@ -152,25 +147,57 @@ export function CatalogOptionsSettings(): React.JSX.Element {
                 <p className="text-xs text-muted-foreground">{group.description}</p>
               )}
               <div className="overflow-hidden rounded-lg border">
-                {groupRows.length === 0 ? (
+                {activeRows.length === 0 ? (
                   <p className="px-3 py-3 text-xs text-muted-foreground">No options.</p>
                 ) : (
-                  groupRows.map((row) => (
+                  activeRows.map((row) => (
                     <div
                       key={row.id}
                       className="flex items-center justify-between gap-3 border-b px-3 py-2 last:border-b-0"
                     >
-                      <span className={row.isActive ? 'text-sm' : 'text-sm text-muted-foreground'}>
-                        {row.value}
-                      </span>
+                      {editingId === row.id ? (
+                        <Input
+                          aria-label={`Rename ${row.value}`}
+                          value={editingValue}
+                          onChange={(event) => setEditingValue(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') void rename(row)
+                            if (event.key === 'Escape') setEditingId(undefined)
+                          }}
+                        />
+                      ) : (
+                        <span className="text-sm">{row.value}</span>
+                      )}
                       <div className="flex gap-1">
-                        {row.isActive ? (
+                        {editingId === row.id ? (
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              onClick={() => void rename(row)}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => setEditingId(undefined)}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
                           <>
                             <Button
                               type="button"
                               variant="ghost"
                               size="xs"
-                              onClick={() => void rename(row)}
+                              onClick={() => {
+                                setEditingId(row.id)
+                                setEditingValue(row.value)
+                              }}
                             >
                               <PencilIcon data-icon="inline-start" />
                               Rename
@@ -185,22 +212,40 @@ export function CatalogOptionsSettings(): React.JSX.Element {
                               Retire
                             </Button>
                           </>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => void setActive(row, true)}
-                          >
-                            <ArchiveRestoreIcon data-icon="inline-start" />
-                            Restore
-                          </Button>
                         )}
                       </div>
                     </div>
                   ))
                 )}
               </div>
+              {retiredRows.length > 0 && (
+                <Collapsible>
+                  <CollapsibleTrigger className="w-full rounded-md border border-dashed px-3 py-2 text-left text-xs font-medium text-muted-foreground hover:bg-muted">
+                    Retired ({retiredRows.length})
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="flex flex-col gap-2 pt-2">
+                    {retiredRows.map((row) => (
+                      <div
+                        key={row.id}
+                        className="flex items-center justify-between gap-3 rounded-md border border-dashed px-3 py-2"
+                      >
+                        <span className="min-w-0 truncate text-xs text-muted-foreground">
+                          {row.value}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => void setActive(row, true)}
+                        >
+                          <ArchiveRestoreIcon data-icon="inline-start" />
+                          Restore
+                        </Button>
+                      </div>
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
             </div>
           )
         })}

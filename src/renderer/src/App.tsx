@@ -211,7 +211,8 @@ function App(): React.JSX.Element {
     return localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
   })
   const [summaryAlwaysDark, setSummaryAlwaysDark] = useState(() => {
-    return localStorage.getItem(SUMMARY_DARK_STORAGE_KEY) === 'true'
+    const stored = localStorage.getItem(SUMMARY_DARK_STORAGE_KEY)
+    return stored === null || stored === 'true'
   })
   const [selectedBranch, setSelectedBranch] = useState<LoginBranch>('Lagonoy')
 

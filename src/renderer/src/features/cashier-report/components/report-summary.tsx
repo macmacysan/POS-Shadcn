@@ -169,14 +169,16 @@ function SummaryRow({
   label,
   value,
   emphasis = false,
-  className
+  className,
+  hoverDetails
 }: {
   label: string
   value: number
   emphasis?: boolean
   className?: string
+  hoverDetails?: React.ReactNode
 }): React.JSX.Element {
-  return (
+  const row = (
     <div className={cn('flex min-h-7 items-center justify-between gap-3 text-xs', className)}>
       <span
         className={cn(
@@ -190,6 +192,21 @@ function SummaryRow({
         {money(value)}
       </span>
     </div>
+  )
+
+  if (!hoverDetails) return row
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          render={<div className="cursor-default" tabIndex={0} aria-label={`${label} details`} />}
+        >
+          {row}
+        </TooltipTrigger>
+        <TooltipContent className="max-w-72 dark">{hoverDetails}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   )
 }
 
@@ -306,7 +323,7 @@ function summaryRequest(snapshot: Snapshot) {
 }
 
 export const ReportSummary = React.memo(function ReportSummary({
-  alwaysDark = false,
+  alwaysDark = true,
   refreshKey,
   reportId: reportIdOverride,
   businessDate,
@@ -433,6 +450,19 @@ export const ReportSummary = React.memo(function ReportSummary({
     (total, item) => total + item.amountCentavos,
     0
   )
+  const populatedDeductions = deductionDefinitions
+    .map(({ id, label }) => ({
+      label,
+      amountCentavos: deduction(snapshot, id)?.amountCentavos ?? 0
+    }))
+    .filter(({ amountCentavos }) => amountCentavos > 0)
+  const populatedCashDenominations = snapshot.cashDenominations
+    .map((denomination) => ({
+      ...denomination,
+      quantity: cashCount(snapshot, denomination.id)?.quantity ?? 0
+    }))
+    .filter(({ quantity }) => quantity > 0)
+    .sort((a, b) => b.valueCentavos - a.valueCentavos)
   const cashOutEntriesCentavos = snapshot.cashOutEntries
     .filter((item) => item.status === 'POSTED')
     .reduce((total, item) => total + item.amountCentavos, 0)
@@ -519,11 +549,11 @@ export const ReportSummary = React.memo(function ReportSummary({
     <>
       <aside
         className={cn(
-          'flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/20',
+          'flex min-h-0 flex-1 flex-col overflow-hidden bg-sidebar text-sidebar-foreground',
           alwaysDark && 'dark'
         )}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-border bg-muted/55 px-3 py-1.5">
+        <header className="flex shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar px-3 py-1.5">
           <div className="min-w-0">
             <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
               Daily Cashier Report
@@ -695,7 +725,22 @@ export const ReportSummary = React.memo(function ReportSummary({
               <SummaryRow label="Drawings" value={expenseTotals.drawingsCentavos} />
               <SummaryRow label="Purchases" value={expenseTotals.purchasesCentavos} />
               <SummaryRow label="Receivables" value={expenseTotals.receivablesCentavos} />
-              <SummaryRow label="Deductions" value={deductionCentavos} />
+              <SummaryRow
+                label="Deductions"
+                value={deductionCentavos}
+                hoverDetails={
+                  populatedDeductions.length > 0 && (
+                    <div className="grid min-w-56 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
+                      {populatedDeductions.map(({ label, amountCentavos }) => (
+                        <React.Fragment key={label}>
+                          <span className="min-w-0 truncate text-muted-foreground">{label}</span>
+                          <span className="text-right tabular-nums">{money(amountCentavos)}</span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )
+                }
+              />
               <SummaryRow label="Total Cash Out" value={cashOutCentavos} emphasis />
               <SummaryRow label="Bank Check" value={paymentTotals.bankCheck} />
               <SummaryRow label="Bank Transfer" value={paymentTotals.bankTransfer} />
@@ -706,23 +751,31 @@ export const ReportSummary = React.memo(function ReportSummary({
           </div>
         </ScrollArea>
 
-        <div className="shrink-0 bg-background px-3 py-1">
+        <div className="shrink-0 border-t border-sidebar-border bg-sidebar px-3 py-1">
           <SummaryRow label="Expected Cash" value={snapshot.expectedCashCentavos} emphasis />
-          <SummaryRow label="Cash Denominations" value={snapshot.physicalCashCentavos} />
-          <div className="flex min-h-9 items-center justify-between gap-3 text-xs">
-            <span className="text-muted-foreground">Cash Remitted</span>
-            <AmountInput
-              label="Cash Remitted"
-              value={snapshot.report.cashRemittedCentavos ?? 0}
-              onChange={(cashRemittedCentavos) =>
-                save({
-                  ...snapshot,
-                  report: { ...snapshot.report, cashRemittedCentavos }
-                })
-              }
-              className="w-28"
-            />
-          </div>
+          <SummaryRow
+            label="Cash Denominations"
+            value={snapshot.physicalCashCentavos}
+            hoverDetails={
+              populatedCashDenominations.length > 0 && (
+                <div className="grid min-w-56 grid-cols-[1fr_2rem_1fr] gap-x-3 gap-y-1 text-xs">
+                  <span className="text-muted-foreground">Value</span>
+                  <span className="text-right text-muted-foreground">Qty</span>
+                  <span className="text-right text-muted-foreground">Total</span>
+                  {populatedCashDenominations.map(({ id, valueCentavos, quantity }) => (
+                    <React.Fragment key={id}>
+                      <span>{money(valueCentavos)}</span>
+                      <span className="text-right tabular-nums">{quantity}</span>
+                      <span className="text-right tabular-nums">
+                        {money(valueCentavos * quantity)}
+                      </span>
+                    </React.Fragment>
+                  ))}
+                </div>
+              )
+            }
+          />
+          <SummaryRow label="Cash Remitted" value={0} />
           <div
             className={cn(
               'mt-2 border-t py-2',

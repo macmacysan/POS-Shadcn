@@ -57,6 +57,7 @@ import {
   type BranchName
 } from '@/lib/in-house-accounts'
 import { formatHistoryDate, formatHistoryMoney } from '@/lib/installment-history'
+import { useNotifications } from '@/hooks/use-notifications'
 import {
   useInstallmentData,
   type PersistedInstallmentRow
@@ -237,12 +238,15 @@ export function StatusAccountsContent({
     pageSize: 25
   })
   const [isFormOpen, setIsFormOpen] = React.useState(false)
+  const [isFormDirty, setIsFormDirty] = React.useState(false)
+  const [isDiscardConfirmationOpen, setIsDiscardConfirmationOpen] = React.useState(false)
   const [isInspectorOpen, setIsInspectorOpen] = React.useState(true)
   const [transition, setTransition] = React.useState<Transition>()
   const [remarks, setRemarks] = React.useState('')
   const [transitionError, setTransitionError] = React.useState<string>()
   const [isTransitionSubmitting, setIsTransitionSubmitting] = React.useState(false)
   const isSheet = useMediaQuery('(max-width: 1099px)')
+  const { notify } = useNotifications()
 
   const filteredRows = React.useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -337,7 +341,17 @@ export function StatusAccountsContent({
     localStorage.setItem(inHouseAccountsStorageKey, JSON.stringify([...existingAccounts, account]))
     localStorage.setItem(inHouseLoansStorageKey, JSON.stringify([...existingLoans, loan]))
     setIsFormOpen(false)
-    reload()
+    setIsFormDirty(false)
+    await reload()
+    notify({ type: 'success', title: 'Account and loan created.' })
+  }
+
+  const requestFormClose = (): void => {
+    if (isFormDirty) {
+      setIsDiscardConfirmationOpen(true)
+      return
+    }
+    setIsFormOpen(false)
   }
 
   const actionItems = React.useCallback(
@@ -415,85 +429,71 @@ export function StatusAccountsContent({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden p-3">
-      <div
-        className={cn(
-          'grid h-full min-h-0 w-full min-w-0 gap-3',
-          isFormOpen
-            ? 'grid-cols-1'
-            : 'grid-cols-[minmax(0,1fr)_clamp(20rem,24vw,24rem)] max-[1099px]:grid-cols-1'
-        )}
-      >
-        {isFormOpen ? (
-          <Card className="mx-auto flex min-h-0 w-full max-w-5xl flex-col">
-            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-              <InHouseAccountForm
-                accounts={rows.map((row) => row.account)}
-                onSave={(payload) => void saveNewAccount(payload)}
-                onCancel={() => setIsFormOpen(false)}
+      <div className="grid h-full min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_clamp(20rem,24vw,24rem)] gap-3 max-[1099px]:grid-cols-1">
+        <Card className="flex min-h-0 min-w-0 flex-col">
+          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+            <TableToolbar className="px-3">
+              <ReuiFilters
+                filters={filters}
+                fields={filterFields}
+                onChange={handleFiltersChange}
+                className="min-w-0 flex-1"
               />
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            <Card className="flex min-h-0 min-w-0 flex-col">
-              <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-                <TableToolbar className="px-3">
-                  <ReuiFilters
-                    filters={filters}
-                    fields={filterFields}
-                    onChange={handleFiltersChange}
-                    className="min-w-0 flex-1"
-                  />
-                  {view === 'records' && (
-                    <Button type="button" size="sm" onClick={() => setIsFormOpen(true)}>
-                      <Plus data-icon="inline-start" />
-                      Add Account
-                    </Button>
-                  )}
-                </TableToolbar>
-                <UniversalDataTable
-                  table={table}
-                  recordCount={filteredRows.length}
-                  isLoading={isLoading}
-                  error={error}
-                  onRetry={() => void reload()}
-                  emptyMessage={`No ${view} installment records found.`}
-                  onRowClick={(row) => setSelectedId(row.contractId)}
-                  onRowDoubleClick={(row) => setSelectedId(row.contractId)}
-                  paginationSizes={[25, 50, 100]}
-                  paginationInfo="Showing {from}-{to} of {count} records"
-                  tableLayout={{ columnsResizable: true }}
-                />
-              </CardContent>
-            </Card>
-            {!isSheet && isInspectorOpen && (
-              <Card className="flex min-h-0 min-w-0 flex-col">
-                <InHouseAccountInspector
-                  account={selected?.account}
-                  meta={selected?.meta}
-                  onRecordPayment={
-                    onOpenPaymentWorkspace &&
-                    selected?.contractStatus === 'ACTIVE' &&
-                    selected.accountStatus === 'ACTIVE'
-                      ? (account) => onOpenPaymentWorkspace(account.id, 'schedule', view)
-                      : undefined
-                  }
-                  onViewLedger={
-                    onOpenPaymentWorkspace
-                      ? (account) => onOpenPaymentWorkspace(account.id, 'ledger', view)
-                      : undefined
-                  }
-                  onClose={() => {
-                    setSelectedId(undefined)
-                    setIsInspectorOpen(false)
+              {view === 'records' && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setIsFormDirty(false)
+                    setIsFormOpen(true)
                   }}
-                />
-              </Card>
-            )}
-          </>
+                >
+                  <Plus data-icon="inline-start" />
+                  Add Account
+                </Button>
+              )}
+            </TableToolbar>
+            <UniversalDataTable
+              table={table}
+              recordCount={filteredRows.length}
+              isLoading={isLoading}
+              error={error}
+              onRetry={() => void reload()}
+              emptyMessage={`No ${view} installment records found.`}
+              onRowClick={(row) => setSelectedId(row.contractId)}
+              onRowDoubleClick={(row) => setSelectedId(row.contractId)}
+              paginationSizes={[25, 50, 100]}
+              paginationInfo="Showing {from}-{to} of {count} records"
+              tableLayout={{ columnsResizable: true }}
+            />
+          </CardContent>
+        </Card>
+        {!isSheet && isInspectorOpen && (
+          <Card className="flex min-h-0 min-w-0 flex-col">
+            <InHouseAccountInspector
+              account={selected?.account}
+              meta={selected?.meta}
+              onRecordPayment={
+                onOpenPaymentWorkspace &&
+                selected?.contractStatus === 'ACTIVE' &&
+                selected.accountStatus === 'ACTIVE'
+                  ? (account) => onOpenPaymentWorkspace(account.id, 'schedule', view)
+                  : undefined
+              }
+              onViewLedger={
+                onOpenPaymentWorkspace
+                  ? (account) => onOpenPaymentWorkspace(account.id, 'ledger', view)
+                  : undefined
+              }
+              onClose={() => {
+                setSelectedId(undefined)
+                setIsInspectorOpen(false)
+              }}
+            />
+          </Card>
         )}
       </div>
-      {!isFormOpen && isSheet && (
+      {isSheet && (
         <Sheet
           open={Boolean(selectedId)}
           onOpenChange={(open) => !open && setSelectedId(undefined)}
@@ -528,6 +528,54 @@ export function StatusAccountsContent({
           </SheetContent>
         </Sheet>
       )}
+      <Dialog
+        open={isFormOpen}
+        onOpenChange={(open) => (open ? setIsFormOpen(true) : requestFormClose())}
+      >
+        <DialogContent className="flex h-[min(48rem,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
+          <DialogHeader className="shrink-0 border-b px-6 py-5 pr-12">
+            <DialogTitle>Add Account &amp; Loan</DialogTitle>
+            <DialogDescription>
+              Create a new customer account and its initial loan in one entry.
+            </DialogDescription>
+          </DialogHeader>
+          <InHouseAccountForm
+            onSave={saveNewAccount}
+            onCancel={requestFormClose}
+            onDirtyChange={setIsFormDirty}
+          />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isDiscardConfirmationOpen} onOpenChange={setIsDiscardConfirmationOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Discard account draft?</DialogTitle>
+            <DialogDescription>
+              Your entered account and loan details will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDiscardConfirmationOpen(false)}
+            >
+              Keep editing
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setIsDiscardConfirmationOpen(false)
+                setIsFormDirty(false)
+                setIsFormOpen(false)
+              }}
+            >
+              Discard draft
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={Boolean(transition)} onOpenChange={(open) => !open && setTransition(undefined)}>
         <DialogContent>
           <DialogHeader>

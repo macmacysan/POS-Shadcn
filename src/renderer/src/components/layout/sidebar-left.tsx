@@ -25,6 +25,8 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReceiptNamesSettings } from '@/components/layout/receipt-names-settings'
 import { CatalogOptionsSettings } from '@/components/layout/catalog-options-settings'
 
@@ -108,6 +110,24 @@ export function SidebarLeft({
   isAdmin: boolean
 }): React.JSX.Element {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false)
+  const [summaryAlwaysDarkDraft, setSummaryAlwaysDarkDraft] = React.useState(summaryAlwaysDark)
+  const [settingsSection, setSettingsSection] = React.useState('workspace')
+  const hasUnsavedChanges = summaryAlwaysDarkDraft !== summaryAlwaysDark
+
+  const setSettingsOpen = (open: boolean): void => {
+    setIsSettingsOpen(open)
+    if (open) {
+      setSummaryAlwaysDarkDraft(summaryAlwaysDark)
+      setSettingsSection('workspace')
+    } else {
+      setSummaryAlwaysDarkDraft(summaryAlwaysDark)
+    }
+  }
+
+  const saveSettings = (): void => {
+    onSummaryAlwaysDarkChange(summaryAlwaysDarkDraft)
+    setIsSettingsOpen(false)
+  }
 
   return (
     <Sidebar
@@ -199,7 +219,7 @@ export function SidebarLeft({
             item.title === 'Settings'
               ? {
                   ...item,
-                  onClick: () => setIsSettingsOpen(true)
+                  onClick: () => setSettingsOpen(true)
                 }
               : item.title === 'Dark mode'
                 ? {
@@ -214,30 +234,87 @@ export function SidebarLeft({
           className="mt-auto"
         />
       </SidebarContent>
-      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-        <DialogContent className="max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
+      <Dialog open={isSettingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="h-[min(42rem,calc(100dvh-4rem))] max-h-[calc(100dvh-4rem)] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+          <DialogHeader className="shrink-0 px-6 py-5 pr-12">
             <DialogTitle>Settings</DialogTitle>
-            <DialogDescription>Customize the cashier report workspace.</DialogDescription>
+            <DialogDescription>
+              Manage workspace preferences and operational configuration.
+            </DialogDescription>
           </DialogHeader>
-          <Label className="items-start gap-3">
-            <Checkbox
-              checked={summaryAlwaysDark}
-              onCheckedChange={(checked) => onSummaryAlwaysDarkChange(checked === true)}
-              aria-label="Sidebar Summary always Dark Mode"
-            />
-            <span className="flex flex-col gap-1">
-              <span>Sidebar Summary always Dark Mode</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                Keep Today&apos;s Summary dark even when the app uses light mode.
+          <Tabs
+            orientation="vertical"
+            value={settingsSection}
+            onValueChange={setSettingsSection}
+            className="min-h-0 flex-1 gap-0"
+          >
+            <TabsList
+              variant="line"
+              className="h-full w-44 shrink-0 items-stretch gap-1 rounded-none border-r bg-muted/20 p-3"
+            >
+              <TabsTrigger value="workspace" className="h-auto flex-none px-3 py-2 text-left">
+                Workspace
+              </TabsTrigger>
+              {isAdmin && (
+                <TabsTrigger
+                  value="administration"
+                  className="h-auto flex-none px-3 py-2 text-left"
+                >
+                  Administration
+                </TabsTrigger>
+              )}
+            </TabsList>
+            <TabsContent value="workspace" className="min-h-0 overflow-y-auto p-6">
+              <section className="flex max-w-xl flex-col gap-4">
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium tracking-tight">Workspace appearance</p>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Personal preferences apply only to this workstation.
+                  </p>
+                </div>
+                <Label className="items-start gap-3 rounded-lg border p-4">
+                  <Checkbox
+                    checked={summaryAlwaysDarkDraft}
+                    onCheckedChange={(checked) => setSummaryAlwaysDarkDraft(checked === true)}
+                    aria-label="Sidebar Summary always Dark Mode"
+                  />
+                  <span className="flex flex-col gap-1">
+                    <span>Sidebar Summary always Dark Mode</span>
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Keep Today&apos;s Summary dark even when the app uses light mode.
+                    </span>
+                  </span>
+                </Label>
+              </section>
+            </TabsContent>
+            {isAdmin && (
+              <TabsContent value="administration" className="min-h-0 overflow-y-auto p-6">
+                <section className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium tracking-tight">Operational configuration</p>
+                    <Badge variant="secondary">Admin only</Badge>
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Changes take effect immediately for future reports and accounts. Retired values
+                    stay on existing records.
+                  </p>
+                </section>
+                <ReceiptNamesSettings />
+                <CatalogOptionsSettings />
+              </TabsContent>
+            )}
+          </Tabs>
+          <DialogFooter className="mx-0 mb-0 shrink-0 bg-muted/30 px-6 py-4">
+            {hasUnsavedChanges && (
+              <span className="mr-auto text-xs text-muted-foreground" aria-live="polite">
+                Unsaved changes
               </span>
-            </span>
-          </Label>
-          {isAdmin && <ReceiptNamesSettings />}
-          {isAdmin && <CatalogOptionsSettings />}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsSettingsOpen(false)}>
-              Done
+            )}
+            <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={saveSettings} disabled={!hasUnsavedChanges}>
+              Save changes
             </Button>
           </DialogFooter>
         </DialogContent>
