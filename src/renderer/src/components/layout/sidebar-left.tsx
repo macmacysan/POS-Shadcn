@@ -141,7 +141,7 @@ export function SidebarLeft({
     <Sidebar
       {...props}
       collapsible="none"
-      className="sidebar-always-dark border-r border-sidebar-border"
+      className="sidebar-always-dark"
       style={{ '--sidebar-width': '13rem' } as React.CSSProperties}
     >
       <SidebarHeader className="gap-3 border-sidebar-border px-2.5 py-3">
