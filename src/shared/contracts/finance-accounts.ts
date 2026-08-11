@@ -44,6 +44,10 @@ export const financeAccountCreateRequestSchema = financeAccountInputSchema
 export const financeAccountUpdateRequestSchema = financeAccountInputSchema.extend({
   id: z.string().uuid()
 })
+export const financeAccountDeleteRequestSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100),
+  password: z.string().min(1).max(200)
+})
 export const financeAccountListRequestSchema = z.object({
   search: z.string().trim().max(200).default(''),
   branch: z.enum(financeBranchValues).optional()
@@ -53,6 +57,7 @@ export type FinanceAccountInput = z.infer<typeof financeAccountInputSchema>
 export type FinanceItemInput = z.infer<typeof financeItemInputSchema>
 export type FinanceAccountCreateRequest = z.infer<typeof financeAccountCreateRequestSchema>
 export type FinanceAccountUpdateRequest = z.infer<typeof financeAccountUpdateRequestSchema>
+export type FinanceAccountDeleteRequest = z.infer<typeof financeAccountDeleteRequestSchema>
 export type FinanceAccountListRequest = z.infer<typeof financeAccountListRequestSchema>
 export type FinanceAccountRecord = Omit<FinanceAccountInput, 'items'> & {
   items: FinanceItemRecord[]
@@ -71,7 +76,8 @@ export type FinanceAccountListResult = { rows: FinanceAccountRecord[] }
 export const financeAccountIpcChannels = {
   list: 'finance-accounts:list',
   create: 'finance-accounts:create',
-  update: 'finance-accounts:update'
+  update: 'finance-accounts:update',
+  delete: 'finance-accounts:delete'
 } as const
 
 export type FinanceAccountsApi = {
@@ -79,5 +85,6 @@ export type FinanceAccountsApi = {
     list(request: FinanceAccountListRequest): Promise<FinanceAccountListResult>
     create(request: FinanceAccountCreateRequest): Promise<FinanceAccountRecord>
     update(request: FinanceAccountUpdateRequest): Promise<FinanceAccountRecord>
+    delete(request: FinanceAccountDeleteRequest): Promise<void>
   }
 }

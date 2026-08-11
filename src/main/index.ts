@@ -37,7 +37,7 @@ let database: ReturnType<typeof openDatabase> | undefined
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
+    width: 1200,
     height: 670,
     show: false,
     autoHideMenuBar: true,
@@ -52,7 +52,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.maximize()
+    //mainWindow.maximize()
     mainWindow.show()
   })
   mainWindow.on('maximize', () => {
@@ -116,8 +116,11 @@ app.whenReady().then(() => {
     registerReportIpc(new ReportService(new ReportRepository(database), authService))
     registerDailyReportIpc(new DailyReportService(new DailyReportRepository(database), authService))
     registerDashboardIpc(new DashboardService(new DashboardRepository(database), authService))
-    registerInstallmentIpc(new InstallmentService(new InstallmentRepository(database)))
-    registerFinanceAccountIpc(new FinanceAccountService(new FinanceAccountRepository(database)))
+    registerInstallmentIpc(new InstallmentService(new InstallmentRepository(database)), authService)
+    registerFinanceAccountIpc(
+      new FinanceAccountService(new FinanceAccountRepository(database)),
+      authService
+    )
     registerWindowIpc()
   } catch (error) {
     console.error('Database initialization failed.', error)

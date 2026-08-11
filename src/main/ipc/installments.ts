@@ -4,6 +4,7 @@ import {
   installmentBootstrapRequestSchema,
   installmentAdjustPaymentRequestSchema,
   installmentCreatePaymentRequestSchema,
+  installmentDeleteRequestSchema,
   installmentIpcChannels,
   installmentListRequestSchema,
   installmentPaymentWorkspaceRequestSchema,
@@ -12,12 +13,13 @@ import {
 } from '../../shared/contracts'
 import { toIpcError } from '../database/errors'
 import { InstallmentService } from '../services/installment-service'
+import { AuthService } from '../services/auth-service'
 
 function rethrowIpcError(error: unknown): never {
   throw toIpcError(error)
 }
 
-export function registerInstallmentIpc(service: InstallmentService): void {
+export function registerInstallmentIpc(service: InstallmentService, authService: AuthService): void {
   ipcMain.handle(installmentIpcChannels.list, (_event, input: unknown) => {
     try {
       return service.list(installmentListRequestSchema.parse(input))
@@ -45,6 +47,15 @@ export function registerInstallmentIpc(service: InstallmentService): void {
   ipcMain.handle(installmentIpcChannels.blacklistAccount, (_event, input: unknown) => {
     try {
       service.blacklistAccount(installmentTransitionRequestSchema.parse(input))
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+  ipcMain.handle(installmentIpcChannels.delete, (_event, input: unknown) => {
+    try {
+      const request = installmentDeleteRequestSchema.parse(input)
+      const user = authService.confirmAdminPassword(request.password)
+      service.delete(request, user.id)
     } catch (error) {
       return rethrowIpcError(error)
     }

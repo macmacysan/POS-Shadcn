@@ -6,7 +6,9 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type OnChangeFn,
   type PaginationState,
+  type RowSelectionState,
   type SortingState
 } from '@tanstack/react-table'
 
@@ -35,11 +37,14 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import {
   createRowActionsColumn,
+  createRowSelectionColumn,
   type RowActionItem
 } from '@/components/shared/data-table/row-actions'
 import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
 import { AccountBranchBadge } from '@/features/in-house-accounts/components/account-badges'
+import { useNotifications } from '@/hooks/use-notifications'
 import { calculateFinanceAmounts } from '../../../../../shared/finance-calculations'
 import {
   financeAccountInputSchema,
@@ -338,6 +343,16 @@ export function FinanceAccountsContent({
   })
   const [editing, setEditing] = React.useState<FinanceAccountRecord>()
   const [isCreating, setIsCreating] = React.useState(false)
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = React.useState(false)
+  const { notify } = useNotifications()
+  const handleRowSelectionChange = React.useCallback<OnChangeFn<RowSelectionState>>((updater) => {
+    setRowSelection((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater
+      if (Object.keys(next).length > 0) setIsDeleteConfirmationOpen(true)
+      return next
+    })
+  }, [])
 
   const reload = React.useCallback(async (): Promise<void> => {
     setIsLoading(true)
@@ -393,6 +408,7 @@ export function FinanceAccountsContent({
   )
   const columns = React.useMemo(
     () => [
+      createRowSelectionColumn<FinanceTableRow>(),
       ...financeColumns(),
       createRowActionsColumn<FinanceTableRow>({
         label: 'Open finance account actions',
@@ -405,7 +421,9 @@ export function FinanceAccountsContent({
   const table = useReactTable({
     data: filteredRows,
     columns,
-    state: { sorting, pagination },
+    state: { sorting, pagination, rowSelection },
+    enableRowSelection: true,
+    onRowSelectionChange: handleRowSelectionChange,
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
@@ -413,6 +431,17 @@ export function FinanceAccountsContent({
     getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => `${row.account.id}:${row.id}`
   })
+  const selectedAccountIds = React.useMemo(
+    () =>
+      [
+        ...new Set(
+          filteredRows
+            .filter((row) => rowSelection[`${row.account.id}:${row.id}`])
+            .map((row) => row.account.id)
+        )
+      ],
+    [filteredRows, rowSelection]
+  )
   const closeForm = (): void => {
     setIsCreating(false)
     setEditing(undefined)
@@ -434,6 +463,17 @@ export function FinanceAccountsContent({
               <Plus data-icon="inline-start" />
               Add Finance Account
             </Button>
+            {selectedAccountIds.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                onClick={() => setIsDeleteConfirmationOpen(true)}
+              >
+                <Trash2 data-icon="inline-start" />
+                Delete {selectedAccountIds.length} selected
+              </Button>
+            )}
           </TableToolbar>
           <UniversalDataTable
             table={table}
@@ -456,6 +496,18 @@ export function FinanceAccountsContent({
         onSaved={() => {
           closeForm()
           void reload()
+        }}
+      />
+      <AdminPasswordConfirmationDialog
+        open={isDeleteConfirmationOpen}
+        title={`Delete ${selectedAccountIds.length} selected finance account${selectedAccountIds.length === 1 ? '' : 's'}?`}
+        description="This permanently deletes the selected finance accounts and their items."
+        onOpenChange={setIsDeleteConfirmationOpen}
+        onConfirm={async (password) => {
+          await window.api.financeAccounts.delete({ ids: selectedAccountIds, password })
+          setRowSelection({})
+          await reload()
+          notify({ type: 'success', title: 'Selected finance accounts deleted.' })
         }}
       />
     </div>

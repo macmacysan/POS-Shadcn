@@ -2,6 +2,7 @@ import type {
   InstallmentAdjustPaymentRequest,
   InstallmentBootstrapRequest,
   InstallmentCreatePaymentRequest,
+  InstallmentDeleteRequest,
   InstallmentListRequest,
   InstallmentListResult,
   InstallmentPaymentWorkspace,
@@ -29,6 +30,9 @@ export class InstallmentService {
 
   blacklistAccount(request: InstallmentTransitionRequest): void {
     this.repository.blacklistAccount(request)
+  }
+  delete(request: Pick<InstallmentDeleteRequest, 'contractIds'>, actorUserId: string): void {
+    this.repository.voidContracts(request.contractIds, actorUserId)
   }
 
   getPaymentWorkspace(request: InstallmentPaymentWorkspaceRequest): InstallmentPaymentWorkspace {

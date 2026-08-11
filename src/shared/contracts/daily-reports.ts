@@ -4,6 +4,7 @@ import { z } from 'zod'
 // UUIDs, but the transition boundary must continue to resolve legacy identifiers safely.
 const uuidSchema = z.string().trim().min(1).max(100)
 const businessDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+const calendarMonthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/)
 const isoTimestampSchema = z.string().datetime()
 const centavosSchema = z.number().int().safe()
 const positiveCentavosSchema = centavosSchema.positive()
@@ -30,6 +31,12 @@ export const dailyReportResolveActiveRequestSchema = z.object({
   openingCashCentavos: centavosSchema.nonnegative().optional()
 })
 
+export const dailyReportCalendarRequestSchema = z.object({
+  branchId: uuidSchema,
+  cashierUserId: uuidSchema,
+  month: calendarMonthSchema
+})
+
 export const dailyReportRecordSchema = z.object({
   id: uuidSchema,
   branchId: uuidSchema,
@@ -45,6 +52,15 @@ export const dailyReportRecordSchema = z.object({
   updatedAt: isoTimestampSchema
 })
 export const dailyReportResolveActiveResponseSchema = dailyReportRecordSchema
+export const dailyReportCalendarDaySchema = z.object({
+  businessDate: businessDateSchema,
+  status: dailyReportStatusSchema,
+  cashVarianceCentavos: centavosSchema,
+  noteCount: z.number().int().nonnegative()
+})
+export const dailyReportCalendarResponseSchema = z.object({
+  rows: z.array(dailyReportCalendarDaySchema)
+})
 
 export const incomeCategoryRecordSchema = z.object({
   id: uuidSchema,
@@ -281,6 +297,9 @@ export type DailyReportRecord = z.infer<typeof dailyReportRecordSchema>
 export type DailyReportResolveActiveResponse = z.infer<
   typeof dailyReportResolveActiveResponseSchema
 >
+export type DailyReportCalendarRequest = z.infer<typeof dailyReportCalendarRequestSchema>
+export type DailyReportCalendarDay = z.infer<typeof dailyReportCalendarDaySchema>
+export type DailyReportCalendarResponse = z.infer<typeof dailyReportCalendarResponseSchema>
 export type IncomeCategoryRecord = z.infer<typeof incomeCategoryRecordSchema>
 export type IncomeEntryRecord = z.infer<typeof incomeEntryRecordSchema>
 export type IncomeListRequest = z.infer<typeof incomeListRequestSchema>
@@ -337,6 +356,7 @@ export type DailyReportSummaryUpdateResponse = z.infer<
 
 export const dailyReportIpcChannels = {
   resolveActive: 'daily-reports:resolve-active',
+  listCalendar: 'daily-reports:calendar:list',
   getSnapshot: 'daily-reports:get-snapshot',
   updateSummary: 'daily-reports:summary:update',
   listIncome: 'daily-reports:income:list',
@@ -358,6 +378,7 @@ export type DailyReportsApi = {
     resolveActive(
       request: DailyReportResolveActiveRequest
     ): Promise<DailyReportResolveActiveResponse>
+    listCalendar(request: DailyReportCalendarRequest): Promise<DailyReportCalendarResponse>
     getSnapshot(request: DailyReportSnapshotRequest): Promise<DailyReportSnapshotResponse>
     updateSummary(
       request: DailyReportSummaryUpdateRequest

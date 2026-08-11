@@ -1,5 +1,7 @@
 import type {
   AuthenticatedUser,
+  DailyReportCalendarRequest,
+  DailyReportCalendarResponse,
   DailyReportPaymentCreateRequest,
   DailyReportPaymentListRequest,
   DailyReportPaymentUpdateRequest,
@@ -34,6 +36,20 @@ export class DailyReportService {
       branchId,
       cashierUserId: user.role === 'ADMIN' ? request.cashierUserId : user.id
     })
+  }
+
+  listCalendar(request: DailyReportCalendarRequest): DailyReportCalendarResponse {
+    const user = this.auth.requireSession()
+    const branchId =
+      user.role === 'ADMIN' ? request.branchId : this.repository.branchIdForUser(user.id)
+    if (!branchId) throw new AppError('FORBIDDEN', 'Your account is not assigned to a branch.')
+    return {
+      rows: this.repository.listCalendar({
+        ...request,
+        branchId,
+        cashierUserId: user.role === 'ADMIN' ? request.cashierUserId : user.id
+      })
+    }
   }
 
   getSnapshot(request: DailyReportSnapshotRequest) {

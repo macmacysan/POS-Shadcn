@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 
 import {
   dailyReportIpcChannels,
+  dailyReportCalendarRequestSchema,
   dailyReportPaymentCreateRequestSchema,
   dailyReportPaymentListRequestSchema,
   dailyReportPaymentUpdateRequestSchema,
@@ -39,6 +40,9 @@ export function registerDailyReportIpc(service: DailyReportService): void {
     dailyReportIpcChannels.resolveActive,
     dailyReportResolveActiveRequestSchema.parse,
     (input) => service.resolveActive(input)
+  )
+  handle(dailyReportIpcChannels.listCalendar, dailyReportCalendarRequestSchema.parse, (input) =>
+    service.listCalendar(input)
   )
   handle(dailyReportIpcChannels.getSnapshot, dailyReportSnapshotRequestSchema.parse, (input) =>
     service.getSnapshot(input)

@@ -4,6 +4,7 @@ import type { ColumnDef, RowData } from '@tanstack/react-table'
 import { MoreHorizontal } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,30 @@ export type RowActionItem = {
   disabled?: boolean
   requiresConfirmation?: boolean
   confirmationMessage?: string
+}
+
+export function createRowSelectionColumn<TData extends RowData>(): ColumnDef<TData> {
+  return {
+    id: 'select',
+    enableSorting: false,
+    enableColumnFilter: false,
+    enableHiding: false,
+    size: 42,
+    header: 'Select all',
+    cell: ({ row }) => (
+      <div onClick={(event) => event.stopPropagation()}>
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      </div>
+    ),
+    meta: {
+      headerClassName: 'w-[42px]',
+      cellClassName: 'w-[42px]'
+    }
+  }
 }
 
 type RowActionsProps = {

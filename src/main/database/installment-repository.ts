@@ -141,7 +141,7 @@ export class InstallmentRepository {
   constructor(private readonly db: Database.Database) {}
 
   list(request: InstallmentListRequest): { rows: InstallmentAccountRecord[] } {
-    const where = ['1 = 1']
+    const where = ["c.status != 'VOIDED'"]
     const params: Record<string, string> = {}
     if (request.view === 'active') {
       where.push("c.status = 'ACTIVE'", "a.status = 'ACTIVE'")
@@ -460,6 +460,36 @@ export class InstallmentRepository {
       )
     })
     transition()
+  }
+
+  voidContracts(contractIds: readonly string[], actorUserId: string): void {
+    const now = new Date().toISOString()
+    const remove = this.db.transaction(() => {
+      const findContract = this.db.prepare('SELECT status FROM installment_contracts WHERE id = ?')
+      const voidContract = this.db.prepare(
+        `UPDATE installment_contracts
+            SET status = 'VOIDED', closed_at = ?, closed_by_user_id = ?,
+                close_reason = 'Deleted by administrator', updated_at = ?
+          WHERE id = ?`
+      )
+      for (const contractId of contractIds) {
+        const contract = findContract.get(contractId) as { status: string } | undefined
+        if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
+        if (contract.status === 'VOIDED')
+          throw new AppError('CONFLICT', 'Installment contract was already deleted.')
+        voidContract.run(now, actorUserId, now, contractId)
+        this.writeAudit(
+          actorUserId,
+          'installment_contract',
+          contractId,
+          'Deleted by administrator',
+          contract.status,
+          'VOIDED',
+          now
+        )
+      }
+    })
+    remove()
   }
 
   getPaymentWorkspace(request: InstallmentPaymentWorkspaceRequest): InstallmentPaymentWorkspace {

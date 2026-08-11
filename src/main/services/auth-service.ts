@@ -20,4 +20,11 @@ export class AuthService {
     if (!this.session) throw new AppError('FORBIDDEN', 'Sign in is required.')
     return this.session
   }
+
+  confirmAdminPassword(password: string): AuthenticatedUser {
+    const user = this.requireSession()
+    if (user.role !== 'ADMIN') throw new AppError('FORBIDDEN', 'Only administrators can delete records.')
+    this.repository.verifyAdminPassword(user.id, password)
+    return user
+  }
 }

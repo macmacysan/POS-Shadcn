@@ -1,5 +1,6 @@
 import type {
   FinanceAccountCreateRequest,
+  FinanceAccountDeleteRequest,
   FinanceAccountListRequest,
   FinanceAccountListResult,
   FinanceAccountRecord,
@@ -20,5 +21,8 @@ export class FinanceAccountService {
 
   update(request: FinanceAccountUpdateRequest): FinanceAccountRecord {
     return this.repository.update(request)
+  }
+  delete(request: Pick<FinanceAccountDeleteRequest, 'ids'>): void {
+    this.repository.delete(request.ids)
   }
 }

@@ -39,7 +39,6 @@ import {
   type ReportRow
 } from '@/features/cashier-report/components/report-data-table'
 import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -71,13 +70,14 @@ import {
   InstallmentHistoryTable
 } from '@/features/installment-history'
 import type { RowActionItem } from '@/components/shared/data-table/row-actions'
-import { DateSelector, type DateSelectorValue } from '@/../../components/reui/date-selector'
+import type { DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { formatPhilippinePeso } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
+import { ReportDateDialog } from '@/features/cashier-report/components/report-date-dialog'
 import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hooks/use-expenses'
 import { useActiveReport } from '@/contexts/active-report-context'
 import {
@@ -276,19 +276,21 @@ function installmentHistoryRow(
 }
 
 function CashierReportHeader({
+  branchId,
+  cashierUserId,
   dateRange,
   isLoading,
   error,
   onDateRangeChange
 }: {
+  branchId: string
+  cashierUserId: string
   dateRange: DateSelectorValue
   isLoading: boolean
   error?: string
   onDateRangeChange: (value: DateSelectorValue) => void
 }): React.JSX.Element {
-  const [open, setOpen] = React.useState(false)
   const startDate = dateRange.startDate
-  const dateLabel = startDate ? format(startDate, 'EEEE, MMMM d, yyyy') : 'Select business date'
   const today = startOfDay(new Date())
   const selectedDay = startDate ? startOfDay(startDate) : undefined
   const selectDate = (date: Date): void =>
@@ -312,41 +314,13 @@ function CashierReportHeader({
         >
           <ChevronLeft aria-hidden="true" />
         </Button>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 min-w-0 justify-start gap-1.5 px-2 text-xs font-medium tabular-nums"
-                aria-label={`Change business date, ${dateLabel}`}
-                disabled={isLoading}
-              />
-            }
-          >
-            {isLoading ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <CalendarIcon data-icon="inline-start" />
-            )}
-            {startDate ? format(startDate, 'MMM d, yyyy') : 'Select date'}
-          </PopoverTrigger>
-          <PopoverContent className="w-auto overflow-hidden p-4" align="end">
-            <DateSelector
-              value={dateRange}
-              onChange={onDateRangeChange}
-              allowRange={false}
-              presetMode="is"
-              periodTypes={['day']}
-              showInput={false}
-              showTwoMonths={false}
-              minYear={2015}
-              maxYear={new Date().getFullYear()}
-              dayDateFormat="MMM d, yyyy"
-            />
-          </PopoverContent>
-        </Popover>
+        <ReportDateDialog
+          branchId={branchId}
+          cashierUserId={cashierUserId}
+          date={startDate}
+          disabled={isLoading}
+          onSelect={selectDate}
+        />
         <Button
           type="button"
           variant="ghost"
@@ -364,7 +338,8 @@ function CashierReportHeader({
 
 const entryTypeBadgeClasses: Record<'expense' | 'payment', Record<string, string>> = {
   expense: {
-    'Company Expenses': 'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
+    'Company Expenses':
+      'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
     Drawings: 'border-secondary bg-secondary text-secondary-foreground',
     Purchases: 'border-interactive-muted bg-interactive-muted text-interactive-muted-foreground',
     Receivables: 'border-status-info/25 bg-status-info/15 text-status-info-foreground',
@@ -374,7 +349,8 @@ const entryTypeBadgeClasses: Record<'expense' | 'payment', Record<string, string
   },
   payment: {
     'Bank Check': 'border-status-info/25 bg-status-info/15 text-status-info-foreground',
-    'Bank Transfer': 'border-interactive-muted bg-interactive-muted text-interactive-muted-foreground',
+    'Bank Transfer':
+      'border-interactive-muted bg-interactive-muted text-interactive-muted-foreground',
     GCash: 'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
     'Other e-wallet': 'border-secondary bg-secondary text-secondary-foreground'
   }
@@ -496,6 +472,12 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   }
 ]
 
+const compactExpenseColumns: ReportColumn<ExpenseRow>[] = [
+  expenseColumns[0],
+  expenseColumns[1],
+  expenseColumns[5]
+]
+
 const branchColumn = {
   accessorKey: 'branch',
   header: 'Branch',
@@ -548,6 +530,8 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
   }
 ]
 
+const compactIncomeColumns: ReportColumn<IncomeRow>[] = [incomeColumns[1], incomeColumns[4]]
+
 const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'type',
@@ -592,6 +576,12 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     cell: ({ getValue }) => money(getValue<number>()),
     meta: { className: 'text-right font-light tabular-nums text-foreground' }
   }
+]
+
+const compactPaymentColumns: ReportColumn<PaymentRow>[] = [
+  paymentColumns[0],
+  paymentColumns[1],
+  paymentColumns[5]
 ]
 
 const paymentMethodByLabel: Record<string, string> = {
@@ -702,6 +692,7 @@ function paymentRowActions(
 
 function ReportTab({
   tab,
+  isCompact,
   showBranch,
   globalFilter,
   onGlobalFilterChange,
@@ -729,6 +720,7 @@ function ReportTab({
   onRetryHistory
 }: {
   tab: (typeof reportTabs)[number]
+  isCompact: boolean
   showBranch: boolean
   globalFilter: string
   onGlobalFilterChange: (value: string) => void
@@ -779,7 +771,13 @@ function ReportTab({
     case 'Expenses':
       return (
         <ReportDataTable
-          columns={showBranch ? [branchColumn, ...expenseColumns] : expenseColumns}
+          columns={
+            isCompact
+              ? compactExpenseColumns
+              : showBranch
+                ? [branchColumn, ...expenseColumns]
+                : expenseColumns
+          }
           data={expenseRows}
           filterPlaceholder="Filter expenses..."
           globalFilterValue={globalFilter}
@@ -801,7 +799,13 @@ function ReportTab({
     case 'Income':
       return (
         <ReportDataTable
-          columns={showBranch ? [branchColumn, ...incomeColumns] : incomeColumns}
+          columns={
+            isCompact
+              ? compactIncomeColumns
+              : showBranch
+                ? [branchColumn, ...incomeColumns]
+                : incomeColumns
+          }
           data={incomeRows}
           filterPlaceholder="Filter income..."
           globalFilterValue={globalFilter}
@@ -822,7 +826,13 @@ function ReportTab({
     case 'Payment':
       return (
         <ReportDataTable
-          columns={showBranch ? [branchColumn, ...paymentColumns] : paymentColumns}
+          columns={
+            isCompact
+              ? compactPaymentColumns
+              : showBranch
+                ? [branchColumn, ...paymentColumns]
+                : paymentColumns
+          }
           data={paymentRows}
           filterPlaceholder="Filter payments..."
           globalFilterValue={globalFilter}
@@ -1505,6 +1515,8 @@ export function CashierReportsContent({
           <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
               <CashierReportHeader
+                branchId={selectedReport.branchId}
+                cashierUserId={selectedReport.cashierUserId}
                 dateRange={dateRange}
                 isLoading={isDateLoading}
                 error={dateError}
@@ -1542,7 +1554,10 @@ export function CashierReportsContent({
                       >
                         <span>{tab === 'Activity' ? 'Installment History' : tab}</span>
                         {tabRowCounts[tab] > 0 && (
-                          <Badge variant="secondary" className="min-w-5 justify-center px-1 tabular-nums">
+                          <Badge
+                            variant="secondary"
+                            className="min-w-5 justify-center px-1 tabular-nums"
+                          >
                             {tabRowCounts[tab]}
                           </Badge>
                         )}
@@ -1558,6 +1573,7 @@ export function CashierReportsContent({
                       className="flex min-h-0 flex-1 flex-col overflow-hidden"
                     >
                       <ReportTab
+                        isCompact={isEntryFormCompact}
                         tab={tab}
                         showBranch={selectedBranch === 'All Branch'}
                         globalFilter={reportSearch}

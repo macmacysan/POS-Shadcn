@@ -49,6 +49,7 @@ const api: ExpensesApi &
   },
   dailyReports: {
     resolveActive: (request) => ipcRenderer.invoke(dailyReportIpcChannels.resolveActive, request),
+    listCalendar: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listCalendar, request),
     getSnapshot: (request) => ipcRenderer.invoke(dailyReportIpcChannels.getSnapshot, request),
     updateSummary: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateSummary, request),
     listIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listIncome, request),
@@ -88,6 +89,7 @@ const api: ExpensesApi &
     closeContract: (request) => ipcRenderer.invoke(installmentIpcChannels.closeContract, request),
     blacklistAccount: (request) =>
       ipcRenderer.invoke(installmentIpcChannels.blacklistAccount, request),
+    delete: (request) => ipcRenderer.invoke(installmentIpcChannels.delete, request),
     getPaymentWorkspace: (request) =>
       ipcRenderer.invoke(installmentIpcChannels.paymentWorkspace, request),
     listHistory: (request) => ipcRenderer.invoke(installmentIpcChannels.history, request),
@@ -97,7 +99,8 @@ const api: ExpensesApi &
   financeAccounts: {
     list: (request) => ipcRenderer.invoke(financeAccountIpcChannels.list, request),
     create: (request) => ipcRenderer.invoke(financeAccountIpcChannels.create, request),
-    update: (request) => ipcRenderer.invoke(financeAccountIpcChannels.update, request)
+    update: (request) => ipcRenderer.invoke(financeAccountIpcChannels.update, request),
+    delete: (request) => ipcRenderer.invoke(financeAccountIpcChannels.delete, request)
   }
 }
 

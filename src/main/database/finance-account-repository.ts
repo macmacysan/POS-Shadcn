@@ -63,6 +63,18 @@ export class FinanceAccountRepository {
     return this.getById(request.id)
   }
 
+  delete(ids: readonly string[]): void {
+    const remove = this.db.transaction(() => {
+      for (const id of ids) this.getById(id)
+      const placeholders = ids.map(() => '?').join(', ')
+      this.db
+        .prepare(`DELETE FROM finance_account_items WHERE finance_account_id IN (${placeholders})`)
+        .run(...ids)
+      this.db.prepare(`DELETE FROM finance_accounts WHERE id IN (${placeholders})`).run(...ids)
+    })
+    remove()
+  }
+
   private write(
     id: string,
     request: FinanceAccountCreateRequest | FinanceAccountUpdateRequest,

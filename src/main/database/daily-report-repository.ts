@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import type {
   CashOutEntryRecord,
   DailyReceiptTotalRecord,
+  DailyReportCalendarDay,
+  DailyReportCalendarRequest,
   DailyReportCashCountRecord,
   DailyReportDeductionRecord,
   DailyReportPaymentCreateRequest,
@@ -488,6 +490,34 @@ export class DailyReportRepository {
       )
       .get(branchId, cashierUserId, businessDate) as DailyReportRow | undefined
     return row ? reportRecord(row) : null
+  }
+
+  listCalendar(request: DailyReportCalendarRequest): DailyReportCalendarDay[] {
+    const monthStart = `${request.month}-01`
+    const reports = this.db
+      .prepare(
+        `SELECT * FROM daily_reports
+          WHERE branch_id = ?
+            AND cashier_user_id = ?
+            AND business_date >= ?
+            AND business_date < date(?, '+1 month')
+          ORDER BY business_date`
+      )
+      .all(request.branchId, request.cashierUserId, monthStart, monthStart) as DailyReportRow[]
+
+    return reports.map((row) => {
+      const report = reportRecord(row)
+      const snapshot = this.snapshot(report.id)
+      const noteCount = [...snapshot.incomeEntries, ...snapshot.paymentEntries].filter((entry) =>
+        Boolean(entry.remarks?.trim())
+      ).length
+      return {
+        businessDate: report.businessDate,
+        status: report.status,
+        cashVarianceCentavos: snapshot.cashVarianceCentavos,
+        noteCount
+      }
+    })
   }
 
   findById(id: string): DailyReportRecord | null {

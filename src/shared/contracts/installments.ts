@@ -23,6 +23,11 @@ export const installmentTransitionRequestSchema = z.object({
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
 })
 
+export const installmentDeleteRequestSchema = z.object({
+  contractIds: z.array(z.string().trim().min(1).max(100)).min(1).max(100),
+  password: z.string().min(1).max(200)
+})
+
 export const installmentPaymentWorkspaceRequestSchema = z.object({
   accountId: z.string().trim().min(1).max(100)
 })
@@ -64,6 +69,7 @@ export const installmentHistoryRequestSchema = z.object({
 export type InstallmentListRequest = z.infer<typeof installmentListRequestSchema>
 export type InstallmentBootstrapRequest = z.infer<typeof installmentBootstrapRequestSchema>
 export type InstallmentTransitionRequest = z.infer<typeof installmentTransitionRequestSchema>
+export type InstallmentDeleteRequest = z.infer<typeof installmentDeleteRequestSchema>
 export type InstallmentPaymentWorkspaceRequest = z.infer<
   typeof installmentPaymentWorkspaceRequestSchema
 >
@@ -210,6 +216,7 @@ export const installmentIpcChannels = {
   bootstrap: 'installments:bootstrap',
   closeContract: 'installments:close-contract',
   blacklistAccount: 'installments:blacklist-account',
+  delete: 'installments:delete',
   paymentWorkspace: 'installments:payment-workspace',
   history: 'installments:history',
   createPayment: 'installments:create-payment',
@@ -222,6 +229,7 @@ export type InstallmentsApi = {
     bootstrap(request: InstallmentBootstrapRequest): Promise<void>
     closeContract(request: InstallmentTransitionRequest): Promise<void>
     blacklistAccount(request: InstallmentTransitionRequest): Promise<void>
+    delete(request: InstallmentDeleteRequest): Promise<void>
     getPaymentWorkspace(
       request: InstallmentPaymentWorkspaceRequest
     ): Promise<InstallmentPaymentWorkspace>

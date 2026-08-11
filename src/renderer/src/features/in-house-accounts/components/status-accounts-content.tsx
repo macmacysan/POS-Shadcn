@@ -1,12 +1,14 @@
 import * as React from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type OnChangeFn,
   type PaginationState,
+  type RowSelectionState,
   type SortingState
 } from '@tanstack/react-table'
 
@@ -21,11 +23,13 @@ import {
 import { InHouseAccountInspector } from '@/features/in-house-accounts/components/account-inspector'
 import {
   createRowActionsColumn,
+  createRowSelectionColumn,
   type RowActionItem
 } from '@/components/shared/data-table/row-actions'
 import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { ReuiFilters } from '@/components/shared/data-table/reui-filters'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -236,6 +240,8 @@ export function StatusAccountsContent({
     pageIndex: 0,
     pageSize: 25
   })
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = React.useState(false)
   const [isFormOpen, setIsFormOpen] = React.useState(false)
   const [isFormDirty, setIsFormDirty] = React.useState(false)
   const [isDiscardConfirmationOpen, setIsDiscardConfirmationOpen] = React.useState(false)
@@ -246,6 +252,13 @@ export function StatusAccountsContent({
   const [isTransitionSubmitting, setIsTransitionSubmitting] = React.useState(false)
   const isSheet = useMediaQuery('(max-width: 1099px)')
   const { notify } = useNotifications()
+  const handleRowSelectionChange = React.useCallback<OnChangeFn<RowSelectionState>>((updater) => {
+    setRowSelection((current) => {
+      const next = typeof updater === 'function' ? updater(current) : updater
+      if (Object.keys(next).length > 0) setIsDeleteConfirmationOpen(true)
+      return next
+    })
+  }, [])
 
   const filteredRows = React.useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -404,6 +417,7 @@ export function StatusAccountsContent({
 
   const columns = React.useMemo(
     () => [
+      createRowSelectionColumn<PersistedInstallmentRow>(),
       ...statusColumns(view),
       createRowActionsColumn<PersistedInstallmentRow>({
         label: `Open ${view} account actions`,
@@ -416,8 +430,9 @@ export function StatusAccountsContent({
   const table = useReactTable({
     data: filteredRows,
     columns,
-    state: { sorting, pagination, rowSelection: selectedId ? { [selectedId]: true } : {} },
+    state: { sorting, pagination, rowSelection },
     enableRowSelection: true,
+    onRowSelectionChange: handleRowSelectionChange,
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
@@ -449,6 +464,17 @@ export function StatusAccountsContent({
                 >
                   <Plus data-icon="inline-start" />
                   Add Account
+                </Button>
+              )}
+              {Object.keys(rowSelection).length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setIsDeleteConfirmationOpen(true)}
+                >
+                  <Trash2 data-icon="inline-start" />
+                  Delete {Object.keys(rowSelection).length} selected
                 </Button>
               )}
             </TableToolbar>
@@ -609,6 +635,20 @@ export function StatusAccountsContent({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AdminPasswordConfirmationDialog
+        open={isDeleteConfirmationOpen}
+        title={`Delete ${Object.keys(rowSelection).length} selected account${Object.keys(rowSelection).length === 1 ? '' : 's'}?`}
+        description="This removes the selected accounts from the workspace. Their financial history is preserved."
+        onOpenChange={setIsDeleteConfirmationOpen}
+        onConfirm={async (password) => {
+          const contractIds = Object.keys(rowSelection)
+          await window.api.installments.delete({ contractIds, password })
+          setRowSelection({})
+          setSelectedId(undefined)
+          await reload()
+          notify({ type: 'success', title: 'Selected accounts deleted.' })
+        }}
+      />
       {!isInspectorOpen && !isSheet && (
         <Button
           type="button"

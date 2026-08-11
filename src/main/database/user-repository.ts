@@ -67,4 +67,13 @@ export class UserRepository {
       branch: request.branch
     }
   }
+
+  verifyAdminPassword(userId: string, password: string): void {
+    const user = this.db
+      .prepare('SELECT password_hash, role, is_active FROM users WHERE id = ?')
+      .get(userId) as { password_hash: string; role: UserRole; is_active: number } | undefined
+    if (!user || !user.is_active || user.role !== 'ADMIN' || !verifyPassword(password, user.password_hash)) {
+      throw new AppError('VALIDATION_ERROR', 'Invalid administrator password.')
+    }
+  }
 }
