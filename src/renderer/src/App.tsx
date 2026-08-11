@@ -9,6 +9,7 @@ import { InstallmentPaymentWorkspace } from '@/features/in-house-payments'
 import { DashboardContent } from '@/features/dashboard'
 import { InstallmentOverviewContent } from '@/features/installment-overview'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
+import { WindowTitleBar } from '@/components/layout/window-title-bar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ActiveReportProvider } from '@/contexts/active-report-context'
 import { NotificationProvider } from '@/contexts/notification-context'
@@ -163,7 +164,7 @@ function Workspace({
   }
 
   return (
-    <SidebarProvider className="h-svh min-h-0 overflow-hidden">
+    <SidebarProvider className="h-full min-h-0 overflow-hidden">
       <SidebarLeft
         activeView={activeView}
         isDark={isDark}
@@ -274,32 +275,37 @@ function App(): React.JSX.Element {
 
   return (
     <NotificationProvider>
-      <Toaster theme={isDark ? 'dark' : 'light'} />
-      {isLoggedIn && authenticatedUser ? (
-        <ActiveReportProvider user={authenticatedUser}>
-          <div className="relative h-full w-full">
-            <Workspace
-              isDark={isDark}
-              onToggleTheme={toggleTheme}
-              summaryAlwaysDark={summaryAlwaysDark}
-              onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
-              onLogout={() => void logout()}
-              selectedBranch={selectedBranch}
-              isAdmin={authenticatedUser.role === 'ADMIN'}
-            />
-          </div>
-        </ActiveReportProvider>
-      ) : (
-        <main className="flex min-h-screen w-full items-center justify-center bg-background px-6 py-8">
-          <LoginForm
-            onSuccess={(branch, user) => {
-              setSelectedBranch(branch)
-              setAuthenticatedUser(user)
-              setIsLoggedIn(true)
-            }}
-          />
-        </main>
-      )}
+      <div className="flex h-full w-full min-h-0 flex-col">
+        <WindowTitleBar />
+        <div className="relative min-h-0 flex-1">
+          <Toaster theme={isDark ? 'dark' : 'light'} />
+          {isLoggedIn && authenticatedUser ? (
+            <ActiveReportProvider user={authenticatedUser}>
+              <div className="h-full w-full">
+                <Workspace
+                  isDark={isDark}
+                  onToggleTheme={toggleTheme}
+                  summaryAlwaysDark={summaryAlwaysDark}
+                  onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
+                  onLogout={() => void logout()}
+                  selectedBranch={selectedBranch}
+                  isAdmin={authenticatedUser.role === 'ADMIN'}
+                />
+              </div>
+            </ActiveReportProvider>
+          ) : (
+            <main className="flex h-full w-full items-center justify-center bg-background px-6 py-8">
+              <LoginForm
+                onSuccess={(branch, user) => {
+                  setSelectedBranch(branch)
+                  setAuthenticatedUser(user)
+                  setIsLoggedIn(true)
+                }}
+              />
+            </main>
+          )}
+        </div>
+      </div>
     </NotificationProvider>
   )
 }

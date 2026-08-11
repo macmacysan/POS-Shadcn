@@ -6,7 +6,8 @@ import type {
   DailyReportsApi,
   ExpensesApi,
   FinanceAccountsApi,
-  InstallmentsApi
+  InstallmentsApi,
+  WindowControlsApi
 } from '../shared/contracts'
 
 declare global {
@@ -19,5 +20,6 @@ declare global {
       CatalogOptionsApi &
       DashboardApi &
       DailyReportsApi
+    windowControls?: WindowControlsApi
   }
 }

@@ -20,7 +20,9 @@ import {
   type DailyReportsApi,
   type FinanceAccountsApi,
   type InstallmentsApi,
-  type ReportRecord
+  type ReportRecord,
+  windowIpcChannels,
+  type WindowControlsApi
 } from '../shared/contracts'
 
 // Custom APIs for renderer
@@ -99,6 +101,24 @@ const api: ExpensesApi &
   }
 }
 
+const windowControls: WindowControlsApi | undefined =
+  process.platform === 'win32'
+    ? {
+        minimize: () => ipcRenderer.invoke(windowIpcChannels.minimize),
+        toggleMaximize: () => ipcRenderer.invoke(windowIpcChannels.toggleMaximize),
+        close: () => ipcRenderer.invoke(windowIpcChannels.close),
+        isMaximized: () => ipcRenderer.invoke(windowIpcChannels.isMaximized),
+        showSystemMenu: () => ipcRenderer.invoke(windowIpcChannels.showSystemMenu),
+        onMaximizedChange: (listener) => {
+          const handler = (_event: Electron.IpcRendererEvent, isMaximized: unknown): void => {
+            if (typeof isMaximized === 'boolean') listener(isMaximized)
+          }
+          ipcRenderer.on(windowIpcChannels.maximizedChanged, handler)
+          return () => ipcRenderer.removeListener(windowIpcChannels.maximizedChanged, handler)
+        }
+      }
+    : undefined
+
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
 // just add to the DOM global.
@@ -106,6 +126,7 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
+    if (windowControls) contextBridge.exposeInMainWorld('windowControls', windowControls)
   } catch (error) {
     console.error(error)
   }
@@ -114,4 +135,6 @@ if (process.contextIsolated) {
   window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.api = api
+  // @ts-ignore (define in dts)
+  window.windowControls = windowControls
 }

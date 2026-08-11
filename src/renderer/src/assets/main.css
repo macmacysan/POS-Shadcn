@@ -151,12 +151,7 @@ code {
   --sidebar-ring: var(--ring);
   --sidebar-dark: oklch(0.22 0.01 264);
   --sidebar-dark-foreground: oklch(0.93 0.01 252);
-  --sidebar-dark-primary: oklch(0.72 0.13 252);
-  --sidebar-dark-primary-foreground: oklch(0.2 0.03 252);
-  --sidebar-dark-accent: oklch(0.32 0.06 252);
-  --sidebar-dark-accent-foreground: oklch(0.97 0.01 252);
   --sidebar-dark-border: oklch(1 0 0 / 12%);
-  --sidebar-dark-ring: oklch(0.72 0.13 252);
   --destructive-foreground: var(--color-red-800);
   --workspace: oklch(0.985 0.001 286);
   --workspace-surface: var(--card);
@@ -271,12 +266,12 @@ code {
   .sidebar-always-dark {
     --sidebar: var(--sidebar-dark);
     --sidebar-foreground: var(--sidebar-dark-foreground);
-    --sidebar-primary: var(--sidebar-dark-primary);
-    --sidebar-primary-foreground: var(--sidebar-dark-primary-foreground);
-    --sidebar-accent: var(--sidebar-dark-accent);
-    --sidebar-accent-foreground: var(--sidebar-dark-accent-foreground);
+    --sidebar-primary: var(--primary);
+    --sidebar-primary-foreground: var(--primary-foreground);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
     --sidebar-border: var(--sidebar-dark-border);
-    --sidebar-ring: var(--sidebar-dark-ring);
+    --sidebar-ring: var(--ring);
   }
   .brand-mark {
     @apply relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-brand text-[10px] font-bold tracking-[-0.08em] text-primary-foreground;
@@ -285,6 +280,14 @@ code {
   .brand-mark::after {
     content: '';
     @apply absolute inset-y-1.5 left-1/2 w-px bg-primary-foreground/45;
+  }
+
+  .window-drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .window-no-drag {
+    -webkit-app-region: no-drag;
   }
 
   .table-toolbar {

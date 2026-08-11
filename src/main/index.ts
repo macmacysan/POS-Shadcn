@@ -29,6 +29,8 @@ import { registerDailyReportIpc } from './ipc/daily-reports'
 import { CatalogOptionRepository } from './database/catalog-option-repository'
 import { CatalogOptionService } from './services/catalog-option-service'
 import { registerCatalogOptionIpc } from './ipc/catalog-options'
+import { registerWindowIpc, showWindowMenu } from './ipc/window'
+import { windowIpcChannels } from '../shared/contracts'
 
 let database: ReturnType<typeof openDatabase> | undefined
 
@@ -39,6 +41,7 @@ function createWindow(): void {
     height: 670,
     show: false,
     autoHideMenuBar: true,
+    frame: process.platform !== 'win32',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -52,6 +55,20 @@ function createWindow(): void {
     mainWindow.maximize()
     mainWindow.show()
   })
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send(windowIpcChannels.maximizedChanged, true)
+  })
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send(windowIpcChannels.maximizedChanged, false)
+  })
+  if (process.platform === 'win32') {
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      if (input.type === 'keyDown' && input.alt && input.key === ' ') {
+        event.preventDefault()
+        showWindowMenu(mainWindow)
+      }
+    })
+  }
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -101,6 +118,7 @@ app.whenReady().then(() => {
     registerDashboardIpc(new DashboardService(new DashboardRepository(database), authService))
     registerInstallmentIpc(new InstallmentService(new InstallmentRepository(database)))
     registerFinanceAccountIpc(new FinanceAccountService(new FinanceAccountRepository(database)))
+    registerWindowIpc()
   } catch (error) {
     console.error('Database initialization failed.', error)
     app.quit()

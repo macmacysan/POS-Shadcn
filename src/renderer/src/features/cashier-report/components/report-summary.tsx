@@ -439,7 +439,9 @@ export const ReportSummary = React.memo(function ReportSummary({
   if (!snapshot && !error) return loadingSummary()
   if (!snapshot) {
     return (
-      <aside className={cn('flex min-h-0 flex-1 flex-col p-1.5', alwaysDark && 'dark')}>
+      <aside
+        className={cn('flex min-h-0 flex-1 flex-col p-1.5', alwaysDark && 'dark sidebar-always-dark')}
+      >
         <Empty className="m-auto border-0">
           <EmptyHeader>
             <EmptyTitle>Summary unavailable</EmptyTitle>
@@ -581,7 +583,7 @@ export const ReportSummary = React.memo(function ReportSummary({
       <aside
         className={cn(
           'flex min-h-0 flex-1 flex-col overflow-hidden bg-sidebar text-sidebar-foreground',
-          alwaysDark && 'dark'
+          alwaysDark && 'dark sidebar-always-dark'
         )}
       >
         <header className="mt-2 flex shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar px-3 py-1.5">
