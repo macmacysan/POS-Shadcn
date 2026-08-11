@@ -14,7 +14,7 @@ export function WindowTitleBar(): React.JSX.Element | null {
   if (!controls) return null
 
   return (
-    <header className="flex h-9 shrink-0 bg-background text-foreground">
+    <header className="flex h-7 shrink-0 bg-background text-foreground">
       <div
         className="window-drag-region sidebar-always-dark flex w-52 shrink-0 items-center bg-sidebar px-3 text-sidebar-foreground"
         onContextMenu={(event) => {
@@ -34,7 +34,7 @@ export function WindowTitleBar(): React.JSX.Element | null {
       <div className="window-no-drag flex shrink-0">
         <button
           aria-label="Minimize window"
-          className="grid h-9 w-[46px] place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="grid h-7 w-11 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => void controls.minimize()}
           type="button"
         >
@@ -42,7 +42,7 @@ export function WindowTitleBar(): React.JSX.Element | null {
         </button>
         <button
           aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
-          className="grid h-9 w-[46px] place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="grid h-7 w-11 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => void controls.toggleMaximize()}
           type="button"
         >
@@ -54,7 +54,7 @@ export function WindowTitleBar(): React.JSX.Element | null {
         </button>
         <button
           aria-label="Close window"
-          className="grid h-9 w-[46px] place-items-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="grid h-7 w-11 place-items-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => void controls.close()}
           type="button"
         >
