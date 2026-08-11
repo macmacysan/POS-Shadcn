@@ -16,6 +16,7 @@ type NavChildItem = {
   isActive?: boolean
   onClick?: () => void
   icon?: React.ReactNode
+  badge?: number
   children?: NavChildItem[]
 }
 
@@ -71,32 +72,40 @@ function NavChildList({ items }: { items: NavChildItem[] }): React.JSX.Element {
     <>
       {items.map((item) =>
         item.children ? (
-          <SidebarMenuSubItem key={item.title}>
-            <div className="flex h-7 items-center gap-2 px-2 text-[11px] font-medium text-sidebar-foreground/75">
-              {item.icon}
+          <SidebarMenuSubItem
+            key={item.title}
+            className={item.title === 'In-house' || item.title === 'Finance' ? 'pt-2' : undefined}
+          >
+            <div className="flex h-8 items-center gap-2 px-2.5 text-xs font-medium text-sidebar-foreground/75">
+              <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">
+                {item.icon}
+              </span>
               <span className="min-w-0 flex-1 truncate">{item.title}</span>
-              <ReuiBadge
-                variant="outline"
-                size="xs"
-                aria-label={`${item.children.length} destinations`}
-              >
-                {item.children.length}
-              </ReuiBadge>
             </div>
-            <SidebarMenuSub className="mb-1 mt-0 border-sidebar-border/50 py-0">
+            <SidebarMenuSub className="mb-1 mt-0.5 border-sidebar-border/50 py-0.5">
               <NavChildList items={item.children} />
             </SidebarMenuSub>
           </SidebarMenuSubItem>
         ) : (
           <SidebarMenuSubItem key={item.title}>
             <SidebarMenuSubButton
+              className="h-8 px-2.5 text-xs"
               isActive={item.isActive}
               render={
                 <a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />
               }
             >
               {item.icon}
-              <span>{item.title}</span>
+              <span className="min-w-0 flex-1 truncate">{item.title}</span>
+              {item.badge !== undefined && item.badge > 0 && (
+                <ReuiBadge
+                  variant="warning-light"
+                  className="ml-auto"
+                  aria-label={`${item.badge} ${item.title === 'Active' ? 'due accounts' : 'accounts without a paid date'}`}
+                >
+                  {item.badge}
+                </ReuiBadge>
+              )}
             </SidebarMenuSubButton>
           </SidebarMenuSubItem>
         )
@@ -107,8 +116,9 @@ function NavChildList({ items }: { items: NavChildItem[] }): React.JSX.Element {
 
 function NavItemLink({ item }: { item: NavLinkItem }): React.JSX.Element {
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem className={item.title === 'Dashboard' ? 'pt-1' : undefined}>
       <SidebarMenuButton
+        className="h-8 px-2.5 text-xs"
         isActive={item.isActive}
         render={<a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />}
       >
@@ -123,13 +133,14 @@ function NavGroup({ item }: { item: NavGroupItem }): React.JSX.Element {
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
+        className="h-8 px-2.5 text-xs"
         isActive={item.isActive || item.children.some(hasActiveDescendant)}
         render={<a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />}
       >
         {item.icon}
         <span>{item.title}</span>
       </SidebarMenuButton>
-      <SidebarMenuSub className="mt-0.5 py-0">
+      <SidebarMenuSub className="mt-1 py-0.5">
         <NavChildList items={item.children} />
       </SidebarMenuSub>
     </SidebarMenuItem>
@@ -138,15 +149,15 @@ function NavGroup({ item }: { item: NavGroupItem }): React.JSX.Element {
 
 export function NavMain({ items }: { items: NavItem[] }): React.JSX.Element {
   return (
-    <SidebarMenu className="gap-1">
+    <SidebarMenu className="gap-1.5">
       {items.map((item) =>
         isNavSection(item) ? (
-          <SidebarMenuItem key={item.title} className="pt-2">
-            <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-[0.08em] text-sidebar-foreground/55">
+          <SidebarMenuItem key={item.title} className="pt-4">
+            <div className="px-2.5 pb-1.5 text-xs font-medium text-sidebar-foreground/55">
               {item.title}
             </div>
             {item.children && (
-              <SidebarMenuSub className="mx-0 border-sidebar-border/50 px-1 py-0">
+              <SidebarMenuSub className="mx-1 border-sidebar-border/50 px-1.5 py-1">
                 <NavChildList items={item.children} />
               </SidebarMenuSub>
             )}

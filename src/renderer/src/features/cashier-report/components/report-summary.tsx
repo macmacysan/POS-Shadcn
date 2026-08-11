@@ -114,12 +114,16 @@ function AmountInput({
   label,
   value,
   onChange,
-  className
+  className,
+  inputClassName,
+  invalid = false
 }: {
   label: string
   value: number
   onChange: (value: number) => void
   className?: string
+  inputClassName?: string
+  invalid?: boolean
 }): React.JSX.Element {
   const [text, setText] = React.useState(() => (value ? String(value / 100) : ''))
   const [isFocused, setIsFocused] = React.useState(false)
@@ -133,7 +137,8 @@ function AmountInput({
       <span className="text-xs text-muted-foreground">₱</span>
       <Input
         aria-label={label}
-        className="h-7 text-right tabular-nums"
+        aria-invalid={invalid}
+        className={cn('h-7 text-right tabular-nums', inputClassName)}
         inputMode="decimal"
         value={text}
         onFocus={() => setIsFocused(true)}
@@ -170,14 +175,18 @@ function SummaryRow({
   value,
   emphasis = false,
   className,
-  hoverDetails
+  hoverDetails,
+  hideWhenZero = false
 }: {
   label: string
   value: number
   emphasis?: boolean
   className?: string
   hoverDetails?: React.ReactNode
-}): React.JSX.Element {
+  hideWhenZero?: boolean
+}): React.JSX.Element | null {
+  if (hideWhenZero && value === 0) return null
+
   const row = (
     <div className={cn('flex min-h-7 items-center justify-between gap-3 text-xs', className)}>
       <span
@@ -483,6 +492,28 @@ export const ReportSummary = React.memo(function ReportSummary({
       },
       { bankCheck: 0, bankTransfer: 0, gcash: 0, otherEwallet: 0, total: 0 }
     )
+  const totalReceiptsCentavos =
+    snapshot.receiptTotals.reduce((total, item) => total + item.amountCentavos, 0) -
+    snapshot.financeBalanceCentavos +
+    snapshot.cashCollectionsCentavos +
+    snapshot.otherIncomeCentavos +
+    snapshot.financeDownCentavos
+  const hasReceiptSummary = [
+    snapshot.cashCollectionsCentavos,
+    snapshot.otherIncomeCentavos,
+    snapshot.financeDownCentavos,
+    snapshot.financeBalanceCentavos,
+    totalReceiptsCentavos
+  ].some(Boolean)
+  const hasCashOutSummary = [
+    expenseTotals.companyExpensesCentavos,
+    expenseTotals.drawingsCentavos,
+    expenseTotals.purchasesCentavos,
+    expenseTotals.receivablesCentavos,
+    deductionCentavos,
+    cashOutCentavos,
+    paymentTotals.total
+  ].some(Boolean)
   const variance = snapshot.cashVarianceCentavos
   const receiptTypesByReport = [
     ...snapshot.receiptTypes.map((type) => {
@@ -553,11 +584,8 @@ export const ReportSummary = React.memo(function ReportSummary({
           alwaysDark && 'dark'
         )}
       >
-        <header className="flex shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar px-3 py-1.5">
+        <header className="mt-2 flex shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar px-3 py-1.5">
           <div className="min-w-0">
-            <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-              Daily Cashier Report
-            </p>
             <h2 className="truncate text-sm font-semibold tracking-tight">
               {isToday
                 ? 'Today’s Summary'
@@ -662,6 +690,8 @@ export const ReportSummary = React.memo(function ReportSummary({
                 </div>
                 {visibleReceiptTypes.map((type) => {
                   const value = receiptTotal(snapshot, type.id)
+                  const hasQuantity = (value?.quantity ?? 0) > 0
+                  const hasAmount = (value?.amountCentavos ?? 0) > 0
                   return (
                     <div
                       key={type.id}
@@ -680,7 +710,13 @@ export const ReportSummary = React.memo(function ReportSummary({
                       </TooltipProvider>
                       <Input
                         aria-label={`${type.name} quantity`}
-                        className="h-7 px-1.5 text-right tabular-nums"
+                        aria-invalid={hasAmount && !hasQuantity}
+                        className={cn(
+                          'h-7 px-1.5 text-right tabular-nums',
+                          hasAmount &&
+                            !hasQuantity &&
+                            'border-destructive focus-visible:ring-destructive/40'
+                        )}
                         inputMode="numeric"
                         value={value?.quantity || ''}
                         onChange={(event) =>
@@ -694,6 +730,12 @@ export const ReportSummary = React.memo(function ReportSummary({
                       <AmountInput
                         label={`${type.name} amount`}
                         value={value?.amountCentavos ?? 0}
+                        invalid={hasQuantity && !hasAmount}
+                        inputClassName={cn(
+                          hasQuantity &&
+                            !hasAmount &&
+                            'border-destructive focus-visible:ring-destructive/40'
+                        )}
                         onChange={(amountCentavos) =>
                           save(updateReceipt(snapshot, type.id, { amountCentavos }))
                         }
@@ -703,51 +745,90 @@ export const ReportSummary = React.memo(function ReportSummary({
                 })}
               </Section>
             )}
-            <Section label="">
-              <SummaryRow label="Collections" value={snapshot.cashCollectionsCentavos ?? 0} />
-              <SummaryRow label="Other" value={snapshot.otherIncomeCentavos ?? 0} />
-              <SummaryRow label="Finance Down" value={snapshot.financeDownCentavos ?? 0} />
-              <SummaryRow label="Finance Bal" value={snapshot.financeBalanceCentavos ?? 0} />
-              <SummaryRow
-                label="Total Receipts"
-                value={
-                  snapshot.receiptTotals.reduce((total, item) => total + item.amountCentavos, 0) -
-                  snapshot.financeBalanceCentavos +
-                  snapshot.cashCollectionsCentavos +
-                  snapshot.otherIncomeCentavos +
-                  snapshot.financeDownCentavos
-                }
-                emphasis
-              />
-            </Section>
-            <Section label="">
-              <SummaryRow label="Company Expenses" value={expenseTotals.companyExpensesCentavos} />
-              <SummaryRow label="Drawings" value={expenseTotals.drawingsCentavos} />
-              <SummaryRow label="Purchases" value={expenseTotals.purchasesCentavos} />
-              <SummaryRow label="Receivables" value={expenseTotals.receivablesCentavos} />
-              <SummaryRow
-                label="Deductions"
-                value={deductionCentavos}
-                hoverDetails={
-                  populatedDeductions.length > 0 && (
-                    <div className="grid min-w-56 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
-                      {populatedDeductions.map(({ label, amountCentavos }) => (
-                        <React.Fragment key={label}>
-                          <span className="min-w-0 truncate text-muted-foreground">{label}</span>
-                          <span className="text-right tabular-nums">{money(amountCentavos)}</span>
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  )
-                }
-              />
-              <SummaryRow label="Total Cash Out" value={cashOutCentavos} emphasis />
-              <SummaryRow label="Bank Check" value={paymentTotals.bankCheck} />
-              <SummaryRow label="Bank Transfer" value={paymentTotals.bankTransfer} />
-              <SummaryRow label="Gcash" value={paymentTotals.gcash} />
-              <SummaryRow label="Other e-wallet" value={paymentTotals.otherEwallet} />
-              <SummaryRow label="Total Payments" value={paymentTotals.total} emphasis />
-            </Section>
+            {hasReceiptSummary && (
+              <Section label="">
+                <SummaryRow
+                  label="Collections"
+                  value={snapshot.cashCollectionsCentavos ?? 0}
+                  hideWhenZero
+                />
+                <SummaryRow label="Other" value={snapshot.otherIncomeCentavos ?? 0} hideWhenZero />
+                <SummaryRow
+                  label="Finance Down"
+                  value={snapshot.financeDownCentavos ?? 0}
+                  hideWhenZero
+                />
+                <SummaryRow
+                  label="Finance Bal"
+                  value={snapshot.financeBalanceCentavos ?? 0}
+                  hideWhenZero
+                />
+                <SummaryRow
+                  label="Total Receipts"
+                  value={totalReceiptsCentavos}
+                  emphasis
+                  hideWhenZero
+                />
+              </Section>
+            )}
+            {hasCashOutSummary && (
+              <Section label="">
+                <SummaryRow
+                  label="Company Expenses"
+                  value={expenseTotals.companyExpensesCentavos}
+                  hideWhenZero
+                />
+                <SummaryRow label="Drawings" value={expenseTotals.drawingsCentavos} hideWhenZero />
+                <SummaryRow
+                  label="Purchases"
+                  value={expenseTotals.purchasesCentavos}
+                  hideWhenZero
+                />
+                <SummaryRow
+                  label="Receivables"
+                  value={expenseTotals.receivablesCentavos}
+                  hideWhenZero
+                />
+                <SummaryRow
+                  label="Deductions"
+                  value={deductionCentavos}
+                  hideWhenZero
+                  hoverDetails={
+                    populatedDeductions.length > 0 && (
+                      <div className="grid min-w-56 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
+                        {populatedDeductions.map(({ label, amountCentavos }) => (
+                          <React.Fragment key={label}>
+                            <span className="min-w-0 truncate text-muted-foreground">{label}</span>
+                            <span className="text-right tabular-nums">{money(amountCentavos)}</span>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    )
+                  }
+                />
+                <SummaryRow
+                  label="Total Cash Out"
+                  value={cashOutCentavos}
+                  emphasis
+                  className="border-b border-border/60"
+                  hideWhenZero
+                />
+                <SummaryRow label="Bank Check" value={paymentTotals.bankCheck} hideWhenZero />
+                <SummaryRow label="Bank Transfer" value={paymentTotals.bankTransfer} hideWhenZero />
+                <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero />
+                <SummaryRow
+                  label="Other e-wallet"
+                  value={paymentTotals.otherEwallet}
+                  hideWhenZero
+                />
+                <SummaryRow
+                  label="Total Payments"
+                  value={paymentTotals.total}
+                  emphasis
+                  hideWhenZero
+                />
+              </Section>
+            )}
           </div>
         </ScrollArea>
 
@@ -756,6 +837,7 @@ export const ReportSummary = React.memo(function ReportSummary({
           <SummaryRow
             label="Cash Denominations"
             value={snapshot.physicalCashCentavos}
+            hideWhenZero
             hoverDetails={
               populatedCashDenominations.length > 0 && (
                 <div className="grid min-w-56 grid-cols-[1fr_2rem_1fr] gap-x-3 gap-y-1 text-xs">
@@ -775,27 +857,39 @@ export const ReportSummary = React.memo(function ReportSummary({
               )
             }
           />
-          <SummaryRow label="Cash Remitted" value={0} />
+          <SummaryRow label="Cash Remitted" value={0} hideWhenZero />
           <div
             className={cn(
-              'mt-2 border-t py-2',
+              'mt-2 mb-2 rounded-md border px-2.5 py-2',
               variance === 0
-                ? 'border-border'
+                ? 'border-border bg-muted/50'
                 : variance > 0
-                  ? 'border-warning bg-warning/10'
-                  : 'border-destructive/30 bg-destructive/5'
+                  ? 'border-warning/40 bg-warning/10'
+                  : 'border-destructive/40 bg-destructive/10'
             )}
           >
-            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              Cash Variance
-            </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Cash Variance
+              </span>
+              <span
+                className={cn(
+                  'text-[10px] font-medium',
+                  variance > 0 && 'text-warning-foreground',
+                  variance < 0 && 'text-destructive'
+                )}
+              >
+                {variance === 0 ? 'Balanced' : variance > 0 ? 'Over by' : 'Short by'}
+              </span>
+            </div>
             <span
               className={cn(
                 'mt-1 block text-lg font-semibold tabular-nums',
+                variance > 0 && 'text-warning-foreground',
                 variance < 0 && 'text-destructive'
               )}
             >
-              {money(variance)}
+              {money(Math.abs(variance))}
             </span>
           </div>
         </div>

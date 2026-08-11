@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
-import { ChevronDownIcon, PlusIcon } from 'lucide-react'
+import { CaretDownIcon, PlusIcon } from '@phosphor-icons/react'
 
 export function TeamSwitcher({
   teams
@@ -34,14 +34,14 @@ export function TeamSwitcher({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <SidebarMenuButton className="w-fit px-1.5 aria-expanded:bg-muted aria-expanded:text-foreground" />
+              <SidebarMenuButton className="h-9 w-full px-2.5 aria-expanded:bg-sidebar-accent aria-expanded:text-sidebar-accent-foreground" />
             }
           >
             <div className="brand-mark size-6 bg-sidebar-primary text-sidebar-primary-foreground">
               <span aria-hidden="true">CR</span>
             </div>
-            <span className="truncate font-light">{activeTeam.name}</span>
-            <ChevronDownIcon className="opacity-50" />
+            <span className="truncate font-medium">{activeTeam.name}</span>
+            <CaretDownIcon className="ml-auto opacity-50" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="w-64 rounded-lg"

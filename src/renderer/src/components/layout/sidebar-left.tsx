@@ -1,14 +1,16 @@
 import * as React from 'react'
 import {
-  BarChart3Icon,
-  ClipboardListIcon,
-  LayoutDashboardIcon,
-  LogOutIcon,
+  BankIcon,
+  ChartLineUpIcon,
+  ClipboardTextIcon,
+  GearSixIcon,
+  HouseLineIcon,
   MoonIcon,
-  Settings2Icon,
-  StoreIcon,
+  SignOutIcon,
+  SquaresFourIcon,
+  StorefrontIcon,
   SunIcon
-} from 'lucide-react'
+} from '@phosphor-icons/react'
 
 import { NavMain } from '@/components/layout/navigation/nav-main'
 import { NavSecondary } from '@/components/layout/navigation/nav-secondary'
@@ -41,18 +43,19 @@ type ActiveView =
   | 'finance-accounts'
 
 const data = {
-  teams: [{ name: 'Cashiers Report', logo: <StoreIcon />, plan: 'Local workspace' }],
+  teams: [{ name: 'Cashiers Report', logo: <StorefrontIcon />, plan: 'Local workspace' }],
   navMain: [
-    { title: 'Dashboard', url: '#', icon: <LayoutDashboardIcon />, isActive: true },
-    { title: 'Cashier reports', url: '#', icon: <ClipboardListIcon /> },
+    { title: 'Dashboard', url: '#', icon: <SquaresFourIcon />, isActive: true },
+    { title: 'Cashier reports', url: '#', icon: <ClipboardTextIcon /> },
     {
       title: 'Installments',
       section: true as const,
       children: [
-        { title: 'Overview', url: '#', icon: <BarChart3Icon /> },
+        { title: 'Overview', url: '#', icon: <ChartLineUpIcon /> },
         {
           title: 'In-house',
           url: '#',
+          icon: <HouseLineIcon />,
           children: [
             { title: 'Records', url: '#' },
             { title: 'Active', url: '#' },
@@ -63,15 +66,16 @@ const data = {
         {
           title: 'Finance',
           url: '#',
+          icon: <BankIcon />,
           children: [{ title: 'Accounts', url: '#' }]
         }
       ]
     }
   ],
   navSecondary: [
-    { title: 'Settings', url: '#', icon: <Settings2Icon /> },
+    { title: 'Settings', url: '#', icon: <GearSixIcon /> },
     { title: 'Dark mode', url: '#', icon: <MoonIcon /> },
-    { title: 'Log out', url: '#', icon: <LogOutIcon /> }
+    { title: 'Log out', url: '#', icon: <SignOutIcon /> }
   ]
 }
 
@@ -86,6 +90,8 @@ export function SidebarLeft({
   onClosedAccounts,
   onBlacklistedAccounts,
   onFinanceAccounts,
+  dueCount,
+  unpaidFinanceCount,
   onToggleTheme,
   summaryAlwaysDark,
   onSummaryAlwaysDarkChange,
@@ -103,6 +109,8 @@ export function SidebarLeft({
   onClosedAccounts?: () => void
   onBlacklistedAccounts?: () => void
   onFinanceAccounts?: () => void
+  dueCount?: number
+  unpaidFinanceCount?: number
   onToggleTheme: () => void
   summaryAlwaysDark: boolean
   onSummaryAlwaysDarkChange: (value: boolean) => void
@@ -133,10 +141,10 @@ export function SidebarLeft({
     <Sidebar
       {...props}
       collapsible="none"
-      className="border-r border-sidebar-border"
-      style={{ '--sidebar-width': '13.5rem' } as React.CSSProperties}
+      className="sidebar-always-dark border-r border-sidebar-border"
+      style={{ '--sidebar-width': '13rem' } as React.CSSProperties}
     >
-      <SidebarHeader className="gap-2 border-sidebar-border">
+      <SidebarHeader className="gap-3 border-sidebar-border px-2.5 py-3">
         <TeamSwitcher teams={data.teams} />
         <NavMain
           items={data.navMain.map((item) => {
@@ -177,6 +185,7 @@ export function SidebarLeft({
                             return {
                               ...entry,
                               isActive: activeView === 'in-house-active-accounts',
+                              badge: dueCount,
                               onClick: onActiveAccounts
                             }
                           if (entry.title === 'Closed')
@@ -202,6 +211,7 @@ export function SidebarLeft({
                               ? {
                                   ...entry,
                                   isActive: activeView === 'finance-accounts',
+                                  badge: unpaidFinanceCount,
                                   onClick: onFinanceAccounts
                                 }
                               : entry
@@ -213,7 +223,7 @@ export function SidebarLeft({
           })}
         />
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="px-1.5 pb-2">
         <NavSecondary
           items={data.navSecondary.map((item) =>
             item.title === 'Settings'
@@ -231,7 +241,7 @@ export function SidebarLeft({
                   ? { ...item, onClick: onLogout }
                   : item
           )}
-          className="mt-auto"
+          className="mt-auto border-t border-sidebar-border pt-2"
         />
       </SidebarContent>
       <Dialog open={isSettingsOpen} onOpenChange={setSettingsOpen}>

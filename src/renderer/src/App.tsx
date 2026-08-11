@@ -89,6 +89,43 @@ function Workspace({
     branch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
     search?: string
   }>({})
+  const [navigationCounts, setNavigationCounts] = useState<{
+    due?: number
+    unpaidFinance?: number
+  }>({})
+
+  useEffect(() => {
+    let cancelled = false
+    const loadNavigationCounts = async (): Promise<void> => {
+      try {
+        const [installments, financeAccounts] = await Promise.all([
+          window.api.installments.list({ view: 'active', search: '' }),
+          window.api.financeAccounts.list({ search: '' })
+        ])
+        if (cancelled) return
+        setNavigationCounts({
+          due: installments.rows.filter(
+            (row) =>
+              (selectedBranch === 'All Branch' || row.account.branch === selectedBranch) &&
+              (row.meta.status === 'overdue' ||
+                row.meta.status === 'delayed' ||
+                row.meta.status === 'due-today')
+          ).length,
+          unpaidFinance: financeAccounts.rows.filter(
+            (account) =>
+              (selectedBranch === 'All Branch' || account.branch === selectedBranch) &&
+              !account.paidDate?.trim()
+          ).length
+        })
+      } catch {
+        // Keep the last successful counts visible when data is unavailable.
+      }
+    }
+    void loadNavigationCounts()
+    return () => {
+      cancelled = true
+    }
+  }, [activeView, selectedBranch])
 
   useEffect(() => {
     const syncRoute = (): void => {
@@ -138,6 +175,8 @@ function Workspace({
         onClosedAccounts={() => selectView('in-house-closed-accounts')}
         onBlacklistedAccounts={() => selectView('in-house-blacklisted-accounts')}
         onFinanceAccounts={() => selectView('finance-accounts')}
+        dueCount={navigationCounts.due}
+        unpaidFinanceCount={navigationCounts.unpaidFinance}
         onToggleTheme={onToggleTheme}
         summaryAlwaysDark={summaryAlwaysDark}
         onSummaryAlwaysDarkChange={onSummaryAlwaysDarkChange}

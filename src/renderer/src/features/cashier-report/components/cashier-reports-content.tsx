@@ -1462,8 +1462,8 @@ export function CashierReportsContent({
       {!isSummaryCompact && (
         <Card
           className={cn(
-            'flex min-h-0 min-w-0 flex-col',
-            summaryAlwaysDark && 'dark bg-sidebar py-0 text-sidebar-foreground ring-sidebar-border'
+            'flex min-h-0 min-w-0 flex-col py-0',
+            summaryAlwaysDark && 'dark bg-sidebar text-sidebar-foreground ring-sidebar-border'
           )}
         >
           <ReportSummary
