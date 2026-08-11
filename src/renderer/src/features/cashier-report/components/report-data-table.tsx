@@ -11,10 +11,11 @@ import {
   type SortingState,
   useReactTable
 } from '@tanstack/react-table'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Search, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import {
   createRowActionsColumn,
   type RowActionItem
@@ -270,11 +271,23 @@ export function ReportDataTable<TData extends ReportRow>({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <TableToolbar className="px-4 min-[901px]:flex-nowrap">
+        <InputGroup className="h-7 w-56 shrink-0">
+          <InputGroupInput
+            className="h-7"
+            value={currentGlobalFilter}
+            onChange={(event) => table.setGlobalFilter(event.target.value)}
+            placeholder={filterPlaceholder}
+            aria-label={filterPlaceholder}
+          />
+          <InputGroupAddon align="inline-start">
+            <Search aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
         <ReuiFilters
           filters={reuiFilters}
           fields={filterFields}
           onChange={handleReuiFiltersChange}
-          className="min-w-0 flex-1"
+          className="shrink-0"
         />
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {onDeleteSelected && selectedRows.length > 0 && (

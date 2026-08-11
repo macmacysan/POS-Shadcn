@@ -597,9 +597,9 @@ export const ReportSummary = React.memo(function ReportSummary({
           alwaysDark && 'dark sidebar-always-dark'
         )}
       >
-        <header className="mt-2 flex shrink-0 items-center justify-between border-b border-sidebar-border bg-sidebar px-3 py-1.5">
+        <header className="mt-2 flex shrink-0 items-center justify-between px-3 py-1.5">
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold tracking-tight">
+            <h2 className="truncate text-sm font-normal text-gray-600 tracking-tight">
               {isToday
                 ? 'Today’s Summary'
                 : `${format(new Date(`${reportBusinessDate}T00:00:00`), 'MMM d')} Summary`}

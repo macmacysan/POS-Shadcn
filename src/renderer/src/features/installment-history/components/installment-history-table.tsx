@@ -5,8 +5,10 @@ import {
   useReactTable,
   type ColumnDef
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { ArrowDown, ArrowUp, Search } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   createRowActionsColumn,
@@ -128,12 +130,6 @@ export function InstallmentHistoryTable({
   const filterFields = React.useMemo(
     () => [
       {
-        key: 'search',
-        label: 'Search history',
-        type: 'text' as const,
-        placeholder: 'Search account, activity, or reference...'
-      },
-      {
         key: 'action',
         label: 'Action',
         type: 'select' as const,
@@ -167,13 +163,6 @@ export function InstallmentHistoryTable({
   )
   const filters = React.useMemo<Filter<string>[]>(() => {
     const next: Filter<string>[] = []
-    if (searchValue.trim())
-      next.push({
-        id: 'history-search',
-        field: 'search',
-        operator: 'contains',
-        values: [searchValue]
-      })
     if (action !== 'all')
       next.push({ id: 'history-action', field: 'action', operator: 'is', values: [action] })
     if (source !== 'all')
@@ -183,9 +172,6 @@ export function InstallmentHistoryTable({
     return next
   }, [action, branch, searchValue, source])
   const handleFiltersChange = (next: Filter<string>[]): void => {
-    const nextSearch = next.find((filter) => filter.field === 'search')?.values[0] ?? ''
-    setSearch(nextSearch)
-    onGlobalSearchChange?.(nextSearch)
     setAction(
       (next.find((filter) => filter.field === 'action')?.values[0] as
         InstallmentHistoryAction | undefined) ?? 'all'
@@ -247,7 +233,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'action',
         header: 'Action',
         enableSorting: false,
-        size: 90,
+        size: 76,
         meta: {
           headerTitle: 'Action',
           headerClassName: 'text-xs text-muted-foreground'
@@ -261,7 +247,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'source',
         header: 'Source',
         enableSorting: false,
-        size: 100,
+        size: 86,
         meta: {
           headerTitle: 'Source',
           headerClassName: 'text-xs text-muted-foreground',
@@ -301,7 +287,8 @@ export function InstallmentHistoryTable({
         meta: {
           headerTitle: 'Activity',
           headerClassName: 'text-xs text-muted-foreground',
-          cellClassName: 'min-w-0'
+          cellClassName: 'min-w-0',
+          autoSize: true
         },
         cell: ({ row }) => (
           <TruncatedText value={row.original.activity} className="text-xs text-muted-foreground" />
@@ -338,7 +325,7 @@ export function InstallmentHistoryTable({
         accessorKey: 'occurredAt',
         header: 'Date & time',
         enableSorting: false,
-        size: 176,
+        size: 140,
         meta: {
           headerTitle: 'Date & time',
           headerClassName: 'text-xs text-muted-foreground',
@@ -372,25 +359,43 @@ export function InstallmentHistoryTable({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <TableToolbar>
+        <InputGroup className="h-7 w-52 shrink-0">
+          <InputGroupInput
+            className="h-7"
+            value={searchValue}
+            onChange={(event) => {
+              const next = event.target.value
+              setSearch(next)
+              onGlobalSearchChange?.(next)
+            }}
+            placeholder="Search history..."
+            aria-label="Search installment history"
+          />
+          <InputGroupAddon align="inline-start">
+            <Search aria-hidden="true" />
+          </InputGroupAddon>
+        </InputGroup>
         <ReuiFilters
           filters={filters}
           fields={filterFields}
           onChange={handleFiltersChange}
-          className="min-w-0 flex-1"
+          className="shrink-0"
         />
-        <button
+        <Button
           type="button"
-          className="ml-auto inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          variant="ghost"
+          size="sm"
+          className="ml-auto text-muted-foreground"
           onClick={() => setSortDirection((direction) => (direction === 'desc' ? 'asc' : 'desc'))}
           aria-label={`Sort date and time ${sortDirection === 'desc' ? 'oldest first' : 'newest first'}`}
         >
           {sortDirection === 'desc' ? (
-            <ArrowDown aria-hidden="true" />
+            <ArrowDown data-icon="inline-start" aria-hidden="true" />
           ) : (
-            <ArrowUp aria-hidden="true" />
-          )}{' '}
+            <ArrowUp data-icon="inline-start" aria-hidden="true" />
+          )}
           Date &amp; time
-        </button>
+        </Button>
       </TableToolbar>
       <UniversalDataTable
         table={table}

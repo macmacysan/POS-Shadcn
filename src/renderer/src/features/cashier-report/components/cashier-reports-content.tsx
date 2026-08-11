@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { format, isValid, parse } from 'date-fns'
+import { addDays, format, isValid, parse, startOfDay } from 'date-fns'
 import { CalendarIcon } from '@phosphor-icons/react'
 import {
   BadgeCheck,
@@ -7,6 +7,8 @@ import {
   Building2,
   Bus,
   CarFront,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   Ellipsis,
   GraduationCap,
@@ -18,7 +20,6 @@ import {
   Phone,
   Printer,
   ReceiptText,
-  Search,
   Scale,
   ShieldCheck,
   Soup,
@@ -28,6 +29,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -275,49 +277,41 @@ function installmentHistoryRow(
 
 function CashierReportHeader({
   dateRange,
-  search,
   isLoading,
   error,
-  onDateRangeChange,
-  onSearchChange
+  onDateRangeChange
 }: {
   dateRange: DateSelectorValue
-  search: string
   isLoading: boolean
   error?: string
   onDateRangeChange: (value: DateSelectorValue) => void
-  onSearchChange: (value: string) => void
 }): React.JSX.Element {
   const [open, setOpen] = React.useState(false)
   const startDate = dateRange.startDate
-  const endDate = dateRange.endDate ?? startDate
-  const dateLabel = startDate
-    ? dateRange.operator === 'before'
-      ? `Before ${format(startDate, 'MMM d, yyyy')}`
-      : dateRange.operator === 'after'
-        ? `After ${format(startDate, 'MMM d, yyyy')}`
-        : `${format(startDate, 'MMM d, yyyy')}${endDate && endDate.getTime() !== startDate.getTime() ? ` - ${format(endDate, 'MMM d, yyyy')}` : ''}`
-    : 'Select date range'
+  const dateLabel = startDate ? format(startDate, 'EEEE, MMMM d, yyyy') : 'Select business date'
+  const today = startOfDay(new Date())
+  const selectedDay = startDate ? startOfDay(startDate) : undefined
+  const selectDate = (date: Date): void =>
+    onDateRangeChange({ period: 'day', operator: 'is', startDate: date, endDate: date })
 
   return (
-    <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-1">
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-        <InputGroup className="w-[min(28rem,42vw)] min-w-56">
-          <InputGroupAddon align="inline-start">
-            <Search aria-hidden="true" />
-          </InputGroupAddon>
-          <InputGroupInput
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search reports..."
-            aria-label="Search reports"
-          />
-        </InputGroup>
-        {error && (
-          <span className="text-xs text-destructive" role="alert">
-            {error}
-          </span>
-        )}
+    <header className="flex shrink-0 items-center justify-end gap-2 px-3 py-2">
+      {error && (
+        <span className="mr-auto text-xs text-destructive" role="alert">
+          {error}
+        </span>
+      )}
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="View previous business day"
+          disabled={isLoading || !startDate}
+          onClick={() => startDate && selectDate(addDays(startDate, -1))}
+        >
+          <ChevronLeft aria-hidden="true" />
+        </Button>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger
             render={
@@ -325,8 +319,8 @@ function CashierReportHeader({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="min-w-40 justify-center border-x border-border px-3 font-medium tabular-nums"
-                aria-label={`Change report date range${dateLabel === 'Select date range' ? '' : `, ${dateLabel}`}`}
+                className="h-7 min-w-0 justify-start gap-1.5 px-2 text-xs font-medium tabular-nums"
+                aria-label={`Change business date, ${dateLabel}`}
                 disabled={isLoading}
               />
             }
@@ -336,32 +330,71 @@ function CashierReportHeader({
             ) : (
               <CalendarIcon data-icon="inline-start" />
             )}
-            {startDate
-              ? `${format(startDate, 'MMM d, yyyy')}${endDate && endDate.getTime() !== startDate.getTime() ? ` – ${format(endDate, 'MMM d, yyyy')}` : ''}`
-              : 'Select date range'}
+            {startDate ? format(startDate, 'MMM d, yyyy') : 'Select date'}
           </PopoverTrigger>
           <PopoverContent className="w-auto overflow-hidden p-4" align="end">
             <DateSelector
               value={dateRange}
               onChange={onDateRangeChange}
-              allowRange
+              allowRange={false}
+              presetMode="is"
               periodTypes={['day']}
               showInput={false}
-              showTwoMonths
+              showTwoMonths={false}
               minYear={2015}
               maxYear={new Date().getFullYear()}
               dayDateFormat="MMM d, yyyy"
-              className="sm:w-[470px]"
             />
           </PopoverContent>
         </Popover>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="View next business day"
+          disabled={isLoading || !selectedDay || selectedDay.getTime() >= today.getTime()}
+          onClick={() => startDate && selectDate(addDays(startDate, 1))}
+        >
+          <ChevronRight aria-hidden="true" />
+        </Button>
       </div>
     </header>
   )
 }
 
-function TypeBox({ value }: { value: string }): React.JSX.Element {
-  return <span className="text-muted-foreground">{value}</span>
+const entryTypeBadgeClasses: Record<'expense' | 'payment', Record<string, string>> = {
+  expense: {
+    'Company Expenses': 'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
+    Drawings: 'border-secondary bg-secondary text-secondary-foreground',
+    Purchases: 'border-interactive-muted bg-interactive-muted text-interactive-muted-foreground',
+    Receivables: 'border-status-info/25 bg-status-info/15 text-status-info-foreground',
+    Operating: 'border-secondary bg-secondary text-secondary-foreground',
+    Supply: 'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
+    Transport: 'border-status-info/25 bg-status-info/15 text-status-info-foreground'
+  },
+  payment: {
+    'Bank Check': 'border-status-info/25 bg-status-info/15 text-status-info-foreground',
+    'Bank Transfer': 'border-interactive-muted bg-interactive-muted text-interactive-muted-foreground',
+    GCash: 'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
+    'Other e-wallet': 'border-secondary bg-secondary text-secondary-foreground'
+  }
+}
+
+function TypeBox({
+  value,
+  kind
+}: {
+  value: string
+  kind: 'expense' | 'payment'
+}): React.JSX.Element {
+  const toneClass =
+    entryTypeBadgeClasses[kind][value] ?? 'border-secondary bg-secondary text-secondary-foreground'
+
+  return (
+    <Badge variant="outline" className={toneClass}>
+      {value}
+    </Badge>
+  )
 }
 
 function TruncatedText({
@@ -419,8 +452,8 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'type',
     header: 'Type',
-    cell: ({ getValue }) => <TypeBox value={getValue<string>()} />,
-    size: 88,
+    cell: ({ getValue }) => <TypeBox value={getValue<string>()} kind="expense" />,
+    size: 132,
     meta: { className: 'text-muted-foreground' }
   },
   {
@@ -502,13 +535,13 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
     ),
-    meta: { className: 'min-w-0' }
+    meta: { className: 'min-w-0', autoSize: true }
   },
   {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    size: 150,
+    size: 112,
     meta: {
       className: cn('w-30', 'text-right font-light tabular-nums text-foreground')
     }
@@ -519,8 +552,8 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'type',
     header: 'Type',
-    size: 100,
-    cell: ({ getValue }) => <TypeBox value={getValue<string>()} />
+    size: 132,
+    cell: ({ getValue }) => <TypeBox value={getValue<string>()} kind="payment" />
   },
   {
     accessorKey: 'bankProvider',
@@ -536,7 +569,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     header: 'Account name',
     size: 200,
     cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
-    meta: { className: 'min-w-0' }
+    meta: { className: 'min-w-0', autoSize: true }
   },
   {
     accessorKey: 'referenceNo',
@@ -544,13 +577,18 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
     ),
+    meta: { className: 'min-w-0 text-muted-foreground', autoSize: true }
+  },
+  {
+    accessorKey: 'date',
+    header: 'Date',
+    size: 88,
     meta: { className: 'text-muted-foreground' }
   },
-  { accessorKey: 'date', header: 'Date', meta: { className: 'text-muted-foreground' } },
   {
     accessorKey: 'amount',
     header: 'Amount',
-    size: 150,
+    size: 112,
     cell: ({ getValue }) => money(getValue<number>()),
     meta: { className: 'text-right font-light tabular-nums text-foreground' }
   }
@@ -1035,7 +1073,7 @@ export function CashierReportsContent({
   const [reportSearch, setReportSearch] = React.useState('')
   const [dateRange, setDateRange] = React.useState<DateSelectorValue>(() => {
     const today = new Date()
-    return { period: 'day', operator: 'between', startDate: today, endDate: today }
+    return { period: 'day', operator: 'is', startDate: today, endDate: today }
   })
   const dateRequestVersionRef = React.useRef(0)
   const reportId = selectedReport.reportId
@@ -1134,8 +1172,14 @@ export function CashierReportsContent({
   )
   const changeDateRange = React.useCallback(
     (value: DateSelectorValue): void => {
-      setDateRange(value)
-      if (value.operator !== 'is' || !value.startDate) return
+      if (!value.startDate) return
+      const next = {
+        ...value,
+        period: 'day' as const,
+        operator: 'is' as const,
+        endDate: value.startDate
+      }
+      setDateRange(next)
       void changeBusinessDate(value.startDate)
     },
     [changeBusinessDate]
@@ -1410,6 +1454,13 @@ export function CashierReportsContent({
     [activePaymentTypes, catalogOptions, createExpense, refreshEntries, reportId]
   )
 
+  const tabRowCounts: Record<(typeof reportTabs)[number], number> = {
+    Expenses: expenseQuery.totalRows,
+    Income: incomes.length,
+    Payment: payments.length,
+    Activity: historyRecords.length
+  }
+
   React.useEffect(() => {
     if (!isEntryFormVisible) return
     const firstField = formFields[activeTab][0]
@@ -1443,27 +1494,22 @@ export function CashierReportsContent({
           />
         </Card>
       )}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-        <CashierReportHeader
-          dateRange={dateRange}
-          search={reportSearch}
-          isLoading={isDateLoading}
-          error={dateError}
-          onDateRangeChange={changeDateRange}
-          onSearchChange={(value) => {
-            setReportSearch(value)
-            expenseQuery.onGlobalFilterChange(value)
-          }}
-        />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div
           className={
             showRightPanel
               ? 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(260px,302px)] gap-3'
-              : 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-1 gap-3'
+              : 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-1'
           }
         >
           <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+              <CashierReportHeader
+                dateRange={dateRange}
+                isLoading={isDateLoading}
+                error={dateError}
+                onDateRangeChange={changeDateRange}
+              />
               <Tabs
                 value={activeTab}
                 onValueChange={(value) => {
@@ -1482,19 +1528,24 @@ export function CashierReportsContent({
                 }}
                 className="flex min-h-0 flex-1 flex-col gap-0"
               >
-                <div className="shrink-0 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <TabsList
                     aria-label="Cashier report sections"
                     variant="line"
-                    className="h-9 w-max min-w-full justify-start rounded-none bg-transparent p-0"
+                    className="h-10 w-max min-w-full justify-start rounded-none bg-transparent p-0"
                   >
                     {reportTabs.map((tab) => (
                       <TabsTrigger
                         key={tab}
                         value={tab}
-                        className="h-9 flex-none rounded-none px-3 text-xs font-normal data-active:font-light"
+                        className="h-10 flex-none gap-1.5 rounded-none px-3.5 text-xs font-normal data-active:font-light"
                       >
-                        {tab === 'Activity' ? 'Installment History' : tab}
+                        <span>{tab === 'Activity' ? 'Installment History' : tab}</span>
+                        {tabRowCounts[tab] > 0 && (
+                          <Badge variant="secondary" className="min-w-5 justify-center px-1 tabular-nums">
+                            {tabRowCounts[tab]}
+                          </Badge>
+                        )}
                       </TabsTrigger>
                     ))}
                   </TabsList>

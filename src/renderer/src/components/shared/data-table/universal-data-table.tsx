@@ -55,6 +55,7 @@ type ColumnMeta = {
   headerTitle?: string
   headerClassName?: string
   cellClassName?: string
+  autoSize?: boolean
 }
 
 function getColumnMeta<TData>(column: Column<TData, unknown>): ColumnMeta {
@@ -159,6 +160,10 @@ export function UniversalDataTable<TData extends object>({
   }
 
   const rows = table.getRowModel().rows
+  const fixedWidth = table
+    .getVisibleLeafColumns()
+    .filter((column) => !getColumnMeta(column).autoSize)
+    .reduce((total, column) => total + column.getSize(), 0)
   const pagination = table.getState().pagination
   const pageSize = pagination?.pageSize ?? 50
   const pageIndex = pagination?.pageIndex ?? 0
@@ -172,7 +177,7 @@ export function UniversalDataTable<TData extends object>({
   return (
     <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}>
       <div className="min-h-0 min-w-0 flex-1 [&>[data-slot=table-container]]:h-full [&>[data-slot=table-container]]:overflow-auto">
-        <Table className="min-w-full table-fixed text-xs" style={{ width: table.getTotalSize() }}>
+        <Table className="w-full table-fixed text-xs" style={{ minWidth: fixedWidth }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent">
@@ -186,7 +191,7 @@ export function UniversalDataTable<TData extends object>({
                         'h-10 px-3 text-xs font-medium text-muted-foreground',
                         meta.headerClassName
                       )}
-                      style={{ width: header.getSize() }}
+                      style={meta.autoSize ? undefined : { width: header.getSize() }}
                     >
                       {header.isPlaceholder ? null : (
                         <TableColumnHeader
@@ -231,7 +236,7 @@ export function UniversalDataTable<TData extends object>({
                       <TableCell
                         key={cell.id}
                         className={cn('h-10 max-w-72 px-3', meta.cellClassName)}
-                        style={{ width: cell.column.getSize() }}
+                        style={meta.autoSize ? undefined : { width: cell.column.getSize() }}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
