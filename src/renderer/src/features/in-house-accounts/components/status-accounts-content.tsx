@@ -45,7 +45,6 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import { accountStatusRank } from '@/lib/in-house-account-display'
 import {
   branchNames,
@@ -126,14 +125,14 @@ function statusColumns(view: InstallmentView): ColumnDef<PersistedInstallmentRow
   const base: ColumnDef<PersistedInstallmentRow>[] = [
     {
       id: 'branch',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Branch" />,
+      header: 'Branch',
       size: 80,
       cell: ({ row }) => <AccountBranchBadge branch={toBranch(row.original.account.branch)} />
     },
     {
       id: 'account',
       accessorFn: (row) => formatAccountName(row.account),
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Account" />,
+      header: 'Account',
       size: 220,
       meta: { cellClassName: 'min-w-0' },
       cell: ({ row }) => <AccountCell row={row.original} />

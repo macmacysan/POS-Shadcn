@@ -1,5 +1,7 @@
 import type React from 'react'
+import { ListFilter } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import {
   Filters,
   type Filter,
@@ -28,6 +30,17 @@ export function ReuiFilters({
       fields={fields}
       onChange={onChange}
       className={className}
+      trigger={
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="border-dashed text-muted-foreground"
+        >
+          <ListFilter data-icon="inline-start" aria-hidden="true" />
+          Filter{filters.length ? ` (${filters.length})` : ''}
+        </Button>
+      }
       size="sm"
       allowMultiple
       enableShortcut

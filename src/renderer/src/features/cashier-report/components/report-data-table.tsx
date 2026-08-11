@@ -14,15 +14,11 @@ import {
 import { Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   createRowActionsColumn,
   type RowActionItem
 } from '@/components/shared/data-table/row-actions'
-import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
-import {
-  DataGridTableRowSelect,
-  DataGridTableRowSelectAll
-} from '@/components/ui/reui/data-grid/data-grid-table'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { ReuiFilters } from '@/components/shared/data-table/reui-filters'
@@ -33,8 +29,7 @@ export type ReportRow = { id: string }
 
 export type ReportColumn<TData extends ReportRow> = ColumnDef<TData>
 
-const reportPaginationSizes = [15, 25, 50, 100]
-const reportTableLayout = { columnsResizable: true, headerBackground: true } as const
+const reportPaginationSizes = [50, 100]
 
 type ReportDataTableProps<TData extends ReportRow> = {
   columns: ReportColumn<TData>[]
@@ -123,8 +118,14 @@ export function ReportDataTable<TData extends ReportRow>({
         enableColumnFilter: false,
         enableHiding: false,
         size: 42,
-        header: () => <DataGridTableRowSelectAll />,
-        cell: ({ row }) => <DataGridTableRowSelect row={row} />,
+        header: 'Select all',
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
         meta: {
           headerClassName: 'w-[42px]',
           cellClassName: 'w-[42px]'
@@ -136,9 +137,7 @@ export function ReportDataTable<TData extends ReportRow>({
 
         return {
           ...column,
-          header: ({ column: tableColumn }) => (
-            <DataGridColumnHeader column={tableColumn} title={headerTitle} />
-          ),
+          header: headerTitle,
           meta: {
             ...column.meta,
             headerTitle,
@@ -175,7 +174,8 @@ export function ReportDataTable<TData extends ReportRow>({
     enableRowSelection: true,
     onSortingChange: serverState?.onSortingChange ?? setSorting,
     onColumnFiltersChange: serverState?.onColumnFiltersChange ?? setColumnFilters,
-    onGlobalFilterChange: serverState?.onGlobalFilterChange ??
+    onGlobalFilterChange:
+      serverState?.onGlobalFilterChange ??
       (onGlobalFilterValueChange
         ? (updater) => {
             const next = resolveUpdater(updater, globalFilterValue ?? globalFilter)
@@ -207,12 +207,16 @@ export function ReportDataTable<TData extends ReportRow>({
   const currentColumnFilters = serverState?.columnFilters ?? columnFilters
   const filterFields = React.useMemo(
     () => [
-      {
-        key: 'global',
-        label: 'Search all columns',
-        type: 'text' as const,
-        placeholder: filterPlaceholder
-      },
+      ...(globalFilterValue === undefined
+        ? [
+            {
+              key: 'global',
+              label: 'Search all columns',
+              type: 'text' as const,
+              placeholder: filterPlaceholder
+            }
+          ]
+        : []),
       ...filterableColumns.map((column) => {
         const key = column.accessorKey
         const options = filterOptions?.[key]
@@ -229,11 +233,11 @@ export function ReportDataTable<TData extends ReportRow>({
         }
       })
     ],
-    [data, filterOptions, filterPlaceholder, filterableColumns]
+    [data, filterOptions, filterPlaceholder, filterableColumns, globalFilterValue]
   )
   const reuiFilters = React.useMemo<Filter<string>[]>(() => {
     const next: Filter<string>[] = []
-    if (currentGlobalFilter.trim()) {
+    if (globalFilterValue === undefined && currentGlobalFilter.trim()) {
       next.push({
         id: 'global-filter',
         field: 'global',
@@ -251,15 +255,15 @@ export function ReportDataTable<TData extends ReportRow>({
       })
     }
     return next
-  }, [currentColumnFilters, currentGlobalFilter])
+  }, [currentColumnFilters, currentGlobalFilter, globalFilterValue])
 
   const handleReuiFiltersChange = (next: Filter<string>[]): void => {
-    const global = next.find((filter) => filter.field === 'global')?.values[0] ?? ''
+    const global =
+      next.find((filter) => filter.field === 'global')?.values[0] ?? currentGlobalFilter
     const columns = next
       .filter((filter) => filter.field !== 'global' && filter.values[0])
       .map((filter) => ({ id: filter.field, value: filter.values[0] }))
-    table.setGlobalFilter(global)
-    onGlobalFilterValueChange?.(global)
+    if (globalFilterValue === undefined) table.setGlobalFilter(global)
     table.setColumnFilters(columns)
   }
 
@@ -318,7 +322,6 @@ export function ReportDataTable<TData extends ReportRow>({
         onRowDoubleClick={onDefaultAction}
         onRowContextMenu={getRowActions ? handleRowContextMenu : undefined}
         emptyMessage="No matching entries."
-        tableLayout={reportTableLayout}
         paginationSizes={reportPaginationSizes}
         paginationInfo="{from}-{to} of {count} entries"
         paginationClassName="px-4"

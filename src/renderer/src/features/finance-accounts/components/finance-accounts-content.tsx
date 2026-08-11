@@ -33,7 +33,6 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import {
   createRowActionsColumn,
   type RowActionItem
@@ -184,21 +183,21 @@ function financeColumns(): ColumnDef<FinanceTableRow>[] {
     {
       id: 'branch',
       accessorFn: (row) => row.account.branch,
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Branch" />,
+      header: 'Branch',
       cell: ({ row }) => <AccountBranchBadge branch={row.original.account.branch} />,
       size: 80
     },
     {
       id: 'provider',
       accessorFn: (row) => row.account.provider,
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Type" />,
+      header: 'Type',
       cell: ({ row }) => <Badge variant="secondary">{row.original.account.provider}</Badge>,
       size: 120
     },
     {
       id: 'dateReleased',
       accessorFn: (row) => row.account.dateReleased,
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Date Release" />,
+      header: 'Date Release',
       cell: ({ row }) => <Cell>{row.original.account.dateReleased}</Cell>,
       size: 112
     },

@@ -7,13 +7,11 @@ import {
 } from '@tanstack/react-table'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   createRowActionsColumn,
   type RowActionItem
 } from '@/components/shared/data-table/row-actions'
-import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { ReuiFilters } from '@/components/shared/data-table/reui-filters'
@@ -51,31 +49,20 @@ const sourceOptions: Array<InstallmentHistorySource | 'all'> = [
   'home-credit',
   'finance'
 ]
-const historyPaginationSizes = [15, 25, 50, 100]
-const historyTableLayout = { columnsResizable: true } as const
+const historyPaginationSizes = [50, 100]
 
 const historyBranchColumn: ColumnDef<InstallmentHistoryRecord> = {
   id: 'branch',
   accessorKey: 'branch',
-  header: ({ column }) => <DataGridColumnHeader column={column} title="Branch" />,
+  header: 'Branch',
   enableSorting: false,
   size: 90,
   meta: {
     headerTitle: 'Branch',
-    headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+    headerClassName: 'text-xs text-muted-foreground',
     cellClassName: 'text-xs text-muted-foreground'
   },
   cell: ({ row }) => row.original.branch
-}
-
-function ActionBadge({ action }: { action: InstallmentHistoryAction }): React.JSX.Element {
-  return (
-    <Badge
-      variant={action === 'deleted' ? 'destructive' : action === 'edited' ? 'outline' : 'secondary'}
-    >
-      {actionLabels[action]}
-    </Badge>
-  )
 }
 
 function TruncatedText({
@@ -258,24 +245,26 @@ export function InstallmentHistoryTable({
       {
         id: 'action',
         accessorKey: 'action',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Action" />,
+        header: 'Action',
         enableSorting: false,
         size: 90,
         meta: {
           headerTitle: 'Action',
-          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground'
+          headerClassName: 'text-xs text-muted-foreground'
         },
-        cell: ({ row }) => <ActionBadge action={row.original.action} />
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">{actionLabels[row.original.action]}</span>
+        )
       },
       {
         id: 'source',
         accessorKey: 'source',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Source" />,
+        header: 'Source',
         enableSorting: false,
         size: 100,
         meta: {
           headerTitle: 'Source',
-          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          headerClassName: 'text-xs text-muted-foreground',
           cellClassName: 'text-xs text-muted-foreground'
         },
         cell: ({ row }) => sourceLabels[row.original.source]
@@ -283,12 +272,12 @@ export function InstallmentHistoryTable({
       {
         id: 'account',
         accessorKey: 'accountName',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Account" />,
+        header: 'Account',
         enableSorting: false,
         size: 200,
         meta: {
           headerTitle: 'Account',
-          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          headerClassName: 'text-xs text-muted-foreground',
           cellClassName: 'min-w-0',
           autoSize: true
         },
@@ -306,12 +295,12 @@ export function InstallmentHistoryTable({
       {
         id: 'activity',
         accessorKey: 'activity',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Activity" />,
+        header: 'Activity',
         enableSorting: false,
         size: 200,
         meta: {
           headerTitle: 'Activity',
-          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          headerClassName: 'text-xs text-muted-foreground',
           cellClassName: 'min-w-0'
         },
         cell: ({ row }) => (
@@ -321,12 +310,12 @@ export function InstallmentHistoryTable({
       {
         id: 'amount',
         accessorKey: 'amount',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Amount" />,
+        header: 'Amount',
         enableSorting: false,
         size: 100,
         meta: {
           headerTitle: 'Amount',
-          headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
+          headerClassName: 'text-right text-xs text-foreground',
           cellClassName: 'text-right text-xs font-light tabular-nums text-foreground'
         },
         cell: ({ row }) => formatHistoryMoney(row.original.amount)
@@ -334,12 +323,12 @@ export function InstallmentHistoryTable({
       {
         id: 'balance',
         accessorKey: 'balance',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Balance" />,
+        header: 'Balance',
         enableSorting: false,
         size: 100,
         meta: {
           headerTitle: 'Balance',
-          headerClassName: 'text-right text-xs uppercase tracking-wide text-foreground',
+          headerClassName: 'text-right text-xs text-foreground',
           cellClassName: 'text-right text-xs font-light tabular-nums text-foreground'
         },
         cell: ({ row }) => formatHistoryMoney(row.original.balance)
@@ -347,12 +336,12 @@ export function InstallmentHistoryTable({
       {
         id: 'occurredAt',
         accessorKey: 'occurredAt',
-        header: ({ column }) => <DataGridColumnHeader column={column} title="Date & Time" />,
+        header: 'Date & time',
         enableSorting: false,
         size: 176,
         meta: {
-          headerTitle: 'Date & Time',
-          headerClassName: 'text-xs uppercase tracking-wide text-muted-foreground',
+          headerTitle: 'Date & time',
+          headerClassName: 'text-xs text-muted-foreground',
           cellClassName: 'text-xs text-muted-foreground'
         },
         cell: ({ row }) => formatHistoryDateTime(row.original.occurredAt)
@@ -363,7 +352,7 @@ export function InstallmentHistoryTable({
         getOpenSignal: (rowId) => (contextMenu.rowId === rowId ? contextMenu.signal : undefined)
       })
     ],
-    [contextMenu, historyBranchColumn, onSelect, selectedBranch]
+    [contextMenu, onSelect, selectedBranch]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table manages reactive table state internally.
@@ -377,7 +366,7 @@ export function InstallmentHistoryTable({
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.id,
-    initialState: { pagination: { pageSize: 25 } }
+    initialState: { pagination: { pageSize: 50 } }
   })
 
   return (
@@ -412,7 +401,6 @@ export function InstallmentHistoryTable({
         onRowContextMenu={handleRowContextMenu}
         paginationSizes={historyPaginationSizes}
         paginationInfo="{from}-{to} of {count} records"
-        tableLayout={historyTableLayout}
       />
     </div>
   )

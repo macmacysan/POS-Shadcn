@@ -7,7 +7,6 @@ import {
   Building2,
   Bus,
   CarFront,
-  CircleHelp,
   CreditCard,
   Ellipsis,
   GraduationCap,
@@ -362,11 +361,7 @@ function CashierReportHeader({
 }
 
 function TypeBox({ value }: { value: string }): React.JSX.Element {
-  return (
-    <span className="inline-flex h-5 items-center rounded-sm bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">
-      {value}
-    </span>
-  )
+  return <span className="text-muted-foreground">{value}</span>
 }
 
 function TruncatedText({
@@ -416,37 +411,8 @@ function TruncatedText({
 
 function ExpenseCategoryCell({ category }: { category: string }): React.JSX.Element {
   const fallbackLabel = category.trim() || 'Unknown'
-  const config = expenseCategoryConfigByValue.get(category) ?? {
-    value: category,
-    fullLabel: fallbackLabel,
-    shortLabel: fallbackLabel,
-    icon: CircleHelp
-  }
-  const Icon = config.icon
-
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span className="flex min-w-0 items-center gap-1.5" tabIndex={0}>
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border bg-background">
-                <Icon
-                  aria-hidden="true"
-                  className="size-3 text-muted-foreground"
-                  strokeWidth={1.75}
-                />
-              </span>
-              <span className="truncate text-[10px] font-normal text-muted-foreground">
-                {config.shortLabel}
-              </span>
-            </span>
-          }
-        />
-        <TooltipContent>{config.fullLabel}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
+  const label = expenseCategoryConfigByValue.get(category)?.shortLabel ?? fallbackLabel
+  return <TruncatedText value={label} className="text-muted-foreground" />
 }
 
 const expenseColumns: ReportColumn<ExpenseRow>[] = [
@@ -552,13 +518,13 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
 const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'type',
-    header: 'TYPE',
+    header: 'Type',
     size: 100,
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} />
   },
   {
     accessorKey: 'bankProvider',
-    header: 'BANK / PROVIDER',
+    header: 'Bank / provider',
     size: 150,
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
@@ -567,23 +533,23 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   },
   {
     accessorKey: 'accountName',
-    header: 'ACCOUNT NAME',
+    header: 'Account name',
     size: 200,
     cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
     meta: { className: 'min-w-0' }
   },
   {
     accessorKey: 'referenceNo',
-    header: 'REFERENCE NO.',
+    header: 'Reference no.',
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
     ),
     meta: { className: 'text-muted-foreground' }
   },
-  { accessorKey: 'date', header: 'DATE', meta: { className: 'text-muted-foreground' } },
+  { accessorKey: 'date', header: 'Date', meta: { className: 'text-muted-foreground' } },
   {
     accessorKey: 'amount',
-    header: 'AMOUNT',
+    header: 'Amount',
     size: 150,
     cell: ({ getValue }) => money(getValue<number>()),
     meta: { className: 'text-right font-light tabular-nums text-foreground' }
@@ -1463,7 +1429,8 @@ export function CashierReportsContent({
         <Card
           className={cn(
             'flex min-h-0 min-w-0 flex-col py-0',
-            summaryAlwaysDark && 'dark sidebar-always-dark bg-sidebar text-sidebar-foreground ring-sidebar-border'
+            summaryAlwaysDark &&
+              'dark sidebar-always-dark bg-sidebar text-sidebar-foreground ring-sidebar-border'
           )}
         >
           <ReportSummary

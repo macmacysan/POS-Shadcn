@@ -176,7 +176,8 @@ function SummaryRow({
   emphasis = false,
   className,
   hoverDetails,
-  hideWhenZero = false
+  hideWhenZero = false,
+  valueMuted = false
 }: {
   label: string
   value: number
@@ -184,6 +185,7 @@ function SummaryRow({
   className?: string
   hoverDetails?: React.ReactNode
   hideWhenZero?: boolean
+  valueMuted?: boolean
 }): React.JSX.Element | null {
   if (hideWhenZero && value === 0) return null
 
@@ -197,7 +199,13 @@ function SummaryRow({
       >
         {label}
       </span>
-      <span className={cn('shrink-0 tabular-nums', emphasis && 'font-semibold text-foreground')}>
+      <span
+        className={cn(
+          'shrink-0 tabular-nums',
+          emphasis && 'font-semibold',
+          valueMuted ? 'text-muted-foreground' : emphasis && 'text-foreground'
+        )}
+      >
         {money(value)}
       </span>
     </div>
@@ -440,7 +448,10 @@ export const ReportSummary = React.memo(function ReportSummary({
   if (!snapshot) {
     return (
       <aside
-        className={cn('flex min-h-0 flex-1 flex-col p-1.5', alwaysDark && 'dark sidebar-always-dark')}
+        className={cn(
+          'flex min-h-0 flex-1 flex-col p-1.5',
+          alwaysDark && 'dark sidebar-always-dark'
+        )}
       >
         <Empty className="m-auto border-0">
           <EmptyHeader>
@@ -753,23 +764,32 @@ export const ReportSummary = React.memo(function ReportSummary({
                   label="Collections"
                   value={snapshot.cashCollectionsCentavos ?? 0}
                   hideWhenZero
+                  valueMuted
                 />
-                <SummaryRow label="Other" value={snapshot.otherIncomeCentavos ?? 0} hideWhenZero />
+                <SummaryRow
+                  label="Other"
+                  value={snapshot.otherIncomeCentavos ?? 0}
+                  hideWhenZero
+                  valueMuted
+                />
                 <SummaryRow
                   label="Finance Down"
                   value={snapshot.financeDownCentavos ?? 0}
                   hideWhenZero
+                  valueMuted
                 />
                 <SummaryRow
                   label="Finance Bal"
                   value={snapshot.financeBalanceCentavos ?? 0}
                   hideWhenZero
+                  valueMuted
                 />
                 <SummaryRow
                   label="Total Receipts"
                   value={totalReceiptsCentavos}
                   emphasis
                   hideWhenZero
+                  valueMuted
                 />
               </Section>
             )}
@@ -779,22 +799,31 @@ export const ReportSummary = React.memo(function ReportSummary({
                   label="Company Expenses"
                   value={expenseTotals.companyExpensesCentavos}
                   hideWhenZero
+                  valueMuted
                 />
-                <SummaryRow label="Drawings" value={expenseTotals.drawingsCentavos} hideWhenZero />
+                <SummaryRow
+                  label="Drawings"
+                  value={expenseTotals.drawingsCentavos}
+                  hideWhenZero
+                  valueMuted
+                />
                 <SummaryRow
                   label="Purchases"
                   value={expenseTotals.purchasesCentavos}
                   hideWhenZero
+                  valueMuted
                 />
                 <SummaryRow
                   label="Receivables"
                   value={expenseTotals.receivablesCentavos}
                   hideWhenZero
+                  valueMuted
                 />
                 <SummaryRow
                   label="Deductions"
                   value={deductionCentavos}
                   hideWhenZero
+                  valueMuted
                   hoverDetails={
                     populatedDeductions.length > 0 && (
                       <div className="grid min-w-56 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 text-xs">
@@ -814,20 +843,33 @@ export const ReportSummary = React.memo(function ReportSummary({
                   emphasis
                   className="border-b border-border/60"
                   hideWhenZero
+                  valueMuted
                 />
-                <SummaryRow label="Bank Check" value={paymentTotals.bankCheck} hideWhenZero />
-                <SummaryRow label="Bank Transfer" value={paymentTotals.bankTransfer} hideWhenZero />
-                <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero />
+                <SummaryRow
+                  label="Bank Check"
+                  value={paymentTotals.bankCheck}
+                  hideWhenZero
+                  valueMuted
+                />
+                <SummaryRow
+                  label="Bank Transfer"
+                  value={paymentTotals.bankTransfer}
+                  hideWhenZero
+                  valueMuted
+                />
+                <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero valueMuted />
                 <SummaryRow
                   label="Other e-wallet"
                   value={paymentTotals.otherEwallet}
                   hideWhenZero
+                  valueMuted
                 />
                 <SummaryRow
                   label="Total Payments"
                   value={paymentTotals.total}
                   emphasis
                   hideWhenZero
+                  valueMuted
                 />
               </Section>
             )}
@@ -835,11 +877,17 @@ export const ReportSummary = React.memo(function ReportSummary({
         </ScrollArea>
 
         <div className="shrink-0 border-t border-sidebar-border bg-sidebar px-3 py-1">
-          <SummaryRow label="Expected Cash" value={snapshot.expectedCashCentavos} emphasis />
+          <SummaryRow
+            label="Expected Cash"
+            value={snapshot.expectedCashCentavos}
+            emphasis
+            valueMuted
+          />
           <SummaryRow
             label="Cash Denominations"
             value={snapshot.physicalCashCentavos}
             hideWhenZero
+            valueMuted
             hoverDetails={
               populatedCashDenominations.length > 0 && (
                 <div className="grid min-w-56 grid-cols-[1fr_2rem_1fr] gap-x-3 gap-y-1 text-xs">
@@ -859,7 +907,7 @@ export const ReportSummary = React.memo(function ReportSummary({
               )
             }
           />
-          <SummaryRow label="Cash Remitted" value={0} hideWhenZero />
+          <SummaryRow label="Cash Remitted" value={0} hideWhenZero valueMuted />
           <div
             className={cn(
               'mt-2 mb-2 rounded-md border px-2.5 py-2',

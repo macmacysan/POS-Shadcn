@@ -35,7 +35,6 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DataGridColumnHeader } from '@/components/ui/reui/data-grid/data-grid-column-header'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatPhilippinePeso } from '@/lib/currency'
 import { branchNames, formatAccountName, type InHouseAccount } from '@/lib/in-house-accounts'
@@ -190,7 +189,7 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
     {
       id: 'installment',
       accessorKey: 'installmentNumber',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="#" />,
+      header: '#',
       size: 64,
       cell: ({ row }) => (
         <span className={scheduleValueClass(row.original, 'font-light')}>
@@ -201,7 +200,7 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
     {
       id: 'dueDate',
       accessorKey: 'dueDate',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Due date" />,
+      header: 'Due date',
       size: 112,
       cell: ({ row }) => (
         <span className={scheduleValueClass(row.original)}>{formatDate(row.original.dueDate)}</span>
@@ -210,7 +209,7 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
     {
       id: 'dueAmount',
       accessorKey: 'dueAmountCentavos',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Due amount" />,
+      header: 'Due amount',
       size: 150,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
       cell: ({ row }) => (
@@ -222,7 +221,7 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
     {
       id: 'paid',
       accessorKey: 'paidAmountCentavos',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Paid" />,
+      header: 'Paid',
       size: 130,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
       cell: ({ row }) =>
@@ -233,7 +232,7 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
     {
       id: 'balance',
       accessorKey: 'balanceCentavos',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Balance" />,
+      header: 'Balance',
       size: 140,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right font-light tabular-nums' },
       cell: ({ row }) => (
@@ -245,7 +244,7 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
     {
       id: 'status',
       accessorKey: 'status',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Status" />,
+      header: 'Status',
       size: 190,
       cell: ({ row }) => (
         <div className="flex flex-wrap items-center gap-1">
@@ -266,14 +265,14 @@ function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
     {
       id: 'paymentDate',
       accessorKey: 'paymentDate',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Payment date" />,
+      header: 'Payment date',
       size: 150,
       cell: ({ row }) => formatDate(row.original.paymentDate)
     },
     {
       id: 'reference',
       accessorKey: 'referenceNumber',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="OR / reference" />,
+      header: 'OR / reference',
       size: 220,
       meta: { cellClassName: 'truncate text-muted-foreground' },
       cell: ({ row }) => row.original.referenceNumber || '—'
@@ -281,7 +280,7 @@ function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
     {
       id: 'amount',
       accessorKey: 'amountCentavos',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Amount received" />,
+      header: 'Amount received',
       size: 170,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right font-light tabular-nums' },
       cell: ({ row }) => formatPhilippinePeso(row.original.amountCentavos / 100)
@@ -289,7 +288,7 @@ function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
     {
       id: 'allocated',
       accessorKey: 'allocatedAmountCentavos',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Allocated" />,
+      header: 'Allocated',
       size: 140,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
       cell: ({ row }) => formatPhilippinePeso(row.original.allocatedAmountCentavos / 100)
@@ -297,7 +296,7 @@ function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
     {
       id: 'status',
       accessorKey: 'status',
-      header: ({ column }) => <DataGridColumnHeader column={column} title="Status" />,
+      header: 'Status',
       size: 190,
       cell: ({ row }) => (
         <div className="flex flex-wrap items-center gap-1">

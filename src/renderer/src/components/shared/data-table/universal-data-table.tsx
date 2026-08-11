@@ -1,15 +1,16 @@
-import { useMemo, type MouseEvent, type ReactNode } from 'react'
-import type { Table } from '@tanstack/react-table'
+import { type MouseEvent, type ReactNode } from 'react'
+import { flexRender, type Column, type Table as TanStackTable } from '@tanstack/react-table'
+import { ChevronLeft, ChevronRight, ChevronsUpDown, ArrowDown, ArrowUp } from 'lucide-react'
 
 import {
-  DataGrid,
-  DataGridContainer,
-  type DataGridProps
-} from '@/components/ui/reui/data-grid/data-grid'
-import { DataGridPagination } from '@/components/ui/reui/data-grid/data-grid-pagination'
-import { DataGridScrollArea } from '@/components/ui/reui/data-grid/data-grid-scroll-area'
-import { DataGridTable } from '@/components/ui/reui/data-grid/data-grid-table'
-import { DataGridTableVirtual } from '@/components/ui/reui/data-grid/data-grid-table-virtual'
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table'
 import {
   Empty,
   EmptyContent,
@@ -18,10 +19,20 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 type UniversalDataTableProps<TData extends object> = {
-  table: Table<TData>
+  table: TanStackTable<TData>
   recordCount: number
   isLoading?: boolean
   error?: ReactNode | string
@@ -35,12 +46,81 @@ type UniversalDataTableProps<TData extends object> = {
   paginationClassName?: string
   showPagination?: boolean
   className?: string
-  tableLayout?: DataGridProps<TData>['tableLayout']
-  tableClassNames?: DataGridProps<TData>['tableClassNames']
+  tableLayout?: unknown
+  tableClassNames?: unknown
   footerContent?: ReactNode
-  virtual?: boolean
-  virtualEstimateSize?: number
-  virtualOverscan?: number
+}
+
+type ColumnMeta = {
+  headerTitle?: string
+  headerClassName?: string
+  cellClassName?: string
+}
+
+function getColumnMeta<TData>(column: Column<TData, unknown>): ColumnMeta {
+  return (column.columnDef.meta ?? {}) as ColumnMeta
+}
+
+function getColumnLabel<TData>(column: Column<TData, unknown>): string {
+  const meta = getColumnMeta(column)
+  if (meta.headerTitle) return meta.headerTitle
+  if (typeof column.columnDef.header === 'string') return column.columnDef.header
+  return column.id.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
+}
+
+function TableColumnHeader<TData>({
+  column,
+  table,
+  isLoading
+}: {
+  column: Column<TData, unknown>
+  table: TanStackTable<TData>
+  isLoading: boolean
+}): React.JSX.Element {
+  if (column.id === 'select') {
+    const isAllSelected = table.getIsAllPageRowsSelected()
+    const isSomeSelected = table.getIsSomePageRowsSelected()
+    return (
+      <Checkbox
+        checked={isAllSelected}
+        indeterminate={isSomeSelected && !isAllSelected}
+        disabled={isLoading || table.getRowModel().rows.length === 0}
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    )
+  }
+
+  if (column.id === 'actions') return <span className="sr-only">Actions</span>
+
+  const isSorted = column.getIsSorted()
+  const label = getColumnLabel(column)
+  if (!column.getCanSort()) return <>{label}</>
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="group/header -ml-2 h-7 px-2 text-xs font-medium"
+      onClick={() => column.toggleSorting(isSorted === 'asc')}
+      disabled={isLoading || table.getRowModel().rows.length === 0}
+      aria-label={`Sort ${label}`}
+    >
+      {label}
+      {isSorted === 'asc' ? (
+        <ArrowUp data-icon="inline-end" aria-hidden="true" />
+      ) : isSorted === 'desc' ? (
+        <ArrowDown data-icon="inline-end" aria-hidden="true" />
+      ) : (
+        <ChevronsUpDown
+          data-icon="inline-end"
+          aria-hidden="true"
+          className="opacity-0 group-hover/header:opacity-100 group-focus-visible/header:opacity-100"
+        />
+      )}
+    </Button>
+  )
 }
 
 export function UniversalDataTable<TData extends object>({
@@ -58,31 +138,8 @@ export function UniversalDataTable<TData extends object>({
   paginationClassName,
   showPagination = true,
   className,
-  tableLayout,
-  tableClassNames,
-  footerContent,
-  virtual = false,
-  virtualEstimateSize = 48,
-  virtualOverscan = 8
+  footerContent
 }: UniversalDataTableProps<TData>): React.JSX.Element {
-  const resolvedTableLayout = useMemo(
-    () => ({
-      dense: true,
-      headerSticky: true,
-      headerBackground: true,
-      width: 'fixed' as const,
-      ...tableLayout
-    }),
-    [tableLayout]
-  )
-  const resolvedTableClassNames = useMemo(
-    () => ({
-      ...tableClassNames,
-      bodyRow: cn('group/row', tableClassNames?.bodyRow)
-    }),
-    [tableClassNames]
-  )
-
   if (error) {
     return (
       <Empty className={cn('min-h-52 border-0', className)} role="alert">
@@ -101,42 +158,153 @@ export function UniversalDataTable<TData extends object>({
     )
   }
 
+  const rows = table.getRowModel().rows
+  const pagination = table.getState().pagination
+  const pageSize = pagination?.pageSize ?? 50
+  const pageIndex = pagination?.pageIndex ?? 0
+  const from = recordCount === 0 ? 0 : pageIndex * pageSize + 1
+  const to = Math.min((pageIndex + 1) * pageSize, recordCount)
+  const pageInfo = paginationInfo
+    .replaceAll('{from}', from.toLocaleString('en-PH'))
+    .replaceAll('{to}', to.toLocaleString('en-PH'))
+    .replaceAll('{count}', recordCount.toLocaleString('en-PH'))
+
   return (
-    <DataGrid
-      table={table}
-      recordCount={recordCount}
-      isLoading={isLoading}
-      emptyMessage={emptyMessage}
-      onRowClick={onRowClick}
-      onRowDoubleClick={onRowDoubleClick}
-      onRowContextMenu={onRowContextMenu}
-      className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}
-      tableLayout={resolvedTableLayout}
-      tableClassNames={resolvedTableClassNames}
-    >
-      <DataGridContainer className="min-h-0 min-w-0 flex-1">
-        <DataGridScrollArea className="h-full min-h-0" orientation="both">
-          {virtual ? (
-            <DataGridTableVirtual
-              estimateSize={virtualEstimateSize}
-              overscan={virtualOverscan}
-              footerContent={footerContent}
-            />
-          ) : (
-            <DataGridTable footerContent={footerContent} />
-          )}
-        </DataGridScrollArea>
-      </DataGridContainer>
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}>
+      <div className="min-h-0 min-w-0 flex-1 [&>[data-slot=table-container]]:h-full [&>[data-slot=table-container]]:overflow-auto">
+        <Table className="min-w-full table-fixed text-xs" style={{ width: table.getTotalSize() }}>
+          <TableHeader className="sticky top-0 z-10 bg-background">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id} className="hover:bg-transparent">
+                {headerGroup.headers.map((header) => {
+                  const meta = getColumnMeta(header.column)
+                  return (
+                    <TableHead
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      className={cn(
+                        'h-10 px-3 text-xs font-medium text-muted-foreground',
+                        meta.headerClassName
+                      )}
+                      style={{ width: header.getSize() }}
+                    >
+                      {header.isPlaceholder ? null : (
+                        <TableColumnHeader
+                          column={header.column}
+                          table={table}
+                          isLoading={isLoading}
+                        />
+                      )}
+                    </TableHead>
+                  )
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {isLoading && rows.length === 0 ? (
+              Array.from({ length: 8 }, (_, index) => (
+                <TableRow key={`loading-${index}`}>
+                  {table.getVisibleLeafColumns().map((column) => (
+                    <TableCell key={column.id} className="h-10 px-3">
+                      <Skeleton className="h-3 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : rows.length > 0 ? (
+              rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  className={cn(
+                    'group/row h-10',
+                    (onRowClick || onRowDoubleClick) && 'cursor-pointer'
+                  )}
+                  onClick={() => onRowClick?.(row.original)}
+                  onDoubleClick={() => onRowDoubleClick?.(row.original)}
+                  onContextMenu={(event) => onRowContextMenu?.(row.original, event)}
+                >
+                  {row.getVisibleCells().map((cell) => {
+                    const meta = getColumnMeta(cell.column)
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={cn('h-10 max-w-72 px-3', meta.cellClassName)}
+                        style={{ width: cell.column.getSize() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    )
+                  })}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={table.getVisibleLeafColumns().length}
+                  className="h-40 text-center text-muted-foreground"
+                >
+                  {emptyMessage ?? 'No results found.'}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+          {footerContent && <TableFooter>{footerContent}</TableFooter>}
+        </Table>
+      </div>
       {showPagination && (
-        <DataGridPagination
-          sizes={paginationSizes}
-          info={paginationInfo}
+        <div
           className={cn(
-            'h-11 min-h-11 grow-0 shrink-0 flex-row flex-nowrap border-t bg-muted/30 px-3 py-0 text-xs [&>div]:py-0 [&>div]:pt-0 [&>div]:pb-0',
+            'flex h-11 shrink-0 items-center justify-between gap-3 border-t px-3 text-xs',
             paginationClassName
           )}
-        />
+        >
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span>Rows</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(value) => table.setPageSize(Number(value))}
+            >
+              <SelectTrigger size="sm" className="w-16">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent side="top">
+                <SelectGroup>
+                  {paginationSizes.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="mr-1 text-muted-foreground">{pageInfo}</span>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              aria-label="Go to previous page"
+            >
+              <ChevronLeft aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              aria-label="Go to next page"
+            >
+              <ChevronRight aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
       )}
-    </DataGrid>
+    </div>
   )
 }
