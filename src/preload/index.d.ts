@@ -6,6 +6,7 @@ import type {
   DailyReportsApi,
   ExpensesApi,
   FinanceAccountsApi,
+  GeocodingApi,
   InstallmentsApi,
   WindowControlsApi
 } from '../shared/contracts'
@@ -19,7 +20,8 @@ declare global {
       AuthApi &
       CatalogOptionsApi &
       DashboardApi &
-      DailyReportsApi
+      DailyReportsApi &
+      GeocodingApi
     windowControls?: WindowControlsApi
   }
 }

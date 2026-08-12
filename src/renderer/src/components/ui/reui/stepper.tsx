@@ -277,6 +277,7 @@ function StepperTrigger({
   return (
     <button
       ref={btnRef}
+      type="button"
       role="tab"
       id={id}
       aria-selected={isSelected}

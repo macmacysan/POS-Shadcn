@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 20
+export const currentSchemaVersion = 22
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`

@@ -6,6 +6,7 @@ import { CardFooter } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -382,13 +383,16 @@ export function InHouseAccountForm({
   const [existingSearch, setExistingSearch] = React.useState('')
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>()
   const [step, setStep] = React.useState(1)
-  const [clientStep, setClientStep] = React.useState(1)
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
   const [address, setAddress] = React.useState<{
     province?: PsgcOption
     cityMunicipality?: PsgcOption
     barangay?: PsgcOption
   }>({})
+  const [locationSource, setLocationSource] = React.useState<'geocoded' | 'manual'>()
+  const [mapZoom, setMapZoom] = React.useState(14)
+  const [geocodeMessage, setGeocodeMessage] = React.useState<string>()
+  const geocodeSequence = React.useRef(0)
   React.useEffect(() => {
     void window.api.catalogOptions
       .list({ activeOnly: true })
@@ -404,19 +408,74 @@ export function InHouseAccountForm({
   const setLoan = <K extends keyof LoanDraft>(key: K, value: LoanDraft[K]): void =>
     setLoanDraft((current) => ({ ...current, [key]: value }))
 
+  const geocodeAddress = React.useCallback(
+    async (
+      values: {
+        readonly barangay?: string
+        readonly cityMunicipality?: string
+        readonly province: string
+      },
+      zoom: number
+    ): Promise<void> => {
+      const request = ++geocodeSequence.current
+      if (!values.province) {
+        setGeocodeMessage(undefined)
+        return
+      }
+      setGeocodeMessage('Finding approximate location…')
+
+      try {
+        const result = await window.api.geocoding.forward(values)
+        if (request !== geocodeSequence.current) return
+        if (!result) {
+          setGeocodeMessage(
+            'Location could not be found automatically. Set it manually on the map.'
+          )
+          return
+        }
+        setAccountDraft((current) => ({
+          ...current,
+          latitude: result.latitude,
+          longitude: result.longitude
+        }))
+        setLocationSource('geocoded')
+        setMapZoom(zoom)
+        setGeocodeMessage(undefined)
+      } catch (error) {
+        if (request !== geocodeSequence.current) return
+        setGeocodeMessage('Location could not be found automatically. Set it manually on the map.')
+      }
+    },
+    []
+  )
+
+  const validateAccountFields = (
+    keys: readonly (keyof AccountDraft)[]
+  ): AccountValidationErrors => {
+    const errors = validateAccountDraft(normalizeAccountDraft(accountDraft))
+    return Object.fromEntries(
+      Object.entries(errors).filter(([key]) => keys.includes(key as keyof AccountDraft))
+    ) as AccountValidationErrors
+  }
+
   const continueStep = (): void => {
     if (step === 1 && mode === 'existing' && !selectedCustomerId) return
     if (step === 2) {
-      const errors = validateAccountDraft(normalizeAccountDraft(accountDraft))
+      const errors = validateAccountFields(['branch', 'lastName', 'firstName'])
       setAccountErrors(errors)
       if (Object.keys(errors).length) return
     }
     if (step === 3) {
+      const errors = validateAccountFields(['contacts', 'emails'])
+      setAccountErrors(errors)
+      if (Object.keys(errors).length) return
+    }
+    if (step === 5) {
       const errors = validateLoanDraft(normalizeLoanDraft(loanDraft))
       setLoanErrors(errors)
       if (Object.keys(errors).length) return
     }
-    setStep((current) => Math.min(current + 1, 4))
+    setStep((current) => Math.min(current + 1, 6))
   }
 
   const save = async (): Promise<void> => {
@@ -434,14 +493,23 @@ export function InHouseAccountForm({
     const accountValidation = validateAccountDraft(normalizedAccount)
     setAccountErrors(accountValidation)
     if (Object.keys(accountValidation).length) {
-      setStep(2)
+      setStep(
+        accountValidation.branch || accountValidation.lastName || accountValidation.firstName
+          ? 2
+          : 3
+      )
       return
     }
     setIsSubmitting(true)
     try {
       await onSave(
         mode === 'existing' && selectedCustomerId
-          ? { mode: 'existing', customerId: selectedCustomerId, accountDraft: normalizedAccount, loanDraft: normalizedLoan }
+          ? {
+              mode: 'existing',
+              customerId: selectedCustomerId,
+              accountDraft: normalizedAccount,
+              loanDraft: normalizedLoan
+            }
           : { mode: 'new', accountDraft: normalizedAccount, loanDraft: normalizedLoan }
       )
     } catch {
@@ -485,18 +553,31 @@ export function InHouseAccountForm({
       }}
     >
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-6 p-6 xl:grid-cols-[14rem_minmax(0,1fr)]">
-          {formError && <FieldError className="xl:col-span-2">{formError}</FieldError>}
+        <div className="grid gap-6 p-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+          {formError && <FieldError className="lg:col-span-2">{formError}</FieldError>}
 
-          <Stepper value={step} onValueChange={setStep} orientation="vertical" indicators={{ completed: <Check /> }} className="sticky top-0 self-start border-r bg-background pr-4 xl:row-span-4">
+          <Stepper
+            value={step}
+            onValueChange={setStep}
+            orientation="vertical"
+            indicators={{ completed: <Check /> }}
+            className="sticky top-0 self-start border-r bg-background pr-4 lg:row-span-4"
+          >
             <StepperNav>
               {[
                 ['Account', 'Choose a record'],
-                ['Client', 'Verify client details'],
+                ['Personal', 'Set client identity'],
+                ['Contact & Work', 'Add contact details'],
+                ['Address & Location', 'Add optional address details'],
                 ['Loan', 'Set loan terms'],
                 ['Review', 'Confirm and create']
               ].map(([title, description], index) => (
-                <StepperItem key={title} step={index + 1} disabled={index + 1 > step} className="relative items-start not-last:flex-1">
+                <StepperItem
+                  key={title}
+                  step={index + 1}
+                  disabled={index + 1 > step}
+                  className="relative items-start not-last:flex-1"
+                >
                   <StepperTrigger className="items-start gap-2.5 pb-10 text-left last:pb-0">
                     <StepperIndicator>{index + 1}</StepperIndicator>
                     <span className="mt-0.5 flex flex-col items-start gap-1">
@@ -504,360 +585,423 @@ export function InHouseAccountForm({
                       <StepperDescription className="text-xs">{description}</StepperDescription>
                     </span>
                   </StepperTrigger>
-                  {index < 3 && <StepperSeparator className="absolute inset-y-0 top-7 left-3 -order-1 m-0 -translate-x-1/2 group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-2rem)]" />}
+                  {index < 5 && (
+                    <StepperSeparator className="absolute inset-y-0 top-7 left-3 -order-1 m-0 -translate-x-1/2 group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-2rem)]" />
+                  )}
                 </StepperItem>
               ))}
             </StepperNav>
           </Stepper>
 
-          <FieldGroup className={cn('xl:col-start-2', step !== 1 && 'hidden')}>
+          <FieldGroup className={cn('lg:col-start-2', step !== 1 && 'hidden')}>
             <FieldSet className="gap-3">
               <FieldLegend variant="label">Account</FieldLegend>
               <div className="flex gap-2">
-                <Button type="button" variant={mode === 'new' ? 'default' : 'outline'} onClick={() => setMode('new')}>New Account</Button>
-                <Button type="button" variant={mode === 'existing' ? 'default' : 'outline'} onClick={() => setMode('existing')}>Existing Account</Button>
+                <Button
+                  type="button"
+                  variant={mode === 'new' ? 'default' : 'outline'}
+                  onClick={() => setMode('new')}
+                >
+                  New Account
+                </Button>
+                <Button
+                  type="button"
+                  variant={mode === 'existing' ? 'default' : 'outline'}
+                  onClick={() => setMode('existing')}
+                >
+                  Existing Account
+                </Button>
               </div>
               {mode === 'existing' && (
                 <FieldGroup className="gap-2">
                   <Field>
-                    <FieldLabel htmlFor="existing-account-search">Search existing accounts</FieldLabel>
-                    <Input id="existing-account-search" value={existingSearch} onChange={(event) => setExistingSearch(event.target.value)} placeholder="Search client name..." />
+                    <FieldLabel htmlFor="existing-account-search">
+                      Search existing accounts
+                    </FieldLabel>
+                    <Input
+                      id="existing-account-search"
+                      value={existingSearch}
+                      onChange={(event) => setExistingSearch(event.target.value)}
+                      placeholder="Search client name..."
+                    />
                   </Field>
                   <div className="max-h-48 overflow-y-auto rounded-md border">
                     {existingCustomers.slice(0, 25).map((row) => (
-                      <Button key={row.account.id} type="button" variant={selectedCustomerId === row.account.id ? 'secondary' : 'ghost'} className="w-full justify-start rounded-none" onClick={() => {
-                        setSelectedCustomerId(row.account.id)
-                        setAccountDraft({ ...row.account })
-                      }}>
-                        <Search data-icon="inline-start" />{formatAccountName(row.account)} · {row.account.branch} · {row.meta.status}
+                      <Button
+                        key={row.account.id}
+                        type="button"
+                        variant={selectedCustomerId === row.account.id ? 'secondary' : 'ghost'}
+                        className="w-full justify-start rounded-none"
+                        onClick={() => {
+                          setSelectedCustomerId(row.account.id)
+                          setAccountDraft({
+                            ...emptyAccountDraft,
+                            ...row.account,
+                            contacts: row.account.contacts ?? emptyAccountDraft.contacts,
+                            emails: row.account.emails ?? emptyAccountDraft.emails
+                          })
+                        }}
+                      >
+                        <Search data-icon="inline-start" />
+                        {formatAccountName(row.account)} · {row.account.branch} · {row.meta.status}
                       </Button>
                     ))}
                   </div>
-                  {selectedCustomerId && <p className="text-sm text-muted-foreground">Client selected. Continue to verify and update their details.</p>}
+                  {selectedCustomerId && (
+                    <p className="text-sm text-muted-foreground">
+                      Client selected. Continue to verify and update their details.
+                    </p>
+                  )}
                 </FieldGroup>
               )}
             </FieldSet>
           </FieldGroup>
 
-          <FieldGroup className={cn('gap-4 xl:col-start-2', step !== 2 && 'hidden')}>
-            <Stepper value={clientStep} onValueChange={setClientStep}>
-              <StepperNav>
-                {['Personal', 'Address', 'Contact & Work'].map((title, index) => (
-                  <StepperItem key={title} step={index + 1}>
-                    <StepperTrigger><StepperIndicator>{index + 1}</StepperIndicator><StepperTitle>{title}</StepperTitle></StepperTrigger>
-                    {index < 2 && <StepperSeparator />}
-                  </StepperItem>
-                ))}
-              </StepperNav>
-            </Stepper>
-            <>
-              <FieldSet className={cn('gap-3', clientStep !== 1 && 'hidden')}>
-                <FieldLegend variant="label">Customer classification</FieldLegend>
-                <Field data-invalid={Boolean(accountErrors.branch)}>
-                  <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
+          <FieldGroup className={cn('gap-4 lg:col-start-2', step !== 2 && 'hidden')}>
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Customer classification</FieldLegend>
+              <Field data-invalid={Boolean(accountErrors.branch)}>
+                <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
+                <Select
+                  value={accountDraft.branch}
+                  onValueChange={(value) => setAccount('branch', value as AccountDraft['branch'])}
+                >
+                  <SelectTrigger id="account-branch" aria-invalid={Boolean(accountErrors.branch)}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branchNames.map((branch) => (
+                      <SelectItem key={branch} value={branch}>
+                        {branchLabels[branch]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldError>{accountErrors.branch}</FieldError>
+              </Field>
+            </FieldSet>
+            <FieldSeparator />
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Name</FieldLegend>
+              <FieldGroup className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_10%]">
+                <Field data-invalid={Boolean(accountErrors.lastName)}>
+                  <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
+                  <Input
+                    id="last-name"
+                    value={accountDraft.lastName}
+                    aria-invalid={Boolean(accountErrors.lastName)}
+                    onChange={(event) => setAccount('lastName', event.target.value)}
+                  />
+                  <FieldError>{accountErrors.lastName}</FieldError>
+                </Field>
+                <Field data-invalid={Boolean(accountErrors.firstName)}>
+                  <FieldLabel htmlFor="first-name">First Name</FieldLabel>
+                  <Input
+                    id="first-name"
+                    value={accountDraft.firstName}
+                    aria-invalid={Boolean(accountErrors.firstName)}
+                    onChange={(event) => setAccount('firstName', event.target.value)}
+                  />
+                  <FieldError>{accountErrors.firstName}</FieldError>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="middle-name">Middle Name</FieldLabel>
+                  <Input
+                    id="middle-name"
+                    value={accountDraft.middleName}
+                    onChange={(event) => setAccount('middleName', event.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="suffix">Suffix</FieldLabel>
                   <Select
-                    value={accountDraft.branch}
-                    onValueChange={(value) => setAccount('branch', value as AccountDraft['branch'])}
+                    value={accountDraft.suffix || undefined}
+                    onValueChange={(value) => setAccount('suffix', value ?? '')}
                   >
-                    <SelectTrigger id="account-branch" aria-invalid={Boolean(accountErrors.branch)}>
-                      <SelectValue />
+                    <SelectTrigger id="suffix">
+                      <SelectValue placeholder="Select suffix" />
                     </SelectTrigger>
                     <SelectContent>
-                      {branchNames.map((branch) => (
-                        <SelectItem key={branch} value={branch}>
-                          {branchLabels[branch]}
+                      {suffixOptions.map((suffix) => (
+                        <SelectItem key={suffix} value={suffix}>
+                          {suffix}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <FieldError>{accountErrors.branch}</FieldError>
                 </Field>
-              </FieldSet>
-              <FieldSeparator className={cn(clientStep !== 1 && 'hidden')} />
-              <FieldSet className={cn('gap-3', clientStep !== 1 && 'hidden')}>
-                <FieldLegend variant="label">Name</FieldLegend>
-                <FieldGroup className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_10%]">
-                  <Field data-invalid={Boolean(accountErrors.lastName)}>
-                    <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
-                    <Input
-                      id="last-name"
-                      value={accountDraft.lastName}
-                      aria-invalid={Boolean(accountErrors.lastName)}
-                      onChange={(event) => setAccount('lastName', event.target.value)}
-                    />
-                    <FieldError>{accountErrors.lastName}</FieldError>
-                  </Field>
-                  <Field data-invalid={Boolean(accountErrors.firstName)}>
-                    <FieldLabel htmlFor="first-name">First Name</FieldLabel>
-                    <Input
-                      id="first-name"
-                      value={accountDraft.firstName}
-                      aria-invalid={Boolean(accountErrors.firstName)}
-                      onChange={(event) => setAccount('firstName', event.target.value)}
-                    />
-                    <FieldError>{accountErrors.firstName}</FieldError>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="middle-name">Middle Name</FieldLabel>
-                    <Input
-                      id="middle-name"
-                      value={accountDraft.middleName}
-                      onChange={(event) => setAccount('middleName', event.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="suffix">Suffix</FieldLabel>
-                    <Select
-                      value={accountDraft.suffix || undefined}
-                      onValueChange={(value) => setAccount('suffix', value ?? '')}
-                    >
-                      <SelectTrigger id="suffix">
-                        <SelectValue placeholder="Select suffix" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {suffixOptions.map((suffix) => (
-                          <SelectItem key={suffix} value={suffix}>
-                            {suffix}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </FieldGroup>
-              </FieldSet>
-              <FieldSeparator className={cn(clientStep !== 2 && 'hidden')} />
-              <FieldSet className={cn('gap-3', clientStep !== 2 && 'hidden')}>
-                    <FieldLegend variant="label">Address</FieldLegend>
-                    <FieldGroup className="grid gap-3 sm:grid-cols-2">
-                      <AddressCombobox
-                        id="province"
-                        label="Province"
-                        options={psgcProvinces}
-                        value={address.province}
-                        emptyMessage="No province found."
-                        onChange={(province) => {
-                          const region = psgcRegions.find(
-                            (option) => option.code === province?.parentCode
-                          )
-                          setAddress({ province, cityMunicipality: undefined, barangay: undefined })
-                          setAccountDraft((current) => ({
-                            ...current,
-                            regionPsgc: addressSelection(region),
-                            province: province?.name ?? '',
-                            provincePsgc: addressSelection(province),
-                            cityMunicipality: '',
-                            cityMunicipalityPsgc: undefined,
-                            barangay: '',
-                            barangayPsgc: undefined
-                          }))
-                        }}
-                      />
-                      <AddressCombobox
-                        id="city-municipality"
-                        label="City / Municipality"
-                        options={childrenOf(psgcCitiesMunicipalities, address.province?.code ?? '')}
-                        value={address.cityMunicipality}
-                        disabled={!address.province}
-                        emptyMessage="No municipality found."
-                        onChange={(cityMunicipality) => {
-                          setAddress((current) => ({
-                            ...current,
-                            cityMunicipality,
-                            barangay: undefined
-                          }))
-                          setAccountDraft((current) => ({
-                            ...current,
-                            cityMunicipality: cityMunicipality?.name ?? '',
-                            cityMunicipalityPsgc: addressSelection(cityMunicipality),
-                            barangay: '',
-                            barangayPsgc: undefined
-                          }))
-                        }}
-                      />
-                      <AddressCombobox
-                        id="barangay"
-                        label="Barangay"
-                        options={childrenOf(psgcBarangays, address.cityMunicipality?.code ?? '')}
-                        value={address.barangay}
-                        disabled={!address.cityMunicipality}
-                        emptyMessage="No barangay found."
-                        onChange={(barangay) => {
-                          setAddress((current) => ({ ...current, barangay }))
-                          setAccountDraft((current) => ({
-                            ...current,
-                            barangay: barangay?.name ?? '',
-                            barangayPsgc: addressSelection(barangay)
-                          }))
-                        }}
-                      />
-                      <Field>
-                        <FieldLabel htmlFor="street-subdivision">Street / Subdivision</FieldLabel>
-                        <Input
-                          id="street-subdivision"
-                          value={accountDraft.streetSubdivision}
-                          onChange={(event) => setAccount('streetSubdivision', event.target.value)}
-                        />
-                      </Field>
-                    </FieldGroup>
-                    <Field>
-                      <FieldLabel>Map location</FieldLabel>
-                      <AddressMapPicker
-                        latitude={accountDraft.latitude}
-                        longitude={accountDraft.longitude}
-                        onChange={({ latitude, longitude }) => {
-                          setAccount('latitude', latitude)
-                          setAccount('longitude', longitude)
-                        }}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="landmark-remarks">Landmark / Remarks</FieldLabel>
-                      <Textarea
-                        id="landmark-remarks"
-                        value={accountDraft.landmarkRemarks}
-                        onChange={(event) => setAccount('landmarkRemarks', event.target.value)}
-                        placeholder="Nearest landmark or delivery notes"
-                      />
-                    </Field>
-              </FieldSet>
-              <FieldSeparator className={cn(clientStep !== 3 && 'hidden')} />
-              <FieldSet className={cn('gap-3', clientStep !== 3 && 'hidden')}>
-                <FieldLegend variant="label">Contact information</FieldLegend>
-                <FieldGroup className="gap-3">
-                  <ContactRows
-                    contacts={accountDraft.contacts}
-                    onChange={(contacts) => setAccount('contacts', contacts)}
-                    errors={accountErrors.contacts}
-                    actions={
-                      <div className="flex flex-nowrap items-center gap-1 overflow-x-auto text-muted-foreground">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="xs"
-                          onClick={() =>
-                            setAccount('contacts', [
-                              ...accountDraft.contacts,
-                              {
-                                id: id('mobile'),
-                                kind: 'mobile',
-                                value: '',
-                                isPrimary: false
-                              }
-                            ])
-                          }
-                        >
-                          <Plus data-icon="inline-start" />
-                          Add contact
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="xs"
-                          onClick={() =>
-                            setAccount('contacts', [
-                              ...accountDraft.contacts,
-                              {
-                                id: id('telephone'),
-                                kind: 'telephone',
-                                value: '',
-                                isPrimary: false
-                              }
-                            ])
-                          }
-                        >
-                          <Plus data-icon="inline-start" />
-                          Add telephone
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="xs"
-                          onClick={() =>
-                            setAccount('emails', [
-                              ...accountDraft.emails,
-                              {
-                                id: id('email'),
-                                value: '',
-                                isPrimary: accountDraft.emails.length === 0
-                              }
-                            ])
-                          }
-                        >
-                          <Plus data-icon="inline-start" />
-                          Add email
-                        </Button>
-                      </div>
-                    }
-                  />
-                  {(accountDraft.emails.length > 0 || accountErrors.emails) && (
-                    <EmailRows
-                      emails={accountDraft.emails}
-                      onChange={(emails) => setAccount('emails', emails)}
-                      error={accountErrors.emails}
-                    />
-                  )}
-                </FieldGroup>
-              </FieldSet>
-              <FieldSeparator className={cn(clientStep !== 3 && 'hidden')} />
-              <FieldSet className={cn('gap-3', clientStep !== 3 && 'hidden')}>
-                <FieldLegend variant="label">Customer attribution</FieldLegend>
-                <FieldGroup className="grid gap-3 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="occupation">Occupation</FieldLabel>
-                    <Input
-                      id="occupation"
-                      value={accountDraft.occupation}
-                      onChange={(event) => setAccount('occupation', event.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="civil-status">Civil Status</FieldLabel>
-                    <Select
-                      value={accountDraft.civilStatus || undefined}
-                      onValueChange={(value) => setAccount('civilStatus', value ?? '')}
-                    >
-                      <SelectTrigger id="civil-status">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {['Single', 'Married', 'Separated', 'Widowed', 'Prefer not to say'].map((status) => (
-                          <SelectItem key={status} value={status}>{status}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="agent">Agent</FieldLabel>
-                    <Select
-                      value={accountDraft.agent || undefined}
-                      onValueChange={(value) => setAccount('agent', value ?? '')}
-                    >
-                      <SelectTrigger id="agent">
-                        <SelectValue placeholder="Select agent" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(agents.length ? agents : agentOptions).map((agent) => (
-                          <SelectItem key={agent} value={agent}>
-                            {agent}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="referred-by">Referred By</FieldLabel>
-                    <Input
-                      id="referred-by"
-                      value={accountDraft.referredBy}
-                      onChange={(event) => setAccount('referredBy', event.target.value)}
-                    />
-                  </Field>
-                </FieldGroup>
-              </FieldSet>
-            </>
+              </FieldGroup>
+            </FieldSet>
           </FieldGroup>
 
-          <FieldGroup className={cn('gap-4 xl:col-start-2', step !== 3 && 'hidden')}>
+          <FieldGroup className={cn('gap-4 lg:col-start-2', step !== 4 && 'hidden')}>
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Address</FieldLegend>
+              <FieldGroup className="grid gap-6 lg:grid-cols-2 lg:items-start">
+                <div className="flex flex-col gap-3">
+                  <FieldGroup className="gap-3">
+                    <AddressCombobox
+                      id="province"
+                      label="Province"
+                      options={psgcProvinces}
+                      value={address.province}
+                      emptyMessage="No province found."
+                      onChange={(province) => {
+                        const region = psgcRegions.find(
+                          (option) => option.code === province?.parentCode
+                        )
+                        setAddress({ province, cityMunicipality: undefined, barangay: undefined })
+                        setAccountDraft((current) => ({
+                          ...current,
+                          regionPsgc: addressSelection(region),
+                          province: province?.name ?? '',
+                          provincePsgc: addressSelection(province),
+                          cityMunicipality: '',
+                          cityMunicipalityPsgc: undefined,
+                          barangay: '',
+                          barangayPsgc: undefined
+                        }))
+                        void geocodeAddress({ province: province?.name ?? '' }, 8)
+                      }}
+                    />
+                    <AddressCombobox
+                      id="city-municipality"
+                      label="City / Municipality"
+                      options={childrenOf(psgcCitiesMunicipalities, address.province?.code ?? '')}
+                      value={address.cityMunicipality}
+                      disabled={!address.province}
+                      emptyMessage="No municipality found."
+                      onChange={(cityMunicipality) => {
+                        setAddress((current) => ({
+                          ...current,
+                          cityMunicipality,
+                          barangay: undefined
+                        }))
+                        setAccountDraft((current) => ({
+                          ...current,
+                          cityMunicipality: cityMunicipality?.name ?? '',
+                          cityMunicipalityPsgc: addressSelection(cityMunicipality),
+                          barangay: '',
+                          barangayPsgc: undefined
+                        }))
+                        void geocodeAddress(
+                          {
+                            cityMunicipality: cityMunicipality?.name,
+                            province: address.province?.name ?? ''
+                          },
+                          11
+                        )
+                      }}
+                    />
+                    <AddressCombobox
+                      id="barangay"
+                      label="Barangay"
+                      options={childrenOf(psgcBarangays, address.cityMunicipality?.code ?? '')}
+                      value={address.barangay}
+                      disabled={!address.cityMunicipality}
+                      emptyMessage="No barangay found."
+                      onChange={(barangay) => {
+                        setAddress((current) => ({ ...current, barangay }))
+                        setAccountDraft((current) => ({
+                          ...current,
+                          barangay: barangay?.name ?? '',
+                          barangayPsgc: addressSelection(barangay)
+                        }))
+                        void geocodeAddress(
+                          {
+                            barangay: barangay?.name,
+                            cityMunicipality: address.cityMunicipality?.name,
+                            province: address.province?.name ?? ''
+                          },
+                          15
+                        )
+                      }}
+                    />
+                    <Field>
+                      <FieldLabel htmlFor="street-subdivision">Street / Subdivision</FieldLabel>
+                      <Input
+                        id="street-subdivision"
+                        value={accountDraft.streetSubdivision}
+                        onChange={(event) => setAccount('streetSubdivision', event.target.value)}
+                      />
+                    </Field>
+                  </FieldGroup>
+                  <Field>
+                    <FieldLabel htmlFor="landmark-remarks">Landmark / Remarks</FieldLabel>
+                    <Textarea
+                      id="landmark-remarks"
+                      value={accountDraft.landmarkRemarks}
+                      onChange={(event) => setAccount('landmarkRemarks', event.target.value)}
+                      placeholder="Nearest landmark or delivery notes"
+                    />
+                  </Field>
+                </div>
+                <Field>
+                  <FieldLabel>Map location</FieldLabel>
+                  <AddressMapPicker
+                    latitude={accountDraft.latitude}
+                    longitude={accountDraft.longitude}
+                    isVisible={step === 4}
+                    zoom={mapZoom}
+                    onChange={({ latitude, longitude }) => {
+                      setAccount('latitude', latitude)
+                      setAccount('longitude', longitude)
+                      setLocationSource('manual')
+                      setGeocodeMessage(undefined)
+                    }}
+                  />
+                  {(geocodeMessage || locationSource === 'geocoded') && (
+                    <FieldDescription>
+                      {geocodeMessage ??
+                        'Approximate location based on address. Click the map or drag the pin to set the exact location.'}
+                    </FieldDescription>
+                  )}
+                </Field>
+              </FieldGroup>
+            </FieldSet>
+          </FieldGroup>
+
+          <FieldGroup className={cn('gap-4 lg:col-start-2', step !== 3 && 'hidden')}>
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Contact information</FieldLegend>
+              <FieldGroup className="gap-3">
+                <ContactRows
+                  contacts={accountDraft.contacts}
+                  onChange={(contacts) => setAccount('contacts', contacts)}
+                  errors={accountErrors.contacts}
+                  actions={
+                    <div className="flex flex-nowrap items-center gap-1 overflow-x-auto text-muted-foreground">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="xs"
+                        onClick={() =>
+                          setAccount('contacts', [
+                            ...accountDraft.contacts,
+                            {
+                              id: id('mobile'),
+                              kind: 'mobile',
+                              value: '',
+                              isPrimary: false
+                            }
+                          ])
+                        }
+                      >
+                        <Plus data-icon="inline-start" />
+                        Add contact
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() =>
+                          setAccount('contacts', [
+                            ...accountDraft.contacts,
+                            {
+                              id: id('telephone'),
+                              kind: 'telephone',
+                              value: '',
+                              isPrimary: false
+                            }
+                          ])
+                        }
+                      >
+                        <Plus data-icon="inline-start" />
+                        Add telephone
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() =>
+                          setAccount('emails', [
+                            ...accountDraft.emails,
+                            {
+                              id: id('email'),
+                              value: '',
+                              isPrimary: accountDraft.emails.length === 0
+                            }
+                          ])
+                        }
+                      >
+                        <Plus data-icon="inline-start" />
+                        Add email
+                      </Button>
+                    </div>
+                  }
+                />
+                {(accountDraft.emails.length > 0 || accountErrors.emails) && (
+                  <EmailRows
+                    emails={accountDraft.emails}
+                    onChange={(emails) => setAccount('emails', emails)}
+                    error={accountErrors.emails}
+                  />
+                )}
+              </FieldGroup>
+            </FieldSet>
+            <FieldSeparator />
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Customer attribution</FieldLegend>
+              <FieldGroup className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="occupation">Occupation</FieldLabel>
+                  <Input
+                    id="occupation"
+                    value={accountDraft.occupation}
+                    onChange={(event) => setAccount('occupation', event.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="civil-status">Civil Status</FieldLabel>
+                  <Select
+                    value={accountDraft.civilStatus || undefined}
+                    onValueChange={(value) => setAccount('civilStatus', value ?? '')}
+                  >
+                    <SelectTrigger id="civil-status">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {['Single', 'Married', 'Separated', 'Widowed', 'Prefer not to say'].map(
+                        (status) => (
+                          <SelectItem key={status} value={status}>
+                            {status}
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="agent">Agent</FieldLabel>
+                  <Select
+                    value={accountDraft.agent || undefined}
+                    onValueChange={(value) => setAccount('agent', value ?? '')}
+                  >
+                    <SelectTrigger id="agent">
+                      <SelectValue placeholder="Select agent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(agents.length ? agents : agentOptions).map((agent) => (
+                        <SelectItem key={agent} value={agent}>
+                          {agent}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="referred-by">Referred By</FieldLabel>
+                  <Input
+                    id="referred-by"
+                    value={accountDraft.referredBy}
+                    onChange={(event) => setAccount('referredBy', event.target.value)}
+                  />
+                </Field>
+              </FieldGroup>
+            </FieldSet>
+          </FieldGroup>
+
+          <FieldGroup className={cn('gap-4 lg:col-start-2', step !== 5 && 'hidden')}>
             <FieldSet className="gap-3">
               <FieldLegend variant="label">Loan schedule</FieldLegend>
               <FieldGroup className="grid gap-3 sm:grid-cols-3">
@@ -1082,7 +1226,7 @@ export function InHouseAccountForm({
             </Collapsible>
           </FieldGroup>
 
-          <div className={cn('grid gap-3 xl:col-start-2', step !== 4 && 'hidden')}>
+          <div className={cn('grid gap-3 lg:col-start-2', step !== 6 && 'hidden')}>
             <ReviewSection title="Customer">
               <ReviewValue label="Name" value={customerName} />
               <ReviewValue label="Branch" value={branchLabels[accountDraft.branch]} />
@@ -1090,7 +1234,32 @@ export function InHouseAccountForm({
                 label="Contact"
                 value={accountDraft.contacts.find((contact) => contact.isPrimary)?.value}
               />
-              <ReviewValue label="Entry" value={mode === 'new' ? 'New account' : 'Existing account'} />
+              <ReviewValue
+                label="Entry"
+                value={mode === 'new' ? 'New account' : 'Existing account'}
+              />
+            </ReviewSection>
+            <ReviewSection title="Address & Location">
+              <ReviewValue
+                label="Address"
+                value={[
+                  accountDraft.streetSubdivision,
+                  accountDraft.barangay,
+                  accountDraft.cityMunicipality,
+                  accountDraft.province
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+              />
+              <ReviewValue label="Landmark" value={accountDraft.landmarkRemarks} />
+              <ReviewValue
+                label="Map pin"
+                value={
+                  accountDraft.latitude === undefined || accountDraft.longitude === undefined
+                    ? undefined
+                    : `${accountDraft.latitude.toFixed(5)}, ${accountDraft.longitude.toFixed(5)}`
+                }
+              />
             </ReviewSection>
             <ReviewSection title="Loan">
               <ReviewValue label="Date Released" value={loanDraft.dateReleased} />
@@ -1139,11 +1308,25 @@ export function InHouseAccountForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        {step > 1 && <Button type="button" variant="outline" onClick={() => setStep((current) => current - 1)}>Back</Button>}
-        {step < 4 && <Button type="button" disabled={mode === 'existing' && !selectedCustomerId} onClick={continueStep}>Continue</Button>}
-        {step === 4 && <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Creating…' : 'Create Account & Loan'}
-        </Button>}
+        {step > 1 && (
+          <Button type="button" variant="outline" onClick={() => setStep((current) => current - 1)}>
+            Back
+          </Button>
+        )}
+        {step < 6 && (
+          <Button
+            type="button"
+            disabled={mode === 'existing' && !selectedCustomerId}
+            onClick={continueStep}
+          >
+            Continue
+          </Button>
+        )}
+        {step === 6 && (
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Creating…' : 'Create Account & Loan'}
+          </Button>
+        )}
       </CardFooter>
     </form>
   )

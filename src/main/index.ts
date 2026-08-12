@@ -30,6 +30,8 @@ import { CatalogOptionRepository } from './database/catalog-option-repository'
 import { CatalogOptionService } from './services/catalog-option-service'
 import { registerCatalogOptionIpc } from './ipc/catalog-options'
 import { registerWindowIpc, showWindowMenu } from './ipc/window'
+import { registerGeocodingIpc } from './ipc/geocoding'
+import { GeocodingService } from './services/geocoding-service'
 import { windowIpcChannels } from '../shared/contracts'
 
 let database: ReturnType<typeof openDatabase> | undefined
@@ -121,6 +123,7 @@ app.whenReady().then(() => {
       new FinanceAccountService(new FinanceAccountRepository(database)),
       authService
     )
+    registerGeocodingIpc(new GeocodingService())
     registerWindowIpc()
   } catch (error) {
     console.error('Database initialization failed.', error)

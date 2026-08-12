@@ -8,6 +8,7 @@ import {
   dashboardIpcChannels,
   dailyReportIpcChannels,
   financeAccountIpcChannels,
+  geocodingIpcChannels,
   installmentIpcChannels,
   reportIpcChannels,
   type ExpenseCreateInput,
@@ -19,6 +20,7 @@ import {
   type DashboardApi,
   type DailyReportsApi,
   type FinanceAccountsApi,
+  type GeocodingApi,
   type InstallmentsApi,
   type ReportRecord,
   windowIpcChannels,
@@ -32,7 +34,8 @@ const api: ExpensesApi &
   AuthApi &
   CatalogOptionsApi &
   DashboardApi &
-  DailyReportsApi = {
+  DailyReportsApi &
+  GeocodingApi = {
   catalogOptions: {
     list: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.list, request),
     create: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.create, request),
@@ -101,6 +104,9 @@ const api: ExpensesApi &
     create: (request) => ipcRenderer.invoke(financeAccountIpcChannels.create, request),
     update: (request) => ipcRenderer.invoke(financeAccountIpcChannels.update, request),
     delete: (request) => ipcRenderer.invoke(financeAccountIpcChannels.delete, request)
+  },
+  geocoding: {
+    forward: (request) => ipcRenderer.invoke(geocodingIpcChannels.forward, request)
   }
 }
 

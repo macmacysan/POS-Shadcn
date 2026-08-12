@@ -263,6 +263,15 @@ code {
 }
 
 @layer components {
+  .customer-location-pin {
+    background: transparent;
+    border: 0;
+  }
+
+  .customer-location-pin svg {
+    filter: drop-shadow(0 1px 2px color-mix(in oklab, var(--foreground) 35%, transparent));
+  }
+
   .sidebar-always-dark {
     --sidebar: var(--sidebar-dark);
     --sidebar-foreground: var(--sidebar-dark-foreground);
