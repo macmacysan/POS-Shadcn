@@ -130,7 +130,7 @@ function statusColumns(view: InstallmentView): ColumnDef<PersistedInstallmentRow
     {
       id: 'branch',
       header: 'Branch',
-      size: 80,
+      size: 42,
       cell: ({ row }) => <AccountBranchBadge branch={toBranch(row.original.account.branch)} />
     },
     {
@@ -147,58 +147,70 @@ function statusColumns(view: InstallmentView): ColumnDef<PersistedInstallmentRow
       {
         id: 'nextDue',
         header: 'Next Due',
+        size: 90,
         accessorFn: (row) => row.meta.nextDue ?? '',
         cell: ({ row }) => formatHistoryDate(row.original.meta.nextDue)
       },
       {
         id: 'installment',
         header: 'Installment',
+        size: 135,
         accessorFn: (row) => row.meta.installmentAmount,
         cell: ({ row }) => <Money value={row.original.meta.installmentAmount} />
       },
       {
         id: 'balance',
         header: 'Outstanding',
+        size: 135,
         accessorFn: (row) => row.meta.outstandingBalance,
         cell: ({ row }) => <Money value={row.original.meta.outstandingBalance} emphasis />
       },
       {
         id: 'status',
         header: 'Payment Status',
+        size: 120,
         accessorFn: (row) => accountStatusRank[row.meta.status],
         cell: ({ row }) => <AccountStatusBadge status={row.original.meta.status} />
       }
     )
   } else if (view === 'closed') {
     base.push(
-      { id: 'closedAt', header: 'Status', cell: () => <AccountStatusBadge status="closed" /> },
+      {
+        id: 'closedAt',
+        header: 'Status',
+        size: 90,
+        cell: () => <AccountStatusBadge status="closed" />
+      },
       {
         id: 'totalPaid',
         header: 'Total Paid',
+        size: 120,
         accessorFn: (row) => row.meta.totalPaid,
         cell: ({ row }) => <Money value={row.original.meta.totalPaid} />
       },
       {
         id: 'balance',
         header: 'Balance',
+        size: 90,
         accessorFn: (row) => row.meta.outstandingBalance,
         cell: ({ row }) => <Money value={row.original.meta.outstandingBalance} />
       }
     )
   } else if (view === 'blacklisted') {
     base.push(
-      { id: 'status', header: 'Status', cell: () => <AccountStatusBadge status="blacklisted" /> },
+      { id: 'status', header: 'Status', size: 90, cell: () => <AccountStatusBadge status="blacklisted" /> },
       {
         id: 'balance',
         header: 'Outstanding',
+        size: 90,
         accessorFn: (row) => row.meta.outstandingBalance,
         cell: ({ row }) => <Money value={row.original.meta.outstandingBalance} emphasis />
       },
       {
-        id: 'nextDue',
-        header: 'Next Due',
-        accessorFn: (row) => row.meta.nextDue ?? '',
-        cell: ({ row }) => formatHistoryDate(row.original.meta.nextDue)
+        id: 'remarks',
+        header: 'Remarks',
+        accessorFn: (row) => row.loan.remarks ?? '',
+        cell: ({ row }) => row.original.loan.remarks || '—'
       }
     )
   } else {
@@ -206,6 +218,7 @@ function statusColumns(view: InstallmentView): ColumnDef<PersistedInstallmentRow
       {
         id: 'contractStatus',
         header: 'Status',
+        size: 90,
         cell: ({ row }) => <AccountStatusBadge status={row.original.meta.status} />
       },
       {
@@ -255,7 +268,6 @@ export function StatusAccountsContent({
   const handleRowSelectionChange = React.useCallback<OnChangeFn<RowSelectionState>>((updater) => {
     setRowSelection((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater
-      if (Object.keys(next).length > 0) setIsDeleteConfirmationOpen(true)
       return next
     })
   }, [])
@@ -340,22 +352,25 @@ export function StatusAccountsContent({
   }
 
   const saveNewAccount = async (payload: InHouseAccountWorkflowSave): Promise<void> => {
-    if (payload.mode !== 'new') return
     const now = new Date()
-    const account = createAccount(payload.accountDraft, now)
+    const account =
+      payload.mode === 'new'
+        ? createAccount(payload.accountDraft, now)
+        : { ...payload.accountDraft, id: payload.customerId, createdAt: now.toISOString(), updatedAt: now.toISOString() }
     const loan = createLoan(account.id, payload.loanDraft, now)
     const existingAccounts = rows.map((row) => row.account)
     const existingLoans = rows.map((row) => row.loan)
+    const accounts = [...existingAccounts.filter((item) => item.id !== account.id), account]
     await window.api.installments.bootstrap({
-      accounts: [...existingAccounts, account] as unknown as Record<string, unknown>[],
+      accounts: accounts as unknown as Record<string, unknown>[],
       loans: [...existingLoans, loan] as unknown as Record<string, unknown>[]
     })
-    localStorage.setItem(inHouseAccountsStorageKey, JSON.stringify([...existingAccounts, account]))
+    localStorage.setItem(inHouseAccountsStorageKey, JSON.stringify(accounts))
     localStorage.setItem(inHouseLoansStorageKey, JSON.stringify([...existingLoans, loan]))
     setIsFormOpen(false)
     setIsFormDirty(false)
     await reload()
-    notify({ type: 'success', title: 'Account and loan created.' })
+    notify({ type: 'success', title: payload.mode === 'new' ? 'Account and loan created.' : 'Account updated and loan created.' })
   }
 
   const requestFormClose = (): void => {
@@ -564,11 +579,12 @@ export function StatusAccountsContent({
               Create a new customer account and its initial loan in one entry.
             </DialogDescription>
           </DialogHeader>
-          <InHouseAccountForm
-            onSave={saveNewAccount}
-            onCancel={requestFormClose}
-            onDirtyChange={setIsFormDirty}
-          />
+            <InHouseAccountForm
+              onSave={saveNewAccount}
+              onCancel={requestFormClose}
+              onDirtyChange={setIsFormDirty}
+              existingRows={rows}
+            />
         </DialogContent>
       </Dialog>
       <Dialog open={isDiscardConfirmationOpen} onOpenChange={setIsDiscardConfirmationOpen}>

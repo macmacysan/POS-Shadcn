@@ -481,7 +481,7 @@ const compactExpenseColumns: ReportColumn<ExpenseRow>[] = [
 const branchColumn = {
   accessorKey: 'branch',
   header: 'Branch',
-  size: 90,
+  size: 42,
   meta: { className: 'text-muted-foreground' }
 } as const
 
@@ -1550,7 +1550,7 @@ export function CashierReportsContent({
                       <TabsTrigger
                         key={tab}
                         value={tab}
-                        className="h-10 flex-none gap-1.5 rounded-none px-3.5 text-xs font-normal data-active:font-light"
+                        className="h-10 flex-none gap-1.5 rounded-none px-3.5 text-xs font-normal data-active:text-primary data-active:font-semibold"
                       >
                         <span>{tab === 'Activity' ? 'Installment History' : tab}</span>
                         {tabRowCounts[tab] > 0 && (

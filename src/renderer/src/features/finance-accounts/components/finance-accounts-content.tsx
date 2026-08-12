@@ -44,6 +44,7 @@ import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
 import { AccountBranchBadge } from '@/features/in-house-accounts/components/account-badges'
+import { suffixOptions } from '@/lib/in-house-accounts'
 import { useNotifications } from '@/hooks/use-notifications'
 import { calculateFinanceAmounts } from '../../../../../shared/finance-calculations'
 import {
@@ -190,7 +191,7 @@ function financeColumns(): ColumnDef<FinanceTableRow>[] {
       accessorFn: (row) => row.account.branch,
       header: 'Branch',
       cell: ({ row }) => <AccountBranchBadge branch={row.original.account.branch} />,
-      size: 80
+      size: 42
     },
     {
       id: 'provider',
@@ -219,32 +220,19 @@ function financeColumns(): ColumnDef<FinanceTableRow>[] {
       size: 92
     },
     {
-      id: 'lastName',
-      accessorFn: (row) => row.account.lastName,
-      header: 'Last Name',
-      cell: ({ row }) => <Cell>{row.original.account.lastName}</Cell>,
-      size: 140
-    },
-    {
-      id: 'firstName',
-      accessorFn: (row) => row.account.firstName,
-      header: 'First Name',
-      cell: ({ row }) => <Cell>{row.original.account.firstName}</Cell>,
-      size: 140
-    },
-    {
-      id: 'middleName',
-      accessorFn: (row) => row.account.middleName,
-      header: 'Middle Name',
-      cell: ({ row }) => <Cell>{text(row.original.account.middleName)}</Cell>,
-      size: 130
-    },
-    {
-      id: 'suffix',
-      accessorFn: (row) => row.account.suffix,
-      header: 'Suffix',
-      cell: ({ row }) => <Cell>{text(row.original.account.suffix)}</Cell>,
-      size: 82
+      id: 'name',
+      accessorFn: (row) =>
+        [
+          `${row.account.lastName},`,
+          row.account.firstName,
+          row.account.middleName,
+          row.account.suffix
+        ]
+          .filter(Boolean)
+          .join(' '),
+      header: 'Client Name',
+      cell: ({ getValue }) => <Cell>{getValue<string>()}</Cell>,
+      size: 180
     },
     {
       accessorKey: 'quantity',
@@ -349,7 +337,6 @@ export function FinanceAccountsContent({
   const handleRowSelectionChange = React.useCallback<OnChangeFn<RowSelectionState>>((updater) => {
     setRowSelection((current) => {
       const next = typeof updater === 'function' ? updater(current) : updater
-      if (Object.keys(next).length > 0) setIsDeleteConfirmationOpen(true)
       return next
     })
   }, [])
@@ -720,11 +707,21 @@ function FinanceAccountSheet({
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="finance-suffix">Suffix</FieldLabel>
-                  <Input
-                    id="finance-suffix"
-                    value={values.suffix ?? ''}
-                    onChange={(event) => set('suffix', event.target.value)}
-                  />
+                  <Select
+                    value={values.suffix || undefined}
+                    onValueChange={(value) => set('suffix', value ?? '')}
+                  >
+                    <SelectTrigger id="finance-suffix">
+                      <SelectValue placeholder="Select suffix" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suffixOptions.map((suffix) => (
+                        <SelectItem key={suffix} value={suffix}>
+                          {suffix}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
               </div>
               <div className="flex items-center justify-between gap-2">

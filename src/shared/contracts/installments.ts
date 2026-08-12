@@ -89,6 +89,9 @@ export type InstallmentAccountRecord = {
     middleName?: string
     suffix?: string
     streetSubdivision?: string
+    landmarkRemarks?: string
+    latitude?: number
+    longitude?: number
     regionPsgc?: { code: string; name: string }
     barangay: string
     barangayPsgc?: { code: string; name: string }
@@ -97,6 +100,7 @@ export type InstallmentAccountRecord = {
     province: string
     provincePsgc?: { code: string; name: string }
     occupation?: string
+    civilStatus?: string
     contacts: Array<{ id: string; kind: 'mobile' | 'telephone'; value: string; isPrimary: boolean }>
     emails: Array<{ id: string; value: string; isPrimary: boolean }>
     agent?: string

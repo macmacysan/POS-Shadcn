@@ -8,6 +8,18 @@ async function openInstallmentView(page: Page, name: 'Records' | 'Active' | 'Clo
   await target.click()
 }
 
+async function leadingColumnWidths(page: Page): Promise<number[]> {
+  return Promise.all(
+    ['Select all', 'Branch'].map(async (name) =>
+      Math.round(
+        await page.getByRole('columnheader', { name, exact: true }).evaluate((element) =>
+          element.getBoundingClientRect().width
+        )
+      )
+    )
+  )
+}
+
 test.describe('installment status views', () => {
   test.setTimeout(60_000)
   let app: ElectronApplication
@@ -45,21 +57,28 @@ test.describe('installment status views', () => {
     await page.getByRole('button', { name: 'Filter' }).click()
     await expect(page.getByPlaceholder('Search filters...')).toBeVisible()
     await page.keyboard.press('Escape')
+    const recordsLeadingWidths = await leadingColumnWidths(page)
+    expect(recordsLeadingWidths).toEqual([64, 64])
 
     await openInstallmentView(page, 'Active')
     await expect(page.getByRole('table')).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Next Due' })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Outstanding' })).toBeVisible()
     await expect(page.locator('tbody tr')).toHaveCount(20)
+    const activeLeadingWidths = await leadingColumnWidths(page)
 
     await openInstallmentView(page, 'Closed')
     await expect(page.getByRole('table')).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Total Paid' })).toBeVisible()
     await expect(page.locator('tbody tr')).toHaveCount(10)
+    const closedLeadingWidths = await leadingColumnWidths(page)
 
     await openInstallmentView(page, 'Blacklisted')
     await expect(page.getByRole('table')).toBeVisible()
     await expect(page.getByRole('columnheader', { name: 'Outstanding' })).toBeVisible()
     await expect(page.locator('tbody tr')).toHaveCount(10)
+    expect(activeLeadingWidths).toEqual(recordsLeadingWidths)
+    expect(closedLeadingWidths).toEqual(recordsLeadingWidths)
+    expect(await leadingColumnWidths(page)).toEqual(recordsLeadingWidths)
   })
 })

@@ -37,6 +37,7 @@ export function createRowSelectionColumn<TData extends RowData>(): ColumnDef<TDa
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
+          className="mx-auto align-[inherit]"
           aria-label="Select row"
         />
       </div>

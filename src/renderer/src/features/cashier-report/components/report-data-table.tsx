@@ -124,6 +124,7 @@ export function ReportDataTable<TData extends ReportRow>({
           <Checkbox
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
+            className="mx-auto align-[inherit]"
             aria-label="Select row"
           />
         ),

@@ -229,7 +229,7 @@ export function DashboardContent({
         accessorKey: 'branch',
         header: 'Branch',
         cell: ({ row }) => <AccountBranchBadge branch={row.original.branch} />,
-        size: 92
+        size: 42
       },
       { accessorKey: 'dueDate', header: 'Oldest due', size: 116 },
       {

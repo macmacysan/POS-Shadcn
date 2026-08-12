@@ -62,6 +62,10 @@ function getColumnMeta<TData>(column: Column<TData, unknown>): ColumnMeta {
   return (column.columnDef.meta ?? {}) as ColumnMeta
 }
 
+function getNarrowColumnClassName(id: string): string | undefined {
+  return id === 'select' || id === 'branch' ? 'px-0 text-center' : undefined
+}
+
 function getColumnLabel<TData>(column: Column<TData, unknown>): string {
   const meta = getColumnMeta(column)
   if (meta.headerTitle) return meta.headerTitle
@@ -87,6 +91,7 @@ function TableColumnHeader<TData>({
         indeterminate={isSomeSelected && !isAllSelected}
         disabled={isLoading || table.getRowModel().rows.length === 0}
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        className="mx-auto align-[inherit]"
         aria-label="Select all"
       />
     )
@@ -189,7 +194,8 @@ export function UniversalDataTable<TData extends object>({
                       colSpan={header.colSpan}
                       className={cn(
                         'h-10 px-3 text-xs font-medium text-muted-foreground',
-                        meta.headerClassName
+                        meta.headerClassName,
+                        getNarrowColumnClassName(header.column.id),
                       )}
                       style={meta.autoSize ? undefined : { width: header.getSize() }}
                     >
@@ -211,7 +217,10 @@ export function UniversalDataTable<TData extends object>({
               Array.from({ length: 8 }, (_, index) => (
                 <TableRow key={`loading-${index}`}>
                   {table.getVisibleLeafColumns().map((column) => (
-                    <TableCell key={column.id} className="h-10 px-3">
+                    <TableCell
+                      key={column.id}
+                      className={cn('h-10 px-3', getNarrowColumnClassName(column.id))}
+                    >
                       <Skeleton className="h-3 w-full" />
                     </TableCell>
                   ))}
@@ -235,7 +244,11 @@ export function UniversalDataTable<TData extends object>({
                     return (
                       <TableCell
                         key={cell.id}
-                        className={cn('h-10 max-w-72 px-3', meta.cellClassName)}
+                        className={cn(
+                          'h-10 max-w-72 px-3',
+                          getNarrowColumnClassName(cell.column.id),
+                          meta.cellClassName
+                        )}
                         style={meta.autoSize ? undefined : { width: cell.column.getSize() }}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}

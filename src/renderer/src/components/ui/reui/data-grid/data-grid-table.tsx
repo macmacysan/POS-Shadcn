@@ -1238,7 +1238,7 @@ function DataGridTableRowSelect<TData>({ row }: { row: Row<TData> }) {
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
-        className="align-[inherit]"
+        className="mx-auto align-[inherit]"
       />
     </>
   )
@@ -1257,7 +1257,7 @@ function DataGridTableRowSelectAll() {
       disabled={isLoading || recordCount === 0}
       onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
       aria-label="Select all"
-      className="align-[inherit]"
+      className="mx-auto align-[inherit]"
     />
   )
 }

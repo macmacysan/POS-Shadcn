@@ -26,10 +26,14 @@ type ContractRow = {
   middle_name?: string
   suffix?: string
   street_subdivision?: string
+  landmark_remarks?: string
+  latitude?: number
+  longitude?: number
   barangay: string
   city_municipality: string
   province: string
   occupation?: string
+  civil_status?: string
   agent?: string
   referred_by?: string
   account_status: 'ACTIVE' | 'BLACKLISTED'
@@ -161,8 +165,8 @@ export class InstallmentRepository {
     const rows = this.db
       .prepare(
         `SELECT a.id AS account_id, a.account_number, b.name AS branch_name,
-                a.last_name, a.first_name, a.middle_name, a.suffix, a.street_subdivision,
-                a.barangay, a.city_municipality, a.province, a.occupation, a.agent,
+                a.last_name, a.first_name, a.middle_name, a.suffix, a.street_subdivision, a.landmark_remarks,
+                a.latitude, a.longitude, a.barangay, a.city_municipality, a.province, a.occupation, a.civil_status, a.agent,
                 a.referred_by, a.status AS account_status, a.blacklisted_at,
                 a.blacklist_reason, a.created_at AS account_created_at,
                 a.updated_at AS account_updated_at, c.id AS contract_id,
@@ -203,20 +207,21 @@ export class InstallmentRepository {
       const insertAccount = this.db.prepare(
         `INSERT OR IGNORE INTO accounts
           (id, account_number, display_name, last_name, first_name, middle_name, suffix,
-           street_subdivision, barangay, city_municipality, province, occupation, agent,
+           street_subdivision, latitude, longitude, landmark_remarks, barangay, city_municipality, province, occupation, civil_status, agent,
            referred_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const updateAccount = this.db.prepare(
         `UPDATE accounts SET display_name = ?, last_name = ?, first_name = ?, middle_name = ?,
-          suffix = ?, street_subdivision = ?, barangay = ?, city_municipality = ?, province = ?,
-          occupation = ?, agent = ?, referred_by = ?, updated_at = ? WHERE id = ?`
+          suffix = ?, street_subdivision = ?, latitude = ?, longitude = ?, landmark_remarks = ?, barangay = ?, city_municipality = ?, province = ?,
+          occupation = ?, civil_status = ?, agent = ?, referred_by = ?, updated_at = ? WHERE id = ?`
       )
       const insertContact = this.db.prepare(
         `INSERT OR IGNORE INTO account_contacts
           (id, account_id, contact_type, contact_kind, contact_value, is_primary, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
+      const deleteContacts = this.db.prepare('DELETE FROM account_contacts WHERE account_id = ?')
       const insertContract = this.db.prepare(
         `INSERT OR IGNORE INTO installment_contracts
           (id, account_id, branch_id, installment_type_id, contract_number, contract_date,
@@ -260,17 +265,22 @@ export class InstallmentRepository {
           optionalString(account.middleName) ?? null,
           optionalString(account.suffix) ?? null,
           optionalString(account.streetSubdivision) ?? null,
+          typeof account.latitude === 'number' ? account.latitude : null,
+          typeof account.longitude === 'number' ? account.longitude : null,
+          optionalString(account.landmarkRemarks) ?? null,
           stringValue(account.barangay),
           stringValue(account.cityMunicipality),
           stringValue(account.province),
           optionalString(account.occupation) ?? null,
+          optionalString(account.civilStatus) ?? null,
           optionalString(account.agent) ?? null,
           optionalString(account.referredBy) ?? null,
           accountCreatedAt,
           now
         ]
         insertAccount.run(...values)
-        updateAccount.run(...values.slice(2, 14), now, id)
+        updateAccount.run(...values.slice(2, 18), now, id)
+        deleteContacts.run(id)
 
         const contacts = Array.isArray(account.contacts) ? account.contacts : []
         for (const contact of contacts) {
@@ -1129,10 +1139,14 @@ export class InstallmentRepository {
       middleName: row.middle_name,
       suffix: row.suffix,
       streetSubdivision: row.street_subdivision,
+      landmarkRemarks: row.landmark_remarks,
+      latitude: row.latitude,
+      longitude: row.longitude,
       barangay: row.barangay,
       cityMunicipality: row.city_municipality,
       province: row.province,
       occupation: row.occupation,
+      civilStatus: row.civil_status,
       agent: row.agent,
       referredBy: row.referred_by,
       contacts: contacts.map((contact) => ({

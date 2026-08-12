@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Check, Plus, Search, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { CardFooter } from '@/components/ui/card'
@@ -30,8 +30,20 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Stepper,
+  StepperDescription,
+  StepperIndicator,
+  StepperItem,
+  StepperNav,
+  StepperSeparator,
+  StepperTitle,
+  StepperTrigger
+} from '@/components/ui/reui/stepper'
 import { formatPhilippinePeso } from '@/lib/currency'
+import { cn } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
+import { AddressMapPicker } from '@/features/in-house-accounts/components/address-map-picker'
 import {
   agentOptions,
   branchLabels,
@@ -61,6 +73,7 @@ import {
   type PsgcOption
 } from '@/lib/psgc'
 import type { CatalogOptionRecord } from '../../../../../shared/contracts'
+import type { PersistedInstallmentRow } from '@/features/in-house-accounts/installment-data'
 
 export type InHouseAccountWorkflowSave =
   | {
@@ -71,6 +84,7 @@ export type InHouseAccountWorkflowSave =
   | {
       readonly mode: 'existing'
       readonly customerId: string
+      readonly accountDraft: AccountDraft
       readonly loanDraft: LoanDraft
     }
 
@@ -78,6 +92,7 @@ type InHouseAccountFormProps = {
   readonly onSave: (payload: InHouseAccountWorkflowSave) => Promise<void>
   readonly onCancel: () => void
   readonly onDirtyChange?: (dirty: boolean) => void
+  readonly existingRows: readonly PersistedInstallmentRow[]
 }
 
 const emptyAccountDraft: AccountDraft = {
@@ -87,6 +102,9 @@ const emptyAccountDraft: AccountDraft = {
   middleName: '',
   suffix: '',
   streetSubdivision: '',
+  landmarkRemarks: '',
+  latitude: undefined,
+  longitude: undefined,
   regionPsgc: undefined,
   barangay: '',
   barangayPsgc: undefined,
@@ -351,7 +369,8 @@ function ReviewValue({
 export function InHouseAccountForm({
   onSave,
   onCancel,
-  onDirtyChange
+  onDirtyChange,
+  existingRows
 }: InHouseAccountFormProps): React.JSX.Element {
   const [accountDraft, setAccountDraft] = React.useState<AccountDraft>(emptyAccountDraft)
   const [accountErrors, setAccountErrors] = React.useState<AccountValidationErrors>({})
@@ -359,6 +378,11 @@ export function InHouseAccountForm({
   const [loanErrors, setLoanErrors] = React.useState<LoanValidationErrors>({})
   const [formError, setFormError] = React.useState<string>()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [mode, setMode] = React.useState<'new' | 'existing'>('new')
+  const [existingSearch, setExistingSearch] = React.useState('')
+  const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>()
+  const [step, setStep] = React.useState(1)
+  const [clientStep, setClientStep] = React.useState(1)
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
   const [address, setAddress] = React.useState<{
     province?: PsgcOption
@@ -380,6 +404,21 @@ export function InHouseAccountForm({
   const setLoan = <K extends keyof LoanDraft>(key: K, value: LoanDraft[K]): void =>
     setLoanDraft((current) => ({ ...current, [key]: value }))
 
+  const continueStep = (): void => {
+    if (step === 1 && mode === 'existing' && !selectedCustomerId) return
+    if (step === 2) {
+      const errors = validateAccountDraft(normalizeAccountDraft(accountDraft))
+      setAccountErrors(errors)
+      if (Object.keys(errors).length) return
+    }
+    if (step === 3) {
+      const errors = validateLoanDraft(normalizeLoanDraft(loanDraft))
+      setLoanErrors(errors)
+      if (Object.keys(errors).length) return
+    }
+    setStep((current) => Math.min(current + 1, 4))
+  }
+
   const save = async (): Promise<void> => {
     if (isSubmitting) return
     setFormError(undefined)
@@ -387,6 +426,7 @@ export function InHouseAccountForm({
     const loanValidation = validateLoanDraft(normalizedLoan)
     setLoanErrors(loanValidation)
     if (Object.keys(loanValidation).length) {
+      setStep(3)
       return
     }
 
@@ -394,11 +434,16 @@ export function InHouseAccountForm({
     const accountValidation = validateAccountDraft(normalizedAccount)
     setAccountErrors(accountValidation)
     if (Object.keys(accountValidation).length) {
+      setStep(2)
       return
     }
     setIsSubmitting(true)
     try {
-      await onSave({ mode: 'new', accountDraft: normalizedAccount, loanDraft: normalizedLoan })
+      await onSave(
+        mode === 'existing' && selectedCustomerId
+          ? { mode: 'existing', customerId: selectedCustomerId, accountDraft: normalizedAccount, loanDraft: normalizedLoan }
+          : { mode: 'new', accountDraft: normalizedAccount, loanDraft: normalizedLoan }
+      )
     } catch {
       setFormError('The account and loan could not be created. Your entries are still available.')
     } finally {
@@ -418,6 +463,17 @@ export function InHouseAccountForm({
     )
 
   const customerName = formatAccountName(accountDraft)
+  const existingCustomers = React.useMemo(() => {
+    const query = existingSearch.trim().toLowerCase()
+    return Array.from(
+      new Map(
+        existingRows
+          .filter((row) => row.accountStatus !== 'BLACKLISTED')
+          .filter((row) => !query || formatAccountName(row.account).toLowerCase().includes(query))
+          .map((row) => [row.account.id, row])
+      ).values()
+    )
+  }, [existingRows, existingSearch])
 
   return (
     <form
@@ -429,12 +485,73 @@ export function InHouseAccountForm({
       }}
     >
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-6 p-6 xl:grid-cols-2">
+        <div className="grid gap-6 p-6 xl:grid-cols-[14rem_minmax(0,1fr)]">
           {formError && <FieldError className="xl:col-span-2">{formError}</FieldError>}
 
-          <FieldGroup className="gap-4">
+          <Stepper value={step} onValueChange={setStep} orientation="vertical" indicators={{ completed: <Check /> }} className="sticky top-0 self-start border-r bg-background pr-4 xl:row-span-4">
+            <StepperNav>
+              {[
+                ['Account', 'Choose a record'],
+                ['Client', 'Verify client details'],
+                ['Loan', 'Set loan terms'],
+                ['Review', 'Confirm and create']
+              ].map(([title, description], index) => (
+                <StepperItem key={title} step={index + 1} disabled={index + 1 > step} className="relative items-start not-last:flex-1">
+                  <StepperTrigger className="items-start gap-2.5 pb-10 text-left last:pb-0">
+                    <StepperIndicator>{index + 1}</StepperIndicator>
+                    <span className="mt-0.5 flex flex-col items-start gap-1">
+                      <StepperTitle>{title}</StepperTitle>
+                      <StepperDescription className="text-xs">{description}</StepperDescription>
+                    </span>
+                  </StepperTrigger>
+                  {index < 3 && <StepperSeparator className="absolute inset-y-0 top-7 left-3 -order-1 m-0 -translate-x-1/2 group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-2rem)]" />}
+                </StepperItem>
+              ))}
+            </StepperNav>
+          </Stepper>
+
+          <FieldGroup className={cn('xl:col-start-2', step !== 1 && 'hidden')}>
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Account</FieldLegend>
+              <div className="flex gap-2">
+                <Button type="button" variant={mode === 'new' ? 'default' : 'outline'} onClick={() => setMode('new')}>New Account</Button>
+                <Button type="button" variant={mode === 'existing' ? 'default' : 'outline'} onClick={() => setMode('existing')}>Existing Account</Button>
+              </div>
+              {mode === 'existing' && (
+                <FieldGroup className="gap-2">
+                  <Field>
+                    <FieldLabel htmlFor="existing-account-search">Search existing accounts</FieldLabel>
+                    <Input id="existing-account-search" value={existingSearch} onChange={(event) => setExistingSearch(event.target.value)} placeholder="Search client name..." />
+                  </Field>
+                  <div className="max-h-48 overflow-y-auto rounded-md border">
+                    {existingCustomers.slice(0, 25).map((row) => (
+                      <Button key={row.account.id} type="button" variant={selectedCustomerId === row.account.id ? 'secondary' : 'ghost'} className="w-full justify-start rounded-none" onClick={() => {
+                        setSelectedCustomerId(row.account.id)
+                        setAccountDraft({ ...row.account })
+                      }}>
+                        <Search data-icon="inline-start" />{formatAccountName(row.account)} · {row.account.branch} · {row.meta.status}
+                      </Button>
+                    ))}
+                  </div>
+                  {selectedCustomerId && <p className="text-sm text-muted-foreground">Client selected. Continue to verify and update their details.</p>}
+                </FieldGroup>
+              )}
+            </FieldSet>
+          </FieldGroup>
+
+          <FieldGroup className={cn('gap-4 xl:col-start-2', step !== 2 && 'hidden')}>
+            <Stepper value={clientStep} onValueChange={setClientStep}>
+              <StepperNav>
+                {['Personal', 'Address', 'Contact & Work'].map((title, index) => (
+                  <StepperItem key={title} step={index + 1}>
+                    <StepperTrigger><StepperIndicator>{index + 1}</StepperIndicator><StepperTitle>{title}</StepperTitle></StepperTrigger>
+                    {index < 2 && <StepperSeparator />}
+                  </StepperItem>
+                ))}
+              </StepperNav>
+            </Stepper>
             <>
-              <FieldSet className="gap-3">
+              <FieldSet className={cn('gap-3', clientStep !== 1 && 'hidden')}>
                 <FieldLegend variant="label">Customer classification</FieldLegend>
                 <Field data-invalid={Boolean(accountErrors.branch)}>
                   <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
@@ -456,10 +573,10 @@ export function InHouseAccountForm({
                   <FieldError>{accountErrors.branch}</FieldError>
                 </Field>
               </FieldSet>
-              <FieldSeparator />
-              <FieldSet className="gap-3">
+              <FieldSeparator className={cn(clientStep !== 1 && 'hidden')} />
+              <FieldSet className={cn('gap-3', clientStep !== 1 && 'hidden')}>
                 <FieldLegend variant="label">Name</FieldLegend>
-                <FieldGroup className="grid gap-3 sm:grid-cols-2">
+                <FieldGroup className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_10%]">
                   <Field data-invalid={Boolean(accountErrors.lastName)}>
                     <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
                     <Input
@@ -508,13 +625,8 @@ export function InHouseAccountForm({
                   </Field>
                 </FieldGroup>
               </FieldSet>
-              <FieldSeparator />
-              <Collapsible>
-                <CollapsibleTrigger className="w-full rounded-md border border-dashed px-3 py-2 text-left text-sm font-medium hover:bg-muted">
-                  Address &amp; location
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-3">
-                  <FieldSet className="gap-3">
+              <FieldSeparator className={cn(clientStep !== 2 && 'hidden')} />
+              <FieldSet className={cn('gap-3', clientStep !== 2 && 'hidden')}>
                     <FieldLegend variant="label">Address</FieldLegend>
                     <FieldGroup className="grid gap-3 sm:grid-cols-2">
                       <AddressCombobox
@@ -587,11 +699,29 @@ export function InHouseAccountForm({
                         />
                       </Field>
                     </FieldGroup>
-                  </FieldSet>
-                </CollapsibleContent>
-              </Collapsible>
-              <FieldSeparator />
-              <FieldSet className="gap-3">
+                    <Field>
+                      <FieldLabel>Map location</FieldLabel>
+                      <AddressMapPicker
+                        latitude={accountDraft.latitude}
+                        longitude={accountDraft.longitude}
+                        onChange={({ latitude, longitude }) => {
+                          setAccount('latitude', latitude)
+                          setAccount('longitude', longitude)
+                        }}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="landmark-remarks">Landmark / Remarks</FieldLabel>
+                      <Textarea
+                        id="landmark-remarks"
+                        value={accountDraft.landmarkRemarks}
+                        onChange={(event) => setAccount('landmarkRemarks', event.target.value)}
+                        placeholder="Nearest landmark or delivery notes"
+                      />
+                    </Field>
+              </FieldSet>
+              <FieldSeparator className={cn(clientStep !== 3 && 'hidden')} />
+              <FieldSet className={cn('gap-3', clientStep !== 3 && 'hidden')}>
                 <FieldLegend variant="label">Contact information</FieldLegend>
                 <FieldGroup className="gap-3">
                   <ContactRows
@@ -668,8 +798,8 @@ export function InHouseAccountForm({
                   )}
                 </FieldGroup>
               </FieldSet>
-              <FieldSeparator />
-              <FieldSet className="gap-3">
+              <FieldSeparator className={cn(clientStep !== 3 && 'hidden')} />
+              <FieldSet className={cn('gap-3', clientStep !== 3 && 'hidden')}>
                 <FieldLegend variant="label">Customer attribution</FieldLegend>
                 <FieldGroup className="grid gap-3 sm:grid-cols-2">
                   <Field>
@@ -679,6 +809,22 @@ export function InHouseAccountForm({
                       value={accountDraft.occupation}
                       onChange={(event) => setAccount('occupation', event.target.value)}
                     />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="civil-status">Civil Status</FieldLabel>
+                    <Select
+                      value={accountDraft.civilStatus || undefined}
+                      onValueChange={(value) => setAccount('civilStatus', value ?? '')}
+                    >
+                      <SelectTrigger id="civil-status">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {['Single', 'Married', 'Separated', 'Widowed', 'Prefer not to say'].map((status) => (
+                          <SelectItem key={status} value={status}>{status}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="agent">Agent</FieldLabel>
@@ -711,7 +857,7 @@ export function InHouseAccountForm({
             </>
           </FieldGroup>
 
-          <FieldGroup className="gap-4">
+          <FieldGroup className={cn('gap-4 xl:col-start-2', step !== 3 && 'hidden')}>
             <FieldSet className="gap-3">
               <FieldLegend variant="label">Loan schedule</FieldLegend>
               <FieldGroup className="grid gap-3 sm:grid-cols-3">
@@ -936,7 +1082,7 @@ export function InHouseAccountForm({
             </Collapsible>
           </FieldGroup>
 
-          <div className="grid gap-3 xl:col-span-2">
+          <div className={cn('grid gap-3 xl:col-start-2', step !== 4 && 'hidden')}>
             <ReviewSection title="Customer">
               <ReviewValue label="Name" value={customerName} />
               <ReviewValue label="Branch" value={branchLabels[accountDraft.branch]} />
@@ -944,7 +1090,7 @@ export function InHouseAccountForm({
                 label="Contact"
                 value={accountDraft.contacts.find((contact) => contact.isPrimary)?.value}
               />
-              <ReviewValue label="Entry" value="New customer" />
+              <ReviewValue label="Entry" value={mode === 'new' ? 'New account' : 'Existing account'} />
             </ReviewSection>
             <ReviewSection title="Loan">
               <ReviewValue label="Date Released" value={loanDraft.dateReleased} />
@@ -993,9 +1139,11 @@ export function InHouseAccountForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        {step > 1 && <Button type="button" variant="outline" onClick={() => setStep((current) => current - 1)}>Back</Button>}
+        {step < 4 && <Button type="button" disabled={mode === 'existing' && !selectedCustomerId} onClick={continueStep}>Continue</Button>}
+        {step === 4 && <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Creating…' : 'Create Account & Loan'}
-        </Button>
+        </Button>}
       </CardFooter>
     </form>
   )

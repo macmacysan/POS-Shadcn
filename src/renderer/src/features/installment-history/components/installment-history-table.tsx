@@ -58,7 +58,7 @@ const historyBranchColumn: ColumnDef<InstallmentHistoryRecord> = {
   accessorKey: 'branch',
   header: 'Branch',
   enableSorting: false,
-  size: 90,
+  size: 42,
   meta: {
     headerTitle: 'Branch',
     headerClassName: 'text-xs text-muted-foreground',

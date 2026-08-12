@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3'
 
 import { developmentReportId } from '../../shared/contracts'
+import { calculateFinanceAmounts } from '../../shared/finance-calculations'
 import { hashPassword } from '../security/passwords'
 
 const developmentDate = '2026-07-14'
@@ -66,6 +67,7 @@ export function seedDevelopmentData(db: Database.Database): void {
 
   seed()
   seedDevelopmentInstallments(db)
+  seedDevelopmentFinanceAccounts(db)
 }
 
 function seedDevelopmentUsers(db: Database.Database): void {
@@ -235,6 +237,75 @@ function seedDevelopmentInstallments(db: Database.Database): void {
         insertAllocation.run(`development-installment-allocation-${number}`, paymentId, scheduleId, now)
         insertHistory.run(`development-installment-history-${number}`, contractId, 'Contract closed in development seed', now)
       }
+    }
+  })
+
+  seed()
+}
+
+function seedDevelopmentFinanceAccounts(db: Database.Database): void {
+  const insertAccount = db.prepare(`
+    INSERT OR IGNORE INTO finance_accounts (
+      id, branch, provider, date_released, terms_months, last_name, first_name, middle_name,
+      suffix, quantity, item, serial_no, item_price_centavos, grand_total_centavos,
+      downpayment_centavos, balance_centavos, or_number, or_date, paid_date, remarks,
+      created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const insertItem = db.prepare(`
+    INSERT OR IGNORE INTO finance_account_items (
+      id, finance_account_id, sort_order, item, serial_no, quantity, item_price_centavos,
+      total_centavos, created_at, updated_at
+    ) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
+  `)
+  const branches = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const
+  const providers = ['Home Credit', 'Salmon', 'Skyro'] as const
+  const seed = db.transaction(() => {
+    for (let index = 1; index <= 15; index += 1) {
+      const number = String(index).padStart(2, '0')
+      const id = `development-finance-account-${number}`
+      const quantity = 1 + (index % 3)
+      const itemPriceCentavos = (10000 + index * 1500) * 100
+      const downpaymentCentavos = (index % 3) * 100000
+      const amounts = calculateFinanceAmounts([{ quantity, itemPriceCentavos }], downpaymentCentavos)
+      const createdAt = `2026-07-${String(index).padStart(2, '0')}T08:00:00.000Z`
+      const item = `Sample Appliance ${number}`
+
+      insertAccount.run(
+        id,
+        branches[(index - 1) % branches.length],
+        providers[(index - 1) % providers.length],
+        `2026-07-${String(index).padStart(2, '0')}`,
+        3 + (index % 10),
+        'Sample',
+        `Client ${number}`,
+        index % 2 === 0 ? 'M.' : null,
+        index % 5 === 0 ? 'Jr.' : null,
+        quantity,
+        item,
+        `DEV-FIN-${number}`,
+        itemPriceCentavos,
+        amounts.grandTotalCentavos,
+        downpaymentCentavos,
+        amounts.balanceCentavos,
+        `FIN-${number}`,
+        `2026-07-${String(index).padStart(2, '0')}`,
+        null,
+        'Development finance sample',
+        createdAt,
+        createdAt
+      )
+      insertItem.run(
+        `development-finance-item-${number}`,
+        id,
+        item,
+        `DEV-FIN-${number}`,
+        quantity,
+        itemPriceCentavos,
+        quantity * itemPriceCentavos,
+        createdAt,
+        createdAt
+      )
     }
   })
 

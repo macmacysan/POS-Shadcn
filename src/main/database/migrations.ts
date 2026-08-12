@@ -1119,4 +1119,25 @@ export function runMigrations(db: Database.Database): void {
     })
     migrate()
   }
+
+  if (applied.version < 21) {
+    const migrate = db.transaction(() => {
+      db.exec(`ALTER TABLE accounts ADD COLUMN civil_status TEXT`)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        21,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 22) {
+    const migrate = db.transaction(() => {
+      db.exec(`ALTER TABLE accounts ADD COLUMN latitude REAL`)
+      db.exec(`ALTER TABLE accounts ADD COLUMN longitude REAL`)
+      db.exec(`ALTER TABLE accounts ADD COLUMN landmark_remarks TEXT`)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(22, new Date().toISOString())
+    })
+    migrate()
+  }
 }

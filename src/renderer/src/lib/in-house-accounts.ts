@@ -39,6 +39,9 @@ export type InHouseAccount = {
   readonly middleName?: string
   readonly suffix?: string
   readonly streetSubdivision?: string
+  readonly landmarkRemarks?: string
+  readonly latitude?: number
+  readonly longitude?: number
   readonly regionPsgc?: AccountAddressSelection
   readonly barangay: string
   readonly barangayPsgc?: AccountAddressSelection
@@ -47,6 +50,7 @@ export type InHouseAccount = {
   readonly province: string
   readonly provincePsgc?: AccountAddressSelection
   readonly occupation?: string
+  readonly civilStatus?: string
   readonly contacts: readonly AccountContact[]
   readonly emails: readonly AccountEmail[]
   readonly agent?: string
@@ -252,6 +256,7 @@ export function normalizeAccountDraft(draft: AccountDraft): AccountDraft {
     middleName: draft.middleName?.trim() || undefined,
     suffix: draft.suffix?.trim() || undefined,
     streetSubdivision: draft.streetSubdivision?.trim() || undefined,
+    landmarkRemarks: draft.landmarkRemarks?.trim() || undefined,
     barangay: draft.barangay.trim(),
     cityMunicipality: draft.cityMunicipality.trim(),
     province: draft.province.trim(),
