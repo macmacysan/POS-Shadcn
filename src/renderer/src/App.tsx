@@ -1,3 +1,4 @@
+import { Copy, Minus, Square, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { InitialAdminSetup, LoginForm } from '@/features/authentication'
@@ -9,7 +10,6 @@ import { InstallmentPaymentWorkspace } from '@/features/in-house-payments'
 import { DashboardContent } from '@/features/dashboard'
 import { InstallmentOverviewContent } from '@/features/installment-overview'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
-import { WindowTitleBar } from '@/components/layout/window-title-bar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { ActiveReportProvider } from '@/contexts/active-report-context'
 import { NotificationProvider } from '@/contexts/notification-context'
@@ -259,6 +259,25 @@ function App(): React.JSX.Element {
     return stored === null || stored === 'true'
   })
   const [selectedBranch, setSelectedBranch] = useState<LoginBranch>('Lagonoy')
+  const [isMaximized, setIsMaximized] = useState(false)
+
+  useEffect(() => {
+    const controls = window.windowControls
+    if (!controls) return
+    const documentElement = document.documentElement
+    const syncMaximized = (value: boolean): void => {
+      setIsMaximized(value)
+      documentElement.classList.toggle('window-maximized', value)
+    }
+
+    documentElement.classList.add('custom-window-chrome')
+    void controls.isMaximized().then(syncMaximized)
+    const unsubscribe = controls.onMaximizedChange(syncMaximized)
+    return () => {
+      unsubscribe()
+      documentElement.classList.remove('custom-window-chrome', 'window-maximized')
+    }
+  }, [])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
@@ -281,8 +300,40 @@ function App(): React.JSX.Element {
 
   return (
     <NotificationProvider>
-      <div className="flex h-full w-full min-h-0 flex-col">
-        <WindowTitleBar />
+      <div className="app-window-surface relative flex h-full min-h-0 w-full flex-col">
+        <div aria-label="Window drag area" className="window-drag-region absolute inset-x-0 top-0 z-50 h-3" />
+        {window.windowControls ? (
+          <div className="window-no-drag absolute top-1 right-1 z-50 flex">
+            <button
+              aria-label="Minimize window"
+              className="grid size-5 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => void window.windowControls?.minimize()}
+              type="button"
+            >
+              <Minus aria-hidden="true" className="size-3" strokeWidth={2} />
+            </button>
+            <button
+              aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
+              className="grid size-5 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => void window.windowControls?.toggleMaximize()}
+              type="button"
+            >
+              {isMaximized ? (
+                <Copy aria-hidden="true" className="size-3" strokeWidth={2} />
+              ) : (
+                <Square aria-hidden="true" className="size-3" strokeWidth={2} />
+              )}
+            </button>
+            <button
+              aria-label="Close window"
+              className="grid size-5 place-items-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => void window.windowControls?.close()}
+              type="button"
+            >
+              <X aria-hidden="true" className="size-3" strokeWidth={2} />
+            </button>
+          </div>
+        ) : null}
         <div className="relative min-h-0 flex-1">
           <Toaster theme={isDark ? 'dark' : 'light'} />
           {isLoggedIn && authenticatedUser ? (

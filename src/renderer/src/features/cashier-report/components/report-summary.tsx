@@ -138,7 +138,10 @@ function AmountInput({
       <Input
         aria-label={label}
         aria-invalid={invalid}
-        className={cn('h-7 text-right tabular-nums', inputClassName)}
+        className={cn(
+          'h-7 rounded-none border-x-0 border-t-0 border-b border-border/70 text-right tabular-nums',
+          inputClassName
+        )}
         inputMode="decimal"
         value={text}
         onFocus={() => setIsFocused(true)}
@@ -725,7 +728,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                         aria-label={`${type.name} quantity`}
                         aria-invalid={hasAmount && !hasQuantity}
                         className={cn(
-                          'h-7 px-1.5 text-right tabular-nums',
+                          'h-7 rounded-none border-x-0 border-t-0 border-b border-border/70 px-1.5 text-right tabular-nums',
                           hasAmount &&
                             !hasQuantity &&
                             'border-destructive focus-visible:ring-destructive/40'
@@ -796,7 +799,7 @@ export const ReportSummary = React.memo(function ReportSummary({
             {hasCashOutSummary && (
               <Section label="">
                 <SummaryRow
-                  label="Company Expenses"
+                  label="Expenses"
                   value={expenseTotals.companyExpensesCentavos}
                   hideWhenZero
                   valueMuted
@@ -859,7 +862,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                 />
                 <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero valueMuted />
                 <SummaryRow
-                  label="Other e-wallet"
+                  label="e-walltet"
                   value={paymentTotals.otherEwallet}
                   hideWhenZero
                   valueMuted

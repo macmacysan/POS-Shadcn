@@ -108,7 +108,7 @@ function TableColumnHeader<TData>({
       type="button"
       variant="ghost"
       size="sm"
-      className="group/header -ml-2 h-7 px-2 text-xs font-medium"
+      className="group/header -ml-2 h-5 px-2 text-xs font-normal"
       onClick={() => column.toggleSorting(isSorted === 'asc')}
       disabled={isLoading || table.getRowModel().rows.length === 0}
       aria-label={`Sort ${label}`}
@@ -193,7 +193,7 @@ export function UniversalDataTable<TData extends object>({
                       key={header.id}
                       colSpan={header.colSpan}
                       className={cn(
-                        'h-10 px-3 text-xs font-medium text-muted-foreground',
+                        'h-7 px-3 text-xs font-medium text-muted-foreground',
                         meta.headerClassName,
                         getNarrowColumnClassName(header.column.id),
                       )}
@@ -219,7 +219,7 @@ export function UniversalDataTable<TData extends object>({
                   {table.getVisibleLeafColumns().map((column) => (
                     <TableCell
                       key={column.id}
-                      className={cn('h-10 px-3', getNarrowColumnClassName(column.id))}
+                      className={cn('h-7 px-3 py-1', getNarrowColumnClassName(column.id))}
                     >
                       <Skeleton className="h-3 w-full" />
                     </TableCell>
@@ -232,7 +232,7 @@ export function UniversalDataTable<TData extends object>({
                   key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
                   className={cn(
-                    'group/row h-10',
+                    'group/row h-7',
                     (onRowClick || onRowDoubleClick) && 'cursor-pointer'
                   )}
                   onClick={() => onRowClick?.(row.original)}
@@ -245,7 +245,7 @@ export function UniversalDataTable<TData extends object>({
                       <TableCell
                         key={cell.id}
                         className={cn(
-                          'h-10 max-w-72 px-3',
+                          'h-7 max-w-72 px-3 py-1',
                           getNarrowColumnClassName(cell.column.id),
                           meta.cellClassName
                         )}
@@ -274,7 +274,7 @@ export function UniversalDataTable<TData extends object>({
       {showPagination && (
         <div
           className={cn(
-            'flex h-11 shrink-0 items-center justify-between gap-3 border-t px-3 text-xs',
+            'flex h-7 shrink-0 items-center justify-between gap-3 border-t px-3 text-xs',
             paginationClassName
           )}
         >

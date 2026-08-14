@@ -1629,13 +1629,13 @@ export function CashierReportsContent({
       className={
         isSummaryCompact
           ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3'
-          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(220px,262px)_minmax(0,1fr)] gap-3 overflow-hidden p-3'
+          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(200px,220px)_minmax(0,1fr)] gap-3 overflow-hidden p-3'
       }
     >
       {!isSummaryCompact && (
         <Card
           className={cn(
-            'flex min-h-0 min-w-0 flex-col py-0',
+            'flex min-h-0 min-w-0 flex-col py-0 ring-0',
             summaryAlwaysDark &&
               'dark sidebar-always-dark bg-sidebar text-sidebar-foreground ring-sidebar-border'
           )}

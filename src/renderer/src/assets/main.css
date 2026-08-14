@@ -307,3 +307,31 @@ code {
     @apply inline-flex h-6 items-center gap-1 rounded-sm border border-border bg-background px-1.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted;
   }
 }
+
+html.custom-window-chrome,
+html.custom-window-chrome body,
+html.custom-window-chrome #root {
+  background: transparent;
+}
+
+html.custom-window-chrome #root {
+  padding: 8px;
+}
+
+
+.app-window-surface {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px color-mix(in oklab, var(--foreground) 18%, transparent);
+}
+
+html.window-maximized #root {
+  padding: 0;
+}
+
+html.window-maximized .app-window-surface {
+  border-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
