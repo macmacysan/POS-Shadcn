@@ -85,6 +85,9 @@ import {
   InstallmentHistoryTable
 } from '@/features/installment-history'
 import type { RowActionItem } from '@/components/shared/data-table/row-actions'
+import { ConfirmationAlertDialog } from '@/components/shared/confirmation-alert-dialog'
+import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
+import type { EntryEntityType, EntryHistoryRecord } from '@/../../shared/contracts'
 import type { DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { InstallmentHistoryRecord } from '@/lib/installment-history'
@@ -254,6 +257,7 @@ const expenseCategoryConfigByValue = new Map<string, ExpenseCategoryConfig>(
 )
 
 type ExpenseRow = ExpenseTableRow
+type ReportEntryRow = ExpenseRow | IncomeRow | PaymentRow
 
 type IncomeRow = ReportRow & {
   branch: string
@@ -263,6 +267,14 @@ type IncomeRow = ReportRow & {
   receiptRefNo: string
   date: string
   amount: number
+  amountCentavos: number
+  status: 'POSTED' | 'VOIDED'
+  voidedAt: string | null
+  voidReason: string | null
+  createdByUserId: string
+  createdByName: string
+  createdAt: string
+  updatedAt: string
 }
 type PaymentRow = ReportRow & {
   branch: string
@@ -273,6 +285,14 @@ type PaymentRow = ReportRow & {
   referenceNo: string
   date: string
   amount: number
+  amountCentavos: number
+  status: 'POSTED' | 'VOIDED'
+  voidedAt: string | null
+  voidReason: string | null
+  createdByUserId: string
+  createdByName: string
+  createdAt: string
+  updatedAt: string
 }
 
 type EntryLoadState = {
@@ -526,6 +546,12 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     meta: { className: 'text-xs text-muted-foreground' }
   },
   {
+    accessorKey: 'createdByName',
+    header: 'Added by',
+    size: 120,
+    meta: { className: 'text-muted-foreground' }
+  },
+  {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
@@ -539,7 +565,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
 const compactExpenseColumns: ReportColumn<ExpenseRow>[] = [
   expenseColumns[0],
   expenseColumns[1],
-  expenseColumns[5]
+  expenseColumns[6]
 ]
 
 const branchColumn = {
@@ -584,6 +610,12 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     meta: { className: 'min-w-0', autoSize: true }
   },
   {
+    accessorKey: 'createdByName',
+    header: 'Added by',
+    size: 120,
+    meta: { className: 'text-muted-foreground' }
+  },
+  {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
@@ -594,7 +626,7 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
   }
 ]
 
-const compactIncomeColumns: ReportColumn<IncomeRow>[] = [incomeColumns[1], incomeColumns[4]]
+const compactIncomeColumns: ReportColumn<IncomeRow>[] = [incomeColumns[1], incomeColumns[5]]
 
 const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
@@ -634,6 +666,12 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     meta: { className: 'text-muted-foreground' }
   },
   {
+    accessorKey: 'createdByName',
+    header: 'Added by',
+    size: 120,
+    meta: { className: 'text-muted-foreground' }
+  },
+  {
     accessorKey: 'amount',
     header: 'Amount',
     size: 112,
@@ -645,7 +683,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
 const compactPaymentColumns: ReportColumn<PaymentRow>[] = [
   paymentColumns[0],
   paymentColumns[1],
-  paymentColumns[5]
+  paymentColumns[6]
 ]
 
 const paymentMethodByLabel: Record<string, string> = {
@@ -668,7 +706,15 @@ function incomeRow(record: IncomeEntryRecord): IncomeRow {
     remarks: record.remarks ?? '',
     receiptRefNo: record.receiptNumber ?? '',
     date: record.transactionDate,
-    amount: record.amountCentavos / 100
+    amount: record.amountCentavos / 100,
+    amountCentavos: record.amountCentavos,
+    status: record.status,
+    voidedAt: record.voidedAt,
+    voidReason: record.voidReason,
+    createdByUserId: record.createdByUserId,
+    createdByName: record.createdByName ?? 'Unknown',
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
   }
 }
 
@@ -683,7 +729,15 @@ function paymentRow(record: DailyReportPaymentEntryRecord): PaymentRow {
     accountName: record.payerName ?? '',
     referenceNo: record.referenceNumber ?? '',
     date: record.transactionDate,
-    amount: record.amountCentavos / 100
+    amount: record.amountCentavos / 100,
+    amountCentavos: record.amountCentavos,
+    status: record.status,
+    voidedAt: record.voidedAt,
+    voidReason: record.voidReason,
+    createdByUserId: record.createdByUserId,
+    createdByName: record.createdByName ?? 'Unknown',
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
   }
 }
 
@@ -691,67 +745,207 @@ function acknowledgeRow(row: ReportRow): void {
   void row.id
 }
 
-const destructiveAction = (
-  label: string
-): Pick<RowActionItem, 'destructive' | 'requiresConfirmation' | 'confirmationMessage'> => ({
-  destructive: true,
-  requiresConfirmation: true,
-  confirmationMessage: `${label}?`
-})
-
 function expenseRowActions(
   row: ExpenseRow,
-  onDelete: (id: string) => void,
-  onEdit: (row: ExpenseRow) => void
+  onView: (row: ExpenseRow, entityType: EntryEntityType) => void,
+  onVoid: (row: ExpenseRow, entityType: EntryEntityType) => void,
+  onEdit: (row: ExpenseRow) => void,
+  onDuplicate: (row: ExpenseRow) => void,
+  isAdmin: boolean
 ): readonly RowActionItem[] {
-  return [
-    { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
-    { id: 'edit', label: 'Edit Expense', onSelect: () => onEdit(row) },
-    { id: 'duplicate', label: 'Duplicate Expense', onSelect: () => acknowledgeRow(row) },
-    {
-      id: 'delete',
-      label: 'Delete Expense',
-      onSelect: () => onDelete(row.id),
-      ...destructiveAction('Delete expense')
-    }
-  ]
+  return row.status === 'VOIDED'
+    ? [{ id: 'view', label: 'View Details', onSelect: () => onView(row, 'EXPENSE') }]
+    : [
+        { id: 'view', label: 'View Details', onSelect: () => onView(row, 'EXPENSE') },
+        { id: 'edit', label: 'Edit Expense', onSelect: () => onEdit(row) },
+        { id: 'duplicate', label: 'Duplicate Expense', onSelect: () => onDuplicate(row) },
+        ...(isAdmin
+          ? [
+              {
+                id: 'void',
+                label: 'Void Expense',
+                onSelect: () => onVoid(row, 'EXPENSE'),
+                destructive: true
+              }
+            ]
+          : [])
+      ]
 }
 
 function incomeRowActions(
   row: IncomeRow,
-  onDelete: (id: string) => void,
-  onEdit: (row: IncomeRow) => void
+  onView: (row: IncomeRow, entityType: EntryEntityType) => void,
+  onVoid: (row: IncomeRow, entityType: EntryEntityType) => void,
+  onEdit: (row: IncomeRow) => void,
+  onDuplicate: (row: IncomeRow) => void,
+  isAdmin: boolean
 ): readonly RowActionItem[] {
-  return [
-    { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
-    { id: 'edit', label: 'Edit Income', onSelect: () => onEdit(row) },
-    { id: 'duplicate', label: 'Duplicate Income', onSelect: () => acknowledgeRow(row) },
-    {
-      id: 'delete',
-      label: 'Delete Income',
-      onSelect: () => onDelete(row.id),
-      ...destructiveAction('Delete income')
-    }
-  ]
+  return row.status === 'VOIDED'
+    ? [{ id: 'view', label: 'View Details', onSelect: () => onView(row, 'INCOME') }]
+    : [
+        { id: 'view', label: 'View Details', onSelect: () => onView(row, 'INCOME') },
+        { id: 'edit', label: 'Edit Income', onSelect: () => onEdit(row) },
+        { id: 'duplicate', label: 'Duplicate Income', onSelect: () => onDuplicate(row) },
+        ...(isAdmin
+          ? [
+              {
+                id: 'void',
+                label: 'Void Income',
+                onSelect: () => onVoid(row, 'INCOME'),
+                destructive: true
+              }
+            ]
+          : [])
+      ]
 }
 
 function paymentRowActions(
   row: PaymentRow,
-  onDelete: (id: string) => void,
-  onEdit: (row: PaymentRow) => void
+  onView: (row: PaymentRow, entityType: EntryEntityType) => void,
+  onVoid: (row: PaymentRow, entityType: EntryEntityType) => void,
+  onEdit: (row: PaymentRow) => void,
+  onDuplicate: (row: PaymentRow) => void,
+  isAdmin: boolean
 ): readonly RowActionItem[] {
   return [
-    { id: 'view', label: 'View Details', onSelect: () => acknowledgeRow(row) },
-    { id: 'adjustment', label: 'Record Adjustment', onSelect: () => acknowledgeRow(row) },
+    { id: 'view', label: 'View Details', onSelect: () => onView(row, 'PAYMENT') },
     { id: 'edit', label: 'Edit Payment', onSelect: () => onEdit(row) },
-    { id: 'print', label: 'Print Receipt', onSelect: () => acknowledgeRow(row) },
-    {
-      id: 'delete',
-      label: 'Delete Payment',
-      onSelect: () => onDelete(row.id),
-      ...destructiveAction('Delete payment')
-    }
-  ]
+    { id: 'duplicate', label: 'Duplicate Payment', onSelect: () => onDuplicate(row) },
+    ...(isAdmin
+      ? [
+          {
+            id: 'void',
+            label: 'Void Payment',
+            onSelect: () => onVoid(row, 'PAYMENT'),
+            destructive: true
+          }
+        ]
+      : [])
+  ].filter((action) => row.status !== 'VOIDED' || action.id === 'view')
+}
+
+function entryFieldLabel(field: string): string {
+  return field.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase())
+}
+
+function entryFieldValue(field: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—'
+  if (field === 'amountCentavos') return money(Number(value) / 100)
+  if (field === 'status') return String(value)
+  return String(value)
+}
+
+function EntryDetailsDialog({
+  entry,
+  entityType,
+  onOpenChange
+}: {
+  entry?: ReportEntryRow
+  entityType?: EntryEntityType
+  onOpenChange: (open: boolean) => void
+}): React.JSX.Element {
+  const [history, setHistory] = React.useState<EntryHistoryRecord[]>([])
+  const [selectedHistoryId, setSelectedHistoryId] = React.useState<string>()
+  const [error, setError] = React.useState<string>()
+
+  React.useEffect(() => {
+    if (!entry || !entityType) return
+    setHistory([])
+    setSelectedHistoryId(undefined)
+    setError(undefined)
+    void window.api.entryHistory
+      .list({ entityType, entityId: entry.id })
+      .then((result) => setHistory(result.rows))
+      .catch(() => setError('Revision history could not be loaded.'))
+  }, [entry, entityType])
+
+  const selectedRevision = history.find((item) => item.id === selectedHistoryId)
+  const values = entry ? Object.entries(entry as unknown as Record<string, unknown>) : []
+  return (
+    <Dialog open={Boolean(entry)} onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[min(80vh,42rem)] w-[min(94vw,72rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
+        <DialogHeader className="border-b px-5 py-4">
+          <DialogTitle>Entry details</DialogTitle>
+          <DialogDescription>
+            {entityType ? `${entityType.toLowerCase()} record · ${entry?.branch ?? 'Branch'}` : ''}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)]">
+          <aside className="min-h-0 overflow-y-auto border-r p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Revision history</p>
+            {error && <p className="text-xs text-destructive">{error}</p>}
+            {!error && history.length === 0 && (
+              <p className="text-xs text-muted-foreground">No history found.</p>
+            )}
+            <div className="flex flex-col gap-1">
+              {history.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={cn(
+                    'rounded-md px-2 py-2 text-left text-xs hover:bg-muted',
+                    selectedHistoryId === item.id && 'bg-muted'
+                  )}
+                  onClick={() => setSelectedHistoryId(item.id)}
+                >
+                  <span className="block font-medium">{item.action}</span>
+                  <span className="block text-muted-foreground">
+                    {format(new Date(item.createdAt), 'MMM d, yyyy · h:mm:ss a')}
+                  </span>
+                  <span className="block text-muted-foreground">{item.actorName ?? 'System'}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
+          <div className="min-h-0 overflow-y-auto p-5">
+            {selectedRevision ? (
+              <div className="flex flex-col gap-3">
+                <div>
+                  <p className="text-sm font-medium">{selectedRevision.action} revision</p>
+                  <p className="text-xs text-muted-foreground">
+                    Changes recorded for this revision
+                  </p>
+                </div>
+                {selectedRevision.changes.map((change) => {
+                  const unchanged = change.oldValue === change.newValue
+                  return (
+                    <div
+                      key={change.field}
+                      className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)] gap-3 border-b pb-2 text-xs"
+                    >
+                      <span className="text-muted-foreground">{entryFieldLabel(change.field)}</span>
+                      <span className={cn(unchanged && 'text-muted-foreground')}>
+                        {unchanged
+                          ? (change.newValue ?? '—')
+                          : `${change.oldValue ?? '—'} → ${change.newValue ?? '—'}`}
+                      </span>
+                    </div>
+                  )
+                })}
+                {selectedRevision.reason && (
+                  <p className="text-xs text-destructive">Reason: {selectedRevision.reason}</p>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {values
+                  .filter(
+                    ([field]) =>
+                      !['id', 'reportId', 'dailyReportId', 'createdByUserId'].includes(field)
+                  )
+                  .map(([field, value]) => (
+                    <div key={field}>
+                      <p className="text-xs text-muted-foreground">{entryFieldLabel(field)}</p>
+                      <p className="text-sm tabular-nums">{entryFieldValue(field, value)}</p>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function ReportTab({
@@ -767,13 +961,14 @@ function ReportTab({
   incomeRows,
   paymentRows,
   expenseQuery,
-  onDeleteExpense,
   onDeleteSelectedExpenses,
+  onView,
+  onVoid,
+  onDuplicate,
   onAddEntry,
   addEntryLabel,
   selectedHistoryId,
   onSelectHistory,
-  onDelete,
   onDeleteSelected,
   onEdit,
   incomeLoadState,
@@ -781,7 +976,10 @@ function ReportTab({
   onRetryEntries,
   historyRecords,
   historyLoadState,
-  onRetryHistory
+  onRetryHistory,
+  isAdmin,
+  showVoided,
+  onShowVoidedChange
 }: {
   tab: (typeof reportTabs)[number]
   isCompact: boolean
@@ -795,13 +993,14 @@ function ReportTab({
   incomeRows: IncomeRow[]
   paymentRows: PaymentRow[]
   expenseQuery: ReturnType<typeof useExpenses>
-  onDeleteExpense: (id: string) => Promise<void>
   onDeleteSelectedExpenses: (rows: ExpenseRow[]) => Promise<boolean>
+  onView: (row: ReportEntryRow, entityType: EntryEntityType) => void
+  onVoid: (row: ReportEntryRow, entityType: EntryEntityType) => void
+  onDuplicate: (row: ReportEntryRow) => void
   onAddEntry: () => void
   addEntryLabel: string
   selectedHistoryId?: string
   onSelectHistory: (record: InstallmentHistoryRecord) => void
-  onDelete: (id: string) => void
   onDeleteSelected: (rows: ReportRow[]) => boolean | Promise<boolean>
   onEdit: (row: ExpenseRow | IncomeRow | PaymentRow) => void
   incomeLoadState: EntryLoadState
@@ -810,18 +1009,21 @@ function ReportTab({
   historyRecords: InstallmentHistoryRecord[]
   historyLoadState: EntryLoadState
   onRetryHistory: () => void
+  isAdmin: boolean
+  showVoided: boolean
+  onShowVoidedChange: (value: boolean) => void
 }): React.JSX.Element {
   const getExpenseActions = React.useCallback(
-    (row: ExpenseRow) => expenseRowActions(row, onDeleteExpense, onEdit),
-    [onDeleteExpense, onEdit]
+    (row: ExpenseRow) => expenseRowActions(row, onView, onVoid, onEdit, onDuplicate, isAdmin),
+    [isAdmin, onDuplicate, onEdit, onView, onVoid]
   )
   const getIncomeActions = React.useCallback(
-    (row: IncomeRow) => incomeRowActions(row, onDelete, onEdit),
-    [onDelete, onEdit]
+    (row: IncomeRow) => incomeRowActions(row, onView, onVoid, onEdit, onDuplicate, isAdmin),
+    [isAdmin, onDuplicate, onEdit, onView, onVoid]
   )
   const getPaymentActions = React.useCallback(
-    (row: PaymentRow) => paymentRowActions(row, onDelete, onEdit),
-    [onDelete, onEdit]
+    (row: PaymentRow) => paymentRowActions(row, onView, onVoid, onEdit, onDuplicate, isAdmin),
+    [isAdmin, onDuplicate, onEdit, onView, onVoid]
   )
   const onExpenseDefaultAction = React.useCallback(
     (row: ExpenseRow) => {
@@ -849,7 +1051,7 @@ function ReportTab({
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={getExpenseActions}
-          onDeleteSelected={onDeleteSelectedExpenses}
+          onDeleteSelected={isAdmin ? onDeleteSelectedExpenses : undefined}
           onDefaultAction={onExpenseDefaultAction}
           serverState={expenseQuery}
           filterOptions={{
@@ -858,6 +1060,18 @@ function ReportTab({
             vat: vatOptions,
             ...(showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : {})
           }}
+          toolbarContent={
+            isAdmin ? (
+              <Button
+                type="button"
+                variant={showVoided ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => onShowVoidedChange(!showVoided)}
+              >
+                {showVoided ? 'Hide voided' : 'Show voided'}
+              </Button>
+            ) : undefined
+          }
         />
       )
     case 'Income':
@@ -877,13 +1091,25 @@ function ReportTab({
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={getIncomeActions}
-          onDeleteSelected={onDeleteSelected}
+          onDeleteSelected={isAdmin ? onDeleteSelected : undefined}
           onDefaultAction={acknowledgeRow}
           isLoading={incomeLoadState.isLoading}
           loadError={incomeLoadState.error}
           onRetry={onRetryEntries}
           filterOptions={
             showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : undefined
+          }
+          toolbarContent={
+            isAdmin ? (
+              <Button
+                type="button"
+                variant={showVoided ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => onShowVoidedChange(!showVoided)}
+              >
+                {showVoided ? 'Hide voided' : 'Show voided'}
+              </Button>
+            ) : undefined
           }
         />
       )
@@ -904,13 +1130,25 @@ function ReportTab({
           onAddEntry={onAddEntry}
           addEntryLabel={addEntryLabel}
           getRowActions={getPaymentActions}
-          onDeleteSelected={onDeleteSelected}
+          onDeleteSelected={isAdmin ? onDeleteSelected : undefined}
           onDefaultAction={acknowledgeRow}
           isLoading={paymentLoadState.isLoading}
           loadError={paymentLoadState.error}
           onRetry={onRetryEntries}
           filterOptions={
             showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : undefined
+          }
+          toolbarContent={
+            isAdmin ? (
+              <Button
+                type="button"
+                variant={showVoided ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => onShowVoidedChange(!showVoided)}
+              >
+                {showVoided ? 'Hide voided' : 'Show voided'}
+              </Button>
+            ) : undefined
           }
         />
       )
@@ -949,10 +1187,18 @@ const formFields: Record<(typeof reportTabs)[number], string[]> = {
   Activity: []
 }
 
-function ReportDatePicker({ id, label }: { id: string; label: string }): React.JSX.Element {
+function ReportDatePicker({
+  id,
+  label,
+  initialValue
+}: {
+  id: string
+  label: string
+  initialValue?: string
+}): React.JSX.Element {
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date>()
-  const [value, setValue] = React.useState('')
+  const [value, setValue] = React.useState(initialValue ?? '')
 
   return (
     <InputGroup>
@@ -1010,11 +1256,13 @@ function ReportDatePicker({ id, label }: { id: string; label: string }): React.J
 function ReportDetailsForm({
   tab,
   expenseTypes,
-  paymentTypes
+  paymentTypes,
+  initialValues = {}
 }: {
   tab: (typeof reportTabs)[number]
   expenseTypes: readonly string[]
   paymentTypes: readonly string[]
+  initialValues?: Record<string, string>
 }): React.JSX.Element {
   return (
     <FieldGroup className="p-4">
@@ -1035,7 +1283,7 @@ function ReportDetailsForm({
           <Field key={field}>
             <FieldLabel htmlFor={id}>{field}</FieldLabel>
             {options ? (
-              <Select name={id}>
+              <Select name={id} defaultValue={initialValues[id]}>
                 <SelectTrigger id={id} className="w-full" aria-label={field}>
                   <SelectValue placeholder={`Select ${field.toLowerCase()}`} />
                 </SelectTrigger>
@@ -1050,7 +1298,7 @@ function ReportDetailsForm({
                 </SelectContent>
               </Select>
             ) : field === 'Date' ? (
-              <ReportDatePicker id={id} label={field} />
+              <ReportDatePicker id={id} label={field} initialValue={initialValues[id]} />
             ) : /(amount|balance|principal)/i.test(field) ? (
               <InputGroup>
                 <InputGroupAddon align="inline-start">
@@ -1061,6 +1309,7 @@ function ReportDetailsForm({
                   name={id}
                   type="text"
                   inputMode="decimal"
+                  defaultValue={initialValues[id]}
                   placeholder={`Enter ${field.toLowerCase()}`}
                   onChange={(event) => {
                     event.currentTarget.value = formatAmountInput(event.currentTarget.value)
@@ -1068,7 +1317,12 @@ function ReportDetailsForm({
                 />
               </InputGroup>
             ) : (
-              <Input id={id} name={id} placeholder={`Enter ${field.toLowerCase()}`} />
+              <Input
+                id={id}
+                name={id}
+                defaultValue={initialValues[id]}
+                placeholder={`Enter ${field.toLowerCase()}`}
+              />
             )}
           </Field>
         )
@@ -1099,7 +1353,8 @@ function EntryFormPanel({
   onDirtyChange,
   saveError,
   expenseTypes,
-  paymentTypes
+  paymentTypes,
+  initialValues
 }: {
   tab: (typeof reportTabs)[number]
   onSave: (form: FormData) => void
@@ -1107,6 +1362,7 @@ function EntryFormPanel({
   saveError?: string
   expenseTypes: readonly string[]
   paymentTypes: readonly string[]
+  initialValues?: Record<string, string>
 }): React.JSX.Element {
   return (
     <form
@@ -1127,7 +1383,12 @@ function EntryFormPanel({
         </div>
       )}
       <ScrollArea className="min-h-0 flex-1">
-        <ReportDetailsForm tab={tab} expenseTypes={expenseTypes} paymentTypes={paymentTypes} />
+        <ReportDetailsForm
+          tab={tab}
+          expenseTypes={expenseTypes}
+          paymentTypes={paymentTypes}
+          initialValues={initialValues}
+        />
       </ScrollArea>
       <EntryFormActions />
     </form>
@@ -1137,11 +1398,13 @@ function EntryFormPanel({
 export function CashierReportsContent({
   summaryAlwaysDark = false,
   selectedBranch = 'All Branch',
-  cashierName = 'Cashier'
+  cashierName = 'Cashier',
+  isAdmin = false
 }: {
   summaryAlwaysDark?: boolean
   selectedBranch?: LoginBranch
   cashierName?: string
+  isAdmin?: boolean
 }): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
   const activeReport = useActiveReport()
@@ -1170,7 +1433,14 @@ export function CashierReportsContent({
     : selectedStartDate
   const dateFrom = dateRange.operator === 'before' ? undefined : selectedStartDate
   const dateTo = dateRange.operator === 'after' ? undefined : selectedEndDate
-  const expenseQuery = useExpenses(reportId, selectedBranch, dateFrom, dateTo)
+  const [showVoided, setShowVoided] = React.useState(false)
+  const expenseQuery = useExpenses(
+    reportId,
+    selectedBranch,
+    dateFrom,
+    dateTo,
+    isAdmin && showVoided
+  )
   const { createExpense, removeExpenses, updateExpense } = expenseQuery
   const [incomes, setIncomes] = React.useState<IncomeRow[]>([])
   const [payments, setPayments] = React.useState<PaymentRow[]>([])
@@ -1188,8 +1458,25 @@ export function CashierReportsContent({
   const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
   const [isEntryFormDirty, setIsEntryFormDirty] = React.useState(false)
   const [entrySaveError, setEntrySaveError] = React.useState<string>()
+  const [confirmation, setConfirmation] = React.useState<{
+    title: string
+    description: string
+    confirmLabel: string
+    destructive?: boolean
+    onConfirm: () => void
+  }>()
   const [isSummaryVisible, setIsSummaryVisible] = React.useState(false)
   const [selectedHistory, setSelectedHistory] = React.useState<InstallmentHistoryRecord>()
+  const [selectedEntry, setSelectedEntry] = React.useState<ReportEntryRow>()
+  const [selectedEntryType, setSelectedEntryType] = React.useState<EntryEntityType>()
+  const entryDialogClosingRef = React.useRef(false)
+  const [voidEntry, setVoidEntry] = React.useState<ReportEntryRow>()
+  const [voidEntryType, setVoidEntryType] = React.useState<EntryEntityType>()
+  const [bulkVoidRows, setBulkVoidRows] = React.useState<ReportEntryRow[]>([])
+  const [bulkVoidType, setBulkVoidType] = React.useState<EntryEntityType>()
+  const [formMode, setFormMode] = React.useState<'create' | 'edit' | 'duplicate'>('create')
+  const [formEntry, setFormEntry] = React.useState<ReportEntryRow>()
+  const [formSeed, setFormSeed] = React.useState(0)
   const entriesRequestVersionRef = React.useRef(0)
   const isEntryFormCompact = useMediaQuery('(max-width: 900px)')
   const isSummaryCompact = useMediaQuery('(max-width: 760px)')
@@ -1272,12 +1559,29 @@ export function CashierReportsContent({
   const setEntryFormOpen = React.useCallback(
     (open: boolean): void => {
       if (open) {
+        setFormMode('create')
+        setFormEntry(undefined)
+        setFormSeed((value) => value + 1)
         setIsEntryFormDirty(false)
         setEntrySaveError(undefined)
         setIsEntryFormVisible(true)
         return
       }
-      if (isEntryFormDirty && !window.confirm('Discard unsaved entry changes?')) return
+      if (isEntryFormDirty) {
+        setConfirmation({
+          title: 'Discard unsaved entry changes?',
+          description: 'Your entered report details will be lost.',
+          confirmLabel: 'Discard changes',
+          destructive: true,
+          onConfirm: () => {
+            setConfirmation(undefined)
+            setIsEntryFormDirty(false)
+            setEntrySaveError(undefined)
+            setIsEntryFormVisible(false)
+          }
+        })
+        return
+      }
       setIsEntryFormDirty(false)
       setEntrySaveError(undefined)
       setIsEntryFormVisible(false)
@@ -1304,6 +1608,7 @@ export function CashierReportsContent({
       for (let pageIndex = 0; ; pageIndex += 1) {
         const result = await window.api.reports.expenses.list({
           reportId,
+          includeVoided: false,
           pageIndex,
           pageSize: 100,
           search: '',
@@ -1352,9 +1657,15 @@ export function CashierReportsContent({
         })
       ])
       const branch = selectedBranch === 'All Branch' ? 'All Branch' : selectedBranch
+      const contributors = [
+        ...allExpenses.map((item) => item.createdByName),
+        ...incomeResult.rows.map((item) => item.createdByName),
+        ...paymentResult.rows.map((item) => item.createdByName)
+      ].filter((name): name is string => Boolean(name?.trim()))
+      const contributorLabel = [...new Set(contributors)].join(', ') || cashierName
       const now = new Date()
       const html = cashierReportPdfHtml({
-        cashierName,
+        cashierName: contributorLabel,
         branch,
         businessDate: selectedReport.businessDate,
         generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
@@ -1373,7 +1684,7 @@ export function CashierReportsContent({
         }
       })
       const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
-      const fileName = `${filenameSegment(cashierName)}-${filenameSegment(branch)}-${selectedReport.businessDate}-${time}.pdf`
+      const fileName = `${filenameSegment(branch)}-${selectedReport.businessDate}-${time}.pdf`
       const { pdfBase64 } = await window.api.pdfExport.preview({ html, fileName })
       setPdfProgress(initialPdfProgress)
       setTelegramNote('')
@@ -1471,13 +1782,13 @@ export function CashierReportsContent({
         branch: selectedBranch,
         dateFrom,
         dateTo,
-        status: 'POSTED'
+        status: showVoided ? undefined : 'POSTED'
       }),
       window.api.dailyReports.listPayments({
         branch: selectedBranch,
         dateFrom,
         dateTo,
-        status: 'POSTED'
+        status: showVoided ? undefined : 'POSTED'
       })
     ])
     if (requestVersion !== entriesRequestVersionRef.current) return
@@ -1493,150 +1804,149 @@ export function CashierReportsContent({
     } else {
       setPaymentLoadState({ isLoading: false, error: 'Payment entries could not be loaded.' })
     }
-  }, [dateFrom, dateTo, selectedBranch])
+  }, [dateFrom, dateTo, selectedBranch, showVoided])
 
   React.useEffect(() => {
     void refreshEntries()
   }, [refreshEntries])
 
-  const editAmount = React.useCallback(
-    async (row: ExpenseRow | IncomeRow | PaymentRow): Promise<void> => {
-      const nextAmount = window.prompt('Amount', String(row.amount))
-      if (nextAmount === null) return
-      if ('reportId' in row) {
-        let amountCentavos: number
-        try {
-          amountCentavos = parseAmountToCentavos(nextAmount)
-        } catch {
-          return
+  const openEntryView = React.useCallback(
+    (row: ReportEntryRow, entityType: EntryEntityType): void => {
+      entryDialogClosingRef.current = false
+      setSelectedEntry(row)
+      setSelectedEntryType(entityType)
+    },
+    []
+  )
+  const closeEntryDetails = React.useCallback((open: boolean): void => {
+    if (open || entryDialogClosingRef.current) return
+    entryDialogClosingRef.current = true
+    setSelectedEntry(undefined)
+    setSelectedEntryType(undefined)
+  }, [])
+
+  const startEntryForm = React.useCallback(
+    (row: ReportEntryRow | undefined, mode: 'edit' | 'duplicate'): void => {
+      setFormEntry(row)
+      setFormMode(mode)
+      setFormSeed((value) => value + 1)
+      setIsEntryFormDirty(false)
+      setEntrySaveError(undefined)
+      setIsEntryFormVisible(true)
+    },
+    []
+  )
+
+  const requestVoid = React.useCallback(
+    (row: ReportEntryRow, entityType: EntryEntityType): void => {
+      setVoidEntry(row)
+      setVoidEntryType(entityType)
+    },
+    []
+  )
+
+  const deleteSelectedExpenses = React.useCallback(async (rows: ExpenseRow[]): Promise<boolean> => {
+    setBulkVoidRows(rows)
+    setBulkVoidType('EXPENSE')
+    return false
+  }, [])
+
+  const deleteSelectedEntries = React.useCallback(async (rows: ReportRow[]): Promise<boolean> => {
+    const selected = rows as ReportEntryRow[]
+    setBulkVoidRows(selected)
+    setBulkVoidType(selected.every((row) => 'particular' in row) ? 'INCOME' : 'PAYMENT')
+    return false
+  }, [])
+
+  const confirmVoid = React.useCallback(
+    async (reason: string): Promise<void> => {
+      const rows = voidEntry ? [voidEntry] : bulkVoidRows
+      const entityType = voidEntryType ?? bulkVoidType
+      if (!rows.length || !entityType) return
+      try {
+        if (entityType === 'EXPENSE') {
+          await removeExpenses(
+            rows.map((row) => row.id),
+            reason
+          )
+        } else {
+          await Promise.all(
+            rows.map((row) =>
+              entityType === 'INCOME'
+                ? window.api.dailyReports.voidIncome({ id: row.id, voidReason: reason })
+                : window.api.dailyReports.voidPayment({ id: row.id, voidReason: reason })
+            )
+          )
         }
-        await updateExpense({
-          id: row.id,
-          type: row.type,
-          description: row.description,
-          category: row.category,
-          receiptNo: row.receiptNo,
-          vat: row.vat,
-          amountCentavos
-        })
-        return
-      }
-      const amount = Number(nextAmount)
-      if (!Number.isFinite(amount) || amount < 0) return
-      try {
-        const amountCentavos = parseAmountToCentavos(nextAmount)
-        if ('particular' in row) {
-          await window.api.dailyReports.updateIncome({
-            id: row.id,
-            categoryId: row.categoryId,
-            transactionDate: row.date,
-            particular: row.particular,
-            receiptNumber: row.receiptRefNo || null,
-            remarks: row.remarks || null,
-            amountCentavos
-          })
-        } else if ('bankProvider' in row) {
-          await window.api.dailyReports.updatePayment({
-            id: row.id,
-            paymentMethodId: row.paymentMethodId,
-            transactionDate: row.date,
-            referenceNumber: row.referenceNo || null,
-            bankName: row.bankProvider || null,
-            payerName: row.accountName || null,
-            remarks: null,
-            amountCentavos
-          })
-        } else return
         await refreshEntries()
+        setVoidEntry(undefined)
+        setVoidEntryType(undefined)
+        setBulkVoidRows([])
+        setBulkVoidType(undefined)
       } catch {
         return
       }
     },
-    [refreshEntries, updateExpense]
-  )
-
-  const deleteExpense = React.useCallback(
-    async (id: string): Promise<void> => {
-      try {
-        await removeExpenses([id])
-      } catch {
-        return
-      }
-    },
-    [removeExpenses]
-  )
-
-  const deleteSelectedExpenses = React.useCallback(
-    async (rows: ExpenseRow[]): Promise<boolean> => {
-      const ids = rows.map((row) => row.id)
-      if (!window.confirm(`Delete ${ids.length} selected entr${ids.length === 1 ? 'y' : 'ies'}?`))
-        return false
-      try {
-        await removeExpenses(ids)
-        return true
-      } catch {
-        return false
-      }
-    },
-    [removeExpenses]
-  )
-
-  const deleteEntry = React.useCallback(
-    async (id: string): Promise<void> => {
-      const income = incomes.find((row) => row.id === id)
-      const payment = payments.find((row) => row.id === id)
-      try {
-        if (income)
-          await window.api.dailyReports.voidIncome({
-            id,
-            voidReason: 'Voided from Cashier Reports'
-          })
-        else if (payment)
-          await window.api.dailyReports.voidPayment({
-            id,
-            voidReason: 'Voided from Cashier Reports'
-          })
-        else return
-        await refreshEntries()
-      } catch {
-        return
-      }
-    },
-    [incomes, payments, refreshEntries]
-  )
-
-  const deleteSelectedEntries = React.useCallback(
-    async (rows: ReportRow[]): Promise<boolean> => {
-      const ids = new Set(rows.map((row) => row.id))
-      if (!window.confirm(`Delete ${ids.size} selected entr${ids.size === 1 ? 'y' : 'ies'}?`))
-        return false
-      try {
-        await Promise.all(
-          [...ids].map((id) => {
-            if (incomes.some((row) => row.id === id)) {
-              return window.api.dailyReports.voidIncome({
-                id,
-                voidReason: 'Voided from Cashier Reports'
-              })
-            }
-            return window.api.dailyReports.voidPayment({
-              id,
-              voidReason: 'Voided from Cashier Reports'
-            })
-          })
-        )
-        await refreshEntries()
-        return true
-      } catch {
-        return false
-      }
-    },
-    [incomes, refreshEntries]
+    [bulkVoidRows, bulkVoidType, refreshEntries, removeExpenses, voidEntry, voidEntryType]
   )
 
   const saveEntry = React.useCallback(
     async (tab: (typeof reportTabs)[number], form: FormData): Promise<void> => {
       setEntrySaveError(undefined)
+      if (formMode === 'edit' && formEntry) {
+        try {
+          const amountCentavos = parseAmountToCentavos(
+            String(form.get(`${tab.toLowerCase()}-amount`) ?? '0')
+          )
+          if ('reportId' in formEntry) {
+            await updateExpense({
+              id: formEntry.id,
+              type: String(form.get('expenses-type') || formEntry.type) as ExpenseType,
+              description: String(form.get('expenses-description') || formEntry.description),
+              category: String(
+                form.get('expenses-category') || formEntry.category
+              ) as ExpenseCategory,
+              receiptNo: String(form.get('expenses-receipt-no-') || ''),
+              vat: String(form.get('expenses-vat') || '') as ExpenseVat,
+              amountCentavos
+            })
+          } else if ('particular' in formEntry) {
+            await window.api.dailyReports.updateIncome({
+              id: formEntry.id,
+              categoryId: formEntry.categoryId,
+              transactionDate: String(form.get('income-date') || formEntry.date),
+              particular: String(form.get('income-particular') || formEntry.particular),
+              receiptNumber: String(form.get('income-receipt-reference-no-') || '') || null,
+              remarks: String(form.get('income-remarks') || '') || null,
+              amountCentavos
+            })
+          } else {
+            const type = String(form.get('payment-type') || formEntry.type)
+            const paymentMethodId = catalogOptions.find(
+              (option) => option.kind === 'CASHIER_PAYMENT_TYPE' && option.value === type
+            )?.referenceId
+            if (!paymentMethodId) throw new Error('Payment type is unavailable.')
+            await window.api.dailyReports.updatePayment({
+              id: formEntry.id,
+              paymentMethodId,
+              transactionDate: String(form.get('payment-date') || formEntry.date),
+              referenceNumber: String(form.get('payment-reference-no-') || '') || null,
+              bankName: String(form.get('payment-bank-provider') || '') || null,
+              payerName: String(form.get('payment-account-name') || '') || null,
+              remarks: null,
+              amountCentavos
+            })
+          }
+          await refreshEntries()
+          setFormMode('create')
+          setFormEntry(undefined)
+          setIsEntryFormDirty(false)
+          setIsEntryFormVisible(false)
+        } catch {
+          setEntrySaveError('This entry could not be updated. Review the values and try again.')
+        }
+        return
+      }
       if (tab === 'Expenses') {
         try {
           await createExpense({
@@ -1646,7 +1956,8 @@ export function CashierReportsContent({
             category: String(form.get('expenses-category') || 'Others') as ExpenseCategory,
             receiptNo: String(form.get('expenses-receipt-no-') || ''),
             vat: String(form.get('expenses-vat') || '') as ExpenseVat,
-            amountCentavos: parseAmountToCentavos(String(form.get('expenses-amount') || '0'))
+            amountCentavos: parseAmountToCentavos(String(form.get('expenses-amount') || '0')),
+            ...(formMode === 'duplicate' && formEntry ? { duplicatedFromId: formEntry.id } : {})
           })
           setIsEntryFormDirty(false)
           setIsEntryFormVisible(false)
@@ -1675,7 +1986,8 @@ export function CashierReportsContent({
             particular: String(form.get('income-particular') || 'Other income'),
             receiptNumber: String(form.get('income-receipt-reference-no-') || '') || null,
             remarks: String(form.get('income-remarks') || '') || null,
-            amountCentavos
+            amountCentavos,
+            ...(formMode === 'duplicate' && formEntry ? { duplicatedFromId: formEntry.id } : {})
           })
         } else if (tab === 'Payment') {
           const type = String(form.get('payment-type') || activePaymentTypes[0] || 'Bank Check')
@@ -1692,7 +2004,8 @@ export function CashierReportsContent({
             bankName: String(form.get('payment-bank-provider') || '') || null,
             payerName: String(form.get('payment-account-name') || '') || null,
             remarks: null,
-            amountCentavos
+            amountCentavos,
+            ...(formMode === 'duplicate' && formEntry ? { duplicatedFromId: formEntry.id } : {})
           })
         }
         await refreshEntries()
@@ -1702,7 +2015,16 @@ export function CashierReportsContent({
         setEntrySaveError('This entry could not be saved. Review the values and try again.')
       }
     },
-    [activePaymentTypes, catalogOptions, createExpense, refreshEntries, reportId]
+    [
+      activePaymentTypes,
+      catalogOptions,
+      createExpense,
+      formEntry,
+      formMode,
+      refreshEntries,
+      reportId,
+      updateExpense
+    ]
   )
 
   const tabRowCounts: Record<(typeof reportTabs)[number], number> = {
@@ -1711,6 +2033,38 @@ export function CashierReportsContent({
     Payment: payments.length,
     Activity: historyRecords.length
   }
+
+  const initialFormValues = React.useMemo<Record<string, string>>((): Record<string, string> => {
+    if (!formEntry) return {}
+    const duplicate = formMode === 'duplicate'
+    if ('reportId' in formEntry) {
+      return {
+        'expenses-type': formEntry.type,
+        'expenses-description': formEntry.description,
+        'expenses-category': formEntry.category,
+        'expenses-receipt-no-': duplicate ? '' : formEntry.receiptNo,
+        'expenses-vat': formEntry.vat,
+        'expenses-amount': String(formEntry.amount)
+      } as Record<string, string>
+    }
+    if ('particular' in formEntry) {
+      return {
+        'income-date': duplicate ? format(new Date(), 'yyyy-MM-dd') : formEntry.date,
+        'income-particular': formEntry.particular,
+        'income-receipt-reference-no-': duplicate ? '' : formEntry.receiptRefNo,
+        'income-remarks': formEntry.remarks,
+        'income-amount': String(formEntry.amount)
+      } as Record<string, string>
+    }
+    return {
+      'payment-type': formEntry.type,
+      'payment-bank-provider': formEntry.bankProvider,
+      'payment-account-name': formEntry.accountName,
+      'payment-reference-no-': duplicate ? '' : formEntry.referenceNo,
+      'payment-date': duplicate ? format(new Date(), 'yyyy-MM-dd') : formEntry.date,
+      'payment-amount': String(formEntry.amount)
+    } as Record<string, string>
+  }, [formEntry, formMode])
 
   React.useEffect(() => {
     if (!isEntryFormVisible) return
@@ -1764,12 +2118,19 @@ export function CashierReportsContent({
                 value={activeTab}
                 onValueChange={(value) => {
                   const nextTab = value as (typeof reportTabs)[number]
-                  if (
-                    nextTab !== activeTab &&
-                    isEntryFormVisible &&
-                    isEntryFormDirty &&
-                    !window.confirm('Discard unsaved entry changes?')
-                  ) {
+                  if (nextTab !== activeTab && isEntryFormVisible && isEntryFormDirty) {
+                    setConfirmation({
+                      title: 'Discard unsaved entry changes?',
+                      description: 'Your entered report details will be lost.',
+                      confirmLabel: 'Discard changes',
+                      destructive: true,
+                      onConfirm: () => {
+                        setConfirmation(undefined)
+                        setIsEntryFormDirty(false)
+                        setActiveTab(nextTab)
+                        if (nextTab === 'Activity') setIsEntryFormVisible(false)
+                      }
+                    })
                     return
                   }
                   setIsEntryFormDirty(false)
@@ -1837,15 +2198,19 @@ export function CashierReportsContent({
                         incomeRows={incomes}
                         paymentRows={payments}
                         expenseQuery={expenseQuery}
-                        onDeleteExpense={deleteExpense}
                         onDeleteSelectedExpenses={deleteSelectedExpenses}
+                        onView={openEntryView}
+                        onVoid={requestVoid}
+                        onDuplicate={(row) => startEntryForm(row, 'duplicate')}
+                        isAdmin={isAdmin}
+                        showVoided={showVoided}
+                        onShowVoidedChange={setShowVoided}
                         onAddEntry={toggleEntryForm}
                         addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
                         selectedHistoryId={selectedHistory?.id}
                         onSelectHistory={setSelectedHistory}
-                        onDelete={deleteEntry}
                         onDeleteSelected={deleteSelectedEntries}
-                        onEdit={editAmount}
+                        onEdit={(row) => startEntryForm(row, 'edit')}
                         incomeLoadState={incomeLoadState}
                         paymentLoadState={paymentLoadState}
                         onRetryEntries={() => void refreshEntries()}
@@ -1862,6 +2227,7 @@ export function CashierReportsContent({
           {showRightPanel && !isHistoryTab && (
             <Card className="flex min-h-0 min-w-0 flex-col">
               <EntryFormPanel
+                key={formSeed}
                 tab={activeTab}
                 onSave={(form) => saveEntry(activeTab, form)}
                 onDirtyChange={(isDirty) => {
@@ -1871,6 +2237,7 @@ export function CashierReportsContent({
                 saveError={entrySaveError}
                 expenseTypes={activeExpenseTypes}
                 paymentTypes={activePaymentTypes}
+                initialValues={initialFormValues}
               />
             </Card>
           )}
@@ -1927,6 +2294,7 @@ export function CashierReportsContent({
               </SheetDescription>
             </SheetHeader>
             <EntryFormPanel
+              key={formSeed}
               tab={activeTab}
               onSave={(form) => saveEntry(activeTab, form)}
               onDirtyChange={(isDirty) => {
@@ -1936,6 +2304,7 @@ export function CashierReportsContent({
               saveError={entrySaveError}
               expenseTypes={activeExpenseTypes}
               paymentTypes={activePaymentTypes}
+              initialValues={initialFormValues}
             />
           </SheetContent>
         </Sheet>
@@ -2114,6 +2483,35 @@ export function CashierReportsContent({
           </div>
         </DialogContent>
       </Dialog>
+      {confirmation && (
+        <ConfirmationAlertDialog
+          open
+          title={confirmation.title}
+          description={confirmation.description}
+          confirmLabel={confirmation.confirmLabel}
+          destructive={confirmation.destructive}
+          onOpenChange={(open) => !open && setConfirmation(undefined)}
+          onConfirm={confirmation.onConfirm}
+        />
+      )}
+      <EntryDetailsDialog
+        entry={selectedEntry}
+        entityType={selectedEntryType}
+        onOpenChange={closeEntryDetails}
+      />
+      <VoidEntryDialog
+        open={Boolean(voidEntry || bulkVoidRows.length)}
+        label={bulkVoidRows.length > 1 ? `${bulkVoidRows.length} entries` : 'entry'}
+        onOpenChange={(open) => {
+          if (!open) {
+            setVoidEntry(undefined)
+            setVoidEntryType(undefined)
+            setBulkVoidRows([])
+            setBulkVoidType(undefined)
+          }
+        }}
+        onConfirm={(reason) => void confirmVoid(reason)}
+      />
     </div>
   )
 }

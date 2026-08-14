@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 24
+export const currentSchemaVersion = 26
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -1136,7 +1136,10 @@ export function runMigrations(db: Database.Database): void {
       db.exec(`ALTER TABLE accounts ADD COLUMN latitude REAL`)
       db.exec(`ALTER TABLE accounts ADD COLUMN longitude REAL`)
       db.exec(`ALTER TABLE accounts ADD COLUMN landmark_remarks TEXT`)
-      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(22, new Date().toISOString())
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        22,
+        new Date().toISOString()
+      )
     })
     migrate()
   }
@@ -1174,13 +1177,28 @@ export function runMigrations(db: Database.Database): void {
         ALTER TABLE installment_contracts ADD COLUMN payment_amount_centavos INTEGER;
         ALTER TABLE installment_contracts ADD COLUMN required_fee_centavos INTEGER;
       `)
-      db.prepare(`INSERT INTO installment_rule_versions (id, version, is_active, standard_interest_rate_bps, required_down_payment_rate_bps, created_at) VALUES (?, 1, 1, 3800, 2250, ?)`)
-        .run(versionId, now)
-      const insert = db.prepare(`INSERT INTO installment_rule_terms (version_id, frequency, terms, interest_rate_bps, required_fee_payments) VALUES (?, ?, ?, ?, ?)`)
-      for (const [terms, fee] of [[30, 2], [50, 4], [80, 6], [120, 8]]) insert.run(versionId, 'Daily', terms, null, fee)
+      db.prepare(
+        `INSERT INTO installment_rule_versions (id, version, is_active, standard_interest_rate_bps, required_down_payment_rate_bps, created_at) VALUES (?, 1, 1, 3800, 2250, ?)`
+      ).run(versionId, now)
+      const insert = db.prepare(
+        `INSERT INTO installment_rule_terms (version_id, frequency, terms, interest_rate_bps, required_fee_payments) VALUES (?, ?, ?, ?, ?)`
+      )
+      for (const [terms, fee] of [
+        [30, 2],
+        [50, 4],
+        [80, 6],
+        [120, 8]
+      ])
+        insert.run(versionId, 'Daily', terms, null, fee)
       for (const terms of [5, 8, 12, 16]) insert.run(versionId, 'Weekly', terms, null, null)
       for (const terms of [2, 4, 6, 8]) insert.run(versionId, 'Semi', terms, null, null)
-      for (const [terms, rate] of [[1, 0], [3, 2800], [6, 3500], [12, 5000]]) insert.run(versionId, 'Monthly', terms, rate, null)
+      for (const [terms, rate] of [
+        [1, 0],
+        [3, 2800],
+        [6, 3500],
+        [12, 5000]
+      ])
+        insert.run(versionId, 'Monthly', terms, rate, null)
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(23, now)
     })
     migrate()
@@ -1189,11 +1207,278 @@ export function runMigrations(db: Database.Database): void {
   if (applied.version < 24) {
     const migrate = db.transaction(() => {
       const now = new Date().toISOString()
-      db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0 CHECK (must_change_password IN (0, 1));`)
-      const users = db.prepare('SELECT id, display_name FROM users').all() as Array<{ id: string; display_name: string }>
-      const insert = db.prepare(`INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, reason, created_at) VALUES (?, NULL, 'MIGRATION', 'user', ?, 'User profile migration', ?)`)
+      db.exec(
+        `ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0 CHECK (must_change_password IN (0, 1));`
+      )
+      const users = db.prepare('SELECT id, display_name FROM users').all() as Array<{
+        id: string
+        display_name: string
+      }>
+      const insert = db.prepare(
+        `INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, reason, created_at) VALUES (?, NULL, 'MIGRATION', 'user', ?, 'User profile migration', ?)`
+      )
       for (const user of users) insert.run(randomUUID(), user.id, now)
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(24, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 25) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      const insertLog = db.prepare(
+        `INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, reason, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      const insertChange = db.prepare(
+        `INSERT INTO audit_log_changes (id, audit_log_id, column_name, old_value, new_value)
+         VALUES (?, ?, ?, ?, ?)`
+      )
+      const add = (
+        actorUserId: string | null,
+        action: string,
+        entityType: string,
+        entityId: string,
+        createdAt: string,
+        reason: string | null,
+        changes: Array<[string, string | null, string | null]>
+      ): void => {
+        const id = randomUUID()
+        insertLog.run(id, actorUserId, action, entityType, entityId, reason, createdAt)
+        for (const [field, oldValue, newValue] of changes) {
+          insertChange.run(randomUUID(), id, field, oldValue, newValue)
+        }
+      }
+      const expenses = db
+        .prepare(
+          `SELECT e.*, dr.cashier_user_id FROM expenses e JOIN daily_reports dr ON dr.id = e.report_id`
+        )
+        .all() as Array<Record<string, string | number | null>>
+      for (const row of expenses) {
+        add(
+          String(row.cashier_user_id),
+          'CREATED',
+          'EXPENSE',
+          String(row.id),
+          String(row.created_at),
+          null,
+          [
+            ['type', null, String(row.type)],
+            ['description', null, String(row.description)],
+            ['category', null, String(row.category)],
+            ['receiptNo', null, String(row.receipt_no)],
+            ['vat', null, String(row.vat)],
+            ['amountCentavos', null, String(row.amount_centavos)]
+          ]
+        )
+        if (row.status === 'VOIDED') {
+          add(
+            row.voided_by_user_id ? String(row.voided_by_user_id) : null,
+            'VOIDED',
+            'EXPENSE',
+            String(row.id),
+            String(row.voided_at ?? row.updated_at),
+            row.void_reason ? String(row.void_reason) : null,
+            [['status', 'POSTED', 'VOIDED']]
+          )
+        }
+      }
+      const incomes = db.prepare('SELECT * FROM income_entries').all() as Array<
+        Record<string, string | number | null>
+      >
+      for (const row of incomes) {
+        add(
+          String(row.created_by_user_id),
+          'CREATED',
+          'INCOME',
+          String(row.id),
+          String(row.created_at),
+          null,
+          [
+            ['particular', null, String(row.particular)],
+            ['transactionDate', null, String(row.transaction_date)],
+            ['amountCentavos', null, String(row.amount_centavos)]
+          ]
+        )
+        if (row.status === 'VOIDED')
+          add(
+            row.voided_by_user_id ? String(row.voided_by_user_id) : null,
+            'VOIDED',
+            'INCOME',
+            String(row.id),
+            String(row.voided_at ?? row.updated_at),
+            row.void_reason ? String(row.void_reason) : null,
+            [['status', 'POSTED', 'VOIDED']]
+          )
+      }
+      const payments = db.prepare('SELECT * FROM daily_report_payment_entries').all() as Array<
+        Record<string, string | number | null>
+      >
+      for (const row of payments) {
+        add(
+          String(row.created_by_user_id),
+          'CREATED',
+          'PAYMENT',
+          String(row.id),
+          String(row.created_at),
+          null,
+          [
+            ['transactionDate', null, String(row.transaction_date)],
+            ['amountCentavos', null, String(row.amount_centavos)],
+            ['referenceNumber', null, row.reference_number ? String(row.reference_number) : null]
+          ]
+        )
+        if (row.status === 'VOIDED')
+          add(
+            row.voided_by_user_id ? String(row.voided_by_user_id) : null,
+            'VOIDED',
+            'PAYMENT',
+            String(row.id),
+            String(row.voided_at ?? row.updated_at),
+            row.void_reason ? String(row.void_reason) : null,
+            [['status', 'POSTED', 'VOIDED']]
+          )
+      }
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(25, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 26) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec('ALTER TABLE expenses ADD COLUMN created_by_user_id TEXT REFERENCES users(id)')
+      db.exec(`
+        UPDATE expenses
+           SET created_by_user_id = (
+             SELECT cashier_user_id FROM daily_reports WHERE daily_reports.id = expenses.report_id
+           )
+         WHERE created_by_user_id IS NULL
+      `)
+
+      const groups = db
+        .prepare(
+          `SELECT branch_id, business_date
+             FROM daily_reports
+            GROUP BY branch_id, business_date
+           HAVING COUNT(*) > 1`
+        )
+        .all() as Array<{ branch_id: string; business_date: string }>
+
+      const findReports = db.prepare(
+        `SELECT id, branch_id, cashier_user_id, business_date
+           FROM daily_reports
+          WHERE branch_id = ? AND business_date = ?
+          ORDER BY created_at, id`
+      )
+      const move = (table: string, canonicalId: string, duplicateId: string): void => {
+        db.prepare(`UPDATE ${table} SET daily_report_id = ? WHERE daily_report_id = ?`).run(
+          canonicalId,
+          duplicateId
+        )
+      }
+
+      for (const group of groups) {
+        const reports = findReports.all(group.branch_id, group.business_date) as Array<{
+          id: string
+          branch_id: string
+          cashier_user_id: string
+          business_date: string
+        }>
+        const canonical = reports[0]
+        for (const duplicate of reports.slice(1)) {
+          move('income_entries', canonical.id, duplicate.id)
+          move('daily_report_payment_entries', canonical.id, duplicate.id)
+          move('cash_out_entries', canonical.id, duplicate.id)
+          move('expense_entries', canonical.id, duplicate.id)
+          db.prepare('UPDATE expenses SET report_id = ? WHERE report_id = ?').run(
+            canonical.id,
+            duplicate.id
+          )
+
+          const receiptTotals = db
+            .prepare('SELECT * FROM daily_receipt_totals WHERE daily_report_id = ?')
+            .all(duplicate.id) as Array<Record<string, string | number>>
+          for (const row of receiptTotals) {
+            const existing = db
+              .prepare(
+                'SELECT id FROM daily_receipt_totals WHERE daily_report_id = ? AND receipt_type_id = ?'
+              )
+              .get(canonical.id, row.receipt_type_id)
+            if (existing) {
+              db.prepare(
+                `UPDATE daily_receipt_totals
+                    SET quantity = quantity + ?, amount_centavos = amount_centavos + ?, updated_at = ?
+                  WHERE id = ?`
+              ).run(row.quantity, row.amount_centavos, now, (existing as { id: string }).id)
+              db.prepare('DELETE FROM daily_receipt_totals WHERE id = ?').run(row.id)
+            } else {
+              db.prepare('UPDATE daily_receipt_totals SET daily_report_id = ? WHERE id = ?').run(
+                canonical.id,
+                row.id
+              )
+            }
+          }
+
+          const deductions = db
+            .prepare('SELECT * FROM daily_report_deductions WHERE daily_report_id = ?')
+            .all(duplicate.id) as Array<Record<string, string | number>>
+          for (const row of deductions) {
+            const existing = db
+              .prepare(
+                'SELECT id FROM daily_report_deductions WHERE daily_report_id = ? AND deduction_type_id = ?'
+              )
+              .get(canonical.id, row.deduction_type_id)
+            if (existing) {
+              db.prepare(
+                `UPDATE daily_report_deductions
+                    SET amount_centavos = amount_centavos + ?, updated_at = ?
+                  WHERE id = ?`
+              ).run(row.amount_centavos, now, (existing as { id: string }).id)
+              db.prepare('DELETE FROM daily_report_deductions WHERE id = ?').run(row.id)
+            } else {
+              db.prepare('UPDATE daily_report_deductions SET daily_report_id = ? WHERE id = ?').run(
+                canonical.id,
+                row.id
+              )
+            }
+          }
+
+          const cashCounts = db
+            .prepare('SELECT * FROM daily_report_cash_counts WHERE daily_report_id = ?')
+            .all(duplicate.id) as Array<Record<string, string | number>>
+          for (const row of cashCounts) {
+            const existing = db
+              .prepare(
+                'SELECT id FROM daily_report_cash_counts WHERE daily_report_id = ? AND denomination_id = ?'
+              )
+              .get(canonical.id, row.denomination_id)
+            if (existing) {
+              db.prepare(
+                `UPDATE daily_report_cash_counts
+                    SET quantity = quantity + ?, updated_at = ?
+                  WHERE id = ?`
+              ).run(row.quantity, now, (existing as { id: string }).id)
+              db.prepare('DELETE FROM daily_report_cash_counts WHERE id = ?').run(row.id)
+            } else {
+              db.prepare(
+                'UPDATE daily_report_cash_counts SET daily_report_id = ? WHERE id = ?'
+              ).run(canonical.id, row.id)
+            }
+          }
+          db.prepare('DELETE FROM daily_reports WHERE id = ?').run(duplicate.id)
+        }
+        db.prepare(
+          `INSERT OR IGNORE INTO reports (id, branch_id, cashier_id, business_date, status, created_at, updated_at)
+           SELECT id, branch_id, cashier_user_id, business_date, 'Draft', ?, ?
+             FROM daily_reports WHERE id = ?`
+        ).run(now, now, canonical.id)
+      }
+
+      db.exec(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_reports_branch_business_date ON daily_reports (branch_id, business_date)'
+      )
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(26, now)
     })
     migrate()
   }

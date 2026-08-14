@@ -62,6 +62,7 @@ type ReportDataTableProps<TData extends ReportRow> = {
     refresh?: () => void
   }
   filterOptions?: Record<string, readonly string[]>
+  toolbarContent?: React.ReactNode
 }
 
 function getHeaderTitle<TData extends ReportRow>(column: ReportColumn<TData>): string {
@@ -93,7 +94,8 @@ export function ReportDataTable<TData extends ReportRow>({
   globalFilterValue,
   onGlobalFilterValueChange,
   serverState,
-  filterOptions
+  filterOptions,
+  toolbarContent
 }: ReportDataTableProps<TData>): React.JSX.Element {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -291,6 +293,7 @@ export function ReportDataTable<TData extends ReportRow>({
           className="shrink-0"
         />
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          {toolbarContent}
           {onDeleteSelected && selectedRows.length > 0 && (
             <Button
               type="button"

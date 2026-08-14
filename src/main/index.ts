@@ -34,6 +34,9 @@ import { registerGeocodingIpc } from './ipc/geocoding'
 import { registerPdfExportIpc } from './ipc/pdf-export'
 import { registerTelegramSettingsIpc } from './ipc/telegram-settings'
 import { registerUserProfilesIpc } from './ipc/user-profiles'
+import { registerEntryHistoryIpc } from './ipc/entry-history'
+import { AuditRepository } from './database/audit-repository'
+import { EntryHistoryService } from './services/entry-history-service'
 import { InstallmentRulesRepository } from './database/installment-rules-repository'
 import { InstallmentRulesService } from './services/installment-rules-service'
 import { registerInstallmentRulesIpc } from './ipc/installment-rules'
@@ -144,6 +147,14 @@ app.whenReady().then(() => {
     registerTelegramSettingsIpc(telegramSettings)
     registerPdfExportIpc(telegramSettings)
     registerUserProfilesIpc(new UserProfilesService(new UserRepository(database), authService))
+    registerEntryHistoryIpc(
+      new EntryHistoryService(
+        new AuditRepository(database),
+        new ExpenseRepository(database),
+        new DailyReportRepository(database),
+        authService
+      )
+    )
     registerWindowIpc()
   } catch (error) {
     console.error('Database initialization failed.', error)

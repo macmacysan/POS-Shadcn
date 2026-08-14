@@ -10,6 +10,7 @@ import type {
   ExpenseUpdateInput
 } from '../../shared/contracts'
 import { AppError } from './errors'
+import { recordAudit } from './audit-repository'
 
 type ExpenseRow = {
   id: string
@@ -23,6 +24,14 @@ type ExpenseRow = {
   amount_centavos: number
   created_at: string
   updated_at: string
+  status: ExpenseRecord['status']
+  voided_at: string | null
+  voided_by_user_id: string | null
+  void_reason: string | null
+  created_by_user_id: string
+  created_by_name: string
+  cashier_user_id: string
+  business_date: string
 }
 
 const sortColumns: Record<ExpenseSortField, string> = {
@@ -47,7 +56,16 @@ function mapExpense(row: ExpenseRow): ExpenseRecord {
     vat: row.vat,
     amountCentavos: row.amount_centavos,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    status: row.status,
+    voidedAt: row.voided_at,
+    voidedByUserId: row.voided_by_user_id,
+    voidReason: row.void_reason,
+    createdByUserId: row.created_by_user_id,
+    createdByName: row.created_by_name,
+    cashierUserId: row.cashier_user_id,
+    cashierName: row.created_by_name,
+    businessDate: row.business_date
   }
 }
 
@@ -55,7 +73,9 @@ export class ExpenseRepository {
   constructor(private readonly db: Database.Database) {}
 
   findPage(request: ExpenseListRequest): { rows: ExpenseRecord[]; totalRows: number } {
-    const where = ["e.status = 'POSTED'"]
+    const where = [
+      request.includeVoided ? "e.status IN ('POSTED', 'VOIDED')" : "e.status = 'POSTED'"
+    ]
     const params: Record<string, string | number> = {}
 
     if (request.reportId) {
@@ -125,10 +145,14 @@ export class ExpenseRepository {
       const rows = this.db
         .prepare(
           `SELECT e.id, e.report_id, b.name AS branch, e.type, e.description, e.category, e.receipt_no, e.vat,
-                  e.amount_centavos, e.created_at, e.updated_at
+                  e.amount_centavos, e.created_at, e.updated_at, e.status, e.voided_at,
+                  e.voided_by_user_id, e.void_reason, e.created_by_user_id,
+                  u.display_name AS created_by_name, dr.cashier_user_id AS cashier_user_id,
+                  dr.business_date
              FROM expenses e
              JOIN daily_reports dr ON dr.id = e.report_id
              JOIN branches b ON b.id = dr.branch_id
+             LEFT JOIN users u ON u.id = e.created_by_user_id
             WHERE ${whereSql}
             ORDER BY e.${sortColumn} ${sortDirection}, e.id ${sortDirection}
             LIMIT @limit OFFSET @offset`
@@ -145,40 +169,73 @@ export class ExpenseRepository {
     const row = this.db
       .prepare(
         `SELECT e.id, e.report_id, b.name AS branch, e.type, e.description, e.category, e.receipt_no, e.vat,
-                e.amount_centavos, e.created_at, e.updated_at
+                e.amount_centavos, e.created_at, e.updated_at, e.status, e.voided_at,
+                e.voided_by_user_id, e.void_reason, e.created_by_user_id,
+                u.display_name AS created_by_name, dr.cashier_user_id AS cashier_user_id,
+                dr.business_date
            FROM expenses e
            JOIN daily_reports dr ON dr.id = e.report_id
            JOIN branches b ON b.id = dr.branch_id
+           LEFT JOIN users u ON u.id = e.created_by_user_id
           WHERE e.id = ?`
       )
       .get(id) as ExpenseRow | undefined
     return row ? mapExpense(row) : null
   }
 
-  create(input: ExpenseCreateInput): ExpenseRecord {
+  create(input: ExpenseCreateInput, actorUserId: string): ExpenseRecord {
     const report = this.db.prepare('SELECT id FROM reports WHERE id = ?').get(input.reportId)
     if (!report) throw new AppError('NOT_FOUND', 'Report was not found.')
 
     const id = randomUUID()
     const timestamp = new Date().toISOString()
-    this.db
-      .prepare(
-        `INSERT INTO expenses (
+    const create = this.db.transaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO expenses (
           id, report_id, type, description, category, receipt_no, vat,
-          amount_centavos, created_at, updated_at
+          amount_centavos, created_by_user_id, created_at, updated_at
         ) VALUES (@id, @reportId, @type, @description, @category, @receiptNo, @vat,
-                  @amountCentavos, @createdAt, @updatedAt)`
-      )
-      .run({ ...input, id, createdAt: timestamp, updatedAt: timestamp })
+                  @amountCentavos, @createdByUserId, @createdAt, @updatedAt)`
+        )
+        .run({
+          ...input,
+          id,
+          createdByUserId: actorUserId,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        })
+      recordAudit(this.db, {
+        actorUserId,
+        entityType: 'EXPENSE',
+        entityId: id,
+        action: input.duplicatedFromId ? 'DUPLICATED' : 'CREATED',
+        changes: [
+          ['type', null, input.type],
+          ['description', null, input.description],
+          ['category', null, input.category],
+          ['receiptNo', null, input.receiptNo],
+          ['vat', null, input.vat],
+          ['amountCentavos', null, String(input.amountCentavos)],
+          ...(input.duplicatedFromId
+            ? [['duplicatedFromId', null, input.duplicatedFromId] as const]
+            : [])
+        ].map(([field, oldValue, newValue]) => ({ field: String(field), oldValue, newValue }))
+      })
+    })
+    create()
 
     return this.findById(id) as ExpenseRecord
   }
 
-  update(input: ExpenseUpdateInput): ExpenseRecord {
+  update(input: ExpenseUpdateInput, actorUserId: string): ExpenseRecord {
+    const before = this.findById(input.id)
+    if (!before) throw new AppError('NOT_FOUND', 'Expense was not found.')
     const timestamp = new Date().toISOString()
-    const result = this.db
-      .prepare(
-        `UPDATE expenses
+    const update = this.db.transaction(() => {
+      const result = this.db
+        .prepare(
+          `UPDATE expenses
             SET type = @type,
                 description = @description,
                 category = @category,
@@ -187,10 +244,26 @@ export class ExpenseRepository {
                 amount_centavos = @amountCentavos,
                 updated_at = @updatedAt
           WHERE id = @id AND status = 'POSTED'`
-      )
-      .run({ ...input, updatedAt: timestamp })
+        )
+        .run({ ...input, updatedAt: timestamp })
 
-    if (result.changes === 0) throw new AppError('NOT_FOUND', 'Expense was not found.')
+      if (result.changes === 0) throw new AppError('NOT_FOUND', 'Expense was not found.')
+      recordAudit(this.db, {
+        actorUserId,
+        entityType: 'EXPENSE',
+        entityId: input.id,
+        action: 'UPDATED',
+        changes: [
+          ['type', before.type, input.type],
+          ['description', before.description, input.description],
+          ['category', before.category, input.category],
+          ['receiptNo', before.receiptNo, input.receiptNo],
+          ['vat', before.vat, input.vat],
+          ['amountCentavos', String(before.amountCentavos), String(input.amountCentavos)]
+        ].map(([field, oldValue, newValue]) => ({ field, oldValue, newValue }))
+      })
+    })
+    update()
     return this.findById(input.id) as ExpenseRecord
   }
 
@@ -201,9 +274,28 @@ export class ExpenseRepository {
         `UPDATE expenses SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?, void_reason = ?
           WHERE id = ? AND status = 'POSTED'`
       )
-      for (const id of ids) statement.run(now, actorUserId, reason, id)
+      for (const id of ids) {
+        const before = this.findById(id)
+        statement.run(now, actorUserId, reason, id)
+        if (before) {
+          recordAudit(this.db, {
+            actorUserId,
+            entityType: 'EXPENSE',
+            entityId: id,
+            action: 'VOIDED',
+            reason,
+            changes: [{ field: 'status', oldValue: before.status, newValue: 'VOIDED' }]
+          })
+        }
+      }
     })
     voidMany()
+  }
+
+  reportId(id: string): string | null {
+    const row = this.db.prepare('SELECT report_id FROM expenses WHERE id = ?').get(id) as
+      { report_id: string } | undefined
+    return row?.report_id ?? null
   }
 
   findSummaryTotals(reportId: string): ExpenseSummaryTotals {

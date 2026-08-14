@@ -5,6 +5,7 @@ import type {
 } from '../../shared/contracts'
 import { ExpenseRepository } from '../database/expense-repository'
 import { AuthService } from './auth-service'
+import { AppError } from '../database/errors'
 
 export class ExpenseService {
   constructor(
@@ -16,24 +17,46 @@ export class ExpenseService {
     const user = this.auth.requireSession()
     return this.repository.findPage({
       ...request,
+      includeVoided: user.role === 'ADMIN' && request.includeVoided,
       branch: user.role === 'ADMIN' ? request.branch : user.branch
     })
   }
 
   getById(id: string) {
-    return this.repository.findById(id)
+    const user = this.auth.requireSession()
+    const record = this.repository.findById(id)
+    if (!record) return null
+    if (user.role !== 'ADMIN' && record.branch !== user.branch) {
+      throw new AppError('FORBIDDEN', 'You cannot access this expense.')
+    }
+    return record
   }
 
   create(input: ExpenseCreateInput) {
-    return this.repository.create(input)
+    const user = this.auth.requireSession()
+    const report = this.repository.findById(input.reportId)
+    if (!report) throw new AppError('NOT_FOUND', 'Report was not found.')
+    if (user.role !== 'ADMIN' && report.branch !== user.branch) {
+      throw new AppError('FORBIDDEN', 'You cannot access another branch report.')
+    }
+    return this.repository.create(input, user.id)
   }
 
   update(input: ExpenseUpdateInput) {
-    return this.repository.update(input)
+    const user = this.auth.requireSession()
+    const record = this.repository.findById(input.id)
+    if (!record) throw new AppError('NOT_FOUND', 'Expense was not found.')
+    if (user.role !== 'ADMIN' && record.branch !== user.branch) {
+      throw new AppError('FORBIDDEN', 'You cannot edit this expense.')
+    }
+    return this.repository.update(input, user.id)
   }
 
-  remove(ids: string[]): void {
-    this.repository.remove(ids, this.auth.requireSession().id, 'Voided from Cashier Reports')
+  remove(ids: string[], reason: string): void {
+    const user = this.auth.requireSession()
+    if (user.role !== 'ADMIN')
+      throw new AppError('FORBIDDEN', 'Only administrators can void entries.')
+    this.repository.remove(ids, user.id, reason)
   }
 
   summaryTotals(reportId: string) {

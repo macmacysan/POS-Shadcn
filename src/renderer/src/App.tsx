@@ -1,5 +1,5 @@
 import { Copy, Minus, Square, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { InitialAdminSetup, LoginForm } from '@/features/authentication'
 import { CashierReportsContent } from '@/features/cashier-report'
@@ -15,13 +15,11 @@ import { ActiveReportProvider } from '@/contexts/active-report-context'
 import { NotificationProvider } from '@/contexts/notification-context'
 import { Toaster } from '@/components/ui/sonner'
 import type { AuthenticatedUser, LoginBranch } from '@/../../shared/contracts'
-import {
-  PESO_SIGN_HIDDEN_STORAGE_KEY,
-  setPesoSignHidden
-} from '@/lib/currency'
+import { PESO_SIGN_HIDDEN_STORAGE_KEY, setPesoSignHidden } from '@/lib/currency'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 const SUMMARY_DARK_STORAGE_KEY = 'cashiers-report-summary-dark'
+const IDLE_SIGN_OUT_MS = 5 * 60 * 1000
 type ActiveView =
   | 'dashboard'
   | 'installment-overview'
@@ -197,6 +195,14 @@ function Workspace({
         isAdmin={isAdmin}
       />
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden pt-8">
+        <div className="flex shrink-0 items-center border-b bg-background px-6 py-4">
+          <div>
+            <p className="text-2xl font-semibold tracking-tight">Hi, {cashierName}</p>
+            <p className="text-xs text-muted-foreground">
+              {selectedBranch === 'All Branch' ? 'All branches' : selectedBranch}
+            </p>
+          </div>
+        </div>
         {paymentRoute ? (
           <InstallmentPaymentWorkspace
             accountId={paymentRoute.accountId}
@@ -209,6 +215,7 @@ function Workspace({
             summaryAlwaysDark={summaryAlwaysDark}
             selectedBranch={selectedBranch}
             cashierName={cashierName}
+            isAdmin={isAdmin}
           />
         ) : activeView === 'installment-overview' ? (
           <InstallmentOverviewContent
@@ -301,19 +308,40 @@ function App(): React.JSX.Element {
     localStorage.setItem(SUMMARY_DARK_STORAGE_KEY, String(summaryAlwaysDark))
   }, [summaryAlwaysDark])
 
-  useEffect(() => { void window.api.auth.needsSetup().then(setNeedsSetup).catch(() => setNeedsSetup(false)) }, [])
+  useEffect(() => {
+    void window.api.auth
+      .needsSetup()
+      .then(setNeedsSetup)
+      .catch(() => setNeedsSetup(false))
+  }, [])
 
   const toggleTheme = (): void => setIsDark((current) => !current)
   const changePesoSignVisibility = (hidden: boolean): void => {
     setPesoSignHidden(hidden)
     setHidePesoSign(hidden)
   }
-  const logout = async (): Promise<void> => {
+  const logout = useCallback(async (): Promise<void> => {
     await window.api.auth.logout()
     window.location.hash = ''
     setAuthenticatedUser(undefined)
     setIsLoggedIn(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    let timer: number | undefined
+    const resetTimer = (): void => {
+      if (timer !== undefined) window.clearTimeout(timer)
+      timer = window.setTimeout(() => void logout(), IDLE_SIGN_OUT_MS)
+    }
+    const activityEvents = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const
+    activityEvents.forEach((event) => window.addEventListener(event, resetTimer))
+    resetTimer()
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer)
+      activityEvents.forEach((event) => window.removeEventListener(event, resetTimer))
+    }
+  }, [isLoggedIn, logout])
   const toggleMaximize = async (): Promise<void> => {
     const controls = window.windowControls
     if (!controls) return
@@ -385,13 +413,24 @@ function App(): React.JSX.Element {
             </ActiveReportProvider>
           ) : needsSetup === undefined ? null : (
             <main className="flex h-full w-full items-center justify-center bg-background px-6 py-8">
-              {needsSetup ? <InitialAdminSetup onSuccess={(user) => { setSelectedBranch('All Branch'); setAuthenticatedUser(user); setIsLoggedIn(true); setNeedsSetup(false) }} /> : <LoginForm
-                onSuccess={(branch, user) => {
-                  setSelectedBranch(branch)
-                  setAuthenticatedUser(user)
-                  setIsLoggedIn(true)
-                }}
-              />}
+              {needsSetup ? (
+                <InitialAdminSetup
+                  onSuccess={(user) => {
+                    setSelectedBranch('All Branch')
+                    setAuthenticatedUser(user)
+                    setIsLoggedIn(true)
+                    setNeedsSetup(false)
+                  }}
+                />
+              ) : (
+                <LoginForm
+                  onSuccess={(branch, user) => {
+                    setSelectedBranch(branch)
+                    setAuthenticatedUser(user)
+                    setIsLoggedIn(true)
+                  }}
+                />
+              )}
             </main>
           )}
         </div>

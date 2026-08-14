@@ -60,6 +60,7 @@ export const expenseSortFieldSchema = z.enum([
 
 export const expenseListRequestSchema = z.object({
   reportId: uuidSchema.optional(),
+  includeVoided: z.boolean().default(false),
   branch: z.string().trim().max(100).optional(),
   dateFrom: dateSchema.optional(),
   dateTo: dateSchema.optional(),
@@ -97,15 +98,19 @@ export const expenseCreateInputSchema = z.object({
   category: expenseCategorySchema,
   receiptNo: z.string().trim().max(100),
   vat: expenseVatSchema,
-  amountCentavos: z.number().int().nonnegative()
+  amountCentavos: z.number().int().nonnegative(),
+  duplicatedFromId: uuidSchema.optional()
 })
 
 export const expenseUpdateInputSchema = expenseCreateInputSchema
-  .omit({ reportId: true })
+  .omit({ reportId: true, duplicatedFromId: true })
   .extend({ id: uuidSchema })
 
 export const expenseIdSchema = z.object({ id: expenseIdSchemaValue })
-export const expenseRemoveInputSchema = z.object({ ids: z.array(expenseIdSchemaValue).min(1) })
+export const expenseRemoveInputSchema = z.object({
+  ids: z.array(expenseIdSchemaValue).min(1),
+  reason: z.string().trim().min(1).max(1000)
+})
 export const expenseSummaryTotalsRequestSchema = z.object({ reportId: uuidSchema })
 
 export type ExpenseType = z.infer<typeof expenseTypeSchema>
@@ -128,6 +133,15 @@ export type ExpenseRecord = {
   amountCentavos: number
   createdAt: string
   updatedAt: string
+  status: 'POSTED' | 'VOIDED'
+  voidedAt: string | null
+  voidedByUserId: string | null
+  voidReason: string | null
+  createdByUserId: string
+  createdByName: string
+  cashierUserId: string
+  cashierName: string
+  businessDate: string
 }
 
 export type ExpensePageResult = {
@@ -163,7 +177,7 @@ export type ExpensesApi = ReportsApi & {
       getById(id: string): Promise<ExpenseRecord | null>
       create(input: ExpenseCreateInput): Promise<ExpenseRecord>
       update(input: ExpenseUpdateInput): Promise<ExpenseRecord>
-      remove(input: { ids: string[] }): Promise<void>
+      remove(input: { ids: string[]; reason: string }): Promise<void>
       summaryTotals(reportId: string): Promise<ExpenseSummaryTotals>
     }
   }

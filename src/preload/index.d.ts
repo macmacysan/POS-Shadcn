@@ -5,6 +5,7 @@ import type {
   DashboardApi,
   DailyReportsApi,
   ExpensesApi,
+  EntryHistoryApi,
   FinanceAccountsApi,
   GeocodingApi,
   InstallmentsApi,
@@ -19,6 +20,7 @@ declare global {
   interface Window {
     electron: ElectronAPI
     api: ExpensesApi &
+      EntryHistoryApi &
       InstallmentsApi &
       InstallmentRulesApi &
       FinanceAccountsApi &

@@ -52,8 +52,8 @@ export function registerExpenseIpc(service: ExpenseService): void {
 
   ipcMain.handle(expenseIpcChannels.remove, (_event, input: unknown) => {
     try {
-      const { ids } = expenseRemoveInputSchema.parse(input)
-      service.remove(ids)
+      const { ids, reason } = expenseRemoveInputSchema.parse(input)
+      service.remove(ids, reason)
     } catch (error) {
       return rethrowIpcError(error)
     }

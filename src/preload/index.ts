@@ -16,6 +16,8 @@ import {
   type ExpenseListRequest,
   type ExpenseUpdateInput,
   type ExpensesApi,
+  type EntryHistoryApi,
+  entryHistoryIpcChannels,
   type AuthApi,
   type CatalogOptionsApi,
   type DashboardApi,
@@ -37,6 +39,7 @@ import {
 
 // Custom APIs for renderer
 const api: ExpensesApi &
+  EntryHistoryApi &
   InstallmentsApi &
   InstallmentRulesApi &
   FinanceAccountsApi &
@@ -99,6 +102,9 @@ const api: ExpensesApi &
       summaryTotals: (reportId: string) =>
         ipcRenderer.invoke(expenseIpcChannels.summaryTotals, { reportId })
     }
+  },
+  entryHistory: {
+    list: (request) => ipcRenderer.invoke(entryHistoryIpcChannels.list, request)
   },
   installments: {
     list: (request) => ipcRenderer.invoke(installmentIpcChannels.list, request),

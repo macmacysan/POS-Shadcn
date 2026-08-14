@@ -1,35 +1,276 @@
 import * as React from 'react'
 import type { InstallmentRules, InstallmentRulesRecord } from '@/../../shared/contracts'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
+import { ConfirmationAlertDialog } from '@/components/shared/confirmation-alert-dialog'
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 
 const percent = (bps: number): string => (bps / 100).toFixed(2)
 const toBps = (value: string): number => Math.round(Number(value) * 100)
-const editable = (value: InstallmentRulesRecord): InstallmentRules => ({ standardInterestRateBps: value.standardInterestRateBps, requiredDownPaymentRateBps: value.requiredDownPaymentRateBps, monthlyPlans: value.monthlyPlans, dailyPlans: value.dailyPlans, weeklyTerms: value.weeklyTerms, semiTerms: value.semiTerms })
+const editable = (value: InstallmentRulesRecord): InstallmentRules => ({
+  standardInterestRateBps: value.standardInterestRateBps,
+  requiredDownPaymentRateBps: value.requiredDownPaymentRateBps,
+  monthlyPlans: value.monthlyPlans,
+  dailyPlans: value.dailyPlans,
+  weeklyTerms: value.weeklyTerms,
+  semiTerms: value.semiTerms
+})
 
 export function InstallmentRulesSettings(): React.JSX.Element {
   const [current, setCurrent] = React.useState<InstallmentRulesRecord>()
   const [draft, setDraft] = React.useState<InstallmentRules>()
   const [error, setError] = React.useState<string>()
   const [confirming, setConfirming] = React.useState(false)
-  React.useEffect(() => { void window.api.installmentRules.getActive().then((rules) => { setCurrent(rules); setDraft(editable(rules)) }).catch(() => setError('Installment rules could not be loaded.')) }, [])
-  if (!draft) return <p className="mt-6 text-sm text-muted-foreground">Loading installment rules…</p>
-  const update = (next: Partial<InstallmentRules>): void => setDraft((value) => value && { ...value, ...next })
-  const updateTerms = (key: 'weeklyTerms' | 'semiTerms', index: number, value: string): void => update({ [key]: draft[key].map((term, itemIndex) => itemIndex === index ? Number(value) : term) })
-  const save = async (): Promise<void> => { try { const rules = await window.api.installmentRules.save(draft); setCurrent(rules); setDraft(editable(rules)); setConfirming(false); setError(undefined) } catch { setError('Rules could not be applied. Check every rate and payment count.') } }
-  return <section className="mt-6 flex max-w-2xl flex-col gap-6 border-t pt-6">
-    <div className="flex flex-col gap-1"><div className="flex items-center gap-2"><p className="text-sm font-medium tracking-tight">Installment Rules</p><span className="text-xs text-muted-foreground">Version {current?.version ?? '—'} · Effective {current?.createdAt.slice(0, 10) ?? '—'}</span></div><p className="text-xs leading-5 text-muted-foreground">Changes apply to new contracts only. Existing contracts retain their saved financial rules.</p></div>
-    <FieldSet className="gap-3"><FieldLegend variant="label">General Rates</FieldLegend><FieldGroup className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel htmlFor="standard-interest">Standard Interest</FieldLabel><Input id="standard-interest" type="number" min="0" step="0.01" value={percent(draft.standardInterestRateBps)} onChange={(event) => update({ standardInterestRateBps: toBps(event.target.value) })}/><FieldDescription>Applies to Daily, Weekly, and Semi-monthly plans.</FieldDescription></Field><Field><FieldLabel htmlFor="required-downpayment">Required Down Payment</FieldLabel><Input id="required-downpayment" type="number" min="0" max="100" step="0.01" value={percent(draft.requiredDownPaymentRateBps)} onChange={(event) => update({ requiredDownPaymentRateBps: toBps(event.target.value) })}/></Field></FieldGroup></FieldSet>
-    <RulesTable title="Monthly Plans" headers={['Payments', 'Interest Rate']} rows={draft.monthlyPlans.map((plan, index) => [<Input key="terms" type="number" min="1" value={plan.terms} onChange={(event) => update({ monthlyPlans: draft.monthlyPlans.map((item, i) => i === index ? { ...item, terms: Number(event.target.value) } : item) })}/>, <Input key="rate" type="number" min="0" step="0.01" value={percent(plan.interestRateBps)} onChange={(event) => update({ monthlyPlans: draft.monthlyPlans.map((item, i) => i === index ? { ...item, interestRateBps: toBps(event.target.value) } : item) })}/>])}/>
-    <RulesTable title="Daily Plans" headers={['Payments', 'Required Fee Payments']} rows={draft.dailyPlans.map((plan, index) => [<Input key="terms" type="number" min="1" value={plan.terms} onChange={(event) => update({ dailyPlans: draft.dailyPlans.map((item, i) => i === index ? { ...item, terms: Number(event.target.value) } : item) })}/>, <Input key="fee" type="number" min="1" value={plan.requiredFeePayments} onChange={(event) => update({ dailyPlans: draft.dailyPlans.map((item, i) => i === index ? { ...item, requiredFeePayments: Number(event.target.value) } : item) })}/>])}/>
-    <TermEditor title="Weekly Plans" terms={draft.weeklyTerms} onChange={(index, value) => updateTerms('weeklyTerms', index, value)} onAdd={() => update({ weeklyTerms: [...draft.weeklyTerms, 1] })} onRemove={(index) => update({ weeklyTerms: draft.weeklyTerms.filter((_, itemIndex) => itemIndex !== index) })}/>
-    <TermEditor title="Semi-monthly Plans" terms={draft.semiTerms} onChange={(index, value) => updateTerms('semiTerms', index, value)} onAdd={() => update({ semiTerms: [...draft.semiTerms, 1] })} onRemove={(index) => update({ semiTerms: draft.semiTerms.filter((_, itemIndex) => itemIndex !== index) })}/>
-    {error && <FieldError>{error}</FieldError>}<div className="flex justify-end"><Button type="button" onClick={() => setConfirming(true)}>Save Changes</Button></div>
-    <Dialog open={confirming} onOpenChange={setConfirming}><DialogContent className="sm:max-w-md"><DialogHeader><DialogTitle>Apply new installment rules?</DialogTitle><DialogDescription>These rules will apply to new installment contracts only. Existing contracts will not be changed.</DialogDescription></DialogHeader><DialogFooter><Button type="button" variant="outline" onClick={() => setConfirming(false)}>Cancel</Button><Button type="button" onClick={() => void save()}>Apply Rules</Button></DialogFooter></DialogContent></Dialog>
-  </section>
+  React.useEffect(() => {
+    void window.api.installmentRules
+      .getActive()
+      .then((rules) => {
+        setCurrent(rules)
+        setDraft(editable(rules))
+      })
+      .catch(() => setError('Installment rules could not be loaded.'))
+  }, [])
+  if (!draft)
+    return <p className="mt-6 text-sm text-muted-foreground">Loading installment rules…</p>
+  const update = (next: Partial<InstallmentRules>): void =>
+    setDraft((value) => value && { ...value, ...next })
+  const updateTerms = (key: 'weeklyTerms' | 'semiTerms', index: number, value: string): void =>
+    update({
+      [key]: draft[key].map((term, itemIndex) => (itemIndex === index ? Number(value) : term))
+    })
+  const save = async (): Promise<void> => {
+    try {
+      const rules = await window.api.installmentRules.save(draft)
+      setCurrent(rules)
+      setDraft(editable(rules))
+      setConfirming(false)
+      setError(undefined)
+    } catch {
+      setError('Rules could not be applied. Check every rate and payment count.')
+    }
+  }
+  return (
+    <section className="mt-6 flex max-w-2xl flex-col gap-6 border-t pt-6">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium tracking-tight">Installment Rules</p>
+          <span className="text-xs text-muted-foreground">
+            Version {current?.version ?? '—'} · Effective {current?.createdAt.slice(0, 10) ?? '—'}
+          </span>
+        </div>
+        <p className="text-xs leading-5 text-muted-foreground">
+          Changes apply to new contracts only. Existing contracts retain their saved financial
+          rules.
+        </p>
+      </div>
+      <FieldSet className="gap-3">
+        <FieldLegend variant="label">General Rates</FieldLegend>
+        <FieldGroup className="grid gap-3 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor="standard-interest">Standard Interest</FieldLabel>
+            <Input
+              id="standard-interest"
+              type="number"
+              min="0"
+              step="0.01"
+              value={percent(draft.standardInterestRateBps)}
+              onChange={(event) => update({ standardInterestRateBps: toBps(event.target.value) })}
+            />
+            <FieldDescription>Applies to Daily, Weekly, and Semi-monthly plans.</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="required-downpayment">Required Down Payment</FieldLabel>
+            <Input
+              id="required-downpayment"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={percent(draft.requiredDownPaymentRateBps)}
+              onChange={(event) =>
+                update({ requiredDownPaymentRateBps: toBps(event.target.value) })
+              }
+            />
+          </Field>
+        </FieldGroup>
+      </FieldSet>
+      <RulesTable
+        title="Monthly Plans"
+        headers={['Payments', 'Interest Rate']}
+        rows={draft.monthlyPlans.map((plan, index) => [
+          <Input
+            key="terms"
+            type="number"
+            min="1"
+            value={plan.terms}
+            onChange={(event) =>
+              update({
+                monthlyPlans: draft.monthlyPlans.map((item, i) =>
+                  i === index ? { ...item, terms: Number(event.target.value) } : item
+                )
+              })
+            }
+          />,
+          <Input
+            key="rate"
+            type="number"
+            min="0"
+            step="0.01"
+            value={percent(plan.interestRateBps)}
+            onChange={(event) =>
+              update({
+                monthlyPlans: draft.monthlyPlans.map((item, i) =>
+                  i === index ? { ...item, interestRateBps: toBps(event.target.value) } : item
+                )
+              })
+            }
+          />
+        ])}
+      />
+      <RulesTable
+        title="Daily Plans"
+        headers={['Payments', 'Required Fee Payments']}
+        rows={draft.dailyPlans.map((plan, index) => [
+          <Input
+            key="terms"
+            type="number"
+            min="1"
+            value={plan.terms}
+            onChange={(event) =>
+              update({
+                dailyPlans: draft.dailyPlans.map((item, i) =>
+                  i === index ? { ...item, terms: Number(event.target.value) } : item
+                )
+              })
+            }
+          />,
+          <Input
+            key="fee"
+            type="number"
+            min="1"
+            value={plan.requiredFeePayments}
+            onChange={(event) =>
+              update({
+                dailyPlans: draft.dailyPlans.map((item, i) =>
+                  i === index ? { ...item, requiredFeePayments: Number(event.target.value) } : item
+                )
+              })
+            }
+          />
+        ])}
+      />
+      <TermEditor
+        title="Weekly Plans"
+        terms={draft.weeklyTerms}
+        onChange={(index, value) => updateTerms('weeklyTerms', index, value)}
+        onAdd={() => update({ weeklyTerms: [...draft.weeklyTerms, 1] })}
+        onRemove={(index) =>
+          update({ weeklyTerms: draft.weeklyTerms.filter((_, itemIndex) => itemIndex !== index) })
+        }
+      />
+      <TermEditor
+        title="Semi-monthly Plans"
+        terms={draft.semiTerms}
+        onChange={(index, value) => updateTerms('semiTerms', index, value)}
+        onAdd={() => update({ semiTerms: [...draft.semiTerms, 1] })}
+        onRemove={(index) =>
+          update({ semiTerms: draft.semiTerms.filter((_, itemIndex) => itemIndex !== index) })
+        }
+      />
+      {error && <FieldError>{error}</FieldError>}
+      <div className="flex justify-end">
+        <Button type="button" onClick={() => setConfirming(true)}>
+          Save Changes
+        </Button>
+      </div>
+      <ConfirmationAlertDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Apply new installment rules?"
+        description="These rules will apply to new installment contracts only. Existing contracts will not be changed."
+        confirmLabel="Apply Rules"
+        onConfirm={() => void save()}
+      />
+    </section>
+  )
 }
 
-function RulesTable({ title, headers, rows }: { title: string; headers: readonly string[]; rows: React.ReactNode[][] }): React.JSX.Element { return <FieldSet className="gap-3"><FieldLegend variant="label">{title}</FieldLegend><div className="grid gap-2 text-xs" style={{ gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))` }}>{headers.map((header) => <span key={header} className="font-medium text-muted-foreground">{header}</span>)}{rows.flat()}</div></FieldSet> }
-function TermEditor({ title, terms, onChange, onAdd, onRemove }: { title: string; terms: readonly number[]; onChange: (index: number, value: string) => void; onAdd: () => void; onRemove: (index: number) => void }): React.JSX.Element { return <FieldSet className="gap-3"><div className="flex items-center justify-between"><FieldLegend variant="label">{title}</FieldLegend><Button type="button" variant="outline" size="xs" onClick={onAdd}>Add term</Button></div><div className="grid max-w-sm grid-cols-2 gap-2">{terms.map((term, index) => <React.Fragment key={`${term}-${index}`}><Input type="number" min="1" value={term} onChange={(event) => onChange(index, event.target.value)}/><Button type="button" variant="ghost" size="xs" onClick={() => onRemove(index)} disabled={terms.length === 1}>Remove</Button></React.Fragment>)}</div></FieldSet> }
+function RulesTable({
+  title,
+  headers,
+  rows
+}: {
+  title: string
+  headers: readonly string[]
+  rows: React.ReactNode[][]
+}): React.JSX.Element {
+  return (
+    <FieldSet className="gap-3">
+      <FieldLegend variant="label">{title}</FieldLegend>
+      <div
+        className="grid gap-2 text-xs"
+        style={{ gridTemplateColumns: `repeat(${headers.length}, minmax(0, 1fr))` }}
+      >
+        {headers.map((header) => (
+          <span key={header} className="font-medium text-muted-foreground">
+            {header}
+          </span>
+        ))}
+        {rows.flat()}
+      </div>
+    </FieldSet>
+  )
+}
+function TermEditor({
+  title,
+  terms,
+  onChange,
+  onAdd,
+  onRemove
+}: {
+  title: string
+  terms: readonly number[]
+  onChange: (index: number, value: string) => void
+  onAdd: () => void
+  onRemove: (index: number) => void
+}): React.JSX.Element {
+  return (
+    <FieldSet className="gap-3">
+      <div className="flex items-center justify-between">
+        <FieldLegend variant="label">{title}</FieldLegend>
+        <Button type="button" variant="outline" size="xs" onClick={onAdd}>
+          Add term
+        </Button>
+      </div>
+      <div className="grid max-w-sm grid-cols-2 gap-2">
+        {terms.map((term, index) => (
+          <React.Fragment key={`${term}-${index}`}>
+            <Input
+              type="number"
+              min="1"
+              value={term}
+              onChange={(event) => onChange(index, event.target.value)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => onRemove(index)}
+              disabled={terms.length === 1}
+            >
+              Remove
+            </Button>
+          </React.Fragment>
+        ))}
+      </div>
+    </FieldSet>
+  )
+}

@@ -89,6 +89,7 @@ export const incomeEntryRecordSchema = z.object({
   voidedByUserId: uuidSchema.nullable(),
   voidReason: optionalTextSchema,
   createdByUserId: uuidSchema,
+  createdByName: z.string().trim().min(1).max(100).optional(),
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
@@ -107,11 +108,12 @@ export const incomeCreateRequestSchema = z.object({
   particular: z.string().trim().min(1).max(500),
   receiptNumber: z.string().trim().max(100).nullable().optional(),
   remarks: z.string().trim().max(500).nullable().optional(),
-  amountCentavos: positiveCentavosSchema
+  amountCentavos: positiveCentavosSchema,
+  duplicatedFromId: uuidSchema.optional()
 })
 export const incomeCreateResponseSchema = incomeEntryRecordSchema
 export const incomeUpdateRequestSchema = incomeCreateRequestSchema
-  .omit({ dailyReportId: true })
+  .omit({ dailyReportId: true, duplicatedFromId: true })
   .extend({ id: uuidSchema })
 export const incomeUpdateResponseSchema = incomeEntryRecordSchema
 export const incomeVoidRequestSchema = z.object({
@@ -145,6 +147,7 @@ export const dailyReportPaymentEntryRecordSchema = z.object({
   voidedByUserId: uuidSchema.nullable(),
   voidReason: optionalTextSchema,
   createdByUserId: uuidSchema,
+  createdByName: z.string().trim().min(1).max(100).optional(),
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
@@ -166,11 +169,12 @@ export const dailyReportPaymentCreateRequestSchema = z.object({
   referenceNumber: z.string().trim().max(100).nullable().optional(),
   bankName: z.string().trim().max(200).nullable().optional(),
   payerName: z.string().trim().max(200).nullable().optional(),
-  remarks: z.string().trim().max(500).nullable().optional()
+  remarks: z.string().trim().max(500).nullable().optional(),
+  duplicatedFromId: uuidSchema.optional()
 })
 export const dailyReportPaymentCreateResponseSchema = dailyReportPaymentEntryRecordSchema
 export const dailyReportPaymentUpdateRequestSchema = dailyReportPaymentCreateRequestSchema
-  .omit({ dailyReportId: true })
+  .omit({ dailyReportId: true, duplicatedFromId: true })
   .extend({ id: uuidSchema })
 export const dailyReportPaymentUpdateResponseSchema = dailyReportPaymentEntryRecordSchema
 export const dailyReportPaymentVoidRequestSchema = z.object({

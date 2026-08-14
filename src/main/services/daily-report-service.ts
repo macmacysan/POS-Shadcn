@@ -31,11 +31,7 @@ export class DailyReportService {
     const branchId =
       user.role === 'ADMIN' ? request.branchId : this.repository.branchIdForUser(user.id)
     if (!branchId) throw new AppError('FORBIDDEN', 'Your account is not assigned to a branch.')
-    return this.repository.resolveActive({
-      ...request,
-      branchId,
-      cashierUserId: user.role === 'ADMIN' ? request.cashierUserId : user.id
-    })
+    return this.repository.resolveActive({ ...request, branchId, cashierUserId: user.id })
   }
 
   listCalendar(request: DailyReportCalendarRequest): DailyReportCalendarResponse {
@@ -47,7 +43,7 @@ export class DailyReportService {
       rows: this.repository.listCalendar({
         ...request,
         branchId,
-        cashierUserId: user.role === 'ADMIN' ? request.cashierUserId : user.id
+        cashierUserId: user.id
       })
     }
   }
@@ -82,11 +78,12 @@ export class DailyReportService {
   updateIncome(request: IncomeUpdateRequest) {
     const user = this.auth.requireSession()
     this.requireEntryAccess(this.repository.incomeReportId(request.id), user)
-    return this.repository.updateIncome(request)
+    return this.repository.updateIncome(request, user.id)
   }
 
   voidIncome(request: IncomeVoidRequest) {
     const user = this.auth.requireSession()
+    this.requireAdminVoid(user)
     this.requireEntryAccess(this.repository.incomeReportId(request.id), user)
     return this.repository.voidIncome(request, user.id)
   }
@@ -111,11 +108,12 @@ export class DailyReportService {
   updatePayment(request: DailyReportPaymentUpdateRequest) {
     const user = this.auth.requireSession()
     this.requireEntryAccess(this.repository.paymentReportId(request.id), user)
-    return this.repository.updatePayment(request)
+    return this.repository.updatePayment(request, user.id)
   }
 
   voidPayment(request: DailyReportPaymentVoidRequest) {
     const user = this.auth.requireSession()
+    this.requireAdminVoid(user)
     this.requireEntryAccess(this.repository.paymentReportId(request.id), user)
     return this.repository.voidPayment(request, user.id)
   }
@@ -146,6 +144,11 @@ export class DailyReportService {
       throw new AppError('FORBIDDEN', 'Only administrators can manage receipt names.')
   }
 
+  private requireAdminVoid(user: AuthenticatedUser): void {
+    if (user.role !== 'ADMIN')
+      throw new AppError('FORBIDDEN', 'Only administrators can void entries.')
+  }
+
   private requireEntryAccess(reportId: string | null, user: AuthenticatedUser): void {
     if (!reportId) throw new AppError('NOT_FOUND', 'Daily report entry was not found.')
     this.requireReportAccess(reportId, user)
@@ -154,8 +157,8 @@ export class DailyReportService {
   private requireReportAccess(reportId: string, user: AuthenticatedUser): void {
     const report = this.repository.findById(reportId)
     if (!report) throw new AppError('NOT_FOUND', 'Daily report was not found.')
-    if (user.role !== 'ADMIN' && report.cashierUserId !== user.id) {
-      throw new AppError('FORBIDDEN', 'You cannot access another cashier report.')
+    if (user.role !== 'ADMIN' && this.repository.branchIdForReport(reportId) !== user.branchId) {
+      throw new AppError('FORBIDDEN', 'You cannot access another branch report.')
     }
   }
 }

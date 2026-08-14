@@ -50,7 +50,8 @@ export function useExpenses(
   reportIdOverride?: string,
   branch?: string,
   dateFrom?: string,
-  dateTo?: string
+  dateTo?: string,
+  includeVoided = false
 ): {
   rows: ExpenseTableRow[]
   page: PaginationState
@@ -72,7 +73,7 @@ export function useExpenses(
   refresh: () => void
   createExpense: (input: ExpenseCreateInput) => Promise<ExpenseRecord>
   updateExpense: (input: ExpenseUpdateInput) => Promise<ExpenseRecord>
-  removeExpenses: (ids: string[]) => Promise<void>
+  removeExpenses: (ids: string[], reason: string) => Promise<void>
   expenseTotals: ExpenseSummaryTotals
 } {
   const { reportId: activeReportId } = useActiveReport()
@@ -139,6 +140,7 @@ export function useExpenses(
       : []
     const request: ExpenseListRequest = {
       reportId: branch === 'All Branch' || dateFrom !== dateTo ? undefined : reportId,
+      includeVoided,
       branch,
       dateFrom,
       dateTo,
@@ -183,7 +185,18 @@ export function useExpenses(
     return () => {
       cancelled = true
     }
-  }, [branch, columnFilters, dateFrom, dateTo, debouncedSearch, page, refreshToken, reportId, sorting])
+  }, [
+    branch,
+    columnFilters,
+    dateFrom,
+    dateTo,
+    debouncedSearch,
+    includeVoided,
+    page,
+    refreshToken,
+    reportId,
+    sorting
+  ])
 
   const refreshSummaryTotals = React.useCallback(() => {
     void window.api.reports.expenses
@@ -219,8 +232,8 @@ export function useExpenses(
   )
 
   const removeExpenses = React.useCallback(
-    async (ids: string[]): Promise<void> => {
-      await window.api.reports.expenses.remove({ ids })
+    async (ids: string[], reason: string): Promise<void> => {
+      await window.api.reports.expenses.remove({ ids, reason })
       refresh()
       refreshSummaryTotals()
     },

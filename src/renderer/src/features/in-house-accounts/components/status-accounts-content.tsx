@@ -30,6 +30,7 @@ import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { ReuiFilters } from '@/components/shared/data-table/reui-filters'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
+import { ConfirmationAlertDialog } from '@/components/shared/confirmation-alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -198,7 +199,12 @@ function statusColumns(view: InstallmentView): ColumnDef<PersistedInstallmentRow
     )
   } else if (view === 'blacklisted') {
     base.push(
-      { id: 'status', header: 'Status', size: 90, cell: () => <AccountStatusBadge status="blacklisted" /> },
+      {
+        id: 'status',
+        header: 'Status',
+        size: 90,
+        cell: () => <AccountStatusBadge status="blacklisted" />
+      },
       {
         id: 'balance',
         header: 'Outstanding',
@@ -356,7 +362,12 @@ export function StatusAccountsContent({
     const account =
       payload.mode === 'new'
         ? createAccount(payload.accountDraft, now)
-        : { ...payload.accountDraft, id: payload.customerId, createdAt: now.toISOString(), updatedAt: now.toISOString() }
+        : {
+            ...payload.accountDraft,
+            id: payload.customerId,
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString()
+          }
     const loan = createLoan(account.id, payload.loanDraft, now)
     const existingAccounts = rows.map((row) => row.account)
     const existingLoans = rows.map((row) => row.loan)
@@ -370,7 +381,11 @@ export function StatusAccountsContent({
     setIsFormOpen(false)
     setIsFormDirty(false)
     await reload()
-    notify({ type: 'success', title: payload.mode === 'new' ? 'Account and loan created.' : 'Account updated and loan created.' })
+    notify({
+      type: 'success',
+      title:
+        payload.mode === 'new' ? 'Account and loan created.' : 'Account updated and loan created.'
+    })
   }
 
   const requestFormClose = (): void => {
@@ -579,44 +594,27 @@ export function StatusAccountsContent({
               Create a new customer account and its initial loan in one entry.
             </DialogDescription>
           </DialogHeader>
-            <InHouseAccountForm
-              onSave={saveNewAccount}
-              onCancel={requestFormClose}
-              onDirtyChange={setIsFormDirty}
-              existingRows={rows}
-            />
+          <InHouseAccountForm
+            onSave={saveNewAccount}
+            onCancel={requestFormClose}
+            onDirtyChange={setIsFormDirty}
+            existingRows={rows}
+          />
         </DialogContent>
       </Dialog>
-      <Dialog open={isDiscardConfirmationOpen} onOpenChange={setIsDiscardConfirmationOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Discard account draft?</DialogTitle>
-            <DialogDescription>
-              Your entered account and loan details will be lost.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsDiscardConfirmationOpen(false)}
-            >
-              Keep editing
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => {
-                setIsDiscardConfirmationOpen(false)
-                setIsFormDirty(false)
-                setIsFormOpen(false)
-              }}
-            >
-              Discard draft
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmationAlertDialog
+        open={isDiscardConfirmationOpen}
+        title="Discard account draft?"
+        description="Your entered account and loan details will be lost."
+        confirmLabel="Discard draft"
+        destructive
+        onOpenChange={setIsDiscardConfirmationOpen}
+        onConfirm={() => {
+          setIsDiscardConfirmationOpen(false)
+          setIsFormDirty(false)
+          setIsFormOpen(false)
+        }}
+      />
       <Dialog open={Boolean(transition)} onOpenChange={(open) => !open && setTransition(undefined)}>
         <DialogContent>
           <DialogHeader>

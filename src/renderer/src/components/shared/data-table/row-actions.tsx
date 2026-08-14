@@ -5,6 +5,7 @@ import { MoreHorizontal } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { ConfirmationAlertDialog } from '@/components/shared/confirmation-alert-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,57 +72,71 @@ export function RowActions({
   onOpen
 }: RowActionsProps): React.JSX.Element {
   const [open, setOpen] = React.useState(() => openSignal !== undefined && openSignal > 0)
+  const [pendingAction, setPendingAction] = React.useState<RowActionItem>()
 
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen)
-        if (nextOpen) onOpen?.()
-      }}
-    >
-      <DropdownMenuTrigger
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={label}
-            className={cn(
-              'opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:focus-visible:opacity-100 md:data-popup-open:opacity-100',
-              className
-            )}
-            onClick={(event) => event.stopPropagation()}
-          />
-        }
+    <>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen)
+          if (nextOpen) onOpen?.()
+        }}
       >
-        <MoreHorizontal aria-hidden="true" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuGroup>
-          {actions.map((action) => (
-            <DropdownMenuItem
-              key={action.id}
-              disabled={action.disabled}
-              variant={action.destructive ? 'destructive' : 'default'}
-              onClick={(event) => {
-                event.stopPropagation()
-                if (action.disabled) return
-                if (
-                  action.requiresConfirmation &&
-                  !window.confirm(action.confirmationMessage ?? `Continue with ${action.label}?`)
-                ) {
-                  return
-                }
-                action.onSelect()
-              }}
-            >
-              {action.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={label}
+              className={cn(
+                'opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:focus-visible:opacity-100 md:data-popup-open:opacity-100',
+                className
+              )}
+              onClick={(event) => event.stopPropagation()}
+            />
+          }
+        >
+          <MoreHorizontal aria-hidden="true" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuGroup>
+            {actions.map((action) => (
+              <DropdownMenuItem
+                key={action.id}
+                disabled={action.disabled}
+                variant={action.destructive ? 'destructive' : 'default'}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (action.disabled) return
+                  if (action.requiresConfirmation) setPendingAction(action)
+                  else action.onSelect()
+                }}
+              >
+                {action.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {pendingAction && (
+        <ConfirmationAlertDialog
+          open
+          title={pendingAction.label}
+          description={pendingAction.confirmationMessage ?? `Continue with ${pendingAction.label}?`}
+          confirmLabel={pendingAction.label}
+          destructive={pendingAction.destructive}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setPendingAction(undefined)
+          }}
+          onConfirm={() => {
+            setPendingAction(undefined)
+            pendingAction.onSelect()
+          }}
+        />
+      )}
+    </>
   )
 }
 

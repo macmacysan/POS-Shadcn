@@ -28,6 +28,7 @@ import type {
 } from '../../shared/contracts'
 import { AppError } from './errors'
 import type { AppDatabase } from './database'
+import { recordAudit } from './audit-repository'
 
 type DailyReportRow = {
   id: string
@@ -59,6 +60,7 @@ type IncomeRow = {
   voided_by_user_id: string | null
   void_reason: string | null
   created_by_user_id: string
+  created_by_name: string
   created_at: string
   updated_at: string
 }
@@ -80,6 +82,7 @@ type PaymentRow = {
   voided_by_user_id: string | null
   void_reason: string | null
   created_by_user_id: string
+  created_by_name: string
   created_at: string
   updated_at: string
 }
@@ -190,6 +193,7 @@ function incomeRecord(row: IncomeRow): IncomeEntryRecord {
     voidedByUserId: row.voided_by_user_id,
     voidReason: row.void_reason,
     createdByUserId: row.created_by_user_id,
+    createdByName: row.created_by_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -213,6 +217,7 @@ function paymentRecord(row: PaymentRow): DailyReportPaymentEntryRecord {
     voidedByUserId: row.voided_by_user_id,
     voidReason: row.void_reason,
     createdByUserId: row.created_by_user_id,
+    createdByName: row.created_by_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -281,16 +286,11 @@ export class DailyReportRepository {
   }
 
   resolveActive(request: DailyReportResolveActiveRequest): DailyReportRecord {
-    const existing = this.findByIdentity(
-      request.branchId,
-      request.cashierUserId,
-      request.businessDate
-    )
+    const existing = this.findByIdentity(request.branchId, request.businessDate)
     if (existing) {
       if (existing.status === 'DRAFT' || existing.status === 'REOPENED') {
         const openingCashCentavos = this.previousEndingCashCentavos(
           request.branchId,
-          request.cashierUserId,
           request.businessDate
         )
         if (existing.openingCashCentavos !== openingCashCentavos) {
@@ -310,27 +310,34 @@ export class DailyReportRepository {
 
     const openingCashCentavos = this.previousEndingCashCentavos(
       request.branchId,
-      request.cashierUserId,
       request.businessDate
     )
     const now = new Date().toISOString()
     const report = this.db.transaction(() => {
-      const row = this.db
+      const id = randomUUID()
+      this.db
         .prepare(
-          `INSERT INTO daily_reports (
+          `INSERT OR IGNORE INTO daily_reports (
             id, branch_id, cashier_user_id, business_date, opening_cash_centavos, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)
-          RETURNING *`
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`
         )
-        .get(
-          randomUUID(),
+        .run(
+          id,
           request.branchId,
           request.cashierUserId,
           request.businessDate,
           openingCashCentavos,
           now,
           now
-        ) as DailyReportRow
+        )
+      const row = this.db
+        .prepare(
+          `SELECT * FROM daily_reports
+             WHERE branch_id = ? AND business_date = ?
+             ORDER BY created_at, id
+             LIMIT 1`
+        )
+        .get(request.branchId, request.businessDate) as DailyReportRow
       // The legacy expenses module remains a compatibility adapter until its documented
       // expense_entries replacement is wired. Keep identity creation atomic across both tables.
       this.db
@@ -345,11 +352,7 @@ export class DailyReportRepository {
     return reportRecord(report)
   }
 
-  private previousEndingCashCentavos(
-    branchId: string,
-    cashierUserId: string,
-    businessDate: string
-  ): number {
+  private previousEndingCashCentavos(branchId: string, businessDate: string): number {
     const row = this.db
       .prepare(
         `SELECT COALESCE(SUM(d.value_centavos * c.quantity), 0) AS ending_cash_centavos
@@ -357,11 +360,10 @@ export class DailyReportRepository {
            LEFT JOIN daily_report_cash_counts c ON c.daily_report_id = previous.id
            LEFT JOIN cash_denominations d ON d.id = c.denomination_id
           WHERE previous.branch_id = ?
-            AND previous.cashier_user_id = ?
             AND previous.business_date = date(?, '-1 day')
             AND previous.status <> 'VOIDED'`
       )
-      .get(branchId, cashierUserId, businessDate) as { ending_cash_centavos: number }
+      .get(branchId, businessDate) as { ending_cash_centavos: number }
     return row.ending_cash_centavos
   }
 
@@ -478,18 +480,23 @@ export class DailyReportRepository {
     return row.sort_order
   }
 
-  findByIdentity(
-    branchId: string,
-    cashierUserId: string,
-    businessDate: string
-  ): DailyReportRecord | null {
+  findByIdentity(branchId: string, businessDate: string): DailyReportRecord | null {
     const row = this.db
       .prepare(
         `SELECT * FROM daily_reports
-          WHERE branch_id = ? AND cashier_user_id = ? AND business_date = ?`
+          WHERE branch_id = ? AND business_date = ?
+          ORDER BY created_at, id
+          LIMIT 1`
       )
-      .get(branchId, cashierUserId, businessDate) as DailyReportRow | undefined
+      .get(branchId, businessDate) as DailyReportRow | undefined
     return row ? reportRecord(row) : null
+  }
+
+  branchIdForReport(reportId: string): string | null {
+    const row = this.db
+      .prepare('SELECT branch_id FROM daily_reports WHERE id = ?')
+      .get(reportId) as { branch_id: string } | undefined
+    return row?.branch_id ?? null
   }
 
   listCalendar(request: DailyReportCalendarRequest): DailyReportCalendarDay[] {
@@ -498,12 +505,11 @@ export class DailyReportRepository {
       .prepare(
         `SELECT * FROM daily_reports
           WHERE branch_id = ?
-            AND cashier_user_id = ?
             AND business_date >= ?
             AND business_date < date(?, '+1 month')
           ORDER BY business_date`
       )
-      .all(request.branchId, request.cashierUserId, monthStart, monthStart) as DailyReportRow[]
+      .all(request.branchId, monthStart, monthStart) as DailyReportRow[]
 
     return reports.map((row) => {
       const report = reportRecord(row)
@@ -552,10 +558,11 @@ export class DailyReportRepository {
     return (
       this.db
         .prepare(
-          `SELECT i.*, b.name AS branch
+          `SELECT i.*, b.name AS branch, u.display_name AS created_by_name
            FROM income_entries i
            JOIN daily_reports dr ON dr.id = i.daily_report_id
            JOIN branches b ON b.id = dr.branch_id
+           LEFT JOIN users u ON u.id = i.created_by_user_id
           WHERE ${where.join(' AND ')}
           ORDER BY i.transaction_date DESC, i.created_at DESC, i.id DESC`
         )
@@ -592,10 +599,22 @@ export class DailyReportRepository {
         now,
         now
       ) as IncomeRow
+    recordAudit(this.db, {
+      actorUserId,
+      entityType: 'INCOME',
+      entityId: row.id,
+      action: request.duplicatedFromId ? 'DUPLICATED' : 'CREATED',
+      changes: [
+        { field: 'amountCentavos', oldValue: null, newValue: String(request.amountCentavos) },
+        ...(request.duplicatedFromId
+          ? [{ field: 'duplicatedFromId', oldValue: null, newValue: request.duplicatedFromId }]
+          : [])
+      ]
+    })
     return incomeRecord(row)
   }
 
-  updateIncome(request: IncomeUpdateRequest): IncomeEntryRecord {
+  updateIncome(request: IncomeUpdateRequest, actorUserId: string): IncomeEntryRecord {
     const now = new Date().toISOString()
     const row = this.db
       .prepare(
@@ -614,6 +633,13 @@ export class DailyReportRepository {
         request.id
       ) as IncomeRow | undefined
     if (!row) throw new AppError('NOT_FOUND', 'Posted income entry was not found.')
+    recordAudit(this.db, {
+      actorUserId,
+      entityType: 'INCOME',
+      entityId: request.id,
+      action: 'UPDATED',
+      changes: [{ field: 'updatedAt', oldValue: null, newValue: now }]
+    })
     return incomeRecord(row)
   }
 
@@ -626,6 +652,14 @@ export class DailyReportRepository {
       )
       .get(now, actorUserId, request.voidReason, now, request.id) as IncomeRow | undefined
     if (!row) throw new AppError('NOT_FOUND', 'Posted income entry was not found.')
+    recordAudit(this.db, {
+      actorUserId,
+      entityType: 'INCOME',
+      entityId: request.id,
+      action: 'VOIDED',
+      reason: request.voidReason,
+      changes: [{ field: 'status', oldValue: 'POSTED', newValue: 'VOIDED' }]
+    })
     return incomeRecord(row)
   }
 
@@ -655,10 +689,11 @@ export class DailyReportRepository {
     return (
       this.db
         .prepare(
-          `SELECT p.*, b.name AS branch
+          `SELECT p.*, b.name AS branch, u.display_name AS created_by_name
            FROM daily_report_payment_entries p
            JOIN daily_reports dr ON dr.id = p.daily_report_id
            JOIN branches b ON b.id = dr.branch_id
+           LEFT JOIN users u ON u.id = p.created_by_user_id
           WHERE ${where.join(' AND ')}
           ORDER BY p.transaction_date DESC, p.created_at DESC, p.id DESC`
         )
@@ -700,10 +735,25 @@ export class DailyReportRepository {
         now,
         now
       ) as PaymentRow
+    recordAudit(this.db, {
+      actorUserId,
+      entityType: 'PAYMENT',
+      entityId: row.id,
+      action: request.duplicatedFromId ? 'DUPLICATED' : 'CREATED',
+      changes: [
+        { field: 'amountCentavos', oldValue: null, newValue: String(request.amountCentavos) },
+        ...(request.duplicatedFromId
+          ? [{ field: 'duplicatedFromId', oldValue: null, newValue: request.duplicatedFromId }]
+          : [])
+      ]
+    })
     return paymentRecord(row)
   }
 
-  updatePayment(request: DailyReportPaymentUpdateRequest): DailyReportPaymentEntryRecord {
+  updatePayment(
+    request: DailyReportPaymentUpdateRequest,
+    actorUserId: string
+  ): DailyReportPaymentEntryRecord {
     const now = new Date().toISOString()
     const row = this.db
       .prepare(
@@ -725,6 +775,13 @@ export class DailyReportRepository {
         request.id
       ) as PaymentRow | undefined
     if (!row) throw new AppError('NOT_FOUND', 'Posted payment entry was not found.')
+    recordAudit(this.db, {
+      actorUserId,
+      entityType: 'PAYMENT',
+      entityId: request.id,
+      action: 'UPDATED',
+      changes: [{ field: 'updatedAt', oldValue: null, newValue: now }]
+    })
     return paymentRecord(row)
   }
 
@@ -740,6 +797,14 @@ export class DailyReportRepository {
       )
       .get(now, actorUserId, request.voidReason, now, request.id) as PaymentRow | undefined
     if (!row) throw new AppError('NOT_FOUND', 'Posted payment entry was not found.')
+    recordAudit(this.db, {
+      actorUserId,
+      entityType: 'PAYMENT',
+      entityId: request.id,
+      action: 'VOIDED',
+      reason: request.voidReason,
+      changes: [{ field: 'status', oldValue: 'POSTED', newValue: 'VOIDED' }]
+    })
     return paymentRecord(row)
   }
 
