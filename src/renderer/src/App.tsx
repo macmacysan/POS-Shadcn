@@ -314,6 +314,14 @@ function App(): React.JSX.Element {
     setAuthenticatedUser(undefined)
     setIsLoggedIn(false)
   }
+  const toggleMaximize = async (): Promise<void> => {
+    const controls = window.windowControls
+    if (!controls) return
+    await controls.toggleMaximize()
+    const value = await controls.isMaximized()
+    setIsMaximized(value)
+    document.documentElement.classList.toggle('window-maximized', value)
+  }
 
   return (
     <NotificationProvider>
@@ -321,7 +329,7 @@ function App(): React.JSX.Element {
         <div
           aria-label="Window drag area"
           className="window-drag-region absolute inset-x-0 top-0 z-40 h-8"
-          onDoubleClick={() => void window.windowControls?.toggleMaximize()}
+          onDoubleClick={() => void toggleMaximize()}
         />
         {window.windowControls ? (
           <div className="window-no-drag absolute top-1 right-1 z-50 flex gap-1 p-1">
@@ -336,7 +344,7 @@ function App(): React.JSX.Element {
             <button
               aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
               className="grid size-6 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => void window.windowControls?.toggleMaximize()}
+              onClick={() => void toggleMaximize()}
               type="button"
             >
               {isMaximized ? (
