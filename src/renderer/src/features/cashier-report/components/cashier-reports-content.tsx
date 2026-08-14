@@ -295,6 +295,8 @@ function CashierReportHeader({
   isLoading,
   isExporting,
   error,
+  showExport = true,
+  showDateSelector = true,
   onDateRangeChange,
   onExport
 }: {
@@ -304,6 +306,8 @@ function CashierReportHeader({
   isLoading: boolean
   isExporting: boolean
   error?: string
+  showExport?: boolean
+  showDateSelector?: boolean
   onDateRangeChange: (value: DateSelectorValue) => void
   onExport: () => void
 }): React.JSX.Element {
@@ -314,50 +318,56 @@ function CashierReportHeader({
     onDateRangeChange({ period: 'day', operator: 'is', startDate: date, endDate: date })
 
   return (
-    <header className="flex shrink-0 items-center justify-end gap-2 px-3 py-2">
+    <header className="flex shrink-0 items-center justify-end gap-2 px-3 py-1">
       {error && (
         <span className="mr-auto text-xs text-destructive" role="alert">
           {error}
         </span>
       )}
       <div className="flex shrink-0 items-center gap-1">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={isLoading || isExporting}
-          onClick={onExport}
-        >
-          <FileDown aria-hidden="true" />
-          {isExporting ? 'Preparing…' : 'Review Report'}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="View previous business day"
-          disabled={isLoading || !startDate}
-          onClick={() => startDate && selectDate(addDays(startDate, -1))}
-        >
-          <ChevronLeft aria-hidden="true" />
-        </Button>
-        <ReportDateDialog
-          branchId={branchId}
-          cashierUserId={cashierUserId}
-          date={startDate}
-          disabled={isLoading}
-          onSelect={selectDate}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="View next business day"
-          disabled={isLoading || !selectedDay || selectedDay.getTime() >= today.getTime()}
-          onClick={() => startDate && selectDate(addDays(startDate, 1))}
-        >
-          <ChevronRight aria-hidden="true" />
-        </Button>
+        {showExport && (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label="Review report"
+            disabled={isLoading || isExporting}
+            onClick={onExport}
+          >
+            <FileDown aria-hidden="true" />
+          </Button>
+        )}
+        {showDateSelector && (
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="View previous business day"
+              disabled={isLoading || !startDate}
+              onClick={() => startDate && selectDate(addDays(startDate, -1))}
+            >
+              <ChevronLeft aria-hidden="true" />
+            </Button>
+            <ReportDateDialog
+              branchId={branchId}
+              cashierUserId={cashierUserId}
+              date={startDate}
+              disabled={isLoading}
+              onSelect={selectDate}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="View next business day"
+              disabled={isLoading || !selectedDay || selectedDay.getTime() >= today.getTime()}
+              onClick={() => startDate && selectDate(addDays(startDate, 1))}
+            >
+              <ChevronRight aria-hidden="true" />
+            </Button>
+          </>
+        )}
       </div>
     </header>
   )
@@ -1646,6 +1656,11 @@ export function CashierReportsContent({
             refreshKey={summaryRefreshKey}
             reportId={reportId}
             businessDate={selectedReport.businessDate}
+            branchId={selectedReport.branchId}
+            cashierUserId={selectedReport.cashierUserId}
+            dateRange={dateRange}
+            isDateLoading={isDateLoading}
+            onDateRangeChange={changeDateRange}
             expenseTotals={expenseQuery.expenseTotals}
           />
         </Card>
@@ -1660,16 +1675,6 @@ export function CashierReportsContent({
         >
           <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-              <CashierReportHeader
-                branchId={selectedReport.branchId}
-                cashierUserId={selectedReport.cashierUserId}
-                dateRange={dateRange}
-                isLoading={isDateLoading}
-                isExporting={isExporting}
-                error={dateError ?? exportError}
-                onDateRangeChange={changeDateRange}
-                onExport={() => void reviewPdf()}
-              />
               <Tabs
                 value={activeTab}
                 onValueChange={(value) => {
@@ -1688,30 +1693,41 @@ export function CashierReportsContent({
                 }}
                 className="flex min-h-0 flex-1 flex-col gap-0"
               >
-                <div className="shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <TabsList
-                    aria-label="Cashier report sections"
-                    variant="line"
-                    className="h-10 w-max min-w-full justify-start rounded-none bg-transparent p-0"
-                  >
-                    {reportTabs.map((tab) => (
-                      <TabsTrigger
-                        key={tab}
-                        value={tab}
-                        className="h-10 flex-none gap-1.5 rounded-none px-3.5 text-xs font-normal data-active:text-primary data-active:font-semibold"
-                      >
-                        <span>{tab === 'Activity' ? 'Installment History' : tab}</span>
-                        {tabRowCounts[tab] > 0 && (
+                <div className="flex shrink-0 items-center">
+                  <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <TabsList
+                      aria-label="Cashier report sections"
+                      variant="line"
+                      className="h-10 w-max min-w-full justify-start rounded-none bg-transparent p-0"
+                    >
+                      {reportTabs.map((tab) => (
+                        <TabsTrigger
+                          key={tab}
+                          value={tab}
+                          className="h-10 flex-none gap-1.5 rounded-none px-3.5 text-xs font-normal after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary data-active:after:opacity-100 data-active:text-primary data-active:font-semibold"
+                        >
+                          <span>{tab === 'Activity' ? 'Installment' : tab}</span>
                           <Badge
                             variant="secondary"
                             className="min-w-5 justify-center px-1 tabular-nums"
                           >
                             {tabRowCounts[tab]}
                           </Badge>
-                        )}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </div>
+                  <CashierReportHeader
+                    branchId={selectedReport.branchId}
+                    cashierUserId={selectedReport.cashierUserId}
+                    dateRange={dateRange}
+                    isLoading={isDateLoading}
+                    isExporting={isExporting}
+                    error={dateError ?? exportError}
+                    showDateSelector={false}
+                    onDateRangeChange={changeDateRange}
+                    onExport={() => void reviewPdf()}
+                  />
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {reportTabs.map((tab) => (
@@ -1805,6 +1821,11 @@ export function CashierReportsContent({
                 refreshKey={summaryRefreshKey}
                 reportId={reportId}
                 businessDate={selectedReport.businessDate}
+                branchId={selectedReport.branchId}
+                cashierUserId={selectedReport.cashierUserId}
+                dateRange={dateRange}
+                isDateLoading={isDateLoading}
+                onDateRangeChange={changeDateRange}
                 expenseTotals={expenseQuery.expenseTotals}
               />
             </SheetContent>

@@ -186,7 +186,7 @@ function Workspace({
         onLogout={onLogout}
         isAdmin={isAdmin}
       />
-      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden pt-8">
         {paymentRoute ? (
           <InstallmentPaymentWorkspace
             accountId={paymentRoute.accountId}
@@ -301,36 +301,40 @@ function App(): React.JSX.Element {
   return (
     <NotificationProvider>
       <div className="app-window-surface relative flex h-full min-h-0 w-full flex-col">
-        <div aria-label="Window drag area" className="window-drag-region absolute inset-x-0 top-0 z-50 h-3" />
+        <div
+          aria-label="Window drag area"
+          className="window-drag-region absolute inset-x-0 top-0 z-40 h-8"
+          onDoubleClick={() => void window.windowControls?.toggleMaximize()}
+        />
         {window.windowControls ? (
-          <div className="window-no-drag absolute top-1 right-1 z-50 flex">
+          <div className="window-no-drag absolute top-1 right-1 z-50 flex gap-1 p-1">
             <button
               aria-label="Minimize window"
-              className="grid size-5 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="grid size-6 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => void window.windowControls?.minimize()}
               type="button"
             >
-              <Minus aria-hidden="true" className="size-3" strokeWidth={2} />
+              <Minus aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
             </button>
             <button
               aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
-              className="grid size-5 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="grid size-6 place-items-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => void window.windowControls?.toggleMaximize()}
               type="button"
             >
               {isMaximized ? (
-                <Copy aria-hidden="true" className="size-3" strokeWidth={2} />
+                <Copy aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
               ) : (
-                <Square aria-hidden="true" className="size-3" strokeWidth={2} />
+                <Square aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
               )}
             </button>
             <button
               aria-label="Close window"
-              className="grid size-5 place-items-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="grid size-6 place-items-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => void window.windowControls?.close()}
               type="button"
             >
-              <X aria-hidden="true" className="size-3" strokeWidth={2} />
+              <X aria-hidden="true" className="size-3.5" strokeWidth={1.75} />
             </button>
           </div>
         ) : null}

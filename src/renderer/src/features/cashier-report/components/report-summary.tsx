@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { format } from 'date-fns'
-import { Plus } from 'lucide-react'
+import { addDays, format, startOfDay } from 'date-fns'
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -24,7 +24,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import type { DateSelectorValue } from '@/../../components/reui/date-selector'
 import { useActiveReport } from '@/contexts/active-report-context'
+import { ReportDateDialog } from '@/features/cashier-report/components/report-date-dialog'
 import { cn } from '@/lib/utils'
 import { formatCentavos } from '@/lib/currency'
 import type { DailyReportSnapshotResponse, ExpenseSummaryTotals } from '@/../../shared/contracts'
@@ -347,18 +349,33 @@ export const ReportSummary = React.memo(function ReportSummary({
   refreshKey,
   reportId: reportIdOverride,
   businessDate,
+  branchId,
+  cashierUserId,
+  dateRange,
+  isDateLoading = false,
+  onDateRangeChange,
   expenseTotals
 }: {
   alwaysDark?: boolean
   refreshKey?: string
   reportId?: string
   businessDate?: string
+  branchId: string
+  cashierUserId: string
+  dateRange: DateSelectorValue
+  isDateLoading?: boolean
+  onDateRangeChange: (value: DateSelectorValue) => void
   expenseTotals: ExpenseSummaryTotals
 }): React.JSX.Element {
   const { reportId: activeReportId, businessDate: activeBusinessDate } = useActiveReport()
   const reportId = reportIdOverride ?? activeReportId
   const reportBusinessDate = businessDate ?? activeBusinessDate
   const isToday = reportBusinessDate === format(new Date(), 'yyyy-MM-dd')
+  const startDate = dateRange.startDate
+  const today = startOfDay(new Date())
+  const selectedDay = startDate ? startOfDay(startDate) : undefined
+  const selectDate = (date: Date): void =>
+    onDateRangeChange({ period: 'day', operator: 'is', startDate: date, endDate: date })
   const [snapshot, setSnapshot] = React.useState<Snapshot>()
   const [error, setError] = React.useState<string>()
   const [openDialog, setOpenDialog] = React.useState<OpenDialog>(null)
@@ -609,6 +626,37 @@ export const ReportSummary = React.memo(function ReportSummary({
             </h2>
           </div>
           <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="View previous business day"
+                disabled={isDateLoading || !startDate}
+                onClick={() => startDate && selectDate(addDays(startDate, -1))}
+              >
+                <ChevronLeft aria-hidden="true" />
+              </Button>
+              <ReportDateDialog
+                branchId={branchId}
+                cashierUserId={cashierUserId}
+                date={startDate}
+                disabled={isDateLoading}
+                onSelect={selectDate}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="View next business day"
+                disabled={
+                  isDateLoading || !selectedDay || selectedDay.getTime() >= today.getTime()
+                }
+                onClick={() => startDate && selectDate(addDays(startDate, 1))}
+              >
+                <ChevronRight aria-hidden="true" />
+              </Button>
+            </div>
             <Popover open={isReceiptPickerOpen} onOpenChange={setIsReceiptPickerOpen}>
               <PopoverTrigger
                 render={
@@ -862,7 +910,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                 />
                 <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero valueMuted />
                 <SummaryRow
-                  label="e-walltet"
+                  label="E-wallet"
                   value={paymentTotals.otherEwallet}
                   hideWhenZero
                   valueMuted
