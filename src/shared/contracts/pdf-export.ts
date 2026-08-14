@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 export const pdfPreviewRequestSchema = z.object({
-  html: z.string().min(1).max(2_000_000)
+  html: z.string().min(1).max(2_000_000),
+  fileName: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,140}\.pdf$/)
 })
 
 export const pdfPreviewResponseSchema = z.object({

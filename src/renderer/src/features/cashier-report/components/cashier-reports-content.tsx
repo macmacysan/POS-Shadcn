@@ -1350,10 +1350,12 @@ export function CashierReportsContent({
         })
       ])
       const branch = selectedBranch === 'All Branch' ? 'All Branch' : selectedBranch
+      const now = new Date()
       const html = cashierReportPdfHtml({
         cashierName,
         branch,
         businessDate: selectedReport.businessDate,
+        generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
         snapshot,
         expenses: allExpenses,
         incomes: incomeResult.rows,
@@ -1368,10 +1370,9 @@ export function CashierReportsContent({
           blacklisted: blacklisted.rows.length
         }
       })
-      const now = new Date()
       const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
       const fileName = `${filenameSegment(cashierName)}-${filenameSegment(branch)}-${selectedReport.businessDate}-${time}.pdf`
-      const { pdfBase64 } = await window.api.pdfExport.preview({ html })
+      const { pdfBase64 } = await window.api.pdfExport.preview({ html, fileName })
       setPdfProgress(initialPdfProgress)
       setTelegramNote('')
       setPdfPreview({ fileName, pdfBase64 })

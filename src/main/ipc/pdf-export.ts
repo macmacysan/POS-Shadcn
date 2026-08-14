@@ -11,7 +11,7 @@ import {
 import { AppError, toIpcError } from '../database/errors'
 import { TelegramSettingsService } from '../services/telegram-settings-service'
 
-async function createPdf(html: string): Promise<Buffer> {
+async function createPdf(html: string, fileName: string): Promise<Buffer> {
   const printWindow = new BrowserWindow({
     show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -23,8 +23,7 @@ async function createPdf(html: string): Promise<Buffer> {
       printBackground: false,
       displayHeaderFooter: true,
       headerTemplate: '<span></span>',
-      footerTemplate:
-        '<div style="width:100%;font-size:8px;color:#555;text-align:center">Cashier Report · Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>'
+      footerTemplate: `<div style="width:100%;font-size:8px;color:#555;text-align:center">${fileName} · Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>`
     })
   } finally {
     if (!printWindow.isDestroyed()) printWindow.destroy()
@@ -41,8 +40,8 @@ function pdfFromBase64(pdfBase64: string): Buffer {
 export function registerPdfExportIpc(telegramSettings: TelegramSettingsService): void {
   ipcMain.handle(pdfExportIpcChannels.preview, async (_event, input: unknown) => {
     try {
-      const { html } = pdfPreviewRequestSchema.parse(input)
-      return { pdfBase64: (await createPdf(html)).toString('base64') }
+      const { html, fileName } = pdfPreviewRequestSchema.parse(input)
+      return { pdfBase64: (await createPdf(html, fileName)).toString('base64') }
     } catch (error) {
       throw toIpcError(error)
     }
