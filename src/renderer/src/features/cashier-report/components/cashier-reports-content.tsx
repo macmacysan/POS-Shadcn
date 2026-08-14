@@ -499,7 +499,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'description',
     header: 'Description',
-    size: 240,
+    size: 220,
     cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
     meta: { className: 'min-w-0', autoSize: true }
   },
@@ -522,7 +522,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'vat',
     header: 'VAT',
-    size: 70,
+    size: 80,
     meta: { className: 'text-xs text-muted-foreground' }
   },
   {
@@ -630,7 +630,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'date',
     header: 'Date',
-    size: 88,
+    size: 100,
     meta: { className: 'text-muted-foreground' }
   },
   {

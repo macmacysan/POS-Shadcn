@@ -274,7 +274,7 @@ export function UniversalDataTable<TData extends object>({
       {showPagination && (
         <div
           className={cn(
-            'flex h-7 shrink-0 items-center justify-between gap-3 border-t px-3 text-xs',
+            'flex h-10 shrink-0 items-center justify-between gap-3 border-t px-3 text-xs',
             paginationClassName
           )}
         >
