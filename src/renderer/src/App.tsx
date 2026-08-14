@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { LoginForm } from '@/features/authentication'
+import { InitialAdminSetup, LoginForm } from '@/features/authentication'
 import { CashierReportsContent } from '@/features/cashier-report'
 import { InHouseActiveAccountsContent, InHouseAccountsContent } from '@/features/in-house-accounts'
 import { FinanceAccountsContent } from '@/features/finance-accounts'
@@ -71,7 +71,8 @@ function Workspace({
   onSummaryAlwaysDarkChange,
   onLogout,
   selectedBranch,
-  isAdmin
+  isAdmin,
+  cashierName
 }: {
   isDark: boolean
   onToggleTheme: () => void
@@ -80,6 +81,7 @@ function Workspace({
   onLogout: () => void
   selectedBranch: LoginBranch
   isAdmin: boolean
+  cashierName: string
 }): React.JSX.Element {
   const initialPaymentRoute = readPaymentRoute()
   const [activeView, setActiveView] = useState<ActiveView>(
@@ -196,6 +198,7 @@ function Workspace({
           <CashierReportsContent
             summaryAlwaysDark={summaryAlwaysDark}
             selectedBranch={selectedBranch}
+            cashierName={cashierName}
           />
         ) : activeView === 'installment-overview' ? (
           <InstallmentOverviewContent
@@ -247,6 +250,7 @@ function Workspace({
 function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser>()
+  const [needsSetup, setNeedsSetup] = useState<boolean>()
   const [isDark, setIsDark] = useState(() => {
     return localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
   })
@@ -264,6 +268,8 @@ function App(): React.JSX.Element {
   useEffect(() => {
     localStorage.setItem(SUMMARY_DARK_STORAGE_KEY, String(summaryAlwaysDark))
   }, [summaryAlwaysDark])
+
+  useEffect(() => { void window.api.auth.needsSetup().then(setNeedsSetup).catch(() => setNeedsSetup(false)) }, [])
 
   const toggleTheme = (): void => setIsDark((current) => !current)
   const logout = async (): Promise<void> => {
@@ -290,18 +296,19 @@ function App(): React.JSX.Element {
                   onLogout={() => void logout()}
                   selectedBranch={selectedBranch}
                   isAdmin={authenticatedUser.role === 'ADMIN'}
+                  cashierName={authenticatedUser.displayName}
                 />
               </div>
             </ActiveReportProvider>
-          ) : (
+          ) : needsSetup === undefined ? null : (
             <main className="flex h-full w-full items-center justify-center bg-background px-6 py-8">
-              <LoginForm
+              {needsSetup ? <InitialAdminSetup onSuccess={(user) => { setSelectedBranch('All Branch'); setAuthenticatedUser(user); setIsLoggedIn(true); setNeedsSetup(false) }} /> : <LoginForm
                 onSuccess={(branch, user) => {
                   setSelectedBranch(branch)
                   setAuthenticatedUser(user)
                   setIsLoggedIn(true)
                 }}
-              />
+              />}
             </main>
           )}
         </div>

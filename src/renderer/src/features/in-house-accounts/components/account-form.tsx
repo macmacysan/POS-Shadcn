@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Check, Plus, Search, Trash2 } from 'lucide-react'
+import { Check, Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { CardFooter } from '@/components/ui/card'
@@ -44,14 +44,13 @@ import {
 import { formatPhilippinePeso } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { AddressMapPicker } from '@/features/in-house-accounts/components/address-map-picker'
 import {
   agentOptions,
   branchLabels,
   branchNames,
   formatAccountName,
-  loanTermOptions,
-  paymentFrequencyOptions,
   suffixOptions,
   type AccountAddressSelection,
   type AccountContact,
@@ -74,6 +73,8 @@ import {
   type PsgcOption
 } from '@/lib/psgc'
 import type { CatalogOptionRecord } from '../../../../../shared/contracts'
+import type { InstallmentFrequency, InstallmentRulesRecord } from '../../../../../shared/contracts'
+import { calculateInstallment } from '../../../../../shared/installment-calculations'
 import type { PersistedInstallmentRow } from '@/features/in-house-accounts/installment-data'
 
 export type InHouseAccountWorkflowSave =
@@ -135,6 +136,21 @@ const emptyLoanDraft: LoanDraft = {
   items: [{ id: 'new-item', name: '', quantity: 1, price: 0 }],
   remarks: ''
 }
+
+const newAccountSteps = [
+  { step: 1, title: 'Account', description: 'Choose a record' },
+  { step: 2, title: 'Personal', description: 'Set customer identity' },
+  { step: 3, title: 'Contact & Work', description: 'Add contact details' },
+  { step: 4, title: 'Address & Location', description: 'Set address and pin' },
+  { step: 5, title: 'Loan', description: 'Set loan terms' },
+  { step: 6, title: 'Review', description: 'Confirm and create' }
+] as const
+
+const existingAccountSteps = [
+  { step: 1, title: 'Account', description: 'Choose a customer' },
+  { step: 5, title: 'Loan', description: 'Set loan terms' },
+  { step: 6, title: 'Review', description: 'Confirm and create' }
+] as const
 
 function id(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`
@@ -339,14 +355,23 @@ function EmailRows({
 
 function ReviewSection({
   title,
+  onEdit,
   children
 }: {
   readonly title: string
+  readonly onEdit?: () => void
   readonly children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className="rounded-lg border bg-card p-3">
-      <h3 className="mb-2 text-xs font-semibold text-foreground">{title}</h3>
+    <section className="border-b pb-3 last:border-b-0">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-foreground">{title}</h3>
+        {onEdit && (
+          <Button type="button" variant="ghost" size="xs" onClick={onEdit}>
+            Edit
+          </Button>
+        )}
+      </div>
       <div className="grid gap-2 text-xs sm:grid-cols-2">{children}</div>
     </section>
   )
@@ -384,6 +409,7 @@ export function InHouseAccountForm({
   const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>()
   const [step, setStep] = React.useState(1)
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
+  const [installmentRules, setInstallmentRules] = React.useState<InstallmentRulesRecord>()
   const [address, setAddress] = React.useState<{
     province?: PsgcOption
     cityMunicipality?: PsgcOption
@@ -393,20 +419,32 @@ export function InHouseAccountForm({
   const [mapZoom, setMapZoom] = React.useState(14)
   const [geocodeMessage, setGeocodeMessage] = React.useState<string>()
   const geocodeSequence = React.useRef(0)
+  const wizardSteps = mode === 'new' ? newAccountSteps : existingAccountSteps
+  const currentStepIndex = wizardSteps.findIndex((item) => item.step === step)
   React.useEffect(() => {
     void window.api.catalogOptions
       .list({ activeOnly: true })
       .then(({ rows }) => setCatalogOptions(rows))
       .catch(() => undefined)
   }, [])
+  React.useEffect(() => {
+    void window.api.installmentRules.getActive().then(setInstallmentRules).catch(() => undefined)
+  }, [])
   const agents = catalogOptions
     .filter((option) => option.kind === 'IN_HOUSE_AGENT')
     .map((option) => option.value)
-  const monthlyTerms = Array.from({ length: 12 }, (_, index) => index + 1)
+  const monthlyTerms = installmentRules?.monthlyPlans.map((plan) => plan.terms) ?? []
   const setAccount = <K extends keyof AccountDraft>(key: K, value: AccountDraft[K]): void =>
     setAccountDraft((current) => ({ ...current, [key]: value }))
   const setLoan = <K extends keyof LoanDraft>(key: K, value: LoanDraft[K]): void =>
     setLoanDraft((current) => ({ ...current, [key]: value }))
+  const calculatedLoan = React.useMemo(() => {
+    if (!installmentRules) return loanDraft
+    const frequency = (loanDraft.paymentFrequency === 'Semi-monthly' ? 'Semi' : loanDraft.paymentFrequency) as InstallmentFrequency
+    if (!['Daily', 'Weekly', 'Semi', 'Monthly'].includes(frequency)) return loanDraft
+    const calculation = calculateInstallment({ releaseDate: loanDraft.dateReleased, frequency, terms: Number.parseInt(loanDraft.terms, 10), items: loanDraft.items.map((item) => ({ quantity: item.quantity, unitPriceCentavos: Math.round(item.price * 100) })), actualDownPaymentCentavos: Math.round(loanDraft.downPayment * 100) }, installmentRules)
+    return { ...loanDraft, paymentFrequency: frequency, startDate: calculation.startDate ?? '', firstDueDate: calculation.endDate ?? '', principal: calculation.grandTotalCentavos / 100, grandTotal: calculation.grandTotalCentavos / 100, interest: (calculation.interestCentavos ?? 0) / 100, fees: (calculation.requiredFeeCentavos ?? 0) / 100, installmentAmount: (calculation.paymentAmountCentavos ?? 0) / 100 }
+  }, [installmentRules, loanDraft])
 
   const geocodeAddress = React.useCallback(
     async (
@@ -441,7 +479,7 @@ export function InHouseAccountForm({
         setLocationSource('geocoded')
         setMapZoom(zoom)
         setGeocodeMessage(undefined)
-      } catch (error) {
+      } catch {
         if (request !== geocodeSequence.current) return
         setGeocodeMessage('Location could not be found automatically. Set it manually on the map.')
       }
@@ -458,34 +496,50 @@ export function InHouseAccountForm({
     ) as AccountValidationErrors
   }
 
+  const focusFirstInvalidField = (): void => {
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+    )
+  }
+
   const continueStep = (): void => {
     if (step === 1 && mode === 'existing' && !selectedCustomerId) return
     if (step === 2) {
       const errors = validateAccountFields(['branch', 'lastName', 'firstName'])
       setAccountErrors(errors)
-      if (Object.keys(errors).length) return
+      if (Object.keys(errors).length) {
+        focusFirstInvalidField()
+        return
+      }
     }
     if (step === 3) {
       const errors = validateAccountFields(['contacts', 'emails'])
       setAccountErrors(errors)
-      if (Object.keys(errors).length) return
+      if (Object.keys(errors).length) {
+        focusFirstInvalidField()
+        return
+      }
     }
     if (step === 5) {
-      const errors = validateLoanDraft(normalizeLoanDraft(loanDraft))
+      const errors = validateLoanDraft(normalizeLoanDraft(calculatedLoan))
       setLoanErrors(errors)
-      if (Object.keys(errors).length) return
+      if (Object.keys(errors).length) {
+        focusFirstInvalidField()
+        return
+      }
     }
-    setStep((current) => Math.min(current + 1, 6))
+    setStep(wizardSteps[Math.min(currentStepIndex + 1, wizardSteps.length - 1)].step)
   }
 
   const save = async (): Promise<void> => {
     if (isSubmitting) return
     setFormError(undefined)
-    const normalizedLoan = normalizeLoanDraft(loanDraft)
+    const normalizedLoan = normalizeLoanDraft(calculatedLoan)
     const loanValidation = validateLoanDraft(normalizedLoan)
     setLoanErrors(loanValidation)
     if (Object.keys(loanValidation).length) {
-      setStep(3)
+      setStep(5)
+      focusFirstInvalidField()
       return
     }
 
@@ -493,11 +547,19 @@ export function InHouseAccountForm({
     const accountValidation = validateAccountDraft(normalizedAccount)
     setAccountErrors(accountValidation)
     if (Object.keys(accountValidation).length) {
+      if (mode === 'existing') {
+        setFormError(
+          'The selected account is missing required customer details. Select another account or update it first.'
+        )
+        setStep(1)
+        return
+      }
       setStep(
         accountValidation.branch || accountValidation.lastName || accountValidation.firstName
           ? 2
           : 3
       )
+      focusFirstInvalidField()
       return
     }
     setIsSubmitting(true)
@@ -542,6 +604,9 @@ export function InHouseAccountForm({
       ).values()
     )
   }, [existingRows, existingSearch])
+  const selectedExistingCustomer = existingCustomers.find(
+    (row) => row.account.id === selectedCustomerId
+  )
 
   return (
     <form
@@ -549,33 +614,29 @@ export function InHouseAccountForm({
       onInputCapture={() => onDirtyChange?.(true)}
       onSubmit={(event) => {
         event.preventDefault()
-        void save()
+        if (step === 6) void save()
       }}
     >
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-6 p-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
+        <div className="grid gap-4 p-4 lg:grid-cols-[11rem_minmax(0,1fr)]">
           {formError && <FieldError className="lg:col-span-2">{formError}</FieldError>}
 
           <Stepper
             value={step}
-            onValueChange={setStep}
+            onValueChange={(nextStep) => {
+              const nextIndex = wizardSteps.findIndex((item) => item.step === nextStep)
+              if (nextIndex >= 0 && nextIndex <= currentStepIndex) setStep(nextStep)
+            }}
             orientation="vertical"
             indicators={{ completed: <Check /> }}
             className="sticky top-0 self-start border-r bg-background pr-4 lg:row-span-4"
           >
             <StepperNav>
-              {[
-                ['Account', 'Choose a record'],
-                ['Personal', 'Set client identity'],
-                ['Contact & Work', 'Add contact details'],
-                ['Address & Location', 'Add optional address details'],
-                ['Loan', 'Set loan terms'],
-                ['Review', 'Confirm and create']
-              ].map(([title, description], index) => (
+              {wizardSteps.map(({ step: stepNumber, title, description }, index) => (
                 <StepperItem
                   key={title}
-                  step={index + 1}
-                  disabled={index + 1 > step}
+                  step={stepNumber}
+                  disabled={index > currentStepIndex}
                   className="relative items-start not-last:flex-1"
                 >
                   <StepperTrigger className="items-start gap-2.5 pb-10 text-left last:pb-0">
@@ -585,7 +646,7 @@ export function InHouseAccountForm({
                       <StepperDescription className="text-xs">{description}</StepperDescription>
                     </span>
                   </StepperTrigger>
-                  {index < 5 && (
+                  {index < wizardSteps.length - 1 && (
                     <StepperSeparator className="absolute inset-y-0 top-7 left-3 -order-1 m-0 -translate-x-1/2 group-data-[orientation=vertical]/stepper-nav:h-[calc(100%-2rem)]" />
                   )}
                 </StepperItem>
@@ -596,22 +657,48 @@ export function InHouseAccountForm({
           <FieldGroup className={cn('lg:col-start-2', step !== 1 && 'hidden')}>
             <FieldSet className="gap-3">
               <FieldLegend variant="label">Account</FieldLegend>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={mode === 'new' ? 'default' : 'outline'}
-                  onClick={() => setMode('new')}
-                >
-                  New Account
-                </Button>
-                <Button
-                  type="button"
-                  variant={mode === 'existing' ? 'default' : 'outline'}
-                  onClick={() => setMode('existing')}
-                >
-                  Existing Account
-                </Button>
-              </div>
+              <ToggleGroup
+                value={[mode]}
+                variant="outline"
+                spacing={0}
+                aria-label="Account type"
+                onValueChange={(value) => {
+                  const selected = value[0]
+                  if (!selected) return
+                  const nextMode = selected as 'new' | 'existing'
+                  setMode(nextMode)
+                  setStep(1)
+                }}
+              >
+                <ToggleGroupItem value="new">New Account</ToggleGroupItem>
+                <ToggleGroupItem value="existing">Existing Account</ToggleGroupItem>
+              </ToggleGroup>
+              <FieldDescription>
+                {mode === 'new'
+                  ? 'Create a customer record and its first loan.'
+                  : 'Select an existing customer, then create a new loan without re-entering their details.'}
+              </FieldDescription>
+              {mode === 'new' && (
+                <Field data-invalid={Boolean(accountErrors.branch)} className="max-w-sm">
+                  <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
+                  <Select
+                    value={accountDraft.branch}
+                    onValueChange={(value) => setAccount('branch', value as AccountDraft['branch'])}
+                  >
+                    <SelectTrigger id="account-branch" aria-invalid={Boolean(accountErrors.branch)}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branchNames.map((branch) => (
+                        <SelectItem key={branch} value={branch}>
+                          {branchLabels[branch]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError>{accountErrors.branch}</FieldError>
+                </Field>
+              )}
               {mode === 'existing' && (
                 <FieldGroup className="gap-2">
                   <Field>
@@ -625,13 +712,13 @@ export function InHouseAccountForm({
                       placeholder="Search client name..."
                     />
                   </Field>
-                  <div className="max-h-48 overflow-y-auto rounded-md border">
+                  <div className="max-h-56 overflow-y-auto rounded-md border">
                     {existingCustomers.slice(0, 25).map((row) => (
                       <Button
                         key={row.account.id}
                         type="button"
                         variant={selectedCustomerId === row.account.id ? 'secondary' : 'ghost'}
-                        className="w-full justify-start rounded-none"
+                        className="h-auto w-full justify-start rounded-none px-3 py-2 text-left"
                         onClick={() => {
                           setSelectedCustomerId(row.account.id)
                           setAccountDraft({
@@ -642,15 +729,31 @@ export function InHouseAccountForm({
                           })
                         }}
                       >
-                        <Search data-icon="inline-start" />
-                        {formatAccountName(row.account)} · {row.account.branch} · {row.meta.status}
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="font-medium">{formatAccountName(row.account)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {row.account.id} · {row.account.branch} · {row.meta.status}
+                          </span>
+                        </span>
                       </Button>
                     ))}
                   </div>
-                  {selectedCustomerId && (
-                    <p className="text-sm text-muted-foreground">
-                      Client selected. Continue to verify and update their details.
-                    </p>
+                  {selectedExistingCustomer && (
+                    <div className="grid gap-1 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-3">
+                      <span className="font-medium">
+                        {formatAccountName(selectedExistingCustomer.account)}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {selectedExistingCustomer.account.contacts.find(
+                          (contact) => contact.isPrimary
+                        )?.value ?? 'No primary contact'}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {selectedExistingCustomer.account.barangay ||
+                          selectedExistingCustomer.account.cityMunicipality ||
+                          'No address recorded'}
+                      </span>
+                    </div>
                   )}
                 </FieldGroup>
               )}
@@ -659,31 +762,8 @@ export function InHouseAccountForm({
 
           <FieldGroup className={cn('gap-4 lg:col-start-2', step !== 2 && 'hidden')}>
             <FieldSet className="gap-3">
-              <FieldLegend variant="label">Customer classification</FieldLegend>
-              <Field data-invalid={Boolean(accountErrors.branch)}>
-                <FieldLabel htmlFor="account-branch">Branch</FieldLabel>
-                <Select
-                  value={accountDraft.branch}
-                  onValueChange={(value) => setAccount('branch', value as AccountDraft['branch'])}
-                >
-                  <SelectTrigger id="account-branch" aria-invalid={Boolean(accountErrors.branch)}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branchNames.map((branch) => (
-                      <SelectItem key={branch} value={branch}>
-                        {branchLabels[branch]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FieldError>{accountErrors.branch}</FieldError>
-              </Field>
-            </FieldSet>
-            <FieldSeparator />
-            <FieldSet className="gap-3">
-              <FieldLegend variant="label">Name</FieldLegend>
-              <FieldGroup className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_10%]">
+              <FieldLegend variant="label">Identity</FieldLegend>
+              <FieldGroup className="grid max-w-4xl gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_8rem]">
                 <Field data-invalid={Boolean(accountErrors.lastName)}>
                   <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
                   <Input
@@ -705,7 +785,9 @@ export function InHouseAccountForm({
                   <FieldError>{accountErrors.firstName}</FieldError>
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="middle-name">Middle Name</FieldLabel>
+                  <FieldLabel htmlFor="middle-name">
+                    Middle Name <span className="text-muted-foreground">(optional)</span>
+                  </FieldLabel>
                   <Input
                     id="middle-name"
                     value={accountDraft.middleName}
@@ -713,7 +795,9 @@ export function InHouseAccountForm({
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="suffix">Suffix</FieldLabel>
+                  <FieldLabel htmlFor="suffix">
+                    Suffix <span className="text-muted-foreground">(optional)</span>
+                  </FieldLabel>
                   <Select
                     value={accountDraft.suffix || undefined}
                     onValueChange={(value) => setAccount('suffix', value ?? '')}
@@ -1021,20 +1105,20 @@ export function InHouseAccountForm({
                   <Input
                     id="start-date"
                     type="date"
-                    value={loanDraft.startDate}
+                    value={calculatedLoan.startDate}
                     aria-invalid={Boolean(loanErrors.startDate)}
-                    onChange={(event) => setLoan('startDate', event.target.value)}
+                    readOnly
                   />
                   <FieldError>{loanErrors.startDate}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(loanErrors.firstDueDate)}>
-                  <FieldLabel htmlFor="first-due-date">First Due Date</FieldLabel>
+                  <FieldLabel htmlFor="first-due-date">End Date</FieldLabel>
                   <Input
                     id="first-due-date"
                     type="date"
-                    value={loanDraft.firstDueDate}
+                    value={calculatedLoan.firstDueDate}
                     aria-invalid={Boolean(loanErrors.firstDueDate)}
-                    onChange={(event) => setLoan('firstDueDate', event.target.value)}
+                    readOnly
                   />
                   <FieldError>{loanErrors.firstDueDate}</FieldError>
                 </Field>
@@ -1043,15 +1127,12 @@ export function InHouseAccountForm({
                   <Select
                     value={loanDraft.paymentFrequency}
                     onValueChange={(value) => {
-                      const paymentFrequency = value as LoanDraft['paymentFrequency']
-                      const count = Math.max(1, Number.parseInt(loanDraft.terms, 10) || 1)
+                      const paymentFrequency = value as InstallmentFrequency
+                      const terms = paymentFrequency === 'Daily' ? installmentRules?.dailyPlans.map((plan) => plan.terms) : paymentFrequency === 'Weekly' ? installmentRules?.weeklyTerms : paymentFrequency === 'Semi' ? installmentRules?.semiTerms : installmentRules?.monthlyPlans.map((plan) => plan.terms)
                       setLoanDraft((current) => ({
                         ...current,
                         paymentFrequency,
-                        terms:
-                          paymentFrequency === 'Monthly'
-                            ? `${Math.min(count, 12)} month${count === 1 ? '' : 's'}`
-                            : String(count)
+                        terms: terms?.length ? String(terms[0]) : ''
                       }))
                     }}
                   >
@@ -1059,9 +1140,9 @@ export function InHouseAccountForm({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {paymentFrequencyOptions.map((frequency) => (
+                      {(['Daily', 'Weekly', 'Semi', 'Monthly'] as const).map((frequency) => (
                         <SelectItem key={frequency} value={frequency}>
-                          {frequency}
+                          {frequency === 'Semi' ? 'Semi-monthly' : frequency}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1069,8 +1150,8 @@ export function InHouseAccountForm({
                   <FieldError>{loanErrors.paymentFrequency}</FieldError>
                 </Field>
                 <Field data-invalid={Boolean(loanErrors.terms)}>
-                  <FieldLabel htmlFor="terms">Terms</FieldLabel>
-                  {loanDraft.paymentFrequency === 'Monthly' ? (
+                  <FieldLabel htmlFor="terms">No. of Payments</FieldLabel>
+                  {(
                     <Select
                       value={loanDraft.terms}
                       onValueChange={(value) => setLoan('terms', value ?? '')}
@@ -1079,26 +1160,13 @@ export function InHouseAccountForm({
                         <SelectValue placeholder="Select terms" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(monthlyTerms.length
-                          ? monthlyTerms.map((term) => `${term} month${term === 1 ? '' : 's'}`)
-                          : loanTermOptions
-                        ).map((term) => (
-                          <SelectItem key={term} value={term}>
+                        {((loanDraft.paymentFrequency === 'Daily' ? installmentRules?.dailyPlans.map((plan) => plan.terms) : loanDraft.paymentFrequency === 'Weekly' ? installmentRules?.weeklyTerms : loanDraft.paymentFrequency === 'Semi' ? installmentRules?.semiTerms : monthlyTerms) ?? []).map((term) => (
+                          <SelectItem key={term} value={String(term)}>
                             {term}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <Input
-                      id="terms"
-                      type="number"
-                      min={1}
-                      inputMode="numeric"
-                      value={loanDraft.terms}
-                      aria-invalid={Boolean(loanErrors.terms)}
-                      onChange={(event) => setLoan('terms', event.target.value)}
-                    />
                   )}
                   <FieldError>{loanErrors.terms}</FieldError>
                 </Field>
@@ -1106,16 +1174,11 @@ export function InHouseAccountForm({
             </FieldSet>
             <FieldSeparator />
             <FieldSet className="gap-3">
-              <FieldLegend variant="label">Financial summary</FieldLegend>
-              <FieldGroup className="grid gap-3 sm:grid-cols-3">
+              <FieldLegend variant="label">Payment Summary</FieldLegend>
+              <FieldGroup className="grid max-w-3xl gap-3 sm:grid-cols-2">
                 {(
                   [
-                    ['principal', 'Principal'],
-                    ['interest', 'Interest'],
-                    ['downPayment', 'Down Payment'],
-                    ['fees', 'Fees'],
-                    ['installmentAmount', 'Installment Amount'],
-                    ['grandTotal', 'Grand Total']
+                    ['downPayment', 'Down Payment']
                   ] as const
                 ).map(([key, label]) => (
                   <Field key={key} data-invalid={Boolean(loanErrors[key])}>
@@ -1134,11 +1197,30 @@ export function InHouseAccountForm({
                 ))}
               </FieldGroup>
             </FieldSet>
-            <Collapsible>
-              <CollapsibleTrigger className="w-full rounded-md border border-dashed px-3 py-2 text-left text-sm font-medium hover:bg-muted">
-                Items, collateral &amp; remarks
-              </CollapsibleTrigger>
-              <CollapsibleContent className="flex flex-col gap-4 pt-3">
+            <FieldSeparator />
+            <FieldSet className="gap-3">
+              <FieldLegend variant="label">Calculated Summary</FieldLegend>
+              <div className="grid max-w-3xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ['Grand Total', money(calculatedLoan.grandTotal)],
+                  ['Payment Amount', money(calculatedLoan.installmentAmount)],
+                  ['Required Fee', money(calculatedLoan.fees)],
+                  ['Interest', money(calculatedLoan.interest)],
+                  ['Total Installment', money(calculatedLoan.grandTotal + calculatedLoan.interest)]
+                ].map(([label, value]) => (
+                  <div key={label} className="border-l-2 border-primary/30 pl-3">
+                    <div className="text-xs text-muted-foreground">{label}</div>
+                    <div className="font-medium tabular-nums text-foreground">{value}</div>
+                  </div>
+                ))}
+              </div>
+              <FieldError>{loanErrors.principal || loanErrors.installmentAmount || loanErrors.grandTotal}</FieldError>
+            </FieldSet>
+              <Collapsible defaultOpen>
+               <CollapsibleTrigger className="w-full rounded-md border px-3 py-2 text-left text-sm font-medium hover:bg-muted">
+                 Items / Collateral / Remarks
+               </CollapsibleTrigger>
+               <CollapsibleContent className="flex flex-col gap-4 pt-3">
                 <FieldSet className="gap-3">
                   <div className="flex items-center justify-between gap-2">
                     <FieldLegend variant="label">Items / Collateral</FieldLegend>
@@ -1150,7 +1232,7 @@ export function InHouseAccountForm({
                   <FieldGroup className="gap-2">
                     {loanDraft.items.map((item) => (
                       <div
-                        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_8rem_auto]"
+                        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_8rem_8rem_auto]"
                         key={item.id}
                       >
                         <Input
@@ -1168,6 +1250,7 @@ export function InHouseAccountForm({
                             )
                           }
                         />
+                        <output className="flex items-center justify-end tabular-nums text-sm">{money(item.quantity * item.price)}</output>
                         <Input
                           aria-label="Quantity"
                           type="number"
@@ -1227,19 +1310,25 @@ export function InHouseAccountForm({
           </FieldGroup>
 
           <div className={cn('grid gap-3 lg:col-start-2', step !== 6 && 'hidden')}>
-            <ReviewSection title="Customer">
+            <ReviewSection title="Customer" onEdit={() => setStep(1)}>
               <ReviewValue label="Name" value={customerName} />
               <ReviewValue label="Branch" value={branchLabels[accountDraft.branch]} />
-              <ReviewValue
-                label="Contact"
-                value={accountDraft.contacts.find((contact) => contact.isPrimary)?.value}
-              />
               <ReviewValue
                 label="Entry"
                 value={mode === 'new' ? 'New account' : 'Existing account'}
               />
             </ReviewSection>
-            <ReviewSection title="Address & Location">
+            <ReviewSection title="Contact" onEdit={mode === 'new' ? () => setStep(3) : undefined}>
+              <ReviewValue
+                label="Primary contact"
+                value={accountDraft.contacts.find((contact) => contact.isPrimary)?.value}
+              />
+              <ReviewValue
+                label="Email"
+                value={accountDraft.emails.find((email) => email.isPrimary)?.value}
+              />
+            </ReviewSection>
+            <ReviewSection title="Address" onEdit={mode === 'new' ? () => setStep(4) : undefined}>
               <ReviewValue
                 label="Address"
                 value={[
@@ -1255,32 +1344,30 @@ export function InHouseAccountForm({
               <ReviewValue
                 label="Map pin"
                 value={
-                  accountDraft.latitude === undefined || accountDraft.longitude === undefined
+                  typeof accountDraft.latitude !== 'number' ||
+                  typeof accountDraft.longitude !== 'number'
                     ? undefined
                     : `${accountDraft.latitude.toFixed(5)}, ${accountDraft.longitude.toFixed(5)}`
                 }
               />
             </ReviewSection>
-            <ReviewSection title="Loan">
+            <ReviewSection title="Loan schedule" onEdit={() => setStep(5)}>
               <ReviewValue label="Date Released" value={loanDraft.dateReleased} />
-              <ReviewValue label="Start Date" value={loanDraft.startDate} />
-              <ReviewValue label="First Due Date" value={loanDraft.firstDueDate} />
-              <ReviewValue label="Frequency" value={loanDraft.paymentFrequency} />
-              <ReviewValue label="Terms" value={loanDraft.terms} />
-              <ReviewValue label="Installment" value={money(loanDraft.installmentAmount)} />
+              <ReviewValue label="Start Date" value={calculatedLoan.startDate} />
+              <ReviewValue label="End Date" value={calculatedLoan.firstDueDate} />
+              <ReviewValue label="Frequency" value={calculatedLoan.paymentFrequency === 'Semi' ? 'Semi-monthly' : calculatedLoan.paymentFrequency} />
+              <ReviewValue label="No. of Payments" value={calculatedLoan.terms} />
+              <ReviewValue label="Payment Amount" value={money(calculatedLoan.installmentAmount)} />
             </ReviewSection>
-            <ReviewSection title="Financial Summary">
-              <ReviewValue label="Principal" value={money(loanDraft.principal)} />
-              <ReviewValue label="Interest" value={money(loanDraft.interest)} />
-              <ReviewValue label="Down Payment" value={money(loanDraft.downPayment)} />
-              <ReviewValue label="Fees" value={money(loanDraft.fees)} />
-              <ReviewValue label="Grand Total" value={money(loanDraft.grandTotal)} />
-              <ReviewValue
-                label="Balance after down payment"
-                value={money(Math.max(loanDraft.grandTotal - loanDraft.downPayment, 0))}
-              />
+            <ReviewSection title="Loan" onEdit={() => setStep(5)}>
+              <ReviewValue label="Grand Total" value={money(calculatedLoan.grandTotal)} />
+              <ReviewValue label="Interest" value={money(calculatedLoan.interest)} />
+              <ReviewValue label="Total Installment" value={money(calculatedLoan.grandTotal + calculatedLoan.interest)} />
+              <ReviewValue label="Down Payment" value={money(calculatedLoan.downPayment)} />
+              <ReviewValue label="Payment Amount" value={money(calculatedLoan.installmentAmount)} />
+              <ReviewValue label="Required Fee" value={money(calculatedLoan.fees)} />
             </ReviewSection>
-            <ReviewSection title="Items / Collateral">
+            <ReviewSection title="Items / Collateral" onEdit={() => setStep(5)}>
               <div className="sm:col-span-2">
                 {loanDraft.items.filter((item) => item.name.trim()).length ? (
                   <ul className="space-y-1">
@@ -1291,7 +1378,7 @@ export function InHouseAccountForm({
                           <span className="truncate">
                             {item.name} x {item.quantity || 0}
                           </span>
-                          <span className="shrink-0 tabular-nums">{money(item.price)}</span>
+                           <span className="shrink-0 tabular-nums">{money(item.quantity * item.price)}</span>
                         </li>
                       ))}
                   </ul>
@@ -1308,12 +1395,16 @@ export function InHouseAccountForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        {step > 1 && (
-          <Button type="button" variant="outline" onClick={() => setStep((current) => current - 1)}>
+        {currentStepIndex > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setStep(wizardSteps[currentStepIndex - 1].step)}
+          >
             Back
           </Button>
         )}
-        {step < 6 && (
+        {currentStepIndex < wizardSteps.length - 1 && (
           <Button
             type="button"
             disabled={mode === 'existing' && !selectedCustomerId}
@@ -1324,7 +1415,7 @@ export function InHouseAccountForm({
         )}
         {step === 6 && (
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating…' : 'Create Account & Loan'}
+            {isSubmitting ? 'Creating…' : mode === 'new' ? 'Create Account & Loan' : 'Create Loan'}
           </Button>
         )}
       </CardFooter>

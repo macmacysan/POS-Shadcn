@@ -300,7 +300,7 @@ export function validateLoanDraft(draft: LoanDraft): LoanValidationErrors {
   if (!Number.isFinite(termCount) || termCount < 1) errors.terms = 'Enter a positive number of terms.'
   else if (draft.paymentFrequency === 'Monthly' && termCount > 12)
     errors.terms = 'Monthly terms must be from 1 to 12.'
-  if (draft.principal <= 0) errors.principal = 'Principal must be greater than zero.'
+  if (draft.principal <= 0) errors.principal = 'Grand Total must be greater than zero.'
   if (draft.installmentAmount <= 0)
     errors.installmentAmount = 'Installment Amount must be greater than zero.'
   if (draft.grandTotal <= 0) errors.grandTotal = 'Grand Total must be greater than zero.'

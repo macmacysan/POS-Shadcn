@@ -31,7 +31,15 @@ import { CatalogOptionService } from './services/catalog-option-service'
 import { registerCatalogOptionIpc } from './ipc/catalog-options'
 import { registerWindowIpc, showWindowMenu } from './ipc/window'
 import { registerGeocodingIpc } from './ipc/geocoding'
+import { registerPdfExportIpc } from './ipc/pdf-export'
+import { registerTelegramSettingsIpc } from './ipc/telegram-settings'
+import { registerUserProfilesIpc } from './ipc/user-profiles'
+import { InstallmentRulesRepository } from './database/installment-rules-repository'
+import { InstallmentRulesService } from './services/installment-rules-service'
+import { registerInstallmentRulesIpc } from './ipc/installment-rules'
 import { GeocodingService } from './services/geocoding-service'
+import { TelegramSettingsService } from './services/telegram-settings-service'
+import { UserProfilesService } from './services/user-profiles-service'
 import { windowIpcChannels } from '../shared/contracts'
 
 let database: ReturnType<typeof openDatabase> | undefined
@@ -114,6 +122,9 @@ app.whenReady().then(() => {
     registerCatalogOptionIpc(
       new CatalogOptionService(new CatalogOptionRepository(database), authService)
     )
+    registerInstallmentRulesIpc(
+      new InstallmentRulesService(new InstallmentRulesRepository(database), authService)
+    )
     registerExpenseIpc(new ExpenseService(new ExpenseRepository(database), authService))
     registerReportIpc(new ReportService(new ReportRepository(database), authService))
     registerDailyReportIpc(new DailyReportService(new DailyReportRepository(database), authService))
@@ -124,6 +135,13 @@ app.whenReady().then(() => {
       authService
     )
     registerGeocodingIpc(new GeocodingService())
+    const telegramSettings = new TelegramSettingsService(
+      authService,
+      join(app.getPath('userData'), 'telegram-settings.json')
+    )
+    registerTelegramSettingsIpc(telegramSettings)
+    registerPdfExportIpc(telegramSettings)
+    registerUserProfilesIpc(new UserProfilesService(new UserRepository(database), authService))
     registerWindowIpc()
   } catch (error) {
     console.error('Database initialization failed.', error)

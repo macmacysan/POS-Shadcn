@@ -11,6 +11,7 @@ import {
   geocodingIpcChannels,
   installmentIpcChannels,
   reportIpcChannels,
+  pdfExportIpcChannels,
   type ExpenseCreateInput,
   type ExpenseListRequest,
   type ExpenseUpdateInput,
@@ -22,7 +23,14 @@ import {
   type FinanceAccountsApi,
   type GeocodingApi,
   type InstallmentsApi,
+  type InstallmentRulesApi,
+  installmentRulesIpcChannels,
   type ReportRecord,
+  type PdfExportApi,
+  type TelegramSettingsApi,
+  telegramSettingsIpcChannels,
+  type UserProfilesApi,
+  userProfileIpcChannels,
   windowIpcChannels,
   type WindowControlsApi
 } from '../shared/contracts'
@@ -30,12 +38,16 @@ import {
 // Custom APIs for renderer
 const api: ExpensesApi &
   InstallmentsApi &
+  InstallmentRulesApi &
   FinanceAccountsApi &
   AuthApi &
   CatalogOptionsApi &
   DashboardApi &
   DailyReportsApi &
-  GeocodingApi = {
+  GeocodingApi &
+  PdfExportApi &
+  TelegramSettingsApi &
+  UserProfilesApi = {
   catalogOptions: {
     list: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.list, request),
     create: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.create, request),
@@ -45,7 +57,9 @@ const api: ExpensesApi &
   },
   auth: {
     login: (request) => ipcRenderer.invoke(authIpcChannels.login, request),
-    logout: () => ipcRenderer.invoke(authIpcChannels.logout)
+    logout: () => ipcRenderer.invoke(authIpcChannels.logout),
+    needsSetup: () => ipcRenderer.invoke(authIpcChannels.needsSetup),
+    setupInitialAdmin: (request) => ipcRenderer.invoke(authIpcChannels.setupInitialAdmin, request)
   },
   dashboard: {
     get: (request) => ipcRenderer.invoke(dashboardIpcChannels.get, request)
@@ -99,6 +113,11 @@ const api: ExpensesApi &
     createPayment: (request) => ipcRenderer.invoke(installmentIpcChannels.createPayment, request),
     adjustPayment: (request) => ipcRenderer.invoke(installmentIpcChannels.adjustPayment, request)
   },
+  installmentRules: {
+    getActive: () => ipcRenderer.invoke(installmentRulesIpcChannels.getActive),
+    list: () => ipcRenderer.invoke(installmentRulesIpcChannels.list),
+    save: (input) => ipcRenderer.invoke(installmentRulesIpcChannels.save, input)
+  },
   financeAccounts: {
     list: (request) => ipcRenderer.invoke(financeAccountIpcChannels.list, request),
     create: (request) => ipcRenderer.invoke(financeAccountIpcChannels.create, request),
@@ -107,6 +126,22 @@ const api: ExpensesApi &
   },
   geocoding: {
     forward: (request) => ipcRenderer.invoke(geocodingIpcChannels.forward, request)
+  },
+  pdfExport: {
+    preview: (request) => ipcRenderer.invoke(pdfExportIpcChannels.preview, request),
+    save: (request) => ipcRenderer.invoke(pdfExportIpcChannels.save, request),
+    sendTelegram: (request) => ipcRenderer.invoke(pdfExportIpcChannels.sendTelegram, request)
+  },
+  telegramSettings: {
+    get: () => ipcRenderer.invoke(telegramSettingsIpcChannels.get),
+    save: (request) => ipcRenderer.invoke(telegramSettingsIpcChannels.save, request)
+  },
+  userProfiles: {
+    list: () => ipcRenderer.invoke(userProfileIpcChannels.list),
+    create: (request) => ipcRenderer.invoke(userProfileIpcChannels.create, request),
+    update: (request) => ipcRenderer.invoke(userProfileIpcChannels.update, request),
+    resetPassword: (request) => ipcRenderer.invoke(userProfileIpcChannels.resetPassword, request),
+    audit: () => ipcRenderer.invoke(userProfileIpcChannels.audit)
   }
 }
 

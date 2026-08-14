@@ -19,8 +19,10 @@ import {
   Package,
   Phone,
   Printer,
+  FileDown,
   ReceiptText,
   Scale,
+  Send,
   ShieldCheck,
   Soup,
   Utensils,
@@ -32,6 +34,14 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ReportDataTable,
@@ -76,6 +86,7 @@ import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { formatPhilippinePeso } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
+import { useNotifications } from '@/hooks/use-notifications'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
 import { ReportDateDialog } from '@/features/cashier-report/components/report-date-dialog'
 import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hooks/use-expenses'
@@ -89,10 +100,12 @@ import {
   type ExpenseCategory,
   type ExpenseType,
   type ExpenseVat,
+  type ExpenseRecord,
   type IncomeEntryRecord,
   type InstallmentHistoryRecord as PersistedInstallmentHistoryRecord,
   type LoginBranch
 } from '@/../../shared/contracts'
+import { cashierReportPdfHtml } from '@/features/cashier-report/lib/cashier-report-pdf'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 const noopHistorySelect = (): void => undefined
@@ -280,15 +293,19 @@ function CashierReportHeader({
   cashierUserId,
   dateRange,
   isLoading,
+  isExporting,
   error,
-  onDateRangeChange
+  onDateRangeChange,
+  onExport
 }: {
   branchId: string
   cashierUserId: string
   dateRange: DateSelectorValue
   isLoading: boolean
+  isExporting: boolean
   error?: string
   onDateRangeChange: (value: DateSelectorValue) => void
+  onExport: () => void
 }): React.JSX.Element {
   const startDate = dateRange.startDate
   const today = startOfDay(new Date())
@@ -304,6 +321,16 @@ function CashierReportHeader({
         </span>
       )}
       <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isLoading || isExporting}
+          onClick={onExport}
+        >
+          <FileDown aria-hidden="true" />
+          {isExporting ? 'Preparing…' : 'Review Report'}
+        </Button>
         <Button
           type="button"
           variant="ghost"
@@ -1070,16 +1097,23 @@ function EntryFormPanel({
 
 export function CashierReportsContent({
   summaryAlwaysDark = false,
-  selectedBranch = 'All Branch'
+  selectedBranch = 'All Branch',
+  cashierName = 'Cashier'
 }: {
   summaryAlwaysDark?: boolean
   selectedBranch?: LoginBranch
+  cashierName?: string
 }): React.JSX.Element {
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
   const activeReport = useActiveReport()
   const [selectedReport, setSelectedReport] = React.useState(activeReport)
   const [isDateLoading, setIsDateLoading] = React.useState(false)
   const [dateError, setDateError] = React.useState<string>()
+  const [exportError, setExportError] = React.useState<string>()
+  const [isExporting, setIsExporting] = React.useState(false)
+  const [isSendingTelegram, setIsSendingTelegram] = React.useState(false)
+  const [pdfPreview, setPdfPreview] = React.useState<{ fileName: string; pdfBase64: string }>()
+  const { notify } = useNotifications()
   const [reportSearch, setReportSearch] = React.useState('')
   const [dateRange, setDateRange] = React.useState<DateSelectorValue>(() => {
     const today = new Date()
@@ -1221,6 +1255,118 @@ export function CashierReportsContent({
     ...incomes.map((income) => `${income.id}:${income.amount}`),
     ...payments.map((payment) => `${payment.id}:${payment.paymentMethodId}:${payment.amount}`)
   ].join(':')
+  const reviewPdf = React.useCallback(async (): Promise<void> => {
+    setIsExporting(true)
+    setExportError(undefined)
+    try {
+      const allExpenses: ExpenseRecord[] = []
+      for (let pageIndex = 0; ; pageIndex += 1) {
+        const result = await window.api.reports.expenses.list({
+          reportId,
+          pageIndex,
+          pageSize: 100,
+          search: '',
+          sorting: [],
+          filters: {}
+        })
+        allExpenses.push(...result.rows)
+        if (allExpenses.length >= result.totalRows) break
+      }
+      const [
+        snapshot,
+        incomeResult,
+        paymentResult,
+        installmentHistory,
+        records,
+        active,
+        closed,
+        blacklisted
+      ] = await Promise.all([
+        window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
+        window.api.dailyReports.listIncome({ dailyReportId: reportId, status: 'POSTED' }),
+        window.api.dailyReports.listPayments({ dailyReportId: reportId, status: 'POSTED' }),
+        window.api.installments.listHistory({
+          dateFrom: selectedReport.businessDate,
+          dateTo: selectedReport.businessDate
+        }),
+        window.api.installments.list({
+          view: 'records',
+          search: '',
+          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
+        }),
+        window.api.installments.list({
+          view: 'active',
+          search: '',
+          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
+        }),
+        window.api.installments.list({
+          view: 'closed',
+          search: '',
+          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
+        }),
+        window.api.installments.list({
+          view: 'blacklisted',
+          search: '',
+          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
+        })
+      ])
+      const branch = selectedBranch === 'All Branch' ? 'All Branch' : selectedBranch
+      const html = cashierReportPdfHtml({
+        cashierName,
+        branch,
+        businessDate: selectedReport.businessDate,
+        snapshot,
+        expenses: allExpenses,
+        incomes: incomeResult.rows,
+        payments: paymentResult.rows,
+        installmentHistory: installmentHistory.filter(
+          (item) => selectedBranch === 'All Branch' || item.branch === selectedBranch
+        ),
+        accountCounts: {
+          records: records.rows.length,
+          active: active.rows.length,
+          closed: closed.rows.length,
+          blacklisted: blacklisted.rows.length
+        }
+      })
+      const fileName = `cashier-report-${branch.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${selectedReport.businessDate}.pdf`
+      const { pdfBase64 } = await window.api.pdfExport.preview({ html })
+      setPdfPreview({ fileName, pdfBase64 })
+    } catch {
+      setExportError('The PDF could not be exported. Please try again.')
+    } finally {
+      setIsExporting(false)
+    }
+  }, [cashierName, reportId, selectedBranch, selectedReport.businessDate])
+  const exportPdf = React.useCallback(async (): Promise<void> => {
+    if (!pdfPreview) return
+    setIsExporting(true)
+    setExportError(undefined)
+    try {
+      const result = await window.api.pdfExport.save(pdfPreview)
+      if (!result.canceled) setPdfPreview(undefined)
+    } catch {
+      setExportError('The PDF could not be exported. Please try again.')
+    } finally {
+      setIsExporting(false)
+    }
+  }, [pdfPreview])
+  const sendTelegram = React.useCallback(async (): Promise<void> => {
+    if (!pdfPreview) return
+    setIsSendingTelegram(true)
+    try {
+      await window.api.pdfExport.sendTelegram(pdfPreview)
+      notify({ type: 'success', title: 'Report sent to Telegram.' })
+    } catch {
+      notify({
+        type: 'error',
+        title: 'Telegram delivery failed.',
+        description: 'Check the Telegram configuration and try again.'
+      })
+    } finally {
+      setIsSendingTelegram(false)
+    }
+  }, [notify, pdfPreview])
   const refreshEntries = React.useCallback(async (): Promise<void> => {
     const requestVersion = ++entriesRequestVersionRef.current
     setIncomeLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
@@ -1519,8 +1665,10 @@ export function CashierReportsContent({
                 cashierUserId={selectedReport.cashierUserId}
                 dateRange={dateRange}
                 isLoading={isDateLoading}
-                error={dateError}
+                isExporting={isExporting}
+                error={dateError ?? exportError}
                 onDateRangeChange={changeDateRange}
+                onExport={() => void reviewPdf()}
               />
               <Tabs
                 value={activeTab}
@@ -1700,6 +1848,38 @@ export function CashierReportsContent({
           </SheetContent>
         </Sheet>
       )}
+      <Dialog open={Boolean(pdfPreview)} onOpenChange={(open) => !open && setPdfPreview(undefined)}>
+        <DialogContent className="h-[min(92vh,56rem)] grid-rows-[auto_minmax(0,1fr)_auto] max-w-[calc(100%-2rem)] gap-3 p-4 sm:max-w-[calc(100%-4rem)]">
+          <DialogHeader>
+            <DialogTitle>Review Report</DialogTitle>
+            <DialogDescription>Review the final PDF before exporting it.</DialogDescription>
+          </DialogHeader>
+          {pdfPreview && (
+            <iframe
+              title="Cashier report PDF preview"
+              src={`data:application/pdf;base64,${pdfPreview.pdfBase64}`}
+              className="h-full min-h-0 w-full rounded-md border border-border bg-muted"
+            />
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPdfPreview(undefined)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSendingTelegram}
+              onClick={() => void sendTelegram()}
+            >
+              <Send data-icon="inline-start" />
+              {isSendingTelegram ? 'Sending…' : 'Send Telegram'}
+            </Button>
+            <Button type="button" disabled={isExporting} onClick={() => void exportPdf()}>
+              {isExporting ? 'Exporting…' : 'Export PDF'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

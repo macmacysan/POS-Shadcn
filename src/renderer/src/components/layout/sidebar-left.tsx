@@ -31,6 +31,9 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ReceiptNamesSettings } from '@/components/layout/receipt-names-settings'
 import { CatalogOptionsSettings } from '@/components/layout/catalog-options-settings'
+import { InstallmentRulesSettings } from '@/components/layout/installment-rules-settings'
+import { TelegramSettings } from '@/components/layout/telegram-settings'
+import { UserProfilesSettings } from '@/components/layout/user-profiles-settings'
 
 type ActiveView =
   | 'dashboard'
@@ -273,6 +276,16 @@ export function SidebarLeft({
                   Administration
                 </TabsTrigger>
               )}
+              {isAdmin && (
+                <TabsTrigger value="user-profiles" className="h-auto flex-none px-3 py-2 text-left">
+                  User Profiles
+                </TabsTrigger>
+              )}
+              {isAdmin && (
+                <TabsTrigger value="connection" className="h-auto flex-none px-3 py-2 text-left">
+                  Connection
+                </TabsTrigger>
+              )}
             </TabsList>
             <TabsContent value="workspace" className="min-h-0 overflow-y-auto p-6">
               <section className="flex max-w-xl flex-col gap-4">
@@ -311,6 +324,35 @@ export function SidebarLeft({
                 </section>
                 <ReceiptNamesSettings />
                 <CatalogOptionsSettings />
+                <InstallmentRulesSettings />
+              </TabsContent>
+            )}
+            {isAdmin && (
+              <TabsContent value="user-profiles" className="min-h-0 overflow-y-auto p-6">
+                <section className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium tracking-tight">User Profiles</p>
+                    <Badge variant="secondary">Admin only</Badge>
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Manage staff accounts, roles, branch assignments, and password resets.
+                  </p>
+                </section>
+                <UserProfilesSettings />
+              </TabsContent>
+            )}
+            {isAdmin && (
+              <TabsContent value="connection" className="min-h-0 overflow-y-auto p-6">
+                <section className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium tracking-tight">Connection</p>
+                    <Badge variant="secondary">Admin only</Badge>
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Configure external report delivery connections.
+                  </p>
+                </section>
+                <TelegramSettings />
               </TabsContent>
             )}
           </Tabs>

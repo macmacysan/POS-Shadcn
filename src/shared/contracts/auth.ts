@@ -13,9 +13,15 @@ export const loginRequestSchema = z.object({
   username: z.string().trim().min(1).max(100),
   password: z.string().min(1).max(200)
 })
+export const initialAdminSetupSchema = z.object({
+  displayName: z.string().trim().min(1).max(100),
+  username: z.string().trim().min(3).max(100),
+  password: z.string().min(8).max(200)
+})
 
 export type UserRole = z.infer<typeof userRoleSchema>
 export type LoginRequest = z.infer<typeof loginRequestSchema>
+export type InitialAdminSetup = z.infer<typeof initialAdminSetupSchema>
 export type FinanceBranch = (typeof financeBranchValues)[number]
 export type LoginBranch = (typeof loginBranchValues)[number]
 export type AuthenticatedUser = {
@@ -28,12 +34,16 @@ export type AuthenticatedUser = {
 
 export const authIpcChannels = {
   login: 'auth:login',
-  logout: 'auth:logout'
+  logout: 'auth:logout',
+  needsSetup: 'auth:needs-setup',
+  setupInitialAdmin: 'auth:setup-initial-admin'
 } as const
 
 export type AuthApi = {
   auth: {
     login(request: LoginRequest): Promise<AuthenticatedUser>
     logout(): Promise<void>
+    needsSetup(): Promise<boolean>
+    setupInitialAdmin(request: InitialAdminSetup): Promise<AuthenticatedUser>
   }
 }

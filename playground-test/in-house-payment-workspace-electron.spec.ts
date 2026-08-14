@@ -25,7 +25,7 @@ async function signIn(page: Page): Promise<void> {
   await page.getByRole('combobox', { name: 'Branch' }).click()
   await page.getByRole('option', { name: 'Goa' }).click()
   await page.getByLabel('Username').fill('cashier')
-  await page.getByLabel('Password').fill('password')
+  await page.getByRole('textbox', { name: 'Password' }).fill('password')
   await page.getByRole('button', { name: 'Continue' }).click()
 }
 
@@ -116,7 +116,7 @@ test.describe('in-house payment workspace in Electron', () => {
         args: [`--user-data-dir=${userDataDir}`, path.resolve('.')]
       })
       const page = await app.firstWindow()
-      await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Cashier Daily Report' })).toBeVisible()
       await signIn(page)
 
       await page.evaluate(async (input) => {
@@ -148,7 +148,7 @@ test.describe('in-house payment workspace in Electron', () => {
             fees: 0,
             installmentAmount: 333.34,
             grandTotal: 1000.03,
-            items: [],
+            items: [{ id: `item-${id}`, name: 'Validation item', quantity: 1, price: 781.27 }],
             createdAt: '2026-07-25T00:00:00.000Z',
             updatedAt: '2026-07-25T00:00:00.000Z'
           }))
@@ -372,7 +372,6 @@ test.describe('in-house payment workspace in Electron', () => {
       await page.evaluate(() => {
         window.location.hash = ''
       })
-      await page.getByText('In-house', { exact: true }).click()
       await page.getByRole('link', { name: 'Active', exact: true }).click()
       const activeRow = page.getByRole('row').filter({ hasText: ids.full })
       await activeRow.getByRole('button', { name: 'Open active account actions' }).click()

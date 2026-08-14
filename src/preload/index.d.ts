@@ -8,6 +8,10 @@ import type {
   FinanceAccountsApi,
   GeocodingApi,
   InstallmentsApi,
+  InstallmentRulesApi,
+  PdfExportApi,
+  TelegramSettingsApi,
+  UserProfilesApi,
   WindowControlsApi
 } from '../shared/contracts'
 
@@ -16,12 +20,16 @@ declare global {
     electron: ElectronAPI
     api: ExpensesApi &
       InstallmentsApi &
+      InstallmentRulesApi &
       FinanceAccountsApi &
       AuthApi &
       CatalogOptionsApi &
       DashboardApi &
       DailyReportsApi &
-      GeocodingApi
+      GeocodingApi &
+      PdfExportApi &
+      TelegramSettingsApi &
+      UserProfilesApi
     windowControls?: WindowControlsApi
   }
 }

@@ -1,0 +1,4 @@
+import type { UserProfileCreate, UserProfileUpdate } from '../../shared/contracts'
+import { UserRepository } from '../database/user-repository'
+import { AuthService } from './auth-service'
+export class UserProfilesService { constructor(private readonly repository: UserRepository, private readonly auth: AuthService) {} list() { this.auth.requireAdmin(); return this.repository.listProfiles() } create(request: UserProfileCreate) { return this.repository.createProfile(request, this.auth.requireAdmin().id) } update(request: UserProfileUpdate) { return this.repository.updateProfile(request, this.auth.requireAdmin().id) } resetPassword(id: string, password: string) { this.repository.resetPassword(id, password, this.auth.requireAdmin().id) } audit() { this.auth.requireAdmin(); return this.repository.listAudit() } }

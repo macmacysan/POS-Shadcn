@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 22
+export const currentSchemaVersion = 24
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -1137,6 +1137,63 @@ export function runMigrations(db: Database.Database): void {
       db.exec(`ALTER TABLE accounts ADD COLUMN longitude REAL`)
       db.exec(`ALTER TABLE accounts ADD COLUMN landmark_remarks TEXT`)
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(22, new Date().toISOString())
+    })
+    migrate()
+  }
+
+  if (applied.version < 23) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      const versionId = randomUUID()
+      db.exec(`
+        CREATE TABLE installment_rule_versions (
+          id TEXT PRIMARY KEY,
+          version INTEGER NOT NULL UNIQUE,
+          is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
+          standard_interest_rate_bps INTEGER NOT NULL CHECK (standard_interest_rate_bps >= 0),
+          required_down_payment_rate_bps INTEGER NOT NULL CHECK (required_down_payment_rate_bps BETWEEN 0 AND 10000),
+          created_by_user_id TEXT,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+        CREATE UNIQUE INDEX installment_rule_versions_active_idx ON installment_rule_versions(is_active) WHERE is_active = 1;
+        CREATE TABLE installment_rule_terms (
+          version_id TEXT NOT NULL,
+          frequency TEXT NOT NULL CHECK (frequency IN ('Daily', 'Weekly', 'Semi', 'Monthly')),
+          terms INTEGER NOT NULL CHECK (terms > 0),
+          interest_rate_bps INTEGER,
+          required_fee_payments INTEGER,
+          PRIMARY KEY (version_id, frequency, terms),
+          FOREIGN KEY (version_id) REFERENCES installment_rule_versions(id) ON DELETE RESTRICT
+        );
+        ALTER TABLE installment_contracts ADD COLUMN configuration_version_id TEXT;
+        ALTER TABLE installment_contracts ADD COLUMN end_date TEXT;
+        ALTER TABLE installment_contracts ADD COLUMN interest_rate_bps INTEGER;
+        ALTER TABLE installment_contracts ADD COLUMN required_down_payment_rate_bps INTEGER;
+        ALTER TABLE installment_contracts ADD COLUMN daily_required_fee_factor INTEGER;
+        ALTER TABLE installment_contracts ADD COLUMN payment_amount_centavos INTEGER;
+        ALTER TABLE installment_contracts ADD COLUMN required_fee_centavos INTEGER;
+      `)
+      db.prepare(`INSERT INTO installment_rule_versions (id, version, is_active, standard_interest_rate_bps, required_down_payment_rate_bps, created_at) VALUES (?, 1, 1, 3800, 2250, ?)`)
+        .run(versionId, now)
+      const insert = db.prepare(`INSERT INTO installment_rule_terms (version_id, frequency, terms, interest_rate_bps, required_fee_payments) VALUES (?, ?, ?, ?, ?)`)
+      for (const [terms, fee] of [[30, 2], [50, 4], [80, 6], [120, 8]]) insert.run(versionId, 'Daily', terms, null, fee)
+      for (const terms of [5, 8, 12, 16]) insert.run(versionId, 'Weekly', terms, null, null)
+      for (const terms of [2, 4, 6, 8]) insert.run(versionId, 'Semi', terms, null, null)
+      for (const [terms, rate] of [[1, 0], [3, 2800], [6, 3500], [12, 5000]]) insert.run(versionId, 'Monthly', terms, rate, null)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(23, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 24) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0 CHECK (must_change_password IN (0, 1));`)
+      const users = db.prepare('SELECT id, display_name FROM users').all() as Array<{ id: string; display_name: string }>
+      const insert = db.prepare(`INSERT INTO audit_logs (id, actor_user_id, action, entity_type, entity_id, reason, created_at) VALUES (?, NULL, 'MIGRATION', 'user', ?, 'User profile migration', ?)`)
+      for (const user of users) insert.run(randomUUID(), user.id, now)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(24, now)
     })
     migrate()
   }

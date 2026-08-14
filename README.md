@@ -75,6 +75,10 @@ npm run build:mac
 npm run build:linux
 ```
 
+### Telegram report delivery
+
+An administrator can configure **Send Telegram** from **Settings → Administration**. The bot token is encrypted in Electron's local user-data area, is never shown after saving, and never enters the renderer or installer.
+
 ## Project structure
 
 ```text

@@ -16,6 +16,9 @@ import type {
 } from '../../shared/contracts'
 import { AppError } from './errors'
 import { buildInHouseSchedule } from '../services/in-house-schedule'
+import { InstallmentRulesRepository } from './installment-rules-repository'
+import { calculateInstallment } from '../../shared/installment-calculations'
+import type { InstallmentFrequency } from '../../shared/contracts'
 
 type ContractRow = {
   account_id: string
@@ -46,6 +49,7 @@ type ContractRow = {
   contract_date: string
   date_released: string
   start_date: string
+  end_date?: string
   first_due_date: string
   payment_frequency: string
   terms: string
@@ -103,7 +107,8 @@ function branchCode(branch: string): string {
 }
 
 function toMeta(row: ContractRow): InstallmentAccountRecord['meta'] {
-  const totalPaid = row.total_paid_centavos / 100
+  const totalPaid = row.total_paid_centavos / 100 +
+    (row.payment_frequency === 'Monthly' ? row.down_payment_centavos / 100 : 0)
   const totalPayable = row.total_payable_centavos / 100
   const outstanding = Math.max(0, totalPayable - totalPaid)
   let status: InstallmentAccountRecord['meta']['status'] = 'active'
@@ -131,7 +136,8 @@ function toMeta(row: ContractRow): InstallmentAccountRecord['meta'] {
     installmentAmount: row.installment_amount_centavos / 100,
     dateReleased: row.date_released,
     startDate: row.start_date,
-    grandTotal: totalPayable,
+    endDate: row.end_date,
+    grandTotal: row.principal_centavos / 100,
     principal: row.principal_centavos / 100,
     interest: row.interest_centavos / 100,
     totalInterest: row.interest_centavos / 100,
@@ -142,7 +148,10 @@ function toMeta(row: ContractRow): InstallmentAccountRecord['meta'] {
 }
 
 export class InstallmentRepository {
-  constructor(private readonly db: Database.Database) {}
+  private readonly rules: InstallmentRulesRepository
+  constructor(private readonly db: Database.Database) {
+    this.rules = new InstallmentRulesRepository(db)
+  }
 
   list(request: InstallmentListRequest): { rows: InstallmentAccountRecord[] } {
     const where = ["c.status != 'VOIDED'"]
@@ -171,7 +180,7 @@ export class InstallmentRepository {
                 a.blacklist_reason, a.created_at AS account_created_at,
                 a.updated_at AS account_updated_at, c.id AS contract_id,
                 c.status AS contract_status, c.contract_date, c.date_released,
-                c.start_date, c.first_due_date,
+                c.start_date, c.end_date, c.first_due_date,
                 COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) AS payment_frequency, c.terms,
                 c.principal_centavos, c.interest_centavos, c.down_payment_centavos,
                 c.fees_centavos, c.installment_amount_centavos, c.total_payable_centavos,
@@ -196,6 +205,7 @@ export class InstallmentRepository {
 
   bootstrap(request: InstallmentBootstrapRequest): void {
     const now = new Date().toISOString()
+    const activeRules = this.rules.getActive()
     const bootstrap = this.db.transaction(() => {
       const insertBranch = this.db.prepare(
         `INSERT OR IGNORE INTO branches (id, code, name, created_at, updated_at)
@@ -227,9 +237,11 @@ export class InstallmentRepository {
           (id, account_id, branch_id, installment_type_id, contract_number, contract_date,
             date_released, start_date, first_due_date, payment_frequency, schedule_frequency, terms,
            principal_centavos, interest_centavos, down_payment_centavos, fees_centavos,
-           installment_amount_centavos, financed_amount_centavos, total_payable_centavos,
-           remarks, created_at, updated_at)
-         VALUES (?, ?, ?, 'installment-type-in-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            installment_amount_centavos, financed_amount_centavos, total_payable_centavos,
+            configuration_version_id, end_date, interest_rate_bps, required_down_payment_rate_bps,
+            daily_required_fee_factor, payment_amount_centavos, required_fee_centavos,
+            remarks, created_at, updated_at)
+          VALUES (?, ?, ?, 'installment-type-in-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const insertItem = this.db.prepare(
         `INSERT OR IGNORE INTO installment_items
@@ -315,24 +327,36 @@ export class InstallmentRepository {
         }
 
         const loans = loansByCustomer.get(id) ?? []
-        const sourceLoans = loans.length ? loans : [{ id: `contract-${id}` }]
+        const sourceLoans = loans
         for (const loan of sourceLoans) {
           const loanId = stringValue(loan.id, randomUUID())
+          if (this.db.prepare('SELECT 1 FROM installment_contracts WHERE id = ?').get(loanId)) continue
+          const rawFrequency = stringValue(loan.paymentFrequency, 'Monthly')
+          const paymentFrequency = rawFrequency === 'Semi-monthly' ? 'Semi' : rawFrequency
+          const frequency = (['Daily', 'Weekly', 'Semi', 'Monthly'].includes(paymentFrequency)
+            ? paymentFrequency
+            : 'Monthly') as InstallmentFrequency
+          const terms = stringValue(loan.terms, '1')
+          const termCount = Number.parseInt(terms, 10)
+          const items = Array.isArray(loan.items) ? loan.items : []
+          const itemInputs = items.map((item) => {
+            const itemRecord = item as Record<string, unknown>
+            return { quantity: Math.max(1, Math.round(numberValue(itemRecord.quantity))), unitPriceCentavos: centavos(itemRecord.price) }
+          })
           const released = dateValue(loan.dateReleased, accountCreatedAt.slice(0, 10))
-          const startDate = dateValue(loan.startDate, released)
-          const firstDueDate = dateValue(loan.firstDueDate, startDate)
-          const paymentFrequency = stringValue(loan.paymentFrequency, 'Monthly')
+          const downPayment = centavos(loan.downPayment)
+          const calculated = calculateInstallment({ releaseDate: released, frequency, terms: termCount, items: itemInputs, actualDownPaymentCentavos: downPayment }, activeRules)
+          if (!calculated.startDate || !calculated.endDate || !calculated.totalInstallmentCentavos || !calculated.paymentAmountCentavos || calculated.requiredFeeCentavos === null)
+            throw new AppError('VALIDATION_ERROR', 'Installment rules do not support the selected frequency and number of payments.')
+          const startDate = calculated.startDate
+          const firstDueDate = startDate
           const legacyPaymentFrequency =
-            paymentFrequency === 'Daily' || paymentFrequency === 'Semi-monthly'
+            paymentFrequency === 'Daily' || paymentFrequency === 'Semi'
               ? 'Monthly'
               : paymentFrequency
-          const terms = stringValue(loan.terms, '1 month')
-          const principal = centavos(loan.principal)
-          const interest = centavos(loan.interest)
-          const downPayment = centavos(loan.downPayment)
-          const fees = centavos(loan.fees)
-          const installmentAmount = centavos(loan.installmentAmount)
-          const grandTotal = centavos(loan.grandTotal)
+          const grandTotal = calculated.grandTotalCentavos
+          const totalInstallment = calculated.totalInstallmentCentavos
+          const scheduleTotal = frequency === 'Monthly' ? Math.max(0, totalInstallment - downPayment) : totalInstallment
           insertContract.run(
             loanId,
             id,
@@ -345,18 +369,24 @@ export class InstallmentRepository {
             legacyPaymentFrequency,
             paymentFrequency,
             terms,
-            principal,
-            interest,
-            downPayment,
-            fees,
-            installmentAmount,
-            Math.max(0, grandTotal - downPayment),
             grandTotal,
+            calculated.interestCentavos,
+            downPayment,
+            calculated.requiredFeeCentavos,
+            calculated.paymentAmountCentavos,
+            scheduleTotal,
+            totalInstallment,
+            activeRules.id,
+            calculated.endDate,
+            calculated.interestRateBps,
+            activeRules.requiredDownPaymentRateBps,
+            calculated.dailyRequiredFeeFactor,
+            calculated.paymentAmountCentavos,
+            calculated.requiredFeeCentavos,
             optionalString(loan.remarks) ?? null,
             stringValue(loan.createdAt, accountCreatedAt),
             now
           )
-          const items = Array.isArray(loan.items) ? loan.items : []
           for (const item of items) {
             const itemRecord = item as Record<string, unknown>
             const quantity = Math.max(1, Math.round(numberValue(itemRecord.quantity)))
@@ -377,7 +407,7 @@ export class InstallmentRepository {
             firstDueDate,
             paymentFrequency,
             terms,
-            Math.max(0, grandTotal)
+            scheduleTotal
           )
         }
       }
@@ -391,7 +421,8 @@ export class InstallmentRepository {
       const contract = this.db
         .prepare(
           `SELECT c.id, c.account_id, c.status, c.total_payable_centavos,
-                  COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0) AS paid
+                  COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0) +
+                    CASE WHEN COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) = 'Monthly' THEN c.down_payment_centavos ELSE 0 END AS paid
              FROM installment_contracts c
              LEFT JOIN in_house_payments p ON p.contract_id = c.id
              LEFT JOIN installment_payment_allocations pa ON pa.payment_id = p.id
@@ -511,7 +542,7 @@ export class InstallmentRepository {
 
     const contract = this.db
       .prepare(
-        `SELECT contract_number, first_due_date,
+        `SELECT contract_number, first_due_date, down_payment_centavos,
                 COALESCE(NULLIF(schedule_frequency, ''), payment_frequency) AS payment_frequency,
                 terms, total_payable_centavos
            FROM installment_contracts WHERE id = ? AND account_id = ?`
@@ -522,7 +553,8 @@ export class InstallmentRepository {
           first_due_date: string
           payment_frequency: string
           terms: string
-          total_payable_centavos: number
+           total_payable_centavos: number
+           down_payment_centavos: number
         }
       | undefined
     if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
@@ -575,11 +607,13 @@ export class InstallmentRepository {
       is_adjustment: number
       created_at: string
     }>
-    const totalPaidCentavos = schedules.reduce(
+    const recordedPaidCentavos = schedules.reduce(
       (total, item) => total + item.paid_amount_centavos,
       0
     )
-    let runningBalanceCentavos = contract.total_payable_centavos
+    const downPaymentCentavos = contract.payment_frequency === 'Monthly' ? contract.down_payment_centavos : 0
+    const totalPaidCentavos = recordedPaidCentavos + downPaymentCentavos
+    let runningBalanceCentavos = Math.max(0, contract.total_payable_centavos - downPaymentCentavos)
     const workspaceSchedules = schedules.map((item) => {
       const scheduleRemainingCentavos = Math.max(
         0,
@@ -1140,8 +1174,8 @@ export class InstallmentRepository {
       suffix: row.suffix,
       streetSubdivision: row.street_subdivision,
       landmarkRemarks: row.landmark_remarks,
-      latitude: row.latitude,
-      longitude: row.longitude,
+      latitude: row.latitude ?? undefined,
+      longitude: row.longitude ?? undefined,
       barangay: row.barangay,
       cityMunicipality: row.city_municipality,
       province: row.province,
@@ -1176,7 +1210,7 @@ export class InstallmentRepository {
       downPayment: row.down_payment_centavos / 100,
       fees: row.fees_centavos / 100,
       installmentAmount: row.installment_amount_centavos / 100,
-      grandTotal: row.total_payable_centavos / 100,
+      grandTotal: row.principal_centavos / 100,
       items: items.map((item) => ({
         id: item.id,
         name: item.description,

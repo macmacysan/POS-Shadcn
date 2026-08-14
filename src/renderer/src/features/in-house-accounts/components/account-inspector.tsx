@@ -397,11 +397,11 @@ export function InHouseAccountInspector({
                 destructive={meta?.outstandingBalance !== undefined && meta.outstandingBalance < 0}
               />
               <DetailRow
-                label="Installment amount"
+                label="Payment amount"
                 value={optionalMoney(meta?.installmentAmount)}
               />
-              <DetailRow label="Payment frequency" value={meta?.paymentFrequency} />
-              <DetailRow label="Terms" value={meta?.terms} />
+              <DetailRow label="Frequency" value={meta?.paymentFrequency === 'Semi' ? 'Semi-monthly' : meta?.paymentFrequency} />
+              <DetailRow label="No. of Payments" value={meta?.terms} />
               <DetailRow label="Next due" value={optionalDate(meta?.nextDue)} />
               <DetailRow label="Last payment" value={optionalDate(meta?.lastPayment)} />
               <DetailRow
@@ -421,8 +421,7 @@ export function InHouseAccountInspector({
               <DetailRow label="Date released" value={optionalDate(meta?.dateReleased)} />
               <DetailRow label="Start date" value={optionalDate(meta?.startDate)} />
               <DetailRow label="End date" value={optionalDate(meta?.endDate)} />
-              <DetailRow label="Grand total" value={optionalMoney(meta?.grandTotal)} />
-              <DetailRow label="Principal" value={optionalMoney(meta?.principal)} />
+              <DetailRow label="Grand Total" value={optionalMoney(meta?.grandTotal)} />
               <DetailRow label="Interest" value={optionalMoney(meta?.interest)} />
               <DetailRow label="Total interest" value={optionalMoney(meta?.totalInterest)} />
               <DetailRow label="Down payment" value={optionalMoney(meta?.downPayment)} />
