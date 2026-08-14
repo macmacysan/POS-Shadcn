@@ -15,6 +15,10 @@ import { ActiveReportProvider } from '@/contexts/active-report-context'
 import { NotificationProvider } from '@/contexts/notification-context'
 import { Toaster } from '@/components/ui/sonner'
 import type { AuthenticatedUser, LoginBranch } from '@/../../shared/contracts'
+import {
+  PESO_SIGN_HIDDEN_STORAGE_KEY,
+  setPesoSignHidden
+} from '@/lib/currency'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 const SUMMARY_DARK_STORAGE_KEY = 'cashiers-report-summary-dark'
@@ -69,6 +73,8 @@ function Workspace({
   onToggleTheme,
   summaryAlwaysDark,
   onSummaryAlwaysDarkChange,
+  hidePesoSign,
+  onHidePesoSignChange,
   onLogout,
   selectedBranch,
   isAdmin,
@@ -78,6 +84,8 @@ function Workspace({
   onToggleTheme: () => void
   summaryAlwaysDark: boolean
   onSummaryAlwaysDarkChange: (value: boolean) => void
+  hidePesoSign: boolean
+  onHidePesoSignChange: (value: boolean) => void
   onLogout: () => void
   selectedBranch: LoginBranch
   isAdmin: boolean
@@ -183,6 +191,8 @@ function Workspace({
         onToggleTheme={onToggleTheme}
         summaryAlwaysDark={summaryAlwaysDark}
         onSummaryAlwaysDarkChange={onSummaryAlwaysDarkChange}
+        hidePesoSign={hidePesoSign}
+        onHidePesoSignChange={onHidePesoSignChange}
         onLogout={onLogout}
         isAdmin={isAdmin}
       />
@@ -258,6 +268,9 @@ function App(): React.JSX.Element {
     const stored = localStorage.getItem(SUMMARY_DARK_STORAGE_KEY)
     return stored === null || stored === 'true'
   })
+  const [hidePesoSign, setHidePesoSign] = useState(
+    () => localStorage.getItem(PESO_SIGN_HIDDEN_STORAGE_KEY) === 'true'
+  )
   const [selectedBranch, setSelectedBranch] = useState<LoginBranch>('Lagonoy')
   const [isMaximized, setIsMaximized] = useState(false)
 
@@ -291,6 +304,10 @@ function App(): React.JSX.Element {
   useEffect(() => { void window.api.auth.needsSetup().then(setNeedsSetup).catch(() => setNeedsSetup(false)) }, [])
 
   const toggleTheme = (): void => setIsDark((current) => !current)
+  const changePesoSignVisibility = (hidden: boolean): void => {
+    setPesoSignHidden(hidden)
+    setHidePesoSign(hidden)
+  }
   const logout = async (): Promise<void> => {
     await window.api.auth.logout()
     window.location.hash = ''
@@ -344,10 +361,13 @@ function App(): React.JSX.Element {
             <ActiveReportProvider user={authenticatedUser}>
               <div className="h-full w-full">
                 <Workspace
+                  key={hidePesoSign ? 'peso-hidden' : 'peso-visible'}
                   isDark={isDark}
                   onToggleTheme={toggleTheme}
                   summaryAlwaysDark={summaryAlwaysDark}
                   onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
+                  hidePesoSign={hidePesoSign}
+                  onHidePesoSignChange={changePesoSignVisibility}
                   onLogout={() => void logout()}
                   selectedBranch={selectedBranch}
                   isAdmin={authenticatedUser.role === 'ADMIN'}

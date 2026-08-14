@@ -28,7 +28,7 @@ import type { DateSelectorValue } from '@/../../components/reui/date-selector'
 import { useActiveReport } from '@/contexts/active-report-context'
 import { ReportDateDialog } from '@/features/cashier-report/components/report-date-dialog'
 import { cn } from '@/lib/utils'
-import { formatCentavos } from '@/lib/currency'
+import { formatCentavos, pesoSign } from '@/lib/currency'
 import type { DailyReportSnapshotResponse, ExpenseSummaryTotals } from '@/../../shared/contracts'
 
 type OpenDialog = 'cash-count' | 'deductions' | null
@@ -136,7 +136,7 @@ function AmountInput({
 
   return (
     <div className={cn('flex items-center gap-1.5', className)}>
-      <span className="text-xs text-muted-foreground">₱</span>
+      {pesoSign() && <span className="text-xs text-muted-foreground">{pesoSign()}</span>}
       <Input
         aria-label={label}
         aria-invalid={invalid}
@@ -160,13 +160,15 @@ function AmountInput({
 
 function Section({
   label,
+  className,
   children
 }: {
   label: string
+  className?: string
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className="border-b border-border/60 py-1.5 last:border-b-0">
+    <section className={cn('border-b border-border/60 py-1.5 last:border-b-0', className)}>
       <p className="mb-0.5 text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
         {label}
       </p>
@@ -617,8 +619,9 @@ export const ReportSummary = React.memo(function ReportSummary({
           alwaysDark && 'dark sidebar-always-dark'
         )}
       >
-        <header className="relative mt-2 flex shrink-0 items-center px-3 py-1.5">
-          <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-0.5">
+        <header className="relative mt-2 flex shrink-0 items-center px-3 py-3">
+          <div className="absolute left-1/2 -translate-x-1/2">
+            <div className="relative flex items-center gap-0.5">
               <Button
                 type="button"
                 variant="ghost"
@@ -648,68 +651,69 @@ export const ReportSummary = React.memo(function ReportSummary({
               >
                 <ChevronRight aria-hidden="true" />
               </Button>
-          </div>
-          <div className="ml-auto flex items-center gap-1.5">
-            <Popover open={isReceiptPickerOpen} onOpenChange={setIsReceiptPickerOpen}>
-              <PopoverTrigger
-                render={
+            <div className="absolute left-full pr-100 top-1/2 -translate-y-1/2">
+              <Popover open={isReceiptPickerOpen} onOpenChange={setIsReceiptPickerOpen}>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="Add receipt type or deductions"
+                    />
+                  }
+                >
+                  <Plus />
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-64">
+                  <p className="text-xs font-medium">Show receipt types</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Select the receipt types needed in this summary.
+                  </p>
+                  <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+                    {[...standardReceiptTypes, ...customReceiptTypes].map((type) => (
+                      <div
+                        key={type.id}
+                        className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-xs hover:bg-muted"
+                      >
+                        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                          <Checkbox
+                            checked={visibleReceiptTypeIds.has(type.id)}
+                            onCheckedChange={(checked) => toggleReceiptType(type.id, checked === true)}
+                            aria-label={`Show ${type.name}`}
+                          />
+                          <span className="min-w-0 truncate">{type.name}</span>
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Add receipt type or deductions"
-                  />
-                }
-              >
-                <Plus />
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-64">
-                <p className="text-xs font-medium">Show receipt types</p>
-                <p className="text-[10px] text-muted-foreground">
-                  Select the receipt types needed in this summary.
-                </p>
-                <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
-                  {[...standardReceiptTypes, ...customReceiptTypes].map((type) => (
-                    <div
-                      key={type.id}
-                      className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-xs hover:bg-muted"
-                    >
-                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-                        <Checkbox
-                          checked={visibleReceiptTypeIds.has(type.id)}
-                          onCheckedChange={(checked) =>
-                            toggleReceiptType(type.id, checked === true)
-                          }
-                          aria-label={`Show ${type.name}`}
-                        />
-                        <span className="min-w-0 truncate">{type.name}</span>
-                      </label>
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  className="mt-1 w-full"
-                  onClick={openDeductions}
-                >
-                  Deductions
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  className="mt-1 w-full"
-                  onClick={() => {
-                    setIsReceiptPickerOpen(false)
-                    setOpenDialog('cash-count')
-                  }}
-                >
-                  Counted Cash
-                </Button>
-              </PopoverContent>
-            </Popover>
+                    variant="outline"
+                    size="xs"
+                    className="mt-1 w-full"
+                    onClick={openDeductions}
+                  >
+                    Deductions
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="mt-1 w-full"
+                    onClick={() => {
+                      setIsReceiptPickerOpen(false)
+                      setOpenDialog('cash-count')
+                    }}
+                  >
+                    Counted Cash
+                  </Button>
+                </PopoverContent>
+              </Popover>
+            </div>
+            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
             <span className="text-[10px] text-muted-foreground" aria-live="polite">
               {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
             </span>
@@ -739,7 +743,7 @@ export const ReportSummary = React.memo(function ReportSummary({
         <ScrollArea className="min-h-0 flex-1">
           <div className="px-3 pb-1.5">
             {visibleReceiptTypes.length > 0 && (
-              <Section label="">
+              <Section label="" className="border-b-0">
                 <div className="grid grid-cols-[minmax(0,1fr)_3.5rem_6rem] gap-2 px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                   <span>Type</span>
                   <span className="text-right">Qty</span>
@@ -803,7 +807,7 @@ export const ReportSummary = React.memo(function ReportSummary({
               </Section>
             )}
             {hasReceiptSummary && (
-              <Section label="">
+              <Section label="" className="border-b-0 py-0">
                 <SummaryRow
                   label="Collections"
                   value={snapshot.cashCollectionsCentavos ?? 0}
@@ -838,7 +842,7 @@ export const ReportSummary = React.memo(function ReportSummary({
               </Section>
             )}
             {hasCashOutSummary && (
-              <Section label="">
+              <Section label="" className="border-b-0 py-0">
                 <SummaryRow
                   label="Expenses"
                   value={expenseTotals.companyExpensesCentavos}
@@ -885,7 +889,6 @@ export const ReportSummary = React.memo(function ReportSummary({
                   label="Total Cash Out"
                   value={cashOutCentavos}
                   emphasis
-                  className="border-b border-border/60"
                   hideWhenZero
                   valueMuted
                 />

@@ -98,6 +98,8 @@ export function SidebarLeft({
   onToggleTheme,
   summaryAlwaysDark,
   onSummaryAlwaysDarkChange,
+  hidePesoSign,
+  onHidePesoSignChange,
   onLogout,
   isAdmin,
   ...props
@@ -117,26 +119,33 @@ export function SidebarLeft({
   onToggleTheme: () => void
   summaryAlwaysDark: boolean
   onSummaryAlwaysDarkChange: (value: boolean) => void
+  hidePesoSign: boolean
+  onHidePesoSignChange: (value: boolean) => void
   onLogout: () => void
   isAdmin: boolean
 }): React.JSX.Element {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false)
   const [summaryAlwaysDarkDraft, setSummaryAlwaysDarkDraft] = React.useState(summaryAlwaysDark)
+  const [hidePesoSignDraft, setHidePesoSignDraft] = React.useState(hidePesoSign)
   const [settingsSection, setSettingsSection] = React.useState('workspace')
-  const hasUnsavedChanges = summaryAlwaysDarkDraft !== summaryAlwaysDark
+  const hasUnsavedChanges =
+    summaryAlwaysDarkDraft !== summaryAlwaysDark || hidePesoSignDraft !== hidePesoSign
 
   const setSettingsOpen = (open: boolean): void => {
     setIsSettingsOpen(open)
     if (open) {
       setSummaryAlwaysDarkDraft(summaryAlwaysDark)
+      setHidePesoSignDraft(hidePesoSign)
       setSettingsSection('workspace')
     } else {
       setSummaryAlwaysDarkDraft(summaryAlwaysDark)
+      setHidePesoSignDraft(hidePesoSign)
     }
   }
 
   const saveSettings = (): void => {
     onSummaryAlwaysDarkChange(summaryAlwaysDarkDraft)
+    onHidePesoSignChange(hidePesoSignDraft)
     setIsSettingsOpen(false)
   }
 
@@ -295,7 +304,7 @@ export function SidebarLeft({
                     Personal preferences apply only to this workstation.
                   </p>
                 </div>
-                <Label className="items-start gap-3 rounded-lg border p-4">
+                  <Label className="items-start gap-3 rounded-lg border p-4">
                   <Checkbox
                     checked={summaryAlwaysDarkDraft}
                     onCheckedChange={(checked) => setSummaryAlwaysDarkDraft(checked === true)}
@@ -305,6 +314,19 @@ export function SidebarLeft({
                     <span>Sidebar Summary always Dark Mode</span>
                     <span className="text-xs font-normal text-muted-foreground">
                       Keep Today&apos;s Summary dark even when the app uses light mode.
+                    </span>
+                  </span>
+                  </Label>
+                <Label className="items-start gap-3 rounded-lg border p-4">
+                  <Checkbox
+                    checked={hidePesoSignDraft}
+                    onCheckedChange={(checked) => setHidePesoSignDraft(checked === true)}
+                    aria-label="Hide peso sign"
+                  />
+                  <span className="flex flex-col gap-1">
+                    <span>Hide Peso Sign</span>
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Hide the ₱ symbol from monetary values across the workspace.
                     </span>
                   </span>
                 </Label>

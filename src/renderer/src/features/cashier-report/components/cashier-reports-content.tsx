@@ -84,7 +84,7 @@ import type { DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
-import { formatPhilippinePeso } from '@/lib/currency'
+import { formatPhilippinePeso, pesoSign } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
 import { useNotifications } from '@/hooks/use-notifications'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
@@ -1027,7 +1027,7 @@ function ReportDetailsForm({
             ) : /(amount|balance|principal)/i.test(field) ? (
               <InputGroup>
                 <InputGroupAddon align="inline-start">
-                  <InputGroupText>₱</InputGroupText>
+                  {pesoSign() && <InputGroupText>{pesoSign()}</InputGroupText>}
                 </InputGroupAddon>
                 <InputGroupInput
                   id={id}
@@ -1698,13 +1698,13 @@ export function CashierReportsContent({
                     <TabsList
                       aria-label="Cashier report sections"
                       variant="line"
-                      className="h-10 w-max min-w-full justify-start rounded-none bg-transparent p-0"
+                      className="h-10 w-max  justify-start rounded-none bg-transparent pb-2"
                     >
                       {reportTabs.map((tab) => (
                         <TabsTrigger
                           key={tab}
                           value={tab}
-                          className="h-10 flex-none gap-1.5 rounded-none px-3.5 text-xs font-normal after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary data-active:after:opacity-100 data-active:text-primary data-active:font-semibold"
+                          className="h-10 flex-none gap-1.5 rounded-none px-3.5 text-xs font-normal data-active:text-primary data-active:font-semibold"
                         >
                           <span>{tab === 'Activity' ? 'Installment' : tab}</span>
                           <Badge

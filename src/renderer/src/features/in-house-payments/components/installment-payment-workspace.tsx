@@ -36,7 +36,7 @@ import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { formatPhilippinePeso } from '@/lib/currency'
+import { formatPhilippinePeso, pesoSign } from '@/lib/currency'
 import { branchNames, formatAccountName, type InHouseAccount } from '@/lib/in-house-accounts'
 import { type AccountMonitoringMeta } from '@/lib/in-house-account-monitoring'
 import { cn } from '@/lib/utils'
@@ -746,7 +746,7 @@ export function InstallmentPaymentWorkspace({
                   <FieldLabel htmlFor="payment-amount">Amount received</FieldLabel>
                   <InputGroup>
                     <InputGroupAddon>
-                      <InputGroupText>₱</InputGroupText>
+              {pesoSign() && <InputGroupText>{pesoSign()}</InputGroupText>}
                     </InputGroupAddon>
                     <InputGroupInput
                       id="payment-amount"
