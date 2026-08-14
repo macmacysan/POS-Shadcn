@@ -617,16 +617,8 @@ export const ReportSummary = React.memo(function ReportSummary({
           alwaysDark && 'dark sidebar-always-dark'
         )}
       >
-        <header className="mt-2 flex shrink-0 items-center justify-between px-3 py-1.5">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-normal text-gray-600 tracking-tight">
-              {isToday
-                ? 'Today’s Summary'
-                : `${format(new Date(`${reportBusinessDate}T00:00:00`), 'MMM d')} Summary`}
-            </h2>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-0.5">
+        <header className="relative mt-2 flex shrink-0 items-center px-3 py-1.5">
+          <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-0.5">
               <Button
                 type="button"
                 variant="ghost"
@@ -656,7 +648,8 @@ export const ReportSummary = React.memo(function ReportSummary({
               >
                 <ChevronRight aria-hidden="true" />
               </Button>
-            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
             <Popover open={isReceiptPickerOpen} onOpenChange={setIsReceiptPickerOpen}>
               <PopoverTrigger
                 render={
