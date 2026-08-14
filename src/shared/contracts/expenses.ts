@@ -170,7 +170,7 @@ export type ExpensesApi = ReportsApi & {
 }
 
 export function parseAmountToCentavos(value: string): number {
-  const normalized = value.trim()
+  const normalized = value.replaceAll(',', '').trim()
   if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
     throw new Error('Amount must be a non-negative number with up to two decimal places.')
   }

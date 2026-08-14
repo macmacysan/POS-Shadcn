@@ -25,3 +25,14 @@ export function formatPhilippinePeso(value: number): string {
 export function formatCentavos(value: number): string {
   return formatPhilippinePeso(value / 100)
 }
+
+export function formatAmountInput(value: string): string {
+  const normalized = value.replace(/[^\d.]/g, '')
+  if (!normalized) return ''
+  const [rawWhole = '', rawFraction] = normalized.split('.', 2)
+  const whole = (rawWhole || '0').replace(/^0+(?=\d)/, '')
+  const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return rawFraction === undefined
+    ? formattedWhole
+    : `${formattedWhole}.${rawFraction.slice(0, 2)}`
+}

@@ -89,7 +89,7 @@ import type { DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
-import { formatPhilippinePeso, pesoSign } from '@/lib/currency'
+import { formatAmountInput, formatPhilippinePeso, pesoSign } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
 import { ReportDateDialog } from '@/features/cashier-report/components/report-date-dialog'
@@ -1059,10 +1059,12 @@ function ReportDetailsForm({
                 <InputGroupInput
                   id={id}
                   name={id}
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   placeholder={`Enter ${field.toLowerCase()}`}
+                  onChange={(event) => {
+                    event.currentTarget.value = formatAmountInput(event.currentTarget.value)
+                  }}
                 />
               </InputGroup>
             ) : (

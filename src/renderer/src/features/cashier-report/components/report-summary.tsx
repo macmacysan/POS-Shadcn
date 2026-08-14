@@ -28,7 +28,7 @@ import type { DateSelectorValue } from '@/../../components/reui/date-selector'
 import { useActiveReport } from '@/contexts/active-report-context'
 import { ReportDateDialog } from '@/features/cashier-report/components/report-date-dialog'
 import { cn } from '@/lib/utils'
-import { formatCentavos, pesoSign } from '@/lib/currency'
+import { formatAmountInput, formatCentavos, pesoSign } from '@/lib/currency'
 import type { DailyReportSnapshotResponse, ExpenseSummaryTotals } from '@/../../shared/contracts'
 
 type OpenDialog = 'cash-count' | 'deductions' | null
@@ -107,7 +107,7 @@ function writeReceiptVisibility(ids: Set<string>): void {
 }
 
 function amountToCentavos(value: string): number {
-  const normalized = value.trim()
+  const normalized = value.replaceAll(',', '').trim()
   if (!/^\d*(?:\.\d{0,2})?$/.test(normalized) || !normalized) return 0
   return Math.round(Number(normalized) * 100)
 }
@@ -127,11 +127,13 @@ function AmountInput({
   inputClassName?: string
   invalid?: boolean
 }): React.JSX.Element {
-  const [text, setText] = React.useState(() => (value ? String(value / 100) : ''))
+  const [text, setText] = React.useState(() =>
+    value ? formatAmountInput(String(value / 100)) : ''
+  )
   const [isFocused, setIsFocused] = React.useState(false)
 
   React.useEffect(() => {
-    if (!isFocused) setText(value ? String(value / 100) : '')
+    if (!isFocused) setText(value ? formatAmountInput(String(value / 100)) : '')
   }, [isFocused, value])
 
   return (
@@ -149,7 +151,7 @@ function AmountInput({
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         onChange={(event) => {
-          const next = event.target.value
+          const next = formatAmountInput(event.target.value)
           setText(next)
           onChange(amountToCentavos(next))
         }}
