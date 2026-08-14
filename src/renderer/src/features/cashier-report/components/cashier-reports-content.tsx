@@ -9,6 +9,8 @@ import {
   CarFront,
   ChevronLeft,
   ChevronRight,
+  Check,
+  CircleAlert,
   CreditCard,
   Ellipsis,
   GraduationCap,
@@ -22,7 +24,6 @@ import {
   FileDown,
   ReceiptText,
   Scale,
-  Send,
   ShieldCheck,
   Soup,
   Utensils,
@@ -32,6 +33,7 @@ import {
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Card, CardContent } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
 import {
@@ -49,6 +51,9 @@ import {
   type ReportRow
 } from '@/features/cashier-report/components/report-data-table'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { Spinner } from '@/components/ui/spinner'
+import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -86,7 +91,6 @@ import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { formatPhilippinePeso, pesoSign } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
-import { useNotifications } from '@/hooks/use-notifications'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
 import { ReportDateDialog } from '@/features/cashier-report/components/report-date-dialog'
 import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hooks/use-expenses'
@@ -113,6 +117,29 @@ const noopHistorySelect = (): void => undefined
 const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT'] as const
 const paymentTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
+
+type PdfProgressStepId = 'save' | 'telegram'
+type PdfProgressStatus = 'pending' | 'processing' | 'done' | 'failed'
+type PdfProgressStep = {
+  id: PdfProgressStepId
+  label: string
+  status: PdfProgressStatus
+  error?: string
+  attempts: number
+}
+
+const initialPdfProgress: PdfProgressStep[] = [
+  { id: 'save', label: 'Saving to Documents', status: 'pending', attempts: 0 },
+  { id: 'telegram', label: 'Sending to Telegram', status: 'pending', attempts: 0 }
+]
+
+function filenameSegment(value: string): string {
+  const segment = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]/g, '')
+  return segment || 'Report'
+}
 
 type ExpenseCategoryConfig = {
   value: string
@@ -1120,10 +1147,12 @@ export function CashierReportsContent({
   const [isDateLoading, setIsDateLoading] = React.useState(false)
   const [dateError, setDateError] = React.useState<string>()
   const [exportError, setExportError] = React.useState<string>()
-  const [isExporting, setIsExporting] = React.useState(false)
-  const [isSendingTelegram, setIsSendingTelegram] = React.useState(false)
+  const [isReviewingPdf, setIsReviewingPdf] = React.useState(false)
   const [pdfPreview, setPdfPreview] = React.useState<{ fileName: string; pdfBase64: string }>()
-  const { notify } = useNotifications()
+  const [isPdfReviewOpen, setIsPdfReviewOpen] = React.useState(false)
+  const [pdfProgress, setPdfProgress] = React.useState<PdfProgressStep[]>(initialPdfProgress)
+  const [isPdfProcessing, setIsPdfProcessing] = React.useState(false)
+  const [telegramNote, setTelegramNote] = React.useState('')
   const [reportSearch, setReportSearch] = React.useState('')
   const [dateRange, setDateRange] = React.useState<DateSelectorValue>(() => {
     const today = new Date()
@@ -1266,7 +1295,7 @@ export function CashierReportsContent({
     ...payments.map((payment) => `${payment.id}:${payment.paymentMethodId}:${payment.amount}`)
   ].join(':')
   const reviewPdf = React.useCallback(async (): Promise<void> => {
-    setIsExporting(true)
+    setIsReviewingPdf(true)
     setExportError(undefined)
     try {
       const allExpenses: ExpenseRecord[] = []
@@ -1339,44 +1368,97 @@ export function CashierReportsContent({
           blacklisted: blacklisted.rows.length
         }
       })
-      const fileName = `cashier-report-${branch.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${selectedReport.businessDate}.pdf`
+      const now = new Date()
+      const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+      const fileName = `${filenameSegment(cashierName)}-${filenameSegment(branch)}-${selectedReport.businessDate}-${time}.pdf`
       const { pdfBase64 } = await window.api.pdfExport.preview({ html })
+      setPdfProgress(initialPdfProgress)
+      setTelegramNote('')
       setPdfPreview({ fileName, pdfBase64 })
+      setIsPdfReviewOpen(true)
     } catch {
       setExportError('The PDF could not be exported. Please try again.')
     } finally {
-      setIsExporting(false)
+      setIsReviewingPdf(false)
     }
   }, [cashierName, reportId, selectedBranch, selectedReport.businessDate])
-  const exportPdf = React.useCallback(async (): Promise<void> => {
+  const updatePdfStep = React.useCallback(
+    (id: PdfProgressStepId, patch: Partial<PdfProgressStep>): void => {
+      setPdfProgress((steps) =>
+        steps.map((step) => (step.id === id ? { ...step, ...patch } : step))
+      )
+    },
+    []
+  )
+  const runPdfStep = React.useCallback(
+    async (id: PdfProgressStepId, operation: () => Promise<void>): Promise<void> => {
+      let lastError = 'This operation failed.'
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        updatePdfStep(id, { status: 'processing', attempts: attempt, error: undefined })
+        try {
+          await operation()
+          updatePdfStep(id, { status: 'done', error: undefined })
+          return
+        } catch {
+          lastError =
+            id === 'telegram'
+              ? 'Telegram could not send the report.'
+              : 'Saving the report was canceled or failed.'
+        }
+      }
+      updatePdfStep(id, { status: 'failed', error: lastError })
+    },
+    [updatePdfStep]
+  )
+  const pdfOperation = React.useCallback(
+    (
+      id: PdfProgressStepId,
+      preview: { fileName: string; pdfBase64: string }
+    ): (() => Promise<void>) => {
+      if (id === 'save') {
+        return async () => {
+          const result = await window.api.pdfExport.save(preview)
+          if (result.canceled) throw new Error('Save canceled')
+        }
+      }
+      return () =>
+        window.api.pdfExport.sendTelegram({
+          ...preview,
+          caption: [
+            `Date: ${selectedReport.businessDate}`,
+            `Time: ${format(new Date(), 'hh:mm a')}`,
+            `Branch: ${selectedBranch}`,
+            `Name: ${cashierName}`,
+            '',
+            `Note: ${telegramNote.trim()}`
+          ].join('\n')
+        })
+    },
+    [cashierName, selectedBranch, selectedReport.businessDate, telegramNote]
+  )
+  const startPdfExport = React.useCallback(async (): Promise<void> => {
     if (!pdfPreview) return
-    setIsExporting(true)
-    setExportError(undefined)
-    try {
-      const result = await window.api.pdfExport.save(pdfPreview)
-      if (!result.canceled) setPdfPreview(undefined)
-    } catch {
-      setExportError('The PDF could not be exported. Please try again.')
-    } finally {
-      setIsExporting(false)
+    setPdfProgress(initialPdfProgress)
+    setIsPdfProcessing(true)
+    for (const step of initialPdfProgress) {
+      await runPdfStep(step.id, pdfOperation(step.id, pdfPreview))
     }
-  }, [pdfPreview])
-  const sendTelegram = React.useCallback(async (): Promise<void> => {
+    setIsPdfProcessing(false)
+  }, [pdfOperation, pdfPreview, runPdfStep])
+  const beginPdfExport = React.useCallback((): void => {
     if (!pdfPreview) return
-    setIsSendingTelegram(true)
-    try {
-      await window.api.pdfExport.sendTelegram(pdfPreview)
-      notify({ type: 'success', title: 'Report sent to Telegram.' })
-    } catch {
-      notify({
-        type: 'error',
-        title: 'Telegram delivery failed.',
-        description: 'Check the Telegram configuration and try again.'
-      })
-    } finally {
-      setIsSendingTelegram(false)
-    }
-  }, [notify, pdfPreview])
+    setPdfProgress(initialPdfProgress)
+    void startPdfExport()
+  }, [pdfPreview, startPdfExport])
+  const retryPdfStep = React.useCallback(
+    async (id: PdfProgressStepId): Promise<void> => {
+      if (!pdfPreview || isPdfProcessing) return
+      setIsPdfProcessing(true)
+      await runPdfStep(id, pdfOperation(id, pdfPreview))
+      setIsPdfProcessing(false)
+    },
+    [isPdfProcessing, pdfOperation, pdfPreview, runPdfStep]
+  )
   const refreshEntries = React.useCallback(async (): Promise<void> => {
     const requestVersion = ++entriesRequestVersionRef.current
     setIncomeLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
@@ -1722,7 +1804,7 @@ export function CashierReportsContent({
                     cashierUserId={selectedReport.cashierUserId}
                     dateRange={dateRange}
                     isLoading={isDateLoading}
-                    isExporting={isExporting}
+                    isExporting={isReviewingPdf}
                     error={dateError ?? exportError}
                     showDateSelector={false}
                     onDateRangeChange={changeDateRange}
@@ -1869,36 +1951,164 @@ export function CashierReportsContent({
           </SheetContent>
         </Sheet>
       )}
-      <Dialog open={Boolean(pdfPreview)} onOpenChange={(open) => !open && setPdfPreview(undefined)}>
-        <DialogContent className="h-[min(92vh,56rem)] grid-rows-[auto_minmax(0,1fr)_auto] max-w-[calc(100%-2rem)] gap-3 p-4 sm:max-w-[calc(100%-4rem)]">
-          <DialogHeader>
+      <Dialog
+        open={Boolean(pdfPreview) && isPdfReviewOpen}
+        onOpenChange={(open) => {
+          if (!open && !isPdfProcessing) {
+            setIsPdfReviewOpen(false)
+            setPdfPreview(undefined)
+          }
+        }}
+      >
+        <DialogContent className="h-[min(84vh,52rem)] w-[min(94vw,84rem)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-none">
+          <DialogHeader className="border-b px-6 py-5 pr-12">
             <DialogTitle>Review Report</DialogTitle>
-            <DialogDescription>Review the final PDF before exporting it.</DialogDescription>
+            <DialogDescription>Review the final PDF before sending it.</DialogDescription>
           </DialogHeader>
-          {pdfPreview && (
-            <iframe
-              title="Cashier report PDF preview"
-              src={`data:application/pdf;base64,${pdfPreview.pdfBase64}`}
-              className="h-full min-h-0 w-full rounded-md border border-border bg-muted"
-            />
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPdfPreview(undefined)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isSendingTelegram}
-              onClick={() => void sendTelegram()}
-            >
-              <Send data-icon="inline-start" />
-              {isSendingTelegram ? 'Sending…' : 'Send Telegram'}
-            </Button>
-            <Button type="button" disabled={isExporting} onClick={() => void exportPdf()}>
-              {isExporting ? 'Exporting…' : 'Export PDF'}
-            </Button>
-          </DialogFooter>
+          <div className="grid min-h-0 grid-rows-[minmax(18rem,1fr)_auto] lg:grid-cols-[minmax(0,7fr)_minmax(19rem,3fr)] lg:grid-rows-1">
+            <div className="min-h-0 bg-muted/30 p-4 lg:border-r">
+              {pdfPreview && (
+                <iframe
+                  title="Cashier report PDF preview"
+                  src={`data:application/pdf;base64,${pdfPreview.pdfBase64}`}
+                  className="h-full min-h-0 w-full rounded-lg border border-border bg-background"
+                />
+              )}
+            </div>
+            <aside className="flex min-h-0 flex-col bg-card">
+              <div className="flex flex-col gap-3">
+                <div className="border-b bg-muted/35 p-5">
+                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    Delivery progress
+                  </span>
+                  <div className="mt-2 flex items-end justify-between gap-3">
+                    <span className="text-4xl font-semibold tracking-tight tabular-nums">
+                      {Math.round(
+                        (pdfProgress.filter(
+                          (step) => step.status === 'done' || step.status === 'failed'
+                        ).length /
+                          pdfProgress.length) *
+                          100
+                      )}
+                      %
+                    </span>
+                    <span className="pb-1 text-xs text-muted-foreground">
+                      {pdfProgress.filter((step) => step.status === 'done').length} of{' '}
+                      {pdfProgress.length} done
+                    </span>
+                  </div>
+                  <Progress
+                    className="mt-4"
+                    value={
+                      (pdfProgress.filter(
+                        (step) => step.status === 'done' || step.status === 'failed'
+                      ).length /
+                        pdfProgress.length) *
+                      100
+                    }
+                    aria-label="Report delivery progress"
+                  />
+                </div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Use the PDF preview's print control when a paper copy is needed.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {pdfProgress.map((step) => (
+                    <div
+                      key={step.id}
+                      className="flex items-start gap-2.5 rounded-lg border border-border/70 p-3"
+                    >
+                      <div className="mt-0.5 text-muted-foreground">
+                        {step.status === 'processing' ? (
+                          <Spinner />
+                        ) : step.status === 'done' ? (
+                          <Check className="text-primary" aria-hidden="true" />
+                        ) : step.status === 'failed' ? (
+                          <CircleAlert className="text-destructive" aria-hidden="true" />
+                        ) : (
+                          <span className="block size-4 rounded-full border border-border" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium">{step.label}</span>
+                          <Badge
+                            variant={step.status === 'failed' ? 'destructive' : 'secondary'}
+                            className="capitalize"
+                          >
+                            {step.status}
+                          </Badge>
+                        </div>
+                        {step.error && (
+                          <Alert variant="destructive" className="mt-2">
+                            <AlertTitle>Could not complete this step</AlertTitle>
+                            <AlertDescription>{step.error}</AlertDescription>
+                          </Alert>
+                        )}
+                        {step.id === 'telegram' && (
+                          <div className="mt-3 flex flex-col gap-1.5">
+                            <label htmlFor="telegram-report-note" className="text-xs font-medium">
+                              Note
+                            </label>
+                            <Textarea
+                              id="telegram-report-note"
+                              value={telegramNote}
+                              onChange={(event) => setTelegramNote(event.target.value)}
+                              placeholder="Optional note for this report"
+                              maxLength={800}
+                              rows={3}
+                              disabled={isPdfProcessing || step.status === 'done'}
+                              className="min-h-20 resize-none text-xs"
+                            />
+                          </div>
+                        )}
+                        {step.status === 'failed' && !isPdfProcessing && pdfPreview && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-2"
+                            onClick={() => void retryPdfStep(step.id)}
+                          >
+                            Retry
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <DialogFooter className="mx-0 mb-0 rounded-none border-t px-4 py-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isPdfProcessing}
+                  onClick={() => {
+                    setIsPdfReviewOpen(false)
+                    setPdfPreview(undefined)
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={isPdfProcessing}
+                  onClick={() => {
+                    if (pdfProgress.every((step) => step.status === 'pending')) beginPdfExport()
+                    else {
+                      setIsPdfReviewOpen(false)
+                      setPdfPreview(undefined)
+                    }
+                  }}
+                >
+                  {isPdfProcessing ? <Spinner data-icon="inline-start" /> : null}
+                  {pdfProgress.every((step) => step.status === 'pending') ? 'Send' : 'Done'}
+                </Button>
+              </DialogFooter>
+            </aside>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

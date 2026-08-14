@@ -1,5 +1,6 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import {
   pdfExportIpcChannels,
@@ -32,7 +33,8 @@ async function createPdf(html: string): Promise<Buffer> {
 
 function pdfFromBase64(pdfBase64: string): Buffer {
   const pdf = Buffer.from(pdfBase64, 'base64')
-  if (pdf.subarray(0, 5).toString() !== '%PDF-') throw new AppError('VALIDATION_ERROR', 'Invalid PDF data.')
+  if (pdf.subarray(0, 5).toString() !== '%PDF-')
+    throw new AppError('VALIDATION_ERROR', 'Invalid PDF data.')
   return pdf
 }
 
@@ -51,7 +53,7 @@ export function registerPdfExportIpc(telegramSettings: TelegramSettingsService):
       const { pdfBase64, fileName } = pdfExportRequestSchema.parse(input)
       const parent = BrowserWindow.fromWebContents(event.sender)
       const saveOptions = {
-        defaultPath: fileName,
+        defaultPath: join(app.getPath('documents'), fileName),
         filters: [{ name: 'PDF', extensions: ['pdf'] }]
       }
       const selection = parent
@@ -68,11 +70,11 @@ export function registerPdfExportIpc(telegramSettings: TelegramSettingsService):
 
   ipcMain.handle(pdfExportIpcChannels.sendTelegram, async (_event, input: unknown) => {
     try {
-      const { pdfBase64, fileName } = pdfTelegramRequestSchema.parse(input)
+      const { pdfBase64, fileName, caption } = pdfTelegramRequestSchema.parse(input)
       const { token, chatId } = await telegramSettings.forDelivery()
       const form = new FormData()
       form.set('chat_id', chatId)
-      form.set('caption', 'Cashier Report')
+      form.set('caption', caption)
       form.set(
         'document',
         new Blob([Uint8Array.from(pdfFromBase64(pdfBase64))], { type: 'application/pdf' }),
