@@ -50,9 +50,9 @@ function table(title: string, headings: string[], rows: string[], totalCentavos?
 function summaryRow(
   label: string,
   value: number | null | undefined,
-  options: { emphasis?: boolean; quantity?: number } = {}
+  options: { emphasis?: boolean; quantity?: number; alwaysShow?: boolean } = {}
 ): string {
-  if (!value) return ''
+  if ((value === null || value === undefined || value === 0) && !options.alwaysShow) return ''
   return `<div class="summary-row${options.emphasis ? ' emphasis' : ''}"><span>${escapeHtml(label)}</span>${options.quantity === undefined ? '' : `<span class="summary-qty">Qty ${options.quantity}</span>`}<strong>${escapeHtml(money(value ?? 0))}</strong></div>`
 }
 
@@ -125,11 +125,14 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
       },
       { bankCheck: 0, bankTransfer: 0, gcash: 0, otherEwallet: 0, total: 0 }
     )
+  const expectedCashCentavos = totalReceiptsCentavos - cashOutCentavos - paymentTotals.total
+  const cashVarianceCentavos = snapshot.physicalCashCentavos - expectedCashCentavos
   const cashSummaryRows: Array<{
     label: string
     value: number | null | undefined
     quantity?: number
     emphasis?: boolean
+    alwaysShow?: boolean
   }> = [
     ...snapshot.receiptTotals.map((item) => ({
       label: item.receiptName,
@@ -149,10 +152,10 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     { label: 'Gcash', value: paymentTotals.gcash },
     { label: 'E-wallet', value: paymentTotals.otherEwallet },
     { label: 'Total Payments', value: paymentTotals.total, emphasis: true },
-    { label: 'Expected Cash', value: snapshot.expectedCashCentavos },
+    { label: 'Expected Cash', value: expectedCashCentavos },
     { label: 'Cash Denominations', value: snapshot.physicalCashCentavos },
     { label: 'Cash Remitted', value: snapshot.report.cashRemittedCentavos },
-    { label: 'Cash Variance', value: snapshot.cashVarianceCentavos, emphasis: true }
+    { label: 'Cash Variance', value: cashVarianceCentavos, emphasis: true, alwaysShow: true }
   ]
 
   return `<!doctype html><html><head><meta charset="utf-8"><style>

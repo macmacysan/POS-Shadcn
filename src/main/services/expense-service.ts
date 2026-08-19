@@ -34,9 +34,9 @@ export class ExpenseService {
 
   create(input: ExpenseCreateInput) {
     const user = this.auth.requireSession()
-    const report = this.repository.findById(input.reportId)
-    if (!report) throw new AppError('NOT_FOUND', 'Report was not found.')
-    if (user.role !== 'ADMIN' && report.branch !== user.branch) {
+    const branchId = this.repository.branchIdForReport(input.reportId)
+    if (!branchId) throw new AppError('NOT_FOUND', 'Report was not found.')
+    if (user.role !== 'ADMIN' && branchId !== user.branchId) {
       throw new AppError('FORBIDDEN', 'You cannot access another branch report.')
     }
     return this.repository.create(input, user.id)

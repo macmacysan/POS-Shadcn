@@ -184,7 +184,7 @@ export class ExpenseRepository {
   }
 
   create(input: ExpenseCreateInput, actorUserId: string): ExpenseRecord {
-    const report = this.db.prepare('SELECT id FROM reports WHERE id = ?').get(input.reportId)
+    const report = this.db.prepare('SELECT id FROM daily_reports WHERE id = ?').get(input.reportId)
     if (!report) throw new AppError('NOT_FOUND', 'Report was not found.')
 
     const id = randomUUID()
@@ -296,6 +296,13 @@ export class ExpenseRepository {
     const row = this.db.prepare('SELECT report_id FROM expenses WHERE id = ?').get(id) as
       { report_id: string } | undefined
     return row?.report_id ?? null
+  }
+
+  branchIdForReport(reportId: string): string | null {
+    const row = this.db
+      .prepare('SELECT branch_id FROM daily_reports WHERE id = ?')
+      .get(reportId) as { branch_id: string } | undefined
+    return row?.branch_id ?? null
   }
 
   findSummaryTotals(reportId: string): ExpenseSummaryTotals {

@@ -358,7 +358,8 @@ export const ReportSummary = React.memo(function ReportSummary({
   dateRange,
   isDateLoading = false,
   onDateRangeChange,
-  expenseTotals
+  expenseTotals,
+  onSnapshotChange
 }: {
   alwaysDark?: boolean
   refreshKey?: string
@@ -370,6 +371,7 @@ export const ReportSummary = React.memo(function ReportSummary({
   isDateLoading?: boolean
   onDateRangeChange: (value: DateSelectorValue) => void
   expenseTotals: ExpenseSummaryTotals
+  onSnapshotChange?: (snapshot: Snapshot) => void
 }): React.JSX.Element {
   const { reportId: activeReportId, businessDate: activeBusinessDate } = useActiveReport()
   const reportId = reportIdOverride ?? activeReportId
@@ -403,6 +405,7 @@ export const ReportSummary = React.memo(function ReportSummary({
       if (snapshotVersion !== snapshotVersionRef.current) return
       snapshotRef.current = next
       setSnapshot(next)
+      onSnapshotChange?.(next)
       const availableIds = new Set([
         ...next.receiptTypes.map((type) => type.id),
         ...next.receiptTotals.map((item) => item.receiptTypeId)
@@ -423,7 +426,7 @@ export const ReportSummary = React.memo(function ReportSummary({
       if (snapshotVersion !== snapshotVersionRef.current) return
       setError('The report summary could not be loaded.')
     }
-  }, [isToday, reportId])
+  }, [isToday, onSnapshotChange, reportId])
 
   React.useEffect(() => {
     void load()
@@ -443,6 +446,7 @@ export const ReportSummary = React.memo(function ReportSummary({
           snapshotVersionRef.current += 1
           snapshotRef.current = saved
           setSnapshot(saved)
+          onSnapshotChange?.(saved)
           setHasSaved(true)
         }
       }
@@ -453,13 +457,14 @@ export const ReportSummary = React.memo(function ReportSummary({
       savingRef.current = false
       setIsSaving(false)
     }
-  }, [])
+  }, [onSnapshotChange])
 
   const save = React.useCallback(
     (next: Snapshot): void => {
       snapshotVersionRef.current += 1
       snapshotRef.current = next
       setSnapshot(next)
+      onSnapshotChange?.(next)
       setHasSaved(false)
       setSaveError(undefined)
       pendingRef.current = true
@@ -535,6 +540,7 @@ export const ReportSummary = React.memo(function ReportSummary({
     snapshot.cashCollectionsCentavos +
     snapshot.otherIncomeCentavos +
     snapshot.financeDownCentavos
+  const expectedCashCentavos = totalReceiptsCentavos - cashOutCentavos - paymentTotals.total
   const hasReceiptSummary = [
     snapshot.cashCollectionsCentavos,
     snapshot.otherIncomeCentavos,
@@ -551,7 +557,7 @@ export const ReportSummary = React.memo(function ReportSummary({
     cashOutCentavos,
     paymentTotals.total
   ].some(Boolean)
-  const variance = snapshot.cashVarianceCentavos
+  const variance = snapshot.physicalCashCentavos - expectedCashCentavos
   const receiptTypesByReport = [
     ...snapshot.receiptTypes.map((type) => {
       const total = receiptTotal(snapshot, type.id)
@@ -928,7 +934,7 @@ export const ReportSummary = React.memo(function ReportSummary({
         <div className="shrink-0 border-t border-sidebar-border bg-sidebar px-3 py-1">
           <SummaryRow
             label="Expected Cash"
-            value={snapshot.expectedCashCentavos}
+            value={expectedCashCentavos}
             emphasis
             valueMuted
           />

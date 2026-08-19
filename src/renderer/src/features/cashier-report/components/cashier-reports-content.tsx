@@ -104,6 +104,7 @@ import {
   type CatalogOptionRecord,
   parseAmountToCentavos,
   type DailyReportPaymentEntryRecord,
+  type DailyReportSnapshotResponse,
   type ExpenseCategory,
   type ExpenseType,
   type ExpenseVat,
@@ -376,12 +377,14 @@ function CashierReportHeader({
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
+            size="sm"
+            className="shrink-0"
             aria-label="Review report"
             disabled={isLoading || isExporting}
             onClick={onExport}
           >
             <FileDown aria-hidden="true" />
+            Review Report
           </Button>
         )}
         {showDateSelector && (
@@ -1414,6 +1417,7 @@ export function CashierReportsContent({
   const [exportError, setExportError] = React.useState<string>()
   const [isReviewingPdf, setIsReviewingPdf] = React.useState(false)
   const [pdfPreview, setPdfPreview] = React.useState<{ fileName: string; pdfBase64: string }>()
+  const summarySnapshotRef = React.useRef<DailyReportSnapshotResponse | undefined>(undefined)
   const [isPdfReviewOpen, setIsPdfReviewOpen] = React.useState(false)
   const [pdfProgress, setPdfProgress] = React.useState<PdfProgressStep[]>(initialPdfProgress)
   const [isPdfProcessing, setIsPdfProcessing] = React.useState(false)
@@ -1603,6 +1607,8 @@ export function CashierReportsContent({
   const reviewPdf = React.useCallback(async (): Promise<void> => {
     setIsReviewingPdf(true)
     setExportError(undefined)
+    setIsPdfReviewOpen(false)
+    setPdfPreview(undefined)
     try {
       const allExpenses: ExpenseRecord[] = []
       for (let pageIndex = 0; ; pageIndex += 1) {
@@ -1669,7 +1675,10 @@ export function CashierReportsContent({
         branch,
         businessDate: selectedReport.businessDate,
         generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
-        snapshot,
+        snapshot:
+          summarySnapshotRef.current?.report.id === reportId
+            ? summarySnapshotRef.current
+            : snapshot,
         expenses: allExpenses,
         incomes: incomeResult.rows,
         payments: paymentResult.rows,
@@ -2101,6 +2110,9 @@ export function CashierReportsContent({
             isDateLoading={isDateLoading}
             onDateRangeChange={changeDateRange}
             expenseTotals={expenseQuery.expenseTotals}
+            onSnapshotChange={(snapshot) => {
+              summarySnapshotRef.current = snapshot
+            }}
           />
         </Card>
       )}
@@ -2279,6 +2291,9 @@ export function CashierReportsContent({
                 isDateLoading={isDateLoading}
                 onDateRangeChange={changeDateRange}
                 expenseTotals={expenseQuery.expenseTotals}
+                onSnapshotChange={(snapshot) => {
+                  summarySnapshotRef.current = snapshot
+                }}
               />
             </SheetContent>
           </Sheet>
