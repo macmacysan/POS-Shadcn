@@ -58,7 +58,14 @@ All components must follow the project theme tokens, typography, spacing, access
 - Page and workspace titles use `text-base` or `text-lg` with medium emphasis; section titles use `text-sm` with medium emphasis; labels, table data, and controls use `text-[13px]` or `text-sm`; metadata and helper text use `text-xs` or `text-sm` with `text-muted-foreground`.
 - Preserve entered values as stronger than labels, placeholders, and secondary metadata. Do not use oversized display type.
 - Use the 4px spacing rhythm. Default gaps are 8px within a control group, 12px between adjacent workspace elements, 16px within form sections, and 24px between major form sections.
-- Use `rounded-md` for controls, badges, and small surfaces; reserve `rounded-lg` or `rounded-xl` for workspace and dialog surfaces already provided by shared components. Do not introduce page-specific radii.
+- Use `rounded-md` for controls and small UI. Use `rounded-lg` for cards and normal contained surfaces, and `rounded-lg` or `rounded-xl` for prominent workspace, dialog, and authentication surfaces. Do not introduce page-specific radii.
+
+## Surface Containment and Radius
+
+- Rounded contained surfaces are part of the Cashiers Report product identity: major workspaces, cards, dialogs, authentication surfaces, inspectors, and substantial panels retain visibly rounded edges through existing project tokens and components.
+- ReUI is an implementation foundation, not a visual override. Do not adopt a flatter ReUI example composition when it conflicts with this product language, and avoid flat edge-to-edge feature surfaces where the application uses a contained rounded workspace.
+- Do not make everything a card. Within an existing contained surface, use spacing, typography, subtle separators, and muted backgrounds when useful rather than nested rounded cards.
+- Do not globally increase radius or introduce arbitrary page-specific radius values.
 
 ## Layout
 
