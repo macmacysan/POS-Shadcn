@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
  */
 const frameVariants = cva(
   [
-    'relative flex flex-col bg-muted/50 gap-(--frame-gap) px-(--frame-px) py-(--frame-py) rounded-(--frame-radius)',
+    'relative flex flex-col bg-muted/50 gap-(--frame-gap) px-(--frame-px) py-(--frame-py)',
     '(--radius-none)] (--radius-2xl)] (--radius-lg)] (--radius-none)]',
     '[--frame-gap:--spacing(0.75)] [--frame-px:--spacing(0.75)] [--frame-py:--spacing(0.75)] [--frame-panel-header-gap:0rem] [--frame-panel-footer-gap:--spacing(1)]',
     '[--frame-panel-px-adjust:0px] [--frame-panel-py-adjust:0px] [--frame-panel-header-px-adjust:0px] [--frame-panel-header-py-adjust:0px] [--frame-panel-footer-px-adjust:0px] [--frame-panel-footer-py-adjust:0px]',
@@ -43,8 +43,8 @@ const frameVariants = cva(
         ghost: '[--frame-panel-radius:calc(var(--frame-radius)_-_var(--frame-px))]'
       },
       radius: {
-        normal: '[--frame-radius:var(--radius-xl)]',
-        prominent: '[--frame-radius:var(--radius-2xl)]'
+        normal: 'rounded-xl [--frame-radius:var(--radius-xl)]',
+        prominent: 'rounded-2xl [--frame-radius:var(--radius-2xl)]'
       },
       // Header/footer vertical rhythm is tighter than the panel body's, and
       // the gap widens as the frame grows: the bars read as chrome rather than

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { CircleAlert, CircleCheck, Eye, EyeOff, LoaderCircle, RefreshCw } from 'lucide-react'
 import type { AuthenticatedUser, FinanceBranch, GoogleSyncProgress } from '@/../../shared/contracts'
 
-import { Frame, FramePanel } from '@/../../components/reui/frame'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -187,93 +187,87 @@ export function LoginForm({
 
   return (
     <div className={className} {...props}>
-      <Frame className="w-full max-w-md" radius="prominent" spacing="default">
-        <FramePanel className="p-4 sm:p-5">
-          <section className="flex flex-col gap-5">
-            <div className="flex items-center gap-2">
-              <span className="brand-mark" aria-hidden="true">
-                NC
-              </span>
-              <div className="min-w-0">
-                <p className="font-heading text-base font-medium">Cashiers Report</p>
-                <p className="text-xs text-muted-foreground">Nueva Camsur Home Furnishing</p>
-              </div>
+      <Card className="w-full max-w-md rounded-2xl" size="sm">
+        <section className="flex flex-col gap-5 px-(--card-spacing)">
+          <div className="flex items-center gap-2">
+            <span className="brand-mark" aria-hidden="true">
+              NC
+            </span>
+            <div className="min-w-0">
+              <p className="font-heading text-base font-medium">Cashiers Report</p>
+              <p className="text-xs text-muted-foreground">Nueva Camsur Home Furnishing</p>
             </div>
+          </div>
 
-            <Separator />
+          <Separator />
 
-            <header className="flex flex-col gap-1.5">
-              <h1 className="font-heading text-base font-medium">Sign in</h1>
-              <p className="text-sm text-muted-foreground">
-                Use the username and password provided by your administrator.
-              </p>
-              <div className="flex items-center gap-2 pt-1 text-xs">
-                <span className="text-muted-foreground">Cashier branch</span>
-                <Badge variant="blue">{cashierLoginBranch ?? 'Loading…'}</Badge>
-              </div>
-            </header>
+          <header className="flex flex-col gap-1.5">
+            <h1 className="font-heading text-base font-medium">Sign in</h1>
+            <p className="text-sm text-muted-foreground">
+              Use the username and password provided by your administrator.
+            </p>
+            <div className="flex items-center gap-2 pt-1 text-xs">
+              <span className="text-muted-foreground">Cashier branch</span>
+              <Badge variant="blue">{cashierLoginBranch ?? 'Loading…'}</Badge>
+            </div>
+          </header>
 
-            <form
-              className="flex flex-col gap-5"
-              onSubmit={(event) => void submit(event)}
-              noValidate
-            >
-              {isSubmitting ? (
-                <DownloadProgress progress={Object.values(syncProgress)} />
-              ) : (
-                <FieldGroup>
-                  <Field data-invalid={Boolean(error)}>
-                    <FieldLabel htmlFor="username">Username</FieldLabel>
-                    <Input
-                      id="username"
-                      autoComplete="username"
+          <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)} noValidate>
+            {isSubmitting ? (
+              <DownloadProgress progress={Object.values(syncProgress)} />
+            ) : (
+              <FieldGroup>
+                <Field data-invalid={Boolean(error)}>
+                  <FieldLabel htmlFor="username">Username</FieldLabel>
+                  <Input
+                    id="username"
+                    autoComplete="username"
+                    aria-invalid={Boolean(error)}
+                    placeholder="Enter username"
+                    value={values.username}
+                    onChange={(event) => update('username', event.target.value)}
+                  />
+                </Field>
+                <Field data-invalid={Boolean(error)}>
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <InputGroup>
+                    <InputGroupInput
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
                       aria-invalid={Boolean(error)}
-                      placeholder="Enter username"
-                      value={values.username}
-                      onChange={(event) => update('username', event.target.value)}
+                      placeholder="Enter password"
+                      value={values.password}
+                      onChange={(event) => update('password', event.target.value)}
                     />
-                  </Field>
-                  <Field data-invalid={Boolean(error)}>
-                    <FieldLabel htmlFor="password">Password</FieldLabel>
-                    <InputGroup>
-                      <InputGroupInput
-                        id="password"
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete="current-password"
-                        aria-invalid={Boolean(error)}
-                        placeholder="Enter password"
-                        value={values.password}
-                        onChange={(event) => update('password', event.target.value)}
-                      />
-                      <InputGroupAddon align="inline-end">
-                        <InputGroupButton
-                          type="button"
-                          size="icon-xs"
-                          aria-label={showPassword ? 'Hide password' : 'Show password'}
-                          onClick={() => setShowPassword((current) => !current)}
-                        >
-                          {showPassword ? <EyeOff /> : <Eye />}
-                        </InputGroupButton>
-                      </InputGroupAddon>
-                    </InputGroup>
-                    {error ? <FieldError>{error}</FieldError> : null}
-                  </Field>
-                </FieldGroup>
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupButton
+                        type="button"
+                        size="icon-xs"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        onClick={() => setShowPassword((current) => !current)}
+                      >
+                        {showPassword ? <EyeOff /> : <Eye />}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
+                  {error ? <FieldError>{error}</FieldError> : null}
+                </Field>
+              </FieldGroup>
+            )}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <RefreshCw data-icon="inline-start" className="animate-spin" />
+                  Downloading data…
+                </>
+              ) : (
+                'Sign in'
               )}
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw data-icon="inline-start" className="animate-spin" />
-                    Downloading data…
-                  </>
-                ) : (
-                  'Sign in'
-                )}
-              </Button>
-            </form>
-          </section>
-        </FramePanel>
-      </Frame>
+            </Button>
+          </form>
+        </section>
+      </Card>
     </div>
   )
 }
