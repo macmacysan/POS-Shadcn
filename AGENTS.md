@@ -37,14 +37,17 @@ Read each applicable document once per task. Re-read only when the working scope
 9. Do not claim a test, command, build, or visual check passed unless it actually completed successfully.
 10. Report unrelated issues separately instead of expanding the task.
 
-## Tool Use
+## UI Tool Use
 
-- Use the installed shadcn skill for substantial UI component work.
-- Use Serena when symbol, reference, caller, or type analysis is useful.
-- Do not invoke Serena for trivial copy or styling changes.
-- Use Context7 or official documentation only for unfamiliar or version-sensitive APIs.
-- Use planning and debugging workflows in proportion to task risk.
-- Follow `docs/WORKFLOW.md` only when Backlog records or task lifecycle actions are involved.
+For substantial UI work:
+
+1. Read `docs/DESIGN.md` first. It is authoritative.
+2. Inspect existing project components before adding anything.
+3. Use the ReUI skill when selecting or adapting higher-level UI components.
+4. Use the shadcn skill for shared primitives and implementation guidance.
+5. Use `design-taste-frontend` only for visual/UX audits unless the task
+   explicitly requests a redesign.
+6. Do not invoke multiple visual-taste/redesign skills for the same task.
 
 ## Completion Report
 
