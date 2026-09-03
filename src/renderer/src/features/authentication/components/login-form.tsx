@@ -3,6 +3,7 @@ import { CircleAlert, CircleCheck, Eye, EyeOff, LoaderCircle, RefreshCw } from '
 import type { AuthenticatedUser, FinanceBranch, GoogleSyncProgress } from '@/../../shared/contracts'
 
 import { Frame, FramePanel } from '@/../../components/reui/frame'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -51,21 +52,21 @@ function DownloadProgress({
   }
 
   return (
-    <div className="flex flex-col gap-5" aria-live="polite">
+    <div className="flex flex-col gap-4" aria-live="polite">
       {groups.map((items) => {
         const latest = items.reduce((current, item) =>
           item.completed >= current.completed ? item : current
         )
         const percent = Math.round((latest.completed / latest.total) * 100)
         return (
-          <section key={latest.branch} className="flex flex-col gap-3">
-            <div className="flex items-center justify-between text-sm font-medium">
+          <section key={latest.branch} className="flex flex-col gap-2">
+            <div className="flex items-center justify-between text-[13px] font-medium">
               <span>Downloading {latest.branch} data</span>
               <span className="tabular-nums text-muted-foreground">{percent}%</span>
             </div>
             <Progress value={percent} aria-label={`Downloaded ${percent}% for ${latest.branch}`} />
             <div
-              className="flex flex-col gap-2"
+              className="flex flex-col gap-1.5"
               role="list"
               aria-label={`${latest.branch} Drive snapshot`}
             >
@@ -81,7 +82,7 @@ function DownloadProgress({
                   <div
                     key={progressKey(item)}
                     role="listitem"
-                    className="flex items-center gap-2 text-sm"
+                    className="flex items-center gap-2 text-xs"
                   >
                     {isFailed ? (
                       <CircleAlert className="text-destructive" aria-hidden="true" />
@@ -91,7 +92,7 @@ function DownloadProgress({
                         aria-hidden="true"
                       />
                     ) : (
-                      <CircleCheck className="text-primary" aria-hidden="true" />
+                      <CircleCheck className="text-success" aria-hidden="true" />
                     )}
                     <span className="min-w-0 flex-1 truncate">{item.sheet}</span>
                     <span className="text-xs text-muted-foreground">
@@ -186,108 +187,91 @@ export function LoginForm({
 
   return (
     <div className={className} {...props}>
-      <Frame className="w-full max-w-3xl" dense>
-        <FramePanel className="p-0">
-          <div className="grid min-h-112 lg:grid-cols-2">
-            <section className="flex flex-col justify-between gap-10 bg-muted/50 p-7 sm:p-10">
-              <div className="flex flex-col gap-8">
-                <div className="flex items-center gap-3 text-sm font-medium tracking-tight">
-                  <span className="brand-mark" aria-hidden="true">
-                    NC
-                  </span>
-                  Nueva Camsur Home Furnishing
-                </div>
-                <div className="flex flex-col gap-3">
-                  <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-                    Cashiers report
-                  </p>
-                  <h1 className="font-heading text-3xl leading-tight font-semibold tracking-tight">
-                    Start the day with the numbers in order.
-                  </h1>
-                  <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-                    Sign in to reconcile collections, track payments, and keep your branch report
-                    current.
-                  </p>
-                </div>
+      <Frame className="w-full max-w-md" spacing="sm">
+        <FramePanel className="p-4 sm:p-5">
+          <section className="flex flex-col gap-5">
+            <div className="flex items-center gap-2">
+              <span className="brand-mark" aria-hidden="true">
+                NC
+              </span>
+              <div className="min-w-0">
+                <p className="font-heading text-base font-medium">Cashiers Report</p>
+                <p className="text-xs text-muted-foreground">Nueva Camsur Home Furnishing</p>
               </div>
-              <div className="flex flex-col gap-2 border-t pt-5 text-sm">
-                <span className="text-muted-foreground">
-                  {cashierLoginBranch ? 'Cashier login branch' : 'Loading cashier branch'}
-                </span>
-                <span className="font-medium">{cashierLoginBranch ?? '…'}</span>
-              </div>
-            </section>
+            </div>
 
-            <section className="flex flex-col justify-center p-7 sm:p-10">
-              <div className="flex flex-col gap-7">
-                <header className="flex flex-col gap-2">
-                  <p className="text-sm font-medium">Workspace access</p>
-                  <p className="text-sm text-muted-foreground">
-                    Use the username and password provided by your administrator.
-                  </p>
-                </header>
-                <Separator />
-                <form
-                  className="flex flex-col gap-6"
-                  onSubmit={(event) => void submit(event)}
-                  noValidate
-                >
-                  {isSubmitting ? (
-                    <DownloadProgress progress={Object.values(syncProgress)} />
-                  ) : (
-                    <FieldGroup>
-                      <Field data-invalid={Boolean(error)}>
-                        <FieldLabel htmlFor="username">Username</FieldLabel>
-                        <Input
-                          id="username"
-                          autoComplete="username"
-                          aria-invalid={Boolean(error)}
-                          placeholder="Enter username"
-                          value={values.username}
-                          onChange={(event) => update('username', event.target.value)}
-                        />
-                      </Field>
-                      <Field data-invalid={Boolean(error)}>
-                        <FieldLabel htmlFor="password">Password</FieldLabel>
-                        <InputGroup>
-                          <InputGroupInput
-                            id="password"
-                            type={showPassword ? 'text' : 'password'}
-                            autoComplete="current-password"
-                            aria-invalid={Boolean(error)}
-                            placeholder="Enter password"
-                            value={values.password}
-                            onChange={(event) => update('password', event.target.value)}
-                          />
-                          <InputGroupAddon align="inline-end">
-                            <InputGroupButton
-                              type="button"
-                              size="icon-xs"
-                              aria-label={showPassword ? 'Hide password' : 'Show password'}
-                              onClick={() => setShowPassword((current) => !current)}
-                            >
-                              {showPassword ? <EyeOff /> : <Eye />}
-                            </InputGroupButton>
-                          </InputGroupAddon>
-                        </InputGroup>
-                        {error ? <FieldError>{error}</FieldError> : null}
-                      </Field>
-                    </FieldGroup>
-                  )}
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? (
-                      <>
-                        <RefreshCw data-icon="inline-start" className="animate-spin" />
-                        Downloading data…
-                      </>
-                    ) : (
-                      'Sign in to workspace'
-                    )}
-                  </Button>
-                </form>
+            <Separator />
+
+            <header className="flex flex-col gap-1.5">
+              <h1 className="font-heading text-base font-medium">Sign in</h1>
+              <p className="text-sm text-muted-foreground">
+                Use the username and password provided by your administrator.
+              </p>
+              <div className="flex items-center gap-2 pt-1 text-xs">
+                <span className="text-muted-foreground">Cashier branch</span>
+                <Badge variant="blue">{cashierLoginBranch ?? 'Loading…'}</Badge>
               </div>
-            </section>
-          </div>
+            </header>
+
+            <form
+              className="flex flex-col gap-5"
+              onSubmit={(event) => void submit(event)}
+              noValidate
+            >
+              {isSubmitting ? (
+                <DownloadProgress progress={Object.values(syncProgress)} />
+              ) : (
+                <FieldGroup>
+                  <Field data-invalid={Boolean(error)}>
+                    <FieldLabel htmlFor="username">Username</FieldLabel>
+                    <Input
+                      id="username"
+                      autoComplete="username"
+                      aria-invalid={Boolean(error)}
+                      placeholder="Enter username"
+                      value={values.username}
+                      onChange={(event) => update('username', event.target.value)}
+                    />
+                  </Field>
+                  <Field data-invalid={Boolean(error)}>
+                    <FieldLabel htmlFor="password">Password</FieldLabel>
+                    <InputGroup>
+                      <InputGroupInput
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        aria-invalid={Boolean(error)}
+                        placeholder="Enter password"
+                        value={values.password}
+                        onChange={(event) => update('password', event.target.value)}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                          type="button"
+                          size="icon-xs"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                          onClick={() => setShowPassword((current) => !current)}
+                        >
+                          {showPassword ? <EyeOff /> : <Eye />}
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
+                    {error ? <FieldError>{error}</FieldError> : null}
+                  </Field>
+                </FieldGroup>
+              )}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw data-icon="inline-start" className="animate-spin" />
+                    Downloading data…
+                  </>
+                ) : (
+                  'Sign in'
+                )}
+              </Button>
+            </form>
+          </section>
         </FramePanel>
       </Frame>
     </div>
