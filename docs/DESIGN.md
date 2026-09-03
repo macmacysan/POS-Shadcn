@@ -62,8 +62,8 @@ All components must follow the project theme tokens, typography, spacing, access
 
 ## Layout
 
-- Keep **Today’s Summary** on the left and the primary workspace on the right.
-- Do not move the summary above the workspace at narrow desktop widths.
+- In the Cashier Reports workflow, keep **Today’s Summary** on the left and the primary workspace on the right.
+- In the Cashier Reports workflow, do not move the summary above the workspace at narrow desktop widths.
 - Prefer internal scrolling over page-level scrolling or layout stacking.
 - Use `min-h-0` and `min-w-0` in constrained flex and grid layouts.
 - Opening an overlay must not resize or restructure the main workspace.

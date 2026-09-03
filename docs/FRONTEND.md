@@ -51,9 +51,10 @@ Applies to React, TypeScript, renderer components, hooks, forms, tables, Tailwin
 
 ## Forms
 
-- Follow `docs/DESIGN.md` for form hierarchy and drawer behavior.
-- Use the shared right-side shadcn `Sheet` for create and edit forms unless explicitly overridden.
-- Reuse existing form logic and avoid duplicated drawer implementations.
+- Follow `docs/DESIGN.md` for form placement and overlay selection.
+- Use the existing shared `TaskSheet` for compatible standard short create and edit drawer workflows.
+- Use the underlying shared `Sheet` directly only when `TaskSheet` cannot represent the required workflow.
+- Reuse existing form logic; do not create duplicate feature-local drawer implementations.
 - Opening a form must not alter the primary workspace layout.
 
 ## Tables
