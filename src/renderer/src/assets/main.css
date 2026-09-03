@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource-variable/source-sans-3';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/dm-sans';
@@ -42,8 +43,8 @@ code {
 }
 
 @theme inline {
-  --font-heading: 'Geist Variable', sans-serif;
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-heading: 'Source Sans 3 Variable', sans-serif;
+  --font-sans: 'JetBrains Mono Variable', monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -117,23 +118,23 @@ code {
 }
 
 :root {
-  --background: oklch(1 0 0);
+  --background: #f7f6f2;
   --foreground: oklch(0.205 0.004 285.9);
-  --card: oklch(1 0 0);
+  --card: #fcfbf8;
   --card-foreground: oklch(0.205 0.004 285.9);
-  --popover: oklch(1 0 0);
+  --popover: #fcfbf8;
   --popover-foreground: oklch(0.205 0.004 285.9);
   --primary: oklch(0.52 0.17 252);
   --primary-foreground: oklch(0.985 0.002 247);
-  --secondary: oklch(0.97 0.002 286);
+  --secondary: #f1f0ec;
   --secondary-foreground: oklch(0.27 0.006 286);
-  --muted: oklch(0.965 0.002 286);
+  --muted: #f1f0ec;
   --muted-foreground: oklch(0.55 0.009 286);
   --accent: oklch(0.955 0.004 252);
   --accent-foreground: oklch(0.26 0.02 252);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.91 0.004 286);
-  --input: oklch(0.91 0.004 286);
+  --border: #e5e3dd;
+  --input: #e5e3dd;
   --ring: oklch(0.62 0.13 252);
   --chart-1: oklch(0.868 0.007 39.5);
   --chart-2: oklch(0.547 0.021 43.1);
@@ -149,14 +150,14 @@ code {
   --sidebar-accent-foreground: oklch(0.26 0.02 252);
   --sidebar-border: oklch(0.91 0.004 286);
   --sidebar-ring: var(--ring);
-  --sidebar-dark: oklch(0.22 0.01 264);
-  --sidebar-dark-foreground: oklch(0.93 0.01 252);
+  --sidebar-dark: oklch(0.205 0 0);
+  --sidebar-dark-foreground: oklch(0.96 0 0);
   --sidebar-dark-border: oklch(1 0 0 / 12%);
   --destructive-foreground: var(--color-red-800);
-  --workspace: oklch(0.985 0.001 286);
+  --workspace: #efeeea;
   --workspace-surface: var(--card);
-  --workspace-subtle: oklch(0.972 0.002 286);
-  --workspace-border: oklch(0.89 0.004 286);
+  --workspace-subtle: #f1f0ec;
+  --workspace-border: #e5e3dd;
   --interactive: var(--primary);
   --interactive-hover: oklch(0.47 0.17 252);
   --interactive-active: oklch(0.42 0.15 252);
@@ -186,47 +187,47 @@ code {
 }
 
 .dark {
-  --background: oklch(0.17 0.004 286);
-  --foreground: oklch(0.96 0.002 286);
-  --card: oklch(0.22 0.006 286);
-  --card-foreground: oklch(0.96 0.002 286);
-  --popover: oklch(0.22 0.006 286);
-  --popover-foreground: oklch(0.96 0.002 286);
-  --primary: oklch(0.62 0.15 252);
-  --primary-foreground: oklch(0.16 0.01 252);
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.673 0.182 276.935);
+  --primary-foreground: oklch(0.141 0.005 285.823);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.27 0.006 286);
-  --muted-foreground: oklch(0.71 0.008 286);
-  --accent: oklch(0.27 0.012 252);
-  --accent-foreground: oklch(0.96 0.002 286);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.257 0.09 281.288);
+  --accent-foreground: oklch(0.87 0.065 274.039);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.547 0.021 43.1);
+  --border: oklch(0.37 0.013 285.805);
+  --input: oklch(0.37 0.013 285.805);
+  --ring: oklch(0.585 0.233 277.117);
   --chart-1: oklch(0.868 0.007 39.5);
   --chart-2: oklch(0.547 0.021 43.1);
   --chart-3: oklch(0.438 0.017 39.3);
   --chart-4: oklch(0.367 0.016 35.7);
   --chart-5: oklch(0.268 0.011 36.5);
-  --sidebar: oklch(0.22 0.006 286);
-  --sidebar-foreground: oklch(0.96 0.002 286);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: oklch(0.27 0.012 252);
-  --sidebar-accent-foreground: oklch(0.96 0.002 286);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.547 0.021 43.1);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: oklch(0.37 0.013 285.805);
+  --sidebar-ring: var(--ring);
   --destructive-foreground: var(--color-red-600);
-  --workspace: oklch(0.185 0.004 286);
-  --workspace-surface: oklch(0.22 0.006 286);
-  --workspace-subtle: oklch(0.245 0.006 286);
-  --workspace-border: oklch(1 0 0 / 12%);
+  --workspace: oklch(0.17 0.005 285.823);
+  --workspace-surface: oklch(0.21 0.006 285.885);
+  --workspace-subtle: oklch(0.274 0.006 286.033);
+  --workspace-border: oklch(0.37 0.013 285.805);
   --interactive: var(--primary);
-  --interactive-hover: oklch(0.68 0.14 252);
-  --interactive-active: oklch(0.58 0.14 252);
-  --interactive-muted: oklch(0.27 0.012 252);
-  --interactive-muted-foreground: oklch(0.82 0.06 252);
+  --interactive-hover: oklch(0.585 0.233 277.117);
+  --interactive-active: oklch(0.511 0.262 276.966);
+  --interactive-muted: var(--accent);
+  --interactive-muted-foreground: var(--accent-foreground);
   --status-success: oklch(0.52 0.12 155);
   --status-success-foreground: oklch(0.8 0.1 155);
   --status-warning: oklch(0.56 0.13 75);
@@ -325,6 +326,7 @@ code {
     --sidebar-border: var(--sidebar-dark-border);
     --sidebar-ring: var(--ring);
   }
+
   .brand-mark {
     @apply relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-brand text-[10px] font-bold tracking-[-0.08em] text-primary-foreground;
   }
@@ -358,15 +360,14 @@ html.custom-window-chrome #root {
 }
 
 html.custom-window-chrome #root {
-  padding: 8px;
+  padding: 0;
 }
-
 
 .app-window-surface {
   overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 12px 32px color-mix(in oklab, var(--foreground) 18%, transparent);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 html.window-maximized #root {

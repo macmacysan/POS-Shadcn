@@ -44,7 +44,7 @@ export function Pattern() {
               className="relative items-start not-last:flex-1"
             >
               <StepperTrigger className="items-start gap-2.5 pb-12 last:pb-0">
-                <StepperIndicator className="data-[state=completed]:bg-success data-[state=completed]:text-white">
+                <StepperIndicator className="data-[state=completed]:bg-success data-[state=completed]:text-primary-foreground">
                   {index + 1}
                 </StepperIndicator>
                 <div className="mt-0.5 text-left">

@@ -44,21 +44,36 @@ export const financeAccountCreateRequestSchema = financeAccountInputSchema
 export const financeAccountUpdateRequestSchema = financeAccountInputSchema.extend({
   id: z.string().uuid()
 })
-export const financeAccountDeleteRequestSchema = z.object({
-  ids: z.array(z.string().uuid()).min(1).max(100),
-  password: z.string().min(1).max(200)
+export const financeAccountVoidRequestSchema = z.object({
+  ids: z.array(z.string().trim().min(1).max(200)).min(1).max(100),
+  password: z.string().min(1).max(200),
+  reason: z.string().trim().min(1).max(1000)
+})
+export const financeAccountUnvoidRequestSchema = z.object({
+  ids: z.array(z.string().trim().min(1).max(200)).min(1).max(100)
+})
+export const financeAccountTransferRequestSchema = z.object({
+  id: z.string().uuid(),
+  branch: z.enum(financeBranchValues),
+  reason: z.string().trim().min(1).max(1000)
 })
 export const financeAccountListRequestSchema = z.object({
   search: z.string().trim().max(200).default(''),
-  branch: z.enum(financeBranchValues).optional()
+  branch: z.enum(financeBranchValues).optional(),
+  includeVoided: z.boolean().default(false)
 })
 
 export type FinanceAccountInput = z.infer<typeof financeAccountInputSchema>
 export type FinanceItemInput = z.infer<typeof financeItemInputSchema>
 export type FinanceAccountCreateRequest = z.infer<typeof financeAccountCreateRequestSchema>
 export type FinanceAccountUpdateRequest = z.infer<typeof financeAccountUpdateRequestSchema>
-export type FinanceAccountDeleteRequest = z.infer<typeof financeAccountDeleteRequestSchema>
-export type FinanceAccountListRequest = z.infer<typeof financeAccountListRequestSchema>
+export type FinanceAccountVoidRequest = z.infer<typeof financeAccountVoidRequestSchema>
+export type FinanceAccountUnvoidRequest = z.infer<typeof financeAccountUnvoidRequestSchema>
+export type FinanceAccountTransferRequest = z.infer<typeof financeAccountTransferRequestSchema>
+export type FinanceAccountListRequest = Omit<
+  z.infer<typeof financeAccountListRequestSchema>,
+  'includeVoided'
+> & { includeVoided?: boolean }
 export type FinanceAccountRecord = Omit<FinanceAccountInput, 'items'> & {
   items: FinanceItemRecord[]
   id: string
@@ -66,6 +81,10 @@ export type FinanceAccountRecord = Omit<FinanceAccountInput, 'items'> & {
   balanceCentavos: number
   createdAt: string
   updatedAt: string
+  status: 'POSTED' | 'VOIDED'
+  voidedAt: string | null
+  voidedByUserId: string | null
+  voidReason: string | null
 }
 export type FinanceItemRecord = FinanceItemInput & {
   id: string
@@ -77,7 +96,9 @@ export const financeAccountIpcChannels = {
   list: 'finance-accounts:list',
   create: 'finance-accounts:create',
   update: 'finance-accounts:update',
-  delete: 'finance-accounts:delete'
+  void: 'finance-accounts:void',
+  unvoid: 'finance-accounts:unvoid',
+  transfer: 'finance-accounts:transfer'
 } as const
 
 export type FinanceAccountsApi = {
@@ -85,6 +106,8 @@ export type FinanceAccountsApi = {
     list(request: FinanceAccountListRequest): Promise<FinanceAccountListResult>
     create(request: FinanceAccountCreateRequest): Promise<FinanceAccountRecord>
     update(request: FinanceAccountUpdateRequest): Promise<FinanceAccountRecord>
-    delete(request: FinanceAccountDeleteRequest): Promise<void>
+    void(request: FinanceAccountVoidRequest): Promise<void>
+    unvoid(request: FinanceAccountUnvoidRequest): Promise<void>
+    transfer(request: FinanceAccountTransferRequest): Promise<FinanceAccountRecord>
   }
 }

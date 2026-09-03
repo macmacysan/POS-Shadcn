@@ -16,6 +16,7 @@ type HistoryBase = {
   activity: string
   amount?: number
   balance?: number
+  balanceCentavos?: number
   performedBy?: string
 }
 
@@ -67,6 +68,18 @@ export const actionLabels: Record<InstallmentHistoryAction, string> = {
   new: 'New',
   edited: 'Edited',
   deleted: 'Deleted'
+}
+
+export function historyActionLabel(record: Pick<InstallmentHistoryRecord, 'action' | 'activity'>): string {
+  const activity = record.activity.toLowerCase()
+  if (record.action === 'deleted' || activity.includes('void') || activity.includes('deleted')) return 'Voided'
+  if (activity.includes('payment')) return 'Payment'
+  if (activity.includes('closed')) return 'Closed'
+  if (activity.includes('blacklisted')) return 'Blacklisted'
+  if (activity.includes('reloan')) return 'Reloan'
+  if (record.action === 'new' && activity.includes('applicant')) return 'New Applicant'
+  if (record.action === 'new') return 'New Loan'
+  return 'Updated'
 }
 
 export const sourceLabels: Record<InstallmentHistorySource, string> = {

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { financeBranchValues } from './finance-accounts'
+import type { DailyReportStatus } from './daily-reports'
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
@@ -12,6 +13,12 @@ export const dashboardGetRequestSchema = z.object({
 
 export type DashboardGetRequest = z.infer<typeof dashboardGetRequestSchema>
 type FinanceBranch = (typeof financeBranchValues)[number]
+export type PdfReportCharts = {
+  weeklySales: Array<{ businessDate: string; salesCentavos: number }>
+  monthlySales: Array<{ month: string; salesCentavos: number }>
+  yearlySales: Array<{ year: string; salesCentavos: number }>
+  expensesVsSales: Array<{ month: string; salesCentavos: number; expenseCentavos: number }>
+}
 export type DashboardOverview = {
   scopeLabel: string
   businessDate: string
@@ -29,6 +36,17 @@ export type DashboardOverview = {
     inHouseCollectionsCentavos: number
     financeCollectionsCentavos: number
   }>
+  reportCalendar: {
+    month: string
+    days: Array<{
+      businessDate: string
+      status: DailyReportStatus
+      hasCashCount: boolean
+      expectedCashCentavos: number
+      physicalCashCentavos: number
+      cashVarianceCentavos: number
+    }>
+  } | null
   overdueCount: number
   overdueBalanceCentavos: number
   overdueAccounts: Array<{
@@ -42,11 +60,13 @@ export type DashboardOverview = {
 }
 
 export const dashboardIpcChannels = {
-  get: 'dashboard:get'
+  get: 'dashboard:get',
+  pdfCharts: 'dashboard:pdf-charts'
 } as const
 
 export type DashboardApi = {
   dashboard: {
     get(request: DashboardGetRequest): Promise<DashboardOverview>
+    getPdfCharts(request: Omit<DashboardGetRequest, 'rangeDays'>): Promise<PdfReportCharts>
   }
 }

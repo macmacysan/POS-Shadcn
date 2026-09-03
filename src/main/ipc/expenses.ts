@@ -5,7 +5,7 @@ import {
   expenseIpcChannels,
   expenseIdSchema,
   expenseListRequestSchema,
-  expenseRemoveInputSchema,
+  expenseVoidInputSchema,
   expenseSummaryTotalsRequestSchema,
   expenseUpdateInputSchema
 } from '../../shared/contracts'
@@ -16,7 +16,7 @@ function rethrowIpcError(error: unknown): never {
   throw toIpcError(error)
 }
 
-export function registerExpenseIpc(service: ExpenseService): void {
+export function registerExpenseIpc(service: ExpenseService, onCommitted?: () => void): void {
   ipcMain.handle(expenseIpcChannels.list, (_event, input: unknown) => {
     try {
       return service.list(expenseListRequestSchema.parse(input))
@@ -36,7 +36,9 @@ export function registerExpenseIpc(service: ExpenseService): void {
 
   ipcMain.handle(expenseIpcChannels.create, (_event, input: unknown) => {
     try {
-      return service.create(expenseCreateInputSchema.parse(input))
+      const result = service.create(expenseCreateInputSchema.parse(input))
+      onCommitted?.()
+      return result
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -44,16 +46,19 @@ export function registerExpenseIpc(service: ExpenseService): void {
 
   ipcMain.handle(expenseIpcChannels.update, (_event, input: unknown) => {
     try {
-      return service.update(expenseUpdateInputSchema.parse(input))
+      const result = service.update(expenseUpdateInputSchema.parse(input))
+      onCommitted?.()
+      return result
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
 
-  ipcMain.handle(expenseIpcChannels.remove, (_event, input: unknown) => {
+  ipcMain.handle(expenseIpcChannels.void, (_event, input: unknown) => {
     try {
-      const { ids, reason } = expenseRemoveInputSchema.parse(input)
-      service.remove(ids, reason)
+      const { ids, reason } = expenseVoidInputSchema.parse(input)
+      service.void(ids, reason)
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }

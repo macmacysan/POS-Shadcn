@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode } from 'react'
+import React, { type MouseEvent, type ReactNode } from 'react'
 import { flexRender, type Column, type Table as TanStackTable } from '@tanstack/react-table'
 import { ChevronLeft, ChevronRight, ChevronsUpDown, ArrowDown, ArrowUp } from 'lucide-react'
 
@@ -19,7 +19,6 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -41,6 +40,7 @@ type UniversalDataTableProps<TData extends object> = {
   onRowClick?: (row: TData) => void
   onRowDoubleClick?: (row: TData) => void
   onRowContextMenu?: (row: TData, event: MouseEvent<HTMLTableRowElement>) => void
+  renderExpandedRow?: (row: TData) => ReactNode
   paginationSizes?: number[]
   paginationInfo?: string
   paginationClassName?: string
@@ -63,7 +63,7 @@ function getColumnMeta<TData>(column: Column<TData, unknown>): ColumnMeta {
 }
 
 function getNarrowColumnClassName(id: string): string | undefined {
-  return id === 'select' || id === 'branch' ? 'px-0 text-center' : undefined
+  return id === 'branch' ? 'px-0 text-center' : undefined
 }
 
 function getColumnLabel<TData>(column: Column<TData, unknown>): string {
@@ -82,21 +82,6 @@ function TableColumnHeader<TData>({
   table: TanStackTable<TData>
   isLoading: boolean
 }): React.JSX.Element {
-  if (column.id === 'select') {
-    const isAllSelected = table.getIsAllPageRowsSelected()
-    const isSomeSelected = table.getIsSomePageRowsSelected()
-    return (
-      <Checkbox
-        checked={isAllSelected}
-        indeterminate={isSomeSelected && !isAllSelected}
-        disabled={isLoading || table.getRowModel().rows.length === 0}
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        className="mx-auto align-[inherit]"
-        aria-label="Select all"
-      />
-    )
-  }
-
   if (column.id === 'actions') return <span className="sr-only">Actions</span>
 
   const isSorted = column.getIsSorted()
@@ -139,6 +124,7 @@ export function UniversalDataTable<TData extends object>({
   onRowClick,
   onRowDoubleClick,
   onRowContextMenu,
+  renderExpandedRow,
   paginationSizes = [25, 50, 100],
   paginationInfo = 'Showing {from}-{to} of {count}',
   paginationClassName,
@@ -180,10 +166,10 @@ export function UniversalDataTable<TData extends object>({
     .replaceAll('{count}', recordCount.toLocaleString('en-PH'))
 
   return (
-    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}>
-      <div className="min-h-0 min-w-0 flex-1 [&>[data-slot=table-container]]:h-full [&>[data-slot=table-container]]:overflow-auto">
-        <Table className="w-full table-fixed text-xs" style={{ minWidth: fixedWidth }}>
-          <TableHeader className="sticky top-0 z-10 bg-background">
+    <div className={cn('flex min-h-0 min-w-0 flex-1 basis-0 flex-col', className)}>
+      <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col [&>[data-slot=table-container]]:h-0 [&>[data-slot=table-container]]:min-h-0 [&>[data-slot=table-container]]:flex-1 [&>[data-slot=table-container]]:overflow-auto">
+        <Table className="w-full table-fixed text-xs" style={{ minWidth: fixedWidth || undefined }}>
+          <TableHeader className="sticky top-0 z-10 bg-card">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => {
@@ -228,11 +214,12 @@ export function UniversalDataTable<TData extends object>({
               ))
             ) : rows.length > 0 ? (
               rows.map((row) => (
+                <React.Fragment key={row.id}>
                 <TableRow
-                  key={row.id}
                   data-state={row.getIsSelected() && 'selected'}
                   className={cn(
-                    'group/row h-7',
+                    'group/row h-7 border-b border-border last:border-b-0',
+                    (row.original as { status?: string }).status === 'VOIDED' && 'text-destructive',
                     (onRowClick || onRowDoubleClick) && 'cursor-pointer'
                   )}
                   onClick={() => onRowClick?.(row.original)}
@@ -256,6 +243,8 @@ export function UniversalDataTable<TData extends object>({
                     )
                   })}
                 </TableRow>
+                {renderExpandedRow?.(row.original)}
+                </React.Fragment>
               ))
             ) : (
               <TableRow>
@@ -274,7 +263,7 @@ export function UniversalDataTable<TData extends object>({
       {showPagination && (
         <div
           className={cn(
-            'flex h-10 shrink-0 items-center justify-between gap-3 border-t px-3 text-xs',
+            'flex h-10 shrink-0 items-center justify-between gap-3 border-t border-border bg-card px-3 text-xs',
             paginationClassName
           )}
         >

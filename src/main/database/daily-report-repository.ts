@@ -6,6 +6,7 @@ import type {
   DailyReportCalendarDay,
   DailyReportCalendarRequest,
   DailyReportCashCountRecord,
+  DailyReportDeliveryChannel,
   DailyReportDeductionRecord,
   DailyReportPaymentCreateRequest,
   DailyReportPaymentEntryRecord,
@@ -38,9 +39,14 @@ type DailyReportRow = {
   opening_cash_centavos: number
   cash_remitted_centavos: number | null
   status: DailyReportRecord['status']
+  google_drive_submitted_at: string | null
+  telegram_submitted_at: string | null
   submitted_at: string | null
   approved_at: string | null
   approved_by_user_id: string | null
+  updated_by_user_id: string | null
+  updated_by_name?: string | null
+  note?: string | null
   created_at: string
   updated_at: string
 }
@@ -61,8 +67,10 @@ type IncomeRow = {
   void_reason: string | null
   created_by_user_id: string
   created_by_name: string
+  created_by_first_name: string
   created_at: string
   updated_at: string
+  source: 'local' | 'google-cache'
 }
 
 type PaymentRow = {
@@ -83,8 +91,10 @@ type PaymentRow = {
   void_reason: string | null
   created_by_user_id: string
   created_by_name: string
+  created_by_first_name: string
   created_at: string
   updated_at: string
+  source: 'local' | 'google-cache'
 }
 
 type ReceiptTotalRow = {
@@ -169,9 +179,14 @@ function reportRecord(row: DailyReportRow): DailyReportRecord {
     openingCashCentavos: row.opening_cash_centavos,
     cashRemittedCentavos: row.cash_remitted_centavos,
     status: row.status,
+    googleDriveSubmittedAt: row.google_drive_submitted_at,
+    telegramSubmittedAt: row.telegram_submitted_at,
     submittedAt: row.submitted_at,
     approvedAt: row.approved_at,
     approvedByUserId: row.approved_by_user_id,
+    updatedByUserId: row.updated_by_user_id,
+    updatedByName: row.updated_by_name ?? null,
+    note: row.note ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
@@ -194,8 +209,10 @@ function incomeRecord(row: IncomeRow): IncomeEntryRecord {
     voidReason: row.void_reason,
     createdByUserId: row.created_by_user_id,
     createdByName: row.created_by_name,
+    createdByFirstName: row.created_by_first_name,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    source: row.source
   }
 }
 
@@ -218,8 +235,10 @@ function paymentRecord(row: PaymentRow): DailyReportPaymentEntryRecord {
     voidReason: row.void_reason,
     createdByUserId: row.created_by_user_id,
     createdByName: row.created_by_name,
+    createdByFirstName: row.created_by_first_name,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    source: row.source
   }
 }
 
@@ -279,16 +298,40 @@ function cashCountRecord(row: CashCountRow): DailyReportCashCountRecord {
 export class DailyReportRepository {
   constructor(private readonly db: AppDatabase) {}
 
+  private touchReport(reportId: string, actorUserId: string, updatedAt: string): void {
+    this.db
+      .prepare('UPDATE daily_reports SET updated_at = ?, updated_by_user_id = ? WHERE id = ?')
+      .run(updatedAt, actorUserId, reportId)
+  }
+
   branchIdForUser(userId: string): string | null {
     const row = this.db.prepare('SELECT branch_id FROM users WHERE id = ?').get(userId) as
       { branch_id: string | null } | undefined
     return row?.branch_id ?? null
   }
 
-  resolveActive(request: DailyReportResolveActiveRequest): DailyReportRecord {
+  branchIdForName(name: string): string | null {
+    const row = this.db
+      .prepare('SELECT id FROM branches WHERE id = ? OR name = ? COLLATE NOCASE')
+      .get(name, name) as { id: string } | undefined
+    return row?.id ?? null
+  }
+
+  branchNameForId(branchId: string | null): string | null {
+    if (!branchId) return null
+    const row = this.db.prepare('SELECT name FROM branches WHERE id = ?').get(branchId) as
+      { name: string } | undefined
+    return row?.name ?? null
+  }
+
+  resolveActive(
+    request: DailyReportResolveActiveRequest,
+    actorUserId: string,
+    allowMutation = true
+  ): DailyReportRecord | null {
     const existing = this.findByIdentity(request.branchId, request.businessDate)
     if (existing) {
-      if (existing.status === 'DRAFT' || existing.status === 'REOPENED') {
+      if (allowMutation && (existing.status === 'DRAFT' || existing.status === 'REOPENED')) {
         const openingCashCentavos = this.previousEndingCashCentavos(
           request.branchId,
           request.businessDate
@@ -297,16 +340,23 @@ export class DailyReportRepository {
           const row = this.db
             .prepare(
               `UPDATE daily_reports
-                  SET opening_cash_centavos = ?, updated_at = ?
+                SET opening_cash_centavos = ?, updated_at = ?, updated_by_user_id = ?
                 WHERE id = ?
               RETURNING *`
             )
-            .get(openingCashCentavos, new Date().toISOString(), existing.id) as DailyReportRow
+            .get(
+              openingCashCentavos,
+              new Date().toISOString(),
+              actorUserId,
+              existing.id
+            ) as DailyReportRow
           return reportRecord(row)
         }
       }
       return existing
     }
+
+    if (!allowMutation) return null
 
     const openingCashCentavos = this.previousEndingCashCentavos(
       request.branchId,
@@ -318,8 +368,8 @@ export class DailyReportRepository {
       this.db
         .prepare(
           `INSERT OR IGNORE INTO daily_reports (
-            id, branch_id, cashier_user_id, business_date, opening_cash_centavos, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+            id, branch_id, cashier_user_id, business_date, opening_cash_centavos, updated_by_user_id, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           id,
@@ -327,6 +377,7 @@ export class DailyReportRepository {
           request.cashierUserId,
           request.businessDate,
           openingCashCentavos,
+          actorUserId,
           now,
           now
         )
@@ -501,34 +552,122 @@ export class DailyReportRepository {
 
   listCalendar(request: DailyReportCalendarRequest): DailyReportCalendarDay[] {
     const monthStart = `${request.month}-01`
-    const reports = this.db
-      .prepare(
-        `SELECT * FROM daily_reports
-          WHERE branch_id = ?
-            AND business_date >= ?
-            AND business_date < date(?, '+1 month')
-          ORDER BY business_date`
-      )
-      .all(request.branchId, monthStart, monthStart) as DailyReportRow[]
+    let reports: DailyReportRow[]
+    try {
+      reports = this.db
+        .prepare(
+          `SELECT dr.*, u.display_name AS updated_by_name
+            FROM daily_reports dr
+             LEFT JOIN users u ON u.id = dr.updated_by_user_id
+            WHERE dr.branch_id = ?
+              AND dr.business_date >= ?
+              AND dr.business_date < date(?, '+1 month')
+            ORDER BY dr.business_date`
+        )
+        .all(request.branchId, monthStart, monthStart) as DailyReportRow[]
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes('updated_by_user_id')) throw error
+      reports = this.db
+        .prepare(
+          `SELECT * FROM daily_reports
+            WHERE branch_id = ?
+              AND business_date >= ?
+              AND business_date < date(?, '+1 month')
+            ORDER BY business_date`
+        )
+        .all(request.branchId, monthStart, monthStart) as DailyReportRow[]
+    }
 
     return reports.map((row) => {
       const report = reportRecord(row)
       const snapshot = this.snapshot(report.id)
-      const noteCount = [...snapshot.incomeEntries, ...snapshot.paymentEntries].filter((entry) =>
-        Boolean(entry.remarks?.trim())
-      ).length
+      const hasData =
+        report.openingCashCentavos !== 0 ||
+        report.cashRemittedCentavos !== null ||
+        snapshot.receiptTotals.some(
+          ({ amountCentavos, quantity }) => amountCentavos !== 0 || quantity !== 0
+        ) ||
+        snapshot.incomeEntries.length > 0 ||
+        snapshot.paymentEntries.length > 0 ||
+        snapshot.cashOutEntries.length > 0 ||
+        snapshot.deductions.some(({ amountCentavos }) => amountCentavos !== 0) ||
+        snapshot.cashCounts.some(({ quantity }) => quantity !== 0) ||
+        snapshot.legacyExpenseCashOutCentavos !== 0 ||
+        snapshot.cashCollectionsCentavos !== 0 ||
+        snapshot.otherIncomeCentavos !== 0 ||
+        snapshot.financeDownCentavos !== 0 ||
+        snapshot.financeBalanceCentavos !== 0
       return {
         businessDate: report.businessDate,
+        reportId: report.id,
         status: report.status,
+        googleDriveSubmittedAt: report.googleDriveSubmittedAt,
+        telegramSubmittedAt: report.telegramSubmittedAt,
+        hasData,
         cashVarianceCentavos: snapshot.cashVarianceCentavos,
-        noteCount
+        expectedCashCentavos: snapshot.expectedCashCentavos,
+        physicalCashCentavos: snapshot.physicalCashCentavos,
+        updatedAt: report.updatedAt,
+        updatedByName: report.updatedByName,
+        note: report.note
       }
     })
   }
 
-  findById(id: string): DailyReportRecord | null {
-    const row = this.db.prepare('SELECT * FROM daily_reports WHERE id = ?').get(id) as
+  updateNote(
+    dailyReportId: string,
+    note: string | null,
+    updatedByUserId: string
+  ): DailyReportRecord {
+    const row = this.db
+      .prepare(
+        `UPDATE daily_reports
+            SET note = ?, updated_at = ?, updated_by_user_id = ?
+          WHERE id = ?
+        RETURNING *`
+      )
+      .get(note, new Date().toISOString(), updatedByUserId, dailyReportId) as
       DailyReportRow | undefined
+    if (!row) throw new AppError('NOT_FOUND', 'Daily report was not found.')
+    return reportRecord(row)
+  }
+
+  markDelivery(
+    dailyReportId: string,
+    channel: DailyReportDeliveryChannel,
+    updatedByUserId: string
+  ): DailyReportRecord {
+    const submittedColumn =
+      channel === 'GOOGLE_DRIVE' ? 'google_drive_submitted_at' : 'telegram_submitted_at'
+    const now = new Date().toISOString()
+    const row = this.db
+      .prepare(
+        `UPDATE daily_reports
+            SET ${submittedColumn} = ?, updated_at = ?, updated_by_user_id = ?
+          WHERE id = ?
+        RETURNING *`
+      )
+      .get(now, now, updatedByUserId, dailyReportId) as DailyReportRow | undefined
+    if (!row) throw new AppError('NOT_FOUND', 'Daily report was not found.')
+    return reportRecord(row)
+  }
+
+  findById(id: string): DailyReportRecord | null {
+    let row: DailyReportRow | undefined
+    try {
+      row = this.db
+        .prepare(
+          `SELECT dr.*, u.display_name AS updated_by_name
+             FROM daily_reports dr
+             LEFT JOIN users u ON u.id = dr.updated_by_user_id
+            WHERE dr.id = ?`
+        )
+        .get(id) as DailyReportRow | undefined
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes('updated_by_user_id')) throw error
+      row = this.db.prepare('SELECT * FROM daily_reports WHERE id = ?').get(id) as
+        DailyReportRow | undefined
+    }
     return row ? reportRecord(row) : null
   }
 
@@ -536,35 +675,74 @@ export class DailyReportRepository {
     const where = ['1 = 1']
     const params: Record<string, string> = {}
     if (request.dailyReportId) {
-      where.push('i.daily_report_id = @dailyReportId')
+      where.push('daily_report_id = @dailyReportId')
       params.dailyReportId = request.dailyReportId
     }
     if (request.branch && request.branch !== 'All Branch') {
-      where.push('b.name = @branch')
+      where.push('branch = @branch')
       params.branch = request.branch
     }
     if (request.dateFrom) {
-      where.push('dr.business_date >= @dateFrom')
+      where.push('transaction_date >= @dateFrom')
       params.dateFrom = request.dateFrom
     }
     if (request.dateTo) {
-      where.push('dr.business_date <= @dateTo')
+      where.push('transaction_date <= @dateTo')
       params.dateTo = request.dateTo
     }
     if (request.status) {
-      where.push('i.status = @status')
+      where.push('status = @status')
       params.status = request.status
     }
     return (
       this.db
         .prepare(
-          `SELECT i.*, b.name AS branch, u.display_name AS created_by_name
-           FROM income_entries i
-           JOIN daily_reports dr ON dr.id = i.daily_report_id
-           JOIN branches b ON b.id = dr.branch_id
-           LEFT JOIN users u ON u.id = i.created_by_user_id
-          WHERE ${where.join(' AND ')}
-          ORDER BY i.transaction_date DESC, i.created_at DESC, i.id DESC`
+          `WITH all_income AS (
+             SELECT i.*, b.name AS branch, u.display_name AS created_by_name,
+                    COALESCE(NULLIF(u.first_name, ''), u.display_name) AS created_by_first_name,
+                    'local' AS source
+               FROM income_entries i
+               JOIN daily_reports dr ON dr.id = i.daily_report_id
+               JOIN branches b ON b.id = dr.branch_id
+               LEFT JOIN users u ON u.id = i.created_by_user_id
+             UNION ALL
+             SELECT json_extract(c.payload_json, '$.id'),
+                    COALESCE(json_extract(c.payload_json, '$.dailyReportId'), json_extract(c.payload_json, '$.daily_report_id')),
+                    COALESCE(json_extract(c.payload_json, '$.categoryId'), json_extract(c.payload_json, '$.category_id')),
+                    COALESCE(json_extract(c.payload_json, '$.transactionDate'), json_extract(c.payload_json, '$.transaction_date')),
+                    json_extract(c.payload_json, '$.particular'),
+                    COALESCE(json_extract(c.payload_json, '$.receiptNumber'), json_extract(c.payload_json, '$.receipt_number')),
+                    json_extract(c.payload_json, '$.remarks'),
+                    CAST(COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) AS INTEGER),
+                    json_extract(c.payload_json, '$.status'),
+                    NULLIF(COALESCE(json_extract(c.payload_json, '$.voidedAt'), json_extract(c.payload_json, '$.voided_at')), ''),
+                    NULLIF(COALESCE(json_extract(c.payload_json, '$.voidedByUserId'), json_extract(c.payload_json, '$.voided_by_user_id')), ''),
+                    NULLIF(COALESCE(json_extract(c.payload_json, '$.voidReason'), json_extract(c.payload_json, '$.void_reason')), ''),
+                    COALESCE(json_extract(c.payload_json, '$.createdByUserId'), json_extract(c.payload_json, '$.created_by_user_id')),
+                    COALESCE(json_extract(c.payload_json, '$.createdAt'), json_extract(c.payload_json, '$.created_at')),
+                    COALESCE(json_extract(c.payload_json, '$.updatedAt'), json_extract(c.payload_json, '$.updated_at')),
+                    c.source_branch,
+                    COALESCE(json_extract(c.payload_json, '$.createdByName'), json_extract(c.payload_json, '$.created_by_name')),
+                    COALESCE(json_extract(c.payload_json, '$.createdByFirstName'), json_extract(c.payload_json, '$.created_by_first_name')),
+                    'google-cache'
+               FROM google_sheet_branch_cache c
+              WHERE c.sheet_name = 'Income'
+                AND c.source_branch <> ''
+                AND json_extract(c.payload_json, '$.id') IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.dailyReportId'), json_extract(c.payload_json, '$.daily_report_id')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.categoryId'), json_extract(c.payload_json, '$.category_id')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.transactionDate'), json_extract(c.payload_json, '$.transaction_date')) IS NOT NULL
+                AND json_extract(c.payload_json, '$.particular') IS NOT NULL
+                AND CAST(COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) AS INTEGER) > 0
+                AND json_extract(c.payload_json, '$.status') IN ('POSTED', 'VOIDED')
+                AND COALESCE(json_extract(c.payload_json, '$.createdByUserId'), json_extract(c.payload_json, '$.created_by_user_id')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.createdAt'), json_extract(c.payload_json, '$.created_at')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.updatedAt'), json_extract(c.payload_json, '$.updated_at')) IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM income_entries i WHERE i.id = json_extract(c.payload_json, '$.id'))
+           )
+           SELECT * FROM all_income
+            WHERE ${where.join(' AND ')}
+            ORDER BY transaction_date DESC, created_at DESC, id DESC`
         )
         .all(params) as IncomeRow[]
     ).map(incomeRecord)
@@ -611,6 +789,7 @@ export class DailyReportRepository {
           : [])
       ]
     })
+    this.touchReport(row.daily_report_id, actorUserId, now)
     return incomeRecord(row)
   }
 
@@ -640,62 +819,111 @@ export class DailyReportRepository {
       action: 'UPDATED',
       changes: [{ field: 'updatedAt', oldValue: null, newValue: now }]
     })
+    this.touchReport(row.daily_report_id, actorUserId, now)
     return incomeRecord(row)
   }
 
   voidIncome(request: IncomeVoidRequest, actorUserId: string): IncomeEntryRecord {
     const now = new Date().toISOString()
-    const row = this.db
-      .prepare(
-        `UPDATE income_entries SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?,
-          void_reason = ?, updated_at = ? WHERE id = ? AND status = 'POSTED' RETURNING *`
-      )
-      .get(now, actorUserId, request.voidReason, now, request.id) as IncomeRow | undefined
-    if (!row) throw new AppError('NOT_FOUND', 'Posted income entry was not found.')
-    recordAudit(this.db, {
-      actorUserId,
-      entityType: 'INCOME',
-      entityId: request.id,
-      action: 'VOIDED',
-      reason: request.voidReason,
-      changes: [{ field: 'status', oldValue: 'POSTED', newValue: 'VOIDED' }]
+    const voidEntry = this.db.transaction(() => {
+      const row = this.db
+        .prepare(
+          `UPDATE income_entries
+              SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?, void_reason = ?, updated_at = ?
+            WHERE id = ? AND status = 'POSTED' RETURNING *`
+        )
+        .get(now, actorUserId, request.voidReason, now, request.id) as IncomeRow | undefined
+      if (!row) throw new AppError('NOT_FOUND', 'Posted income entry was not found.')
+      recordAudit(this.db, {
+        actorUserId,
+        entityType: 'INCOME',
+        entityId: request.id,
+        action: 'VOIDED',
+        reason: request.voidReason,
+        changes: [
+          { field: 'status', oldValue: 'POSTED', newValue: 'VOIDED' },
+          { field: 'voidReason', oldValue: null, newValue: request.voidReason }
+        ]
+      })
+      this.touchReport(row.daily_report_id, actorUserId, now)
+      return row
     })
-    return incomeRecord(row)
+    return incomeRecord(voidEntry())
   }
 
   listPayments(request: DailyReportPaymentListRequest): DailyReportPaymentEntryRecord[] {
     const where = ['1 = 1']
     const params: Record<string, string> = {}
     if (request.dailyReportId) {
-      where.push('p.daily_report_id = @dailyReportId')
+      where.push('daily_report_id = @dailyReportId')
       params.dailyReportId = request.dailyReportId
     }
     if (request.branch && request.branch !== 'All Branch') {
-      where.push('b.name = @branch')
+      where.push('branch = @branch')
       params.branch = request.branch
     }
     if (request.dateFrom) {
-      where.push('dr.business_date >= @dateFrom')
+      where.push('transaction_date >= @dateFrom')
       params.dateFrom = request.dateFrom
     }
     if (request.dateTo) {
-      where.push('dr.business_date <= @dateTo')
+      where.push('transaction_date <= @dateTo')
       params.dateTo = request.dateTo
     }
     if (request.status) {
-      where.push('p.status = @status')
+      where.push('status = @status')
       params.status = request.status
     }
     return (
       this.db
         .prepare(
-          `SELECT p.*, b.name AS branch, u.display_name AS created_by_name
-           FROM daily_report_payment_entries p
-           JOIN daily_reports dr ON dr.id = p.daily_report_id
-           JOIN branches b ON b.id = dr.branch_id
-           LEFT JOIN users u ON u.id = p.created_by_user_id
-          WHERE ${where.join(' AND ')}
-          ORDER BY p.transaction_date DESC, p.created_at DESC, p.id DESC`
+          `WITH all_payments AS (
+             SELECT p.*, b.name AS branch, u.display_name AS created_by_name,
+                    COALESCE(NULLIF(u.first_name, ''), u.display_name) AS created_by_first_name,
+                    'local' AS source
+               FROM daily_report_payment_entries p
+               JOIN daily_reports dr ON dr.id = p.daily_report_id
+               JOIN branches b ON b.id = dr.branch_id
+               LEFT JOIN users u ON u.id = p.created_by_user_id
+             UNION ALL
+             SELECT json_extract(c.payload_json, '$.id'),
+                    COALESCE(json_extract(c.payload_json, '$.dailyReportId'), json_extract(c.payload_json, '$.daily_report_id')),
+                    COALESCE(json_extract(c.payload_json, '$.paymentMethodId'), json_extract(c.payload_json, '$.payment_method_id')),
+                    COALESCE(json_extract(c.payload_json, '$.transactionDate'), json_extract(c.payload_json, '$.transaction_date')),
+                    CAST(COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) AS INTEGER),
+                    COALESCE(json_extract(c.payload_json, '$.referenceNumber'), json_extract(c.payload_json, '$.reference_number')),
+                    COALESCE(json_extract(c.payload_json, '$.bankName'), json_extract(c.payload_json, '$.bank_name')),
+                    COALESCE(json_extract(c.payload_json, '$.payerName'), json_extract(c.payload_json, '$.payer_name')),
+                    json_extract(c.payload_json, '$.remarks'), json_extract(c.payload_json, '$.status'),
+                    NULLIF(COALESCE(json_extract(c.payload_json, '$.voidedAt'), json_extract(c.payload_json, '$.voided_at')), ''),
+                    NULLIF(COALESCE(json_extract(c.payload_json, '$.voidedByUserId'), json_extract(c.payload_json, '$.voided_by_user_id')), ''),
+                    NULLIF(COALESCE(json_extract(c.payload_json, '$.voidReason'), json_extract(c.payload_json, '$.void_reason')), ''),
+                    COALESCE(json_extract(c.payload_json, '$.createdByUserId'), json_extract(c.payload_json, '$.created_by_user_id')),
+                    COALESCE(json_extract(c.payload_json, '$.createdAt'), json_extract(c.payload_json, '$.created_at')),
+                    COALESCE(json_extract(c.payload_json, '$.updatedAt'), json_extract(c.payload_json, '$.updated_at')),
+                    COALESCE(json_extract(c.payload_json, '$.paymentMethodName'), json_extract(c.payload_json, '$.payment_method_name')),
+                    c.source_branch,
+                    COALESCE(json_extract(c.payload_json, '$.createdByName'), json_extract(c.payload_json, '$.created_by_name')),
+                    COALESCE(json_extract(c.payload_json, '$.createdByFirstName'), json_extract(c.payload_json, '$.created_by_first_name')),
+                    'google-cache'
+               FROM google_sheet_branch_cache c
+              WHERE c.sheet_name IN ('Payment', 'Payments')
+                AND c.source_branch <> ''
+                AND json_extract(c.payload_json, '$.id') IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.dailyReportId'), json_extract(c.payload_json, '$.daily_report_id')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.paymentMethodId'), json_extract(c.payload_json, '$.payment_method_id')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.paymentMethodName'), json_extract(c.payload_json, '$.payment_method_name')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.transactionDate'), json_extract(c.payload_json, '$.transaction_date')) IS NOT NULL
+                AND CAST(COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) AS INTEGER) > 0
+                AND json_extract(c.payload_json, '$.status') IN ('POSTED', 'VOIDED')
+                AND COALESCE(json_extract(c.payload_json, '$.createdByUserId'), json_extract(c.payload_json, '$.created_by_user_id')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.createdAt'), json_extract(c.payload_json, '$.created_at')) IS NOT NULL
+                AND COALESCE(json_extract(c.payload_json, '$.updatedAt'), json_extract(c.payload_json, '$.updated_at')) IS NOT NULL
+                AND NOT EXISTS (SELECT 1 FROM daily_report_payment_entries p WHERE p.id = json_extract(c.payload_json, '$.id'))
+           )
+           SELECT * FROM all_payments
+            WHERE ${where.join(' AND ')}
+            ORDER BY transaction_date DESC, created_at DESC, id DESC`
         )
         .all(params) as PaymentRow[]
     ).map(paymentRecord)
@@ -747,6 +975,7 @@ export class DailyReportRepository {
           : [])
       ]
     })
+    this.touchReport(row.daily_report_id, actorUserId, now)
     return paymentRecord(row)
   }
 
@@ -782,6 +1011,7 @@ export class DailyReportRepository {
       action: 'UPDATED',
       changes: [{ field: 'updatedAt', oldValue: null, newValue: now }]
     })
+    this.touchReport(row.daily_report_id, actorUserId, now)
     return paymentRecord(row)
   }
 
@@ -790,35 +1020,47 @@ export class DailyReportRepository {
     actorUserId: string
   ): DailyReportPaymentEntryRecord {
     const now = new Date().toISOString()
-    const row = this.db
-      .prepare(
-        `UPDATE daily_report_payment_entries SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?,
-          void_reason = ?, updated_at = ? WHERE id = ? AND status = 'POSTED' RETURNING *`
-      )
-      .get(now, actorUserId, request.voidReason, now, request.id) as PaymentRow | undefined
-    if (!row) throw new AppError('NOT_FOUND', 'Posted payment entry was not found.')
-    recordAudit(this.db, {
-      actorUserId,
-      entityType: 'PAYMENT',
-      entityId: request.id,
-      action: 'VOIDED',
-      reason: request.voidReason,
-      changes: [{ field: 'status', oldValue: 'POSTED', newValue: 'VOIDED' }]
+    const voidEntry = this.db.transaction(() => {
+      const row = this.db
+        .prepare(
+          `UPDATE daily_report_payment_entries
+              SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?, void_reason = ?, updated_at = ?
+            WHERE id = ? AND status = 'POSTED' RETURNING *`
+        )
+        .get(now, actorUserId, request.voidReason, now, request.id) as PaymentRow | undefined
+      if (!row) throw new AppError('NOT_FOUND', 'Posted payment entry was not found.')
+      recordAudit(this.db, {
+        actorUserId,
+        entityType: 'PAYMENT',
+        entityId: request.id,
+        action: 'VOIDED',
+        reason: request.voidReason,
+        changes: [
+          { field: 'status', oldValue: 'POSTED', newValue: 'VOIDED' },
+          { field: 'voidReason', oldValue: null, newValue: request.voidReason }
+        ]
+      })
+      this.touchReport(row.daily_report_id, actorUserId, now)
+      return row
     })
-    return paymentRecord(row)
+    return paymentRecord(voidEntry())
   }
 
-  updateSummary(request: DailyReportSummaryUpdateRequest): DailyReportSnapshotResponse {
+  updateSummary(
+    request: DailyReportSummaryUpdateRequest,
+    actorUserId: string
+  ): DailyReportSnapshotResponse {
     const update = this.db.transaction(() => {
       const now = new Date().toISOString()
       const report = this.db
         .prepare(
           `UPDATE daily_reports
-              SET cash_remitted_centavos = ?, updated_at = ?
+               SET cash_remitted_centavos = ?, updated_at = ?, updated_by_user_id = ?
             WHERE id = ?
           RETURNING id`
         )
-        .get(request.cashRemittedCentavos, now, request.dailyReportId) as { id: string } | undefined
+        .get(request.cashRemittedCentavos, now, actorUserId, request.dailyReportId) as
+        { id: string } | undefined
       if (!report) throw new AppError('NOT_FOUND', 'Daily report was not found.')
 
       const upsertReceipt = this.db.prepare(
@@ -890,8 +1132,8 @@ export class DailyReportRepository {
   snapshot(dailyReportId: string): DailyReportSnapshotResponse {
     const report = this.findById(dailyReportId)
     if (!report) throw new AppError('NOT_FOUND', 'Daily report was not found.')
-    const incomeEntries = this.listIncome({ dailyReportId })
-    const paymentEntries = this.listPayments({ dailyReportId })
+    const incomeEntries = this.listIncome({ dailyReportId }).filter((entry) => entry.source === 'local')
+    const paymentEntries = this.listPayments({ dailyReportId }).filter((entry) => entry.source === 'local')
     const receiptTotals = (
       this.db
         .prepare(
@@ -961,6 +1203,50 @@ export class DailyReportRepository {
       valueCentavos: row.value_centavos,
       sortOrder: row.sort_order
     }))
+    const collectionDetails = this.db
+      .prepare(
+        `SELECT c.account_id AS id, a.display_name AS name,
+                p.amount_centavos + p.penalty_centavos AS amountCentavos
+           FROM in_house_payments p
+           JOIN installment_contracts c ON c.id = p.contract_id
+           JOIN accounts a ON a.id = c.account_id
+           WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
+             AND p.payment_date = ? AND c.branch_id = ?
+          ORDER BY a.display_name, p.id`
+      )
+      .all(report.businessDate, report.branchId) as Array<{
+      id: string
+      name: string
+      amountCentavos: number
+    }>
+    const financeDownDetails = this.db
+      .prepare(
+        `SELECT f.id, trim(f.first_name || ' ' || f.last_name) AS name,
+                f.downpayment_centavos AS amountCentavos
+           FROM finance_accounts f
+           JOIN branches b ON b.name = f.branch
+          WHERE COALESCE(f.paid_date, f.date_released) = ? AND b.id = ?
+          ORDER BY name, f.id`
+      )
+      .all(report.businessDate, report.branchId) as Array<{
+      id: string
+      name: string
+      amountCentavos: number
+    }>
+    const financeBalanceDetails = this.db
+      .prepare(
+        `SELECT f.id, trim(f.first_name || ' ' || f.last_name) AS name,
+                f.balance_centavos AS amountCentavos
+           FROM finance_accounts f
+           JOIN branches b ON b.name = f.branch
+          WHERE COALESCE(f.paid_date, f.date_released) = ? AND b.id = ?
+          ORDER BY name, f.id`
+      )
+      .all(report.businessDate, report.branchId) as Array<{
+      id: string
+      name: string
+      amountCentavos: number
+    }>
     const totals = this.db
       .prepare(
         `SELECT
@@ -969,10 +1255,10 @@ export class DailyReportRepository {
           COALESCE((SELECT SUM(amount_centavos) FROM daily_report_deductions WHERE daily_report_id = ?), 0) AS deduction_centavos,
           COALESCE((SELECT SUM(amount_centavos) FROM cash_out_entries WHERE daily_report_id = ? AND status = 'POSTED'), 0) AS cash_out_centavos,
           COALESCE((SELECT SUM(amount_centavos) FROM expenses WHERE report_id = ? AND status = 'POSTED'), 0) AS legacy_expense_cash_out_centavos,
-          COALESCE((SELECT SUM(p.amount_centavos)
+          COALESCE((SELECT SUM(p.amount_centavos + p.penalty_centavos)
                       FROM in_house_payments p
                       JOIN installment_contracts c ON c.id = p.contract_id
-                     WHERE p.status = 'POSTED'
+                      WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
                        AND p.payment_date = report.business_date
                        AND c.branch_id = report.branch_id), 0) AS recorded_paid_amount_centavos,
           COALESCE((SELECT SUM(i.amount_centavos)
@@ -1033,6 +1319,9 @@ export class DailyReportRepository {
       receiptTypes,
       deductionTypes,
       cashDenominations,
+      collectionDetails,
+      financeDownDetails,
+      financeBalanceDetails,
       legacyExpenseCashOutCentavos: totals.legacy_expense_cash_out_centavos,
       cashCollectionsCentavos: totals.recorded_paid_amount_centavos,
       otherIncomeCentavos: totals.other_income_centavos,

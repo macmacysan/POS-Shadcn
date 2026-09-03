@@ -6,3 +6,9 @@ export type NotificationInput = {
   description?: string
   id?: string
 }
+
+export type NotificationRecord = NotificationInput & {
+  id: string
+  createdAt: number
+  read: boolean
+}

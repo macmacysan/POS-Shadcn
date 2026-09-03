@@ -1,25 +1,35 @@
-import { Copy, Minus, Square, X } from 'lucide-react'
+import { CircleAlert, Copy, LoaderCircle, Minus, RefreshCw, Square, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
-import { InitialAdminSetup, LoginForm } from '@/features/authentication'
+import { LoginForm } from '@/features/authentication'
 import { CashierReportsContent } from '@/features/cashier-report'
 import { InHouseActiveAccountsContent, InHouseAccountsContent } from '@/features/in-house-accounts'
 import { FinanceAccountsContent } from '@/features/finance-accounts'
-import { StatusAccountsContent } from '@/features/in-house-accounts/components/status-accounts-content'
+import { CalendarWorkspace } from '@/features/calendar'
+import { AccountRecordsWorkspace } from '@/features/in-house-accounts/components/account-records-workspace'
 import { InstallmentPaymentWorkspace } from '@/features/in-house-payments'
 import { DashboardContent } from '@/features/dashboard'
 import { InstallmentOverviewContent } from '@/features/installment-overview'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
-import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
+import { NotificationCenter } from '@/components/layout/notification-center'
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator
+} from '@/components/ui/breadcrumb'
 import { ActiveReportProvider } from '@/contexts/active-report-context'
 import { NotificationProvider } from '@/contexts/notification-context'
+import { useNotifications } from '@/hooks/use-notifications'
 import { Toaster } from '@/components/ui/sonner'
-import type { AuthenticatedUser, LoginBranch } from '@/../../shared/contracts'
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import type { AuthenticatedUser, GoogleSyncProgress, LoginBranch } from '@/../../shared/contracts'
 import { PESO_SIGN_HIDDEN_STORAGE_KEY, setPesoSignHidden } from '@/lib/currency'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
-const SUMMARY_DARK_STORAGE_KEY = 'cashiers-report-summary-dark'
-const IDLE_SIGN_OUT_MS = 5 * 60 * 1000
 type ActiveView =
   | 'dashboard'
   | 'installment-overview'
@@ -29,23 +39,44 @@ type ActiveView =
   | 'in-house-closed-accounts'
   | 'in-house-blacklisted-accounts'
   | 'finance-accounts'
+  | 'calendar'
 
-type PaymentOrigin = 'records' | 'active' | 'closed' | 'blacklisted'
+type PaymentOrigin = 'records' | 'active' | 'closed' | 'blacklisted' | 'cashier-history'
 type PaymentRoute = {
   accountId: string
   initialTab: 'schedule' | 'ledger'
+  initialPaymentId?: string
+  openRecordPayment: boolean
   origin: PaymentOrigin
 }
 
+function googleSyncProgressKey(progress: Pick<GoogleSyncProgress, 'branch' | 'sheet'>): string {
+  return `${progress.branch}:${progress.sheet}`
+}
+
 function paymentOriginView(origin: PaymentOrigin): ActiveView {
+  if (origin === 'cashier-history') return 'cashier-reports'
   return `in-house-${origin === 'records' ? 'accounts' : `${origin}-accounts`}` as ActiveView
 }
 
 function paymentBackLabel(origin: PaymentOrigin): string {
+  if (origin === 'cashier-history') return 'Back to Activity History'
   if (origin === 'active') return 'Back to Active Accounts'
   if (origin === 'closed') return 'Back to Closed Accounts'
   if (origin === 'blacklisted') return 'Back to Blacklisted Accounts'
   return 'Back to Records'
+}
+
+function activeViewLabel(view: ActiveView): string {
+  if (view === 'cashier-reports') return 'Cashier reports'
+  if (view === 'installment-overview') return 'Installments overview'
+  if (view === 'in-house-accounts') return 'In-house records'
+  if (view === 'in-house-active-accounts') return 'Active accounts'
+  if (view === 'in-house-closed-accounts') return 'Closed accounts'
+  if (view === 'in-house-blacklisted-accounts') return 'Blacklisted accounts'
+  if (view === 'finance-accounts') return 'Finance accounts'
+  if (view === 'calendar') return 'Calendar'
+  return 'Dashboard'
 }
 
 function readPaymentRoute(): PaymentRoute | undefined {
@@ -55,40 +86,52 @@ function readPaymentRoute(): PaymentRoute | undefined {
   let accountId = ''
   try {
     accountId = decodeURIComponent(match[1])
-  } catch {}
+  } catch {
+    return undefined
+  }
   const parameters = new URLSearchParams(search)
   const origin = parameters.get('from')
   return {
     accountId,
     initialTab: parameters.get('tab') === 'ledger' ? 'ledger' : 'schedule',
+    initialPaymentId: parameters.get('payment') || undefined,
+    openRecordPayment: parameters.get('action') === 'record',
     origin:
-      origin === 'records' || origin === 'closed' || origin === 'blacklisted' ? origin : 'active'
+      origin === 'records' ||
+      origin === 'closed' ||
+      origin === 'blacklisted' ||
+      origin === 'cashier-history'
+        ? origin
+        : 'active'
   }
 }
 
 function Workspace({
   isDark,
   onToggleTheme,
-  summaryAlwaysDark,
-  onSummaryAlwaysDarkChange,
   hidePesoSign,
   onHidePesoSignChange,
   onLogout,
+  onBranchChange,
   selectedBranch,
   isAdmin,
-  cashierName
+  userId,
+  cashierName,
+  initialSyncFailures
 }: {
   isDark: boolean
   onToggleTheme: () => void
-  summaryAlwaysDark: boolean
-  onSummaryAlwaysDarkChange: (value: boolean) => void
   hidePesoSign: boolean
   onHidePesoSignChange: (value: boolean) => void
   onLogout: () => void
+  onBranchChange: (branch: LoginBranch) => void
   selectedBranch: LoginBranch
   isAdmin: boolean
+  userId: string
   cashierName: string
+  initialSyncFailures: GoogleSyncProgress[]
 }): React.JSX.Element {
+  const { notify } = useNotifications()
   const initialPaymentRoute = readPaymentRoute()
   const [activeView, setActiveView] = useState<ActiveView>(
     initialPaymentRoute ? paymentOriginView(initialPaymentRoute.origin) : 'dashboard'
@@ -97,19 +140,68 @@ function Workspace({
   const [installmentFilter, setInstallmentFilter] = useState<{
     branch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
     search?: string
+    financeAccountId?: string
+    returnToHistory?: boolean
   }>({})
+  const [cashierReportInitialTab, setCashierReportInitialTab] = useState<
+    ('Expenses' | 'Income' | 'Payment' | 'Activity') | undefined
+  >(initialPaymentRoute?.origin === 'cashier-history' ? 'Activity' : undefined)
+  const [isCashierReportExportRequested, setIsCashierReportExportRequested] = useState(false)
+  const [cashierReportExportDate, setCashierReportExportDate] = useState<string>()
   const [navigationCounts, setNavigationCounts] = useState<{
     due?: number
     unpaidFinance?: number
   }>({})
+  const [syncFailures, setSyncFailures] = useState(initialSyncFailures)
+  const [retryingBranch, setRetryingBranch] = useState<string>()
+
+  useEffect(
+    () =>
+      window.api.googleSync.onProgress((progress) => {
+        const key = googleSyncProgressKey(progress)
+        if (progress.phase === 'failed') {
+          setSyncFailures((current) => [
+            ...current.filter((item) => googleSyncProgressKey(item) !== key),
+            progress
+          ])
+          return
+        }
+        if (progress.phase === 'completed')
+          setSyncFailures((current) =>
+            current.filter((item) => googleSyncProgressKey(item) !== key)
+          )
+      }),
+    []
+  )
+
+  const retryDownload = async (branch: GoogleSyncProgress['branch']): Promise<void> => {
+    setRetryingBranch(branch)
+    try {
+      await window.api.googleSync.sync({ branch })
+    } catch {
+      setSyncFailures((current) => [
+        ...current.filter((item) => item.branch !== branch),
+        {
+          branch,
+          sheet: 'Branch download',
+          phase: 'failed',
+          completed: 0,
+          total: 1,
+          message: 'Could not retry this branch download.'
+        }
+      ])
+    } finally {
+      setRetryingBranch(undefined)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
     const loadNavigationCounts = async (): Promise<void> => {
       try {
         const [installments, financeAccounts] = await Promise.all([
-          window.api.installments.list({ view: 'active', search: '' }),
-          window.api.financeAccounts.list({ search: '' })
+          window.api.installments.list({ view: 'active', search: '', includeVoided: false }),
+          window.api.financeAccounts.list({ search: '', includeVoided: false })
         ])
         if (cancelled) return
         setNavigationCounts({
@@ -146,76 +238,151 @@ function Workspace({
     return () => window.removeEventListener('hashchange', syncRoute)
   }, [])
 
+  useEffect(
+    () =>
+      window.api.auth.onAccountSyncCompleted((count) => {
+        if (count < 0) {
+          notify({
+            type: 'error',
+            title: 'Accounts could not be downloaded.',
+            description: 'Check the Google Drive folder sharing settings and restart the app.'
+          })
+          return
+        }
+        notify({
+          type: 'success',
+          title: 'Accounts downloaded successfully.',
+          description: `${count} account${count === 1 ? '' : 's'} synchronized from the configured source.`
+        })
+      }),
+    [notify]
+  )
+
   const openPaymentWorkspace = (
     accountId: string,
     initialTab: PaymentRoute['initialTab'],
-    origin: PaymentOrigin
+    origin: PaymentOrigin,
+    initialPaymentId?: string,
+    openRecordPayment = false
   ): void => {
-    window.location.hash = `/installments/in-house/accounts/${encodeURIComponent(accountId)}/payments?tab=${initialTab}&from=${origin}`
+    const payment = initialPaymentId ? `&payment=${encodeURIComponent(initialPaymentId)}` : ''
+    const action = openRecordPayment ? '&action=record' : ''
+    window.location.hash = `/installments/in-house/accounts/${encodeURIComponent(accountId)}/payments?tab=${initialTab}&from=${origin}${payment}${action}`
   }
 
   const closePaymentWorkspace = (): void => {
     window.location.hash = ''
     setPaymentRoute(undefined)
+    if (paymentRoute?.origin === 'cashier-history') setCashierReportInitialTab('Activity')
     setActiveView(paymentOriginView(paymentRoute?.origin ?? 'active'))
   }
 
   const selectView = (view: ActiveView): void => {
     if (paymentRoute) window.location.hash = ''
     setPaymentRoute(undefined)
+    setCashierReportInitialTab(undefined)
+    setIsCashierReportExportRequested(false)
+    setCashierReportExportDate(undefined)
     setActiveView(view)
   }
 
-  const openInstallmentOverview = (): void => {
-    setInstallmentFilter({})
-    selectView('installment-overview')
-  }
-
   return (
-    <SidebarProvider className="h-full min-h-0 overflow-hidden">
+    <SidebarProvider
+      defaultOpen={false}
+      className="sidebar-always-dark h-full min-h-0 overflow-hidden bg-sidebar"
+    >
       <SidebarLeft
-        activeView={activeView}
         isDark={isDark}
+        activeView={activeView}
+        cashierName={cashierName}
+        selectedBranch={selectedBranch}
         onDashboard={() => selectView('dashboard')}
-        onInstallmentOverview={openInstallmentOverview}
         onCashierReports={() => selectView('cashier-reports')}
         onAllAccounts={() => selectView('in-house-accounts')}
         onActiveAccounts={() => selectView('in-house-active-accounts')}
         onClosedAccounts={() => selectView('in-house-closed-accounts')}
         onBlacklistedAccounts={() => selectView('in-house-blacklisted-accounts')}
         onFinanceAccounts={() => selectView('finance-accounts')}
+        onCalendar={() => selectView('calendar')}
         dueCount={navigationCounts.due}
         unpaidFinanceCount={navigationCounts.unpaidFinance}
         onToggleTheme={onToggleTheme}
-        summaryAlwaysDark={summaryAlwaysDark}
-        onSummaryAlwaysDarkChange={onSummaryAlwaysDarkChange}
         hidePesoSign={hidePesoSign}
         onHidePesoSignChange={onHidePesoSignChange}
         onLogout={onLogout}
+        onBranchChange={onBranchChange}
         isAdmin={isAdmin}
+        settingsOnly={isAdmin}
+        openSettingsOnMount={isAdmin}
       />
-      <SidebarInset className="flex min-h-0 flex-col overflow-hidden pt-8">
-        <div className="flex shrink-0 items-center border-b bg-background px-6 py-4">
-          <div>
-            <p className="text-2xl font-semibold tracking-tight">Hi, {cashierName}</p>
-            <p className="text-xs text-muted-foreground">
-              {selectedBranch === 'All Branch' ? 'All branches' : selectedBranch}
-            </p>
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-background px-2 pr-24">
+          <SidebarTrigger />
+          <span aria-hidden="true" className="h-4 w-px bg-border" />
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem className="hidden md:block">Workspace</BreadcrumbItem>
+              <BreadcrumbSeparator className="hidden md:block" />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{activeViewLabel(activeView)}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          <div className="ml-auto mr-1">
+            <NotificationCenter />
           </div>
         </div>
-        {paymentRoute ? (
-          <InstallmentPaymentWorkspace
-            accountId={paymentRoute.accountId}
-            initialTab={paymentRoute.initialTab}
-            backLabel={paymentBackLabel(paymentRoute.origin)}
-            onBack={closePaymentWorkspace}
-          />
+        {!isAdmin && syncFailures.length ? (
+          <Alert variant="destructive" className="m-3 shrink-0">
+            <CircleAlert aria-hidden="true" />
+            <AlertTitle>Some branch data could not be downloaded.</AlertTitle>
+            <AlertDescription>
+              {syncFailures.map((failure) => `${failure.branch}: ${failure.sheet}`).join(', ')}. Cached data remains available.
+            </AlertDescription>
+            <AlertAction>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={Boolean(retryingBranch)}
+                onClick={() => void retryDownload(syncFailures[0].branch)}
+              >
+                {retryingBranch ? (
+                  <LoaderCircle data-icon="inline-start" className="animate-spin" />
+                ) : (
+                  <RefreshCw data-icon="inline-start" />
+                )}
+                Retry download
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : null}
+        {isAdmin ? (
+          <main className="flex flex-1 items-center justify-center bg-background p-6">
+            <div className="max-w-md text-center">
+              <h1 className="text-xl font-semibold">Settings</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Open Settings from your profile menu to manage application configuration.
+              </p>
+            </div>
+          </main>
         ) : activeView === 'cashier-reports' ? (
           <CashierReportsContent
-            summaryAlwaysDark={summaryAlwaysDark}
             selectedBranch={selectedBranch}
             cashierName={cashierName}
             isAdmin={isAdmin}
+            initialTab={cashierReportInitialTab}
+            openExportReports={isCashierReportExportRequested}
+            exportDate={cashierReportExportDate}
+            onExportReportsOpened={() => setIsCashierReportExportRequested(false)}
+            onOpenCollection={(accountId) => openPaymentWorkspace(accountId, 'ledger', 'active')}
+            onOpenHistoryPayment={(accountId, paymentId) =>
+              openPaymentWorkspace(accountId, 'ledger', 'cashier-history', paymentId)
+            }
+            onOpenFinance={(financeAccountId, returnToHistory) => {
+              setInstallmentFilter({ financeAccountId, returnToHistory })
+              selectView('finance-accounts')
+            }}
           />
         ) : activeView === 'installment-overview' ? (
           <InstallmentOverviewContent
@@ -230,33 +397,73 @@ function Workspace({
           />
         ) : activeView === 'in-house-active-accounts' ? (
           <InHouseActiveAccountsContent
-            initialBranch={
-              installmentFilter.branch ??
-              (selectedBranch === 'All Branch' ? undefined : selectedBranch)
-            }
+            initialBranch={installmentFilter.branch}
             initialSearch={installmentFilter.search}
+            ownBranch={isAdmin || selectedBranch === 'All Branch' ? undefined : selectedBranch}
             onOpenPaymentWorkspace={openPaymentWorkspace}
           />
         ) : activeView === 'in-house-closed-accounts' ? (
-          <StatusAccountsContent view="closed" onOpenPaymentWorkspace={openPaymentWorkspace} />
+          <AccountRecordsWorkspace
+            view="closed"
+            ownBranch={isAdmin || selectedBranch === 'All Branch' ? undefined : selectedBranch}
+            onOpenPaymentWorkspace={openPaymentWorkspace}
+          />
         ) : activeView === 'in-house-blacklisted-accounts' ? (
-          <StatusAccountsContent view="blacklisted" onOpenPaymentWorkspace={openPaymentWorkspace} />
+          <AccountRecordsWorkspace
+            view="blacklisted"
+            ownBranch={isAdmin || selectedBranch === 'All Branch' ? undefined : selectedBranch}
+            showAllBranches
+            onOpenPaymentWorkspace={openPaymentWorkspace}
+          />
         ) : activeView === 'in-house-accounts' ? (
-          <InHouseAccountsContent onOpenPaymentWorkspace={openPaymentWorkspace} />
+          <InHouseAccountsContent
+            ownBranch={isAdmin || selectedBranch === 'All Branch' ? undefined : selectedBranch}
+            showAllBranches
+            onOpenPaymentWorkspace={openPaymentWorkspace}
+          />
         ) : activeView === 'finance-accounts' ? (
           <FinanceAccountsContent
-            selectedBranch={installmentFilter.branch ?? selectedBranch}
+            selectedBranch={selectedBranch}
             initialSearch={installmentFilter.search}
+            initialEditId={installmentFilter.financeAccountId}
+            onReturnToHistory={
+              installmentFilter.returnToHistory
+                ? () => {
+                    setInstallmentFilter({})
+                    selectView('cashier-reports')
+                    setCashierReportInitialTab('Activity')
+                  }
+                : undefined
+            }
           />
+        ) : activeView === 'calendar' ? (
+          <CalendarWorkspace cashierName={cashierName} selectedBranch={selectedBranch} />
         ) : (
           <DashboardContent
             selectedBranch={selectedBranch}
             onOpenCashierReports={() => selectView('cashier-reports')}
+            onOpenExportReports={(businessDate) => {
+              setCashierReportExportDate(businessDate)
+              setIsCashierReportExportRequested(true)
+              setActiveView('cashier-reports')
+            }}
             onOpenInHouse={() => selectView('in-house-active-accounts')}
             onOpenFinance={() => selectView('finance-accounts')}
             onOpenPaymentWorkspace={(accountId) =>
               openPaymentWorkspace(accountId, 'schedule', 'active')
             }
+          />
+        )}
+        {paymentRoute && (
+          <InstallmentPaymentWorkspace
+            accountId={paymentRoute.accountId}
+            userId={userId}
+            initialTab={paymentRoute.initialTab}
+            initialPaymentId={paymentRoute.initialPaymentId}
+            openRecordPayment={paymentRoute.openRecordPayment}
+            backLabel={paymentBackLabel(paymentRoute.origin)}
+            onBack={closePaymentWorkspace}
+            ownBranch={isAdmin ? undefined : selectedBranch}
           />
         )}
       </SidebarInset>
@@ -267,19 +474,15 @@ function Workspace({
 function App(): React.JSX.Element {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser>()
-  const [needsSetup, setNeedsSetup] = useState<boolean>()
   const [isDark, setIsDark] = useState(() => {
     return localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
-  })
-  const [summaryAlwaysDark, setSummaryAlwaysDark] = useState(() => {
-    const stored = localStorage.getItem(SUMMARY_DARK_STORAGE_KEY)
-    return stored === null || stored === 'true'
   })
   const [hidePesoSign, setHidePesoSign] = useState(
     () => localStorage.getItem(PESO_SIGN_HIDDEN_STORAGE_KEY) === 'true'
   )
   const [selectedBranch, setSelectedBranch] = useState<LoginBranch>('Lagonoy')
   const [isMaximized, setIsMaximized] = useState(false)
+  const [syncFailures, setSyncFailures] = useState<GoogleSyncProgress[]>([])
 
   useEffect(() => {
     const controls = window.windowControls
@@ -304,17 +507,6 @@ function App(): React.JSX.Element {
     localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light')
   }, [isDark])
 
-  useEffect(() => {
-    localStorage.setItem(SUMMARY_DARK_STORAGE_KEY, String(summaryAlwaysDark))
-  }, [summaryAlwaysDark])
-
-  useEffect(() => {
-    void window.api.auth
-      .needsSetup()
-      .then(setNeedsSetup)
-      .catch(() => setNeedsSetup(false))
-  }, [])
-
   const toggleTheme = (): void => setIsDark((current) => !current)
   const changePesoSignVisibility = (hidden: boolean): void => {
     setPesoSignHidden(hidden)
@@ -327,21 +519,6 @@ function App(): React.JSX.Element {
     setIsLoggedIn(false)
   }, [])
 
-  useEffect(() => {
-    if (!isLoggedIn) return
-    let timer: number | undefined
-    const resetTimer = (): void => {
-      if (timer !== undefined) window.clearTimeout(timer)
-      timer = window.setTimeout(() => void logout(), IDLE_SIGN_OUT_MS)
-    }
-    const activityEvents = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'] as const
-    activityEvents.forEach((event) => window.addEventListener(event, resetTimer))
-    resetTimer()
-    return () => {
-      if (timer !== undefined) window.clearTimeout(timer)
-      activityEvents.forEach((event) => window.removeEventListener(event, resetTimer))
-    }
-  }, [isLoggedIn, logout])
   const toggleMaximize = async (): Promise<void> => {
     const controls = window.windowControls
     if (!controls) return
@@ -353,7 +530,7 @@ function App(): React.JSX.Element {
 
   return (
     <NotificationProvider>
-      <div className="app-window-surface relative flex h-full min-h-0 w-full flex-col">
+      <div className="app-window-surface relative flex h-full min-h-0 w-full flex-col bg-background text-foreground">
         <div
           aria-label="Window drag area"
           className="window-drag-region absolute inset-x-0 top-0 z-40 h-8"
@@ -400,37 +577,33 @@ function App(): React.JSX.Element {
                   key={hidePesoSign ? 'peso-hidden' : 'peso-visible'}
                   isDark={isDark}
                   onToggleTheme={toggleTheme}
-                  summaryAlwaysDark={summaryAlwaysDark}
-                  onSummaryAlwaysDarkChange={setSummaryAlwaysDark}
                   hidePesoSign={hidePesoSign}
                   onHidePesoSignChange={changePesoSignVisibility}
                   onLogout={() => void logout()}
+                  onBranchChange={(branch) =>
+                    void window.api.auth.switchBranch({ branch }).then((user) => {
+                      setAuthenticatedUser(user)
+                      setSelectedBranch(user.branch)
+                    })
+                  }
                   selectedBranch={selectedBranch}
                   isAdmin={authenticatedUser.role === 'ADMIN'}
+                  userId={authenticatedUser.id}
                   cashierName={authenticatedUser.displayName}
+                  initialSyncFailures={syncFailures}
                 />
               </div>
             </ActiveReportProvider>
-          ) : needsSetup === undefined ? null : (
-            <main className="flex h-full w-full items-center justify-center bg-background px-6 py-8">
-              {needsSetup ? (
-                <InitialAdminSetup
-                  onSuccess={(user) => {
-                    setSelectedBranch('All Branch')
-                    setAuthenticatedUser(user)
-                    setIsLoggedIn(true)
-                    setNeedsSetup(false)
-                  }}
-                />
-              ) : (
-                <LoginForm
-                  onSuccess={(branch, user) => {
-                    setSelectedBranch(branch)
-                    setAuthenticatedUser(user)
-                    setIsLoggedIn(true)
-                  }}
-                />
-              )}
+          ) : (
+            <main className="relative flex h-full w-full items-center justify-center bg-background px-6 py-8">
+              <LoginForm
+                onSuccess={(user, failures) => {
+                  setSelectedBranch(user.branch)
+                  setAuthenticatedUser(user)
+                  setSyncFailures(failures)
+                  setIsLoggedIn(true)
+                }}
+              />
             </main>
           )}
         </div>

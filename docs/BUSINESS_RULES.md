@@ -34,3 +34,13 @@ Applies to calculations, report identity, reconciliation, payments, deductions, 
 - Verify the authoritative business definition before changing a formula based on a label, layout, or user-interface request.
 - Changes to expected cash, remitted cash, ending cash, variance, deductions, payments, or reconciliation totals must update the authoritative calculation module.
 - Keep display, validation, persistence, and reporting behavior consistent after any rule change.
+
+## Calculations
+
+# Cash Receipts Summary Sidebar
+Total Cash Receipts = SUM ((Sum of Cash Receipts Amount), Collections, Other Income, Financing Downpayment)
+Total Cash Paid Out = SUM (Company Expenses, Deductions, Drawings, Purchases, Receivables)
+Total Payments Received = SUM (Bank Check, Bank Transfer, GCash, Other e-wallet, e.g)
+Expected Cash = Total Cash Receipts - Total Cash Paid Out - Total Payments Received
+Cash Variance = SUM(Cash Denominations) - Expected Cash
+

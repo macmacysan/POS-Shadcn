@@ -458,7 +458,7 @@ export function InstallmentOverviewContent({
     setFinanceLoading(true)
     setFinanceError(undefined)
     try {
-      const result = await window.api.financeAccounts.list({ search: '' })
+      const result = await window.api.financeAccounts.list({ search: '', includeVoided: false })
       setFinanceRows(result.rows)
     } catch (error) {
       setFinanceError(errorMessage(error))

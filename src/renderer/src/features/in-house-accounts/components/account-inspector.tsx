@@ -1,26 +1,25 @@
 import * as React from 'react'
-import { ChevronDown, Copy, MoreHorizontal, X } from 'lucide-react'
+import { CalendarDays, Copy, History, X } from 'lucide-react'
 
-import { AccountBranchBadge, AccountStatusBadge } from '@/features/in-house-accounts/components/account-badges'
+import {
+  AccountBranchBadge,
+  AccountStatusBadge
+} from '@/features/in-house-accounts/components/account-badges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { Badge as ReuiBadge } from '@/components/ui/reui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   branchLabels,
   formatAccountDateTime,
   formatAccountName,
-  type InHouseAccount
+  type InHouseAccount,
+  type InHouseLoan
 } from '@/lib/in-house-accounts'
 import {
   type AccountMonitoringMeta,
@@ -34,9 +33,11 @@ export type AccountInspectorMeta = AccountMonitoringMeta
 
 type InHouseAccountInspectorProps = {
   readonly account?: InHouseAccount
+  readonly loans?: readonly InHouseLoan[]
   readonly meta?: AccountInspectorMeta
   readonly isLoading?: boolean
   readonly isSheet?: boolean
+  readonly hideHeader?: boolean
   readonly onClose?: () => void
   readonly onRecordPayment?: (account: InHouseAccount) => void
   readonly onViewAccount?: (account: InHouseAccount) => void
@@ -88,46 +89,7 @@ function SummaryItem({
   )
 }
 
-function CollapsibleSection({
-  title,
-  summary,
-  defaultOpen = true,
-  children
-}: {
-  readonly title: string
-  readonly summary?: React.ReactNode
-  readonly defaultOpen?: boolean
-  readonly children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <Collapsible defaultOpen={defaultOpen} className="group/section border-b border-border last:border-b-0">
-      <CollapsibleTrigger
-        render={
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 py-2 text-left hover:bg-muted/40"
-          />
-        }
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block text-xs font-semibold text-foreground">{title}</span>
-          {summary && (
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">{summary}</span>
-          )}
-        </span>
-        <ChevronDown
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-data-panel-open/section:rotate-180"
-          aria-hidden="true"
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="border-t py-2">{children}</div>
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-function DetailRow({
+export function DetailRow({
   label,
   value,
   destructive,
@@ -149,7 +111,7 @@ function DetailRow({
       <dt className="text-muted-foreground">{label}</dt>
       <dd
         className={cn(
-          'min-w-0 break-words font-light',
+          'min-w-0 wrap-break-word font-light',
           !stacked && 'text-right',
           destructive && 'text-destructive'
         )}
@@ -232,6 +194,51 @@ function optionalMoney(value: number | undefined): string | undefined {
   return value === undefined ? undefined : formatHistoryMoney(value)
 }
 
+function LoanHistory({ loans }: { readonly loans: readonly InHouseLoan[] }): React.JSX.Element {
+  if (!loans.length) {
+    return (
+      <Empty className="rounded-md border border-dashed p-6">
+        <EmptyHeader>
+          <EmptyTitle className="text-sm">No loan history</EmptyTitle>
+          <EmptyDescription>This client has no recorded loans yet.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {loans.map((loan) => (
+        <div key={loan.id} className="rounded-md border bg-background p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold">{loan.id}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <CalendarDays aria-hidden="true" />
+                Released {formatHistoryDate(loan.dateReleased)}
+              </p>
+            </div>
+            <ReuiBadge variant="primary-light" size="sm">
+              {loan.paymentFrequency}
+            </ReuiBadge>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-3 text-xs">
+            <SummaryItem label="Grand total" value={formatHistoryMoney(loan.grandTotal)} />
+            <SummaryItem label="Installment" value={formatHistoryMoney(loan.installmentAmount)} />
+            <SummaryItem label="Down payment" value={formatHistoryMoney(loan.downPayment)} />
+            <SummaryItem label="Terms" value={loan.terms} />
+          </div>
+          {loan.items.length > 0 && (
+            <p className="mt-3 truncate border-t pt-3 text-xs text-muted-foreground">
+              {loan.items.map((item) => `${item.name} ×${item.quantity}`).join(' · ')}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function InspectorSkeleton(): React.JSX.Element {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -251,20 +258,24 @@ function InspectorSkeleton(): React.JSX.Element {
 
 export function InHouseAccountInspector({
   account,
+  loans = [],
   meta,
   isLoading,
   isSheet,
+  hideHeader = false,
   onClose,
   onRecordPayment,
   onViewAccount,
   onViewLedger
 }: InHouseAccountInspectorProps): React.JSX.Element {
+  const [activeSection, setActiveSection] = React.useState<'all' | 'loans'>('all')
+
   if (isLoading) return <InspectorSkeleton />
 
   if (!account)
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <Header isSheet={isSheet} onClose={onClose} />
+        {!hideHeader && <Header isSheet={isSheet} onClose={onClose} />}
         <Empty className="h-full rounded-none border-0 p-6">
           <EmptyHeader>
             <EmptyTitle>Select an account</EmptyTitle>
@@ -285,26 +296,24 @@ export function InHouseAccountInspector({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-card">
-      <Header isSheet={isSheet} onClose={onClose} />
-
-      <div className="shrink-0 border-b bg-card p-3">
-        <div className="flex flex-col gap-3">
+      {!hideHeader && <Header isSheet={isSheet} onClose={onClose} />}
+      <div className="shrink-0 border-b px-6 py-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <TruncatedName value={name} />
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <AccountBranchBadge branch={account.branch} />
               <AccountStatusBadge status={meta?.status} />
+              <span className="text-xs text-muted-foreground">{account.id}</span>
             </div>
           </div>
-
           <TooltipProvider>
-            <div className="flex gap-2">
+            <div className="flex shrink-0 gap-2">
               <Tooltip>
-                <TooltipTrigger render={<span className="flex-1" />}>
+                <TooltipTrigger render={<span />}>
                   <Button
                     type="button"
                     size="sm"
-                    className="w-full"
                     disabled={!onRecordPayment}
                     onClick={() => onRecordPayment?.(account)}
                   >
@@ -316,12 +325,11 @@ export function InHouseAccountInspector({
                 )}
               </Tooltip>
               <Tooltip>
-                <TooltipTrigger render={<span className="flex-1" />}>
+                <TooltipTrigger render={<span />}>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="w-full"
                     disabled={!viewLedger}
                     onClick={() => viewLedger?.(account)}
                   >
@@ -330,153 +338,170 @@ export function InHouseAccountInspector({
                 </TooltipTrigger>
                 {!viewLedger && <TooltipContent>Ledger workflow is not available.</TooltipContent>}
               </Tooltip>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={<Button type="button" variant="outline" size="icon-sm" />}
-                >
-                  <MoreHorizontal aria-hidden="true" />
-                  <span className="sr-only">More account actions</span>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem disabled>No extra actions</DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </TooltipProvider>
-
-          <div className="border-t pt-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <p className="text-xs text-muted-foreground">Outstanding Balance</p>
-                <p
-                  className={cn(
-                    'mt-1 select-text text-2xl font-semibold tabular-nums',
-                    meta?.outstandingBalance !== undefined &&
-                      meta.outstandingBalance < 0 &&
-                      'text-destructive'
-                  )}
-                >
-                  {formatHistoryMoney(meta?.outstandingBalance)}
-                </p>
-              </div>
-              <SummaryItem label="Next due" value={formatHistoryDate(meta?.nextDue)} />
-              <SummaryItem
-                label="Installment"
-                value={formatHistoryMoney(meta?.installmentAmount)}
-              />
-              <SummaryItem
-                label="Contract"
-                value={
-                  [meta?.paymentFrequency, meta?.terms].filter(Boolean).join(' ') || 'Not provided'
-                }
-              />
-              {isOverdue && meta?.delayedDays !== undefined && (
-                <SummaryItem
-                  label="Delayed"
-                  value={`${meta.delayedDays} ${meta.delayedDays === 1 ? 'day' : 'days'}`}
-                  className="text-destructive"
-                />
-              )}
-            </div>
-          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <SummaryItem
+            label="Outstanding balance"
+            value={formatHistoryMoney(meta?.outstandingBalance)}
+            className={cn(
+              'text-base font-semibold tabular-nums',
+              meta?.outstandingBalance !== undefined &&
+                meta.outstandingBalance < 0 &&
+                'text-destructive'
+            )}
+          />
+          <SummaryItem label="Next due" value={formatHistoryDate(meta?.nextDue)} />
+          <SummaryItem label="Installment" value={formatHistoryMoney(meta?.installmentAmount)} />
+          <SummaryItem
+            label="Contract"
+            value={
+              [meta?.paymentFrequency, meta?.terms].filter(Boolean).join(' ') || 'Not provided'
+            }
+            className={isOverdue ? 'text-destructive' : undefined}
+          />
         </div>
       </div>
-
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col p-3">
-          <CollapsibleSection
-            title="Collection Status"
-            summary={`${formatHistoryMoney(meta?.outstandingBalance)} balance · ${formatHistoryDate(meta?.nextDue)} next due`}
-          >
-            <dl className="divide-y">
-              <DetailRow
-                label="Outstanding balance"
-                value={optionalMoney(meta?.outstandingBalance)}
-                destructive={meta?.outstandingBalance !== undefined && meta.outstandingBalance < 0}
-              />
-              <DetailRow
-                label="Payment amount"
-                value={optionalMoney(meta?.installmentAmount)}
-              />
-              <DetailRow label="Frequency" value={meta?.paymentFrequency === 'Semi' ? 'Semi-monthly' : meta?.paymentFrequency} />
-              <DetailRow label="No. of Payments" value={meta?.terms} />
-              <DetailRow label="Next due" value={optionalDate(meta?.nextDue)} />
-              <DetailRow label="Last payment" value={optionalDate(meta?.lastPayment)} />
-              <DetailRow
-                label="Loan status"
-                value={meta?.status ? <AccountStatusBadge status={meta.status} /> : undefined}
-              />
-              <DetailRow label="Days delayed" value={meta?.delayedDays} destructive={isOverdue} />
-              <DetailRow label="Missed payments" value={meta?.missedPayments} />
-            </dl>
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            title="Financial Breakdown"
-            summary={`${formatHistoryMoney(meta?.grandTotal)} total · ${formatHistoryMoney(meta?.totalPaid)} paid`}
-          >
-            <dl className="divide-y">
-              <DetailRow label="Date released" value={optionalDate(meta?.dateReleased)} />
-              <DetailRow label="Start date" value={optionalDate(meta?.startDate)} />
-              <DetailRow label="End date" value={optionalDate(meta?.endDate)} />
-              <DetailRow label="Grand Total" value={optionalMoney(meta?.grandTotal)} />
-              <DetailRow label="Interest" value={optionalMoney(meta?.interest)} />
-              <DetailRow label="Total interest" value={optionalMoney(meta?.totalInterest)} />
-              <DetailRow label="Down payment" value={optionalMoney(meta?.downPayment)} />
-              <DetailRow label="Required fee" value={optionalMoney(meta?.requiredFee)} />
-              <DetailRow label="Total paid" value={optionalMoney(meta?.totalPaid)} />
-            </dl>
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            title="Contact"
-            summary={primaryMobile?.value ?? account.emails[0]?.value ?? 'No primary contact'}
-          >
-            <ContactRows label="Mobile numbers" values={mobile} primaryId={primaryMobile?.id} />
-            <ContactRows label="Telephone numbers" values={telephone} />
-            <ContactRows label="Email addresses" values={account.emails} />
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            title="Address"
-            summary={
-              (addressLines[0] ??
-                [account.barangay, account.cityMunicipality].filter(Boolean).join(', ')) ||
-              'Not provided'
-            }
-            defaultOpen={false}
-          >
-            {address ? (
-              <div className="flex items-start gap-2">
-                <p className="min-w-0 flex-1 select-text whitespace-pre-line text-xs font-light leading-5">
-                  {address}
-                </p>
-                <CopyButton value={address} label="Copy address" />
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Not provided</p>
-            )}
-          </CollapsibleSection>
-
-          <CollapsibleSection
-            title="Account Record"
-            summary={`${account.id} · ${formatAccountDateTime(account.createdAt)}`}
-            defaultOpen={false}
-          >
-            <dl className="divide-y">
-              <DetailRow label="Account ID" value={account.id} />
-              <DetailRow label="Branch" value={branchLabels[account.branch]} />
-              <DetailRow label="Occupation" value={account.occupation} />
-              <DetailRow label="Agent" value={account.agent} />
-              <DetailRow label="Referred by" value={account.referredBy} />
-              <DetailRow label="Created" value={formatAccountDateTime(account.createdAt)} />
-              <DetailRow label="Last updated" value={formatAccountDateTime(account.updatedAt)} />
-            </dl>
-          </CollapsibleSection>
+      <Tabs
+        value={activeSection}
+        onValueChange={(value) => setActiveSection(value as 'all' | 'loans')}
+        className="min-h-0 flex-1 gap-0"
+      >
+        <div className="shrink-0 border-b px-6 pt-2">
+          <TabsList variant="line" aria-label="Client record views">
+            <TabsTrigger value="all">Overview</TabsTrigger>
+            <TabsTrigger value="loans">
+              <History data-icon="inline-start" aria-hidden="true" />
+              Loan history{' '}
+              <ReuiBadge variant="primary-light" size="xs">
+                {loans.length}
+              </ReuiBadge>
+            </TabsTrigger>
+          </TabsList>
         </div>
-      </ScrollArea>
+        <TabsContent value="all" className="min-h-0">
+          <ScrollArea className="h-full">
+            <div className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)]">
+              <div className="flex min-w-0 flex-col gap-4">
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Collection status</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="divide-y">
+                      <DetailRow
+                        label="Payment amount"
+                        value={optionalMoney(meta?.installmentAmount)}
+                      />
+                      <DetailRow
+                        label="Frequency"
+                        value={
+                          meta?.paymentFrequency === 'Semi'
+                            ? 'Semi-monthly'
+                            : meta?.paymentFrequency
+                        }
+                      />
+                      <DetailRow label="No. of payments" value={meta?.terms} />
+                      <DetailRow label="Next due" value={optionalDate(meta?.nextDue)} />
+                      <DetailRow label="Last payment" value={optionalDate(meta?.lastPayment)} />
+                      <DetailRow
+                        label="Days delayed"
+                        value={meta?.delayedDays}
+                        destructive={isOverdue}
+                      />
+                      <DetailRow label="Missed payments" value={meta?.missedPayments} />
+                    </dl>
+                  </CardContent>
+                </Card>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Financial breakdown</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="divide-y">
+                      <DetailRow label="Date released" value={optionalDate(meta?.dateReleased)} />
+                      <DetailRow label="Start date" value={optionalDate(meta?.startDate)} />
+                      <DetailRow label="End date" value={optionalDate(meta?.endDate)} />
+                      <DetailRow label="Grand total" value={optionalMoney(meta?.grandTotal)} />
+                      <DetailRow label="Interest" value={optionalMoney(meta?.interest)} />
+                      <DetailRow
+                        label="Total interest"
+                        value={optionalMoney(meta?.totalInterest)}
+                      />
+                      <DetailRow label="Down payment" value={optionalMoney(meta?.downPayment)} />
+                      <DetailRow
+                        label="Required Downpayment"
+                        value={optionalMoney(meta?.requiredFee)}
+                      />
+                      <DetailRow label="Total paid" value={optionalMoney(meta?.totalPaid)} />
+                    </dl>
+                  </CardContent>
+                </Card>
+              </div>
+              <div className="flex min-w-0 flex-col gap-4">
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Contact</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
+                    <ContactRows
+                      label="Mobile numbers"
+                      values={mobile}
+                      primaryId={primaryMobile?.id}
+                    />
+                    <ContactRows label="Telephone numbers" values={telephone} />
+                    <ContactRows label="Email addresses" values={account.emails} />
+                  </CardContent>
+                </Card>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Address</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {address ? (
+                      <div className="flex items-start gap-2">
+                        <p className="min-w-0 flex-1 select-text whitespace-pre-line text-xs font-light leading-5">
+                          {address}
+                        </p>
+                        <CopyButton value={address} label="Copy address" />
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Not provided</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card size="sm">
+                  <CardHeader>
+                    <CardTitle>Account record</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="divide-y">
+                      <DetailRow label="Branch" value={branchLabels[account.branch]} />
+                      <DetailRow label="Civil status" value={account.civilStatus} />
+                      <DetailRow label="Occupation" value={account.occupation} />
+                      <DetailRow label="Agent" value={account.agent} />
+                      <DetailRow label="Referred by" value={account.referredBy} />
+                      <DetailRow label="Created" value={formatAccountDateTime(account.createdAt)} />
+                      <DetailRow
+                        label="Last updated"
+                        value={formatAccountDateTime(account.updatedAt)}
+                      />
+                    </dl>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </ScrollArea>
+        </TabsContent>
+        <TabsContent value="loans" className="min-h-0">
+          <ScrollArea className="h-full">
+            <div className="p-6">
+              <LoanHistory loans={loans} />
+            </div>
+          </ScrollArea>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

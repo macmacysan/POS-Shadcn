@@ -73,10 +73,11 @@ export function useExpenses(
   refresh: () => void
   createExpense: (input: ExpenseCreateInput) => Promise<ExpenseRecord>
   updateExpense: (input: ExpenseUpdateInput) => Promise<ExpenseRecord>
-  removeExpenses: (ids: string[], reason: string) => Promise<void>
+  voidExpenses: (ids: string[], reason: string) => Promise<void>
   expenseTotals: ExpenseSummaryTotals
 } {
-  const { reportId: activeReportId } = useActiveReport()
+  const activeReport = useActiveReport()
+  const activeReportId = activeReport?.reportId
   const reportId = reportIdOverride ?? activeReportId
   const [rows, setRows] = React.useState<ExpenseTableRow[]>([])
   const [page, setPage] = React.useState<PaginationState>({ pageIndex: 0, pageSize: 50 })
@@ -139,7 +140,7 @@ export function useExpenses(
         ]
       : []
     const request: ExpenseListRequest = {
-      reportId: branch === 'All Branch' || dateFrom !== dateTo ? undefined : reportId,
+      reportId: branch === 'All Branch' || dateFrom !== dateTo || !reportId ? undefined : reportId,
       includeVoided,
       branch,
       dateFrom,
@@ -199,6 +200,15 @@ export function useExpenses(
   ])
 
   const refreshSummaryTotals = React.useCallback(() => {
+    if (!reportId) {
+      setExpenseTotals({
+        companyExpensesCentavos: 0,
+        drawingsCentavos: 0,
+        purchasesCentavos: 0,
+        receivablesCentavos: 0
+      })
+      return
+    }
     void window.api.reports.expenses
       .summaryTotals(reportId)
       .then(setExpenseTotals)
@@ -231,9 +241,9 @@ export function useExpenses(
     [refresh, refreshSummaryTotals]
   )
 
-  const removeExpenses = React.useCallback(
+  const voidExpenses = React.useCallback(
     async (ids: string[], reason: string): Promise<void> => {
-      await window.api.reports.expenses.remove({ ids, reason })
+      await window.api.reports.expenses.void({ ids, reason })
       refresh()
       refreshSummaryTotals()
     },
@@ -261,7 +271,7 @@ export function useExpenses(
     refresh,
     createExpense,
     updateExpense,
-    removeExpenses,
+    voidExpenses,
     expenseTotals
   }
 }

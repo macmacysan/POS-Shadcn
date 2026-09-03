@@ -11,7 +11,9 @@ import type {
   InstallmentsApi,
   InstallmentRulesApi,
   PdfExportApi,
-  TelegramSettingsApi,
+  ProductCatalogApi,
+  GoogleSyncApi,
+  BackupsApi,
   UserProfilesApi,
   WindowControlsApi
 } from '../shared/contracts'
@@ -30,7 +32,9 @@ declare global {
       DailyReportsApi &
       GeocodingApi &
       PdfExportApi &
-      TelegramSettingsApi &
+      ProductCatalogApi &
+      GoogleSyncApi &
+      BackupsApi &
       UserProfilesApi
     windowControls?: WindowControlsApi
   }

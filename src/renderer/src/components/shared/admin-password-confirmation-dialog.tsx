@@ -11,19 +11,22 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 
 type Props = {
   readonly open: boolean
   readonly title: string
   readonly description: string
   readonly onOpenChange: (open: boolean) => void
-  readonly onConfirm: (password: string) => Promise<void>
+  readonly onConfirm: (password: string, reason?: string) => Promise<void>
+  readonly confirmLabel?: string
+  readonly requireReason?: boolean
 }
 
 function errorMessage(error: unknown): string {
   return error && typeof error === 'object' && 'message' in error
     ? String(error.message)
-    : 'The selected records could not be deleted.'
+    : 'The selected records could not be processed.'
 }
 
 export function AdminPasswordConfirmationDialog({
@@ -31,15 +34,19 @@ export function AdminPasswordConfirmationDialog({
   title,
   description,
   onOpenChange,
-  onConfirm
+  onConfirm,
+  confirmLabel = 'Confirm',
+  requireReason = false
 }: Props): React.JSX.Element {
   const [password, setPassword] = React.useState('')
+  const [reason, setReason] = React.useState('')
   const [error, setError] = React.useState<string>()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   const handleOpenChange = (nextOpen: boolean): void => {
     if (!nextOpen) {
       setPassword('')
+      setReason('')
       setError(undefined)
     }
     onOpenChange(nextOpen)
@@ -51,10 +58,14 @@ export function AdminPasswordConfirmationDialog({
       setError('Enter the administrator password.')
       return
     }
+    if (requireReason && !reason.trim()) {
+      setError('Enter a reason.')
+      return
+    }
     setIsSubmitting(true)
     setError(undefined)
     try {
-      await onConfirm(password)
+      await onConfirm(password, reason.trim())
       handleOpenChange(false)
     } catch (caught) {
       setError(errorMessage(caught))
@@ -72,6 +83,16 @@ export function AdminPasswordConfirmationDialog({
             <AlertDialogDescription>{description}</AlertDialogDescription>
           </AlertDialogHeader>
           <FieldGroup className="py-4">
+            {requireReason && (
+              <Field>
+                <FieldLabel htmlFor="void-reason">Reason</FieldLabel>
+                <Textarea
+                  id="void-reason"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+              </Field>
+            )}
             <Field data-invalid={Boolean(error)}>
               <FieldLabel htmlFor="admin-password-confirmation">Administrator password</FieldLabel>
               <Input
@@ -91,7 +112,7 @@ export function AdminPasswordConfirmationDialog({
               Cancel
             </Button>
             <Button type="submit" variant="destructive" disabled={isSubmitting}>
-              {isSubmitting ? 'Deleting…' : 'Delete selected'}
+              {isSubmitting ? 'Processing…' : confirmLabel}
             </Button>
           </AlertDialogFooter>
         </form>

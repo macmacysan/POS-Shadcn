@@ -13,6 +13,8 @@ import {
   dailyReportResolveActiveRequestSchema,
   dailyReportSnapshotRequestSchema,
   dailyReportSummaryUpdateRequestSchema,
+  dailyReportNoteUpdateRequestSchema,
+  dailyReportDeliveryUpdateRequestSchema,
   incomeCreateRequestSchema,
   incomeListRequestSchema,
   incomeUpdateRequestSchema,
@@ -21,7 +23,7 @@ import {
 import { toIpcError } from '../database/errors'
 import { DailyReportService } from '../services/daily-report-service'
 
-export function registerDailyReportIpc(service: DailyReportService): void {
+export function registerDailyReportIpc(service: DailyReportService, onCommitted?: () => void): void {
   const handle = <T>(
     channel: string,
     parse: (input: unknown) => T,
@@ -29,7 +31,16 @@ export function registerDailyReportIpc(service: DailyReportService): void {
   ): void => {
     ipcMain.handle(channel, (_event, input: unknown) => {
       try {
-        return run(parse(input))
+        const result = run(parse(input))
+        if (![
+          dailyReportIpcChannels.resolveActive,
+          dailyReportIpcChannels.listCalendar,
+          dailyReportIpcChannels.getSnapshot,
+          dailyReportIpcChannels.listIncome,
+          dailyReportIpcChannels.listPayments,
+          dailyReportIpcChannels.listReceiptTypes
+        ].includes(channel as never)) onCommitted?.()
+        return result
       } catch (error) {
         throw toIpcError(error)
       }
@@ -51,6 +62,14 @@ export function registerDailyReportIpc(service: DailyReportService): void {
     dailyReportIpcChannels.updateSummary,
     dailyReportSummaryUpdateRequestSchema.parse,
     (input) => service.updateSummary(input)
+  )
+  handle(dailyReportIpcChannels.updateNote, dailyReportNoteUpdateRequestSchema.parse, (input) =>
+    service.updateNote(input)
+  )
+  handle(
+    dailyReportIpcChannels.markDelivery,
+    dailyReportDeliveryUpdateRequestSchema.parse,
+    (input) => service.markDelivery(input)
   )
   handle(dailyReportIpcChannels.listIncome, incomeListRequestSchema.parse, (input) =>
     service.listIncome(input)

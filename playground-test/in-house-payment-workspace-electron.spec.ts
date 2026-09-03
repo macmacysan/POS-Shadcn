@@ -33,16 +33,24 @@ async function postPayment(
   page: Page,
   workspace: Workspace,
   amountCentavos: number,
-  submissionId: string
+  submissionId: string,
+  penaltyCentavos = 0
 ): Promise<void> {
   await page.evaluate(
-    async ({ accountId, contractId, amountCentavos: amount, submissionId: submission }) => {
+    async ({
+      accountId,
+      contractId,
+      amountCentavos: amount,
+      penalty: penaltyCentavos,
+      submissionId: submission
+    }) => {
       await window.api.installments.createPayment({
         accountId,
         contractId,
         submissionId: submission,
         paymentDate: '2026-07-25',
         amountCentavos: amount,
+        penaltyCentavos,
         actorUserId: 'development-cashier'
       })
     },
@@ -50,6 +58,7 @@ async function postPayment(
       accountId: workspace.account.id,
       contractId: workspace.contractId,
       amountCentavos,
+      penalty: penaltyCentavos,
       submissionId
     }
   )
@@ -104,6 +113,7 @@ test.describe('in-house payment workspace in Electron', () => {
       partial: 'PAY-VALID-PARTIAL',
       multi: 'PAY-VALID-MULTI',
       settlement: 'PAY-VALID-SETTLEMENT',
+      overpayment: 'PAY-VALID-OVERPAYMENT',
       rejected: 'PAY-VALID-REJECTED',
       duplicate: 'PAY-VALID-DUPLICATE',
       blacklisted: 'PAY-VALID-BLACKLISTED',
@@ -162,6 +172,12 @@ test.describe('in-house payment workspace in Electron', () => {
       expect(fullAfter.totalPaidCentavos).toBe(33334)
       expect(fullAfter.schedules[0]).toMatchObject({ paidAmountCentavos: 33334, status: 'PAID' })
       expect(fullAfter.schedules.map((item) => item.balanceCentavos)).toEqual([66669, 66669, 66669])
+      const activeRecords = await page.evaluate(() =>
+        window.api.installments.list({ view: 'active', search: '', includeVoided: false })
+      )
+      expect(
+        activeRecords.rows.find((row) => row.contractId === full.contractId)?.meta.nextDue
+      ).toBe(fullAfter.schedules[1].dueDate)
 
       const partial = await paymentWorkspace(page, ids.partial)
       await postPayment(page, partial, 10000, 'partial-schedule')
@@ -238,6 +254,21 @@ test.describe('in-house payment workspace in Electron', () => {
         66669, 33335, 33285
       ])
 
+      const overpayment = await paymentWorkspace(page, ids.overpayment)
+      const overpaymentAmount = overpayment.schedules[0].dueAmountCentavos + 500
+      await postPayment(page, overpayment, overpaymentAmount, 'overpayment', 500)
+      const overpaymentAfter = await paymentWorkspace(page, ids.overpayment)
+      expect(overpaymentAfter.schedules[0]).toMatchObject({
+        paidAmountCentavos: overpayment.schedules[0].dueAmountCentavos,
+        penaltyCentavos: 500,
+        status: 'PAID'
+      })
+      expect(overpaymentAfter.schedules[1].paidAmountCentavos).toBe(500)
+      expect(overpaymentAfter.totalPaidCentavos).toBe(overpaymentAmount)
+      expect(overpaymentAfter.outstandingBalanceCentavos).toBe(
+        overpayment.outstandingBalanceCentavos - overpaymentAmount
+      )
+
       const settlement = await paymentWorkspace(page, ids.settlement)
       await postPayment(page, settlement, settlement.outstandingBalanceCentavos, 'settle-balance')
       const settlementAfter = await paymentWorkspace(page, ids.settlement)
@@ -294,8 +325,8 @@ test.describe('in-house payment workspace in Electron', () => {
           balance: rejected.outstandingBalanceCentavos
         }
       )
-      expect(rejections).toEqual(['rejected', 'rejected', 'rejected'])
-      expect((await paymentWorkspace(page, ids.rejected)).payments).toHaveLength(0)
+      expect(rejections).toEqual(['accepted', 'rejected', 'rejected'])
+      expect((await paymentWorkspace(page, ids.rejected)).payments).toHaveLength(1)
 
       const duplicate = await paymentWorkspace(page, ids.duplicate)
       await Promise.all([

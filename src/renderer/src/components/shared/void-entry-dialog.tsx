@@ -40,7 +40,7 @@ export function VoidEntryDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Void {label}?</AlertDialogTitle>
           <AlertDialogDescription>
-            This entry will be hidden from normal reports and excluded from totals.
+            This entry will be voided and preserved in the report history.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <Textarea

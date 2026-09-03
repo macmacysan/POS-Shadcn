@@ -12,7 +12,7 @@ function rethrowIpcError(error: unknown): never {
   throw toIpcError(error)
 }
 
-export function registerReportIpc(service: ReportService): void {
+export function registerReportIpc(service: ReportService, onCommitted?: () => void): void {
   ipcMain.handle(reportIpcChannels.getById, (_event, input: unknown) => {
     try {
       const { reportId } = reportGetByIdRequestSchema.parse(input)
@@ -24,6 +24,7 @@ export function registerReportIpc(service: ReportService): void {
   ipcMain.handle(reportIpcChannels.upsertReconciliation, (_event, input: unknown) => {
     try {
       service.upsertReconciliation(reportReconciliationUpsertRequestSchema.parse(input))
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }

@@ -7,7 +7,8 @@ export type InstallmentView = z.infer<typeof installmentViewSchema>
 export const installmentListRequestSchema = z.object({
   view: installmentViewSchema,
   search: z.string().trim().max(200).default(''),
-  branch: z.string().trim().max(100).optional()
+  branch: z.string().trim().max(100).optional(),
+  includeVoided: z.boolean().default(false)
 })
 
 const jsonObjectSchema = z.record(z.string(), z.unknown())
@@ -16,20 +17,53 @@ export const installmentBootstrapRequestSchema = z.object({
   loans: z.array(jsonObjectSchema).max(10000)
 })
 
+export const installmentLoanUpdateRequestSchema = z.object({
+  accountId: z.string().trim().min(1).max(100),
+  contractId: z.string().trim().min(1).max(100),
+  dateReleased: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  paymentFrequency: z.enum(['Daily', 'Weekly', 'Semi', 'Monthly']),
+  terms: z.number().int().positive().max(1000),
+  downPaymentCentavos: z.number().int().nonnegative(),
+  remarks: z.string().trim().max(1000).optional()
+})
+
+export const installmentLoanRestructureRequestSchema = z.object({
+  accountId: z.string().trim().min(1).max(100),
+  contractId: z.string().trim().min(1).max(100),
+  firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  paymentFrequency: z.enum(['Daily', 'Weekly', 'Semi', 'Monthly']),
+  terms: z.number().int().positive().max(1000),
+  reason: z.string().trim().min(1).max(1000)
+})
+
 export const installmentTransitionRequestSchema = z.object({
   accountId: z.string().trim().min(1).max(100),
   contractId: z.string().trim().min(1).max(100).optional(),
-  remarks: z.string().trim().min(1).max(1000),
+  remarks: z.string().trim().max(1000),
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
 })
 
-export const installmentDeleteRequestSchema = z.object({
+export const installmentRestoreStatusRequestSchema = installmentTransitionRequestSchema.extend({
+  status: z.enum(['closed', 'blacklisted'])
+})
+
+export const installmentVoidRequestSchema = z.object({
   contractIds: z.array(z.string().trim().min(1).max(100)).min(1).max(100),
+  password: z.string().min(1).max(200),
+  reason: z.string().trim().min(1).max(1000)
+})
+export const installmentUnvoidRequestSchema = z.object({
+  contractIds: z.array(z.string().trim().min(1).max(100)).min(1).max(100)
+})
+
+export const installmentVoidPaymentsRequestSchema = z.object({
+  paymentIds: z.array(z.string().trim().min(1).max(100)).min(1).max(100),
   password: z.string().min(1).max(200)
 })
 
 export const installmentPaymentWorkspaceRequestSchema = z.object({
-  accountId: z.string().trim().min(1).max(100)
+  accountId: z.string().trim().min(1).max(100),
+  initialPaymentId: z.string().trim().min(1).max(100).optional()
 })
 
 export const installmentCreatePaymentRequestSchema = z.object({
@@ -39,6 +73,7 @@ export const installmentCreatePaymentRequestSchema = z.object({
   scheduleId: z.string().trim().min(1).max(100).optional(),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   amountCentavos: z.number().int().positive(),
+  penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
 })
@@ -46,10 +81,12 @@ export const installmentCreatePaymentRequestSchema = z.object({
 export const installmentAdjustPaymentRequestSchema = z.object({
   accountId: z.string().trim().min(1).max(100),
   contractId: z.string().trim().min(1).max(100),
+  paymentId: z.string().trim().min(1).max(100).optional(),
   scheduleId: z.string().trim().min(1).max(100),
   submissionId: z.string().trim().min(1).max(100),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   amountCentavos: z.number().int().nonnegative(),
+  penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
   reason: z.string().trim().min(1).max(1000),
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
@@ -66,10 +103,18 @@ export const installmentHistoryRequestSchema = z.object({
     .optional()
 })
 
-export type InstallmentListRequest = z.infer<typeof installmentListRequestSchema>
+export type InstallmentListRequest = Omit<
+  z.infer<typeof installmentListRequestSchema>,
+  'includeVoided'
+> & { includeVoided?: boolean }
 export type InstallmentBootstrapRequest = z.infer<typeof installmentBootstrapRequestSchema>
+export type InstallmentLoanUpdateRequest = z.infer<typeof installmentLoanUpdateRequestSchema>
+export type InstallmentLoanRestructureRequest = z.infer<typeof installmentLoanRestructureRequestSchema>
 export type InstallmentTransitionRequest = z.infer<typeof installmentTransitionRequestSchema>
-export type InstallmentDeleteRequest = z.infer<typeof installmentDeleteRequestSchema>
+export type InstallmentRestoreStatusRequest = z.infer<typeof installmentRestoreStatusRequestSchema>
+export type InstallmentVoidRequest = z.infer<typeof installmentVoidRequestSchema>
+export type InstallmentUnvoidRequest = z.infer<typeof installmentUnvoidRequestSchema>
+export type InstallmentVoidPaymentsRequest = z.infer<typeof installmentVoidPaymentsRequestSchema>
 export type InstallmentPaymentWorkspaceRequest = z.infer<
   typeof installmentPaymentWorkspaceRequestSchema
 >
@@ -130,6 +175,7 @@ export type InstallmentAccountRecord = {
   accountStatus: InstallmentAccountStatus
   contractStatus: InstallmentContractStatus
   contractId: string
+  statusRemarks?: string
   meta: {
     status:
       | 'active'
@@ -170,6 +216,7 @@ export type InHouseScheduleRecord = {
   dueAmountCentavos: number
   paidAmountCentavos: number
   balanceCentavos: number
+  penaltyCentavos: number
   status: 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'WAIVED'
   isAdjusted: boolean
 }
@@ -178,11 +225,14 @@ export type InHousePaymentRecord = {
   id: string
   paymentDate: string
   amountCentavos: number
+  penaltyCentavos: number
   allocatedAmountCentavos: number
   referenceNumber?: string
   status: 'POSTED' | 'VOIDED'
   isAdjustment: boolean
   createdAt: string
+  updatedByName?: string
+  scheduleIds: string[]
 }
 
 export type InstallmentHistoryRecord = {
@@ -192,6 +242,7 @@ export type InstallmentHistoryRecord = {
   source: 'in-house' | 'finance'
   activity: string
   amountCentavos?: number
+  balanceCentavos?: number
   referenceNumber?: string
   accountId: string
   accountNumber: string
@@ -218,9 +269,14 @@ export type InstallmentPaymentWorkspace = {
 export const installmentIpcChannels = {
   list: 'installments:list',
   bootstrap: 'installments:bootstrap',
+  updateLoan: 'installments:update-loan',
+  restructureLoan: 'installments:restructure-loan',
   closeContract: 'installments:close-contract',
   blacklistAccount: 'installments:blacklist-account',
-  delete: 'installments:delete',
+  restoreStatus: 'installments:restore-status',
+  void: 'installments:void',
+  unvoid: 'installments:unvoid',
+  voidPayments: 'installments:void-payments',
   paymentWorkspace: 'installments:payment-workspace',
   history: 'installments:history',
   createPayment: 'installments:create-payment',
@@ -231,9 +287,14 @@ export type InstallmentsApi = {
   installments: {
     list(request: InstallmentListRequest): Promise<InstallmentListResult>
     bootstrap(request: InstallmentBootstrapRequest): Promise<void>
+    updateLoan(request: InstallmentLoanUpdateRequest): Promise<void>
+    restructureLoan(request: InstallmentLoanRestructureRequest): Promise<void>
     closeContract(request: InstallmentTransitionRequest): Promise<void>
     blacklistAccount(request: InstallmentTransitionRequest): Promise<void>
-    delete(request: InstallmentDeleteRequest): Promise<void>
+    restoreStatus(request: InstallmentRestoreStatusRequest): Promise<void>
+    void(request: InstallmentVoidRequest): Promise<void>
+    unvoid(request: InstallmentUnvoidRequest): Promise<void>
+    voidPayments(request: InstallmentVoidPaymentsRequest): Promise<void>
     getPaymentWorkspace(
       request: InstallmentPaymentWorkspaceRequest
     ): Promise<InstallmentPaymentWorkspace>

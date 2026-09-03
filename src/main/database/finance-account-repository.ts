@@ -11,6 +11,7 @@ import type {
 } from '../../shared/contracts'
 import { AppError } from './errors'
 import type { AppDatabase } from './database'
+import { recordAudit } from './audit-repository'
 
 type FinanceRow = {
   id: string
@@ -31,6 +32,10 @@ type FinanceRow = {
   remarks: string | null
   created_at: string
   updated_at: string
+  status: 'POSTED' | 'VOIDED'
+  voided_at: string | null
+  voided_by_user_id: string | null
+  void_reason: string | null
 }
 
 export class FinanceAccountRepository {
@@ -44,10 +49,66 @@ export class FinanceAccountRepository {
           LEFT JOIN finance_account_items i ON i.finance_account_id = f.id
           WHERE (? = '' OR lower(f.branch || ' ' || f.provider || ' ' || f.last_name || ' ' || f.first_name || ' ' || COALESCE(f.or_number, '') || ' ' || COALESCE(f.remarks, '') || ' ' || COALESCE(i.item, '') || ' ' || COALESCE(i.serial_no, '')) LIKE '%' || lower(?) || '%')
             AND (? IS NULL OR f.branch = ?)
+            AND (? = 1 OR f.status = 'POSTED')
           ORDER BY f.date_released DESC, f.created_at DESC, f.id DESC`
       )
-      .all(query, query, request.branch ?? null, request.branch ?? null) as FinanceRow[]
+      .all(
+        query,
+        query,
+        request.branch ?? null,
+        request.branch ?? null,
+        request.includeVoided ? 1 : 0
+      ) as FinanceRow[]
     return { rows: rows.map((row) => this.toRecord(row)) }
+  }
+
+  listGoogleCache(): FinanceAccountListResult {
+    const rows = this.db
+      .prepare("SELECT payload_json FROM google_sheet_branch_cache WHERE sheet_name = 'Finance'")
+      .all() as Array<{ payload_json: string }>
+    const cached = rows.flatMap(({ payload_json }) => {
+      try {
+        const row = JSON.parse(payload_json) as Record<string, string>
+        const items = JSON.parse(row.items || '[]') as Array<Record<string, unknown>>
+        if (!row.id || !row.branch || !row.provider || !row.dateReleased || !row.lastName || !row.firstName)
+          return []
+        return [
+          {
+            id: row.id,
+            branch: row.branch as FinanceAccountRecord['branch'],
+            provider: row.provider,
+            dateReleased: row.dateReleased,
+            termsMonths: Number(row.termsMonths) || 0,
+            lastName: row.lastName,
+            firstName: row.firstName,
+            middleName: row.middleName || undefined,
+            suffix: row.suffix || undefined,
+            items: items.flatMap((item, index) => {
+              if (typeof item.item !== 'string' || !Number.isFinite(Number(item.quantity))) return []
+              const quantity = Number(item.quantity)
+              const itemPriceCentavos = Number(item.itemPriceCentavos) || 0
+              return [{ id: String(item.id || `${row.id}-item-${index}`), item: item.item, serialNo: typeof item.serialNo === 'string' ? item.serialNo : undefined, quantity, itemPriceCentavos, totalCentavos: Number(item.totalCentavos) || quantity * itemPriceCentavos }]
+            }),
+            grandTotalCentavos: Number(row.grandTotalCentavos) || 0,
+            downpaymentCentavos: Number(row.downpaymentCentavos) || 0,
+            balanceCentavos: Number(row.balanceCentavos) || 0,
+            orNumber: row.orNumber || undefined,
+            orDate: row.orDate || undefined,
+            paidDate: row.paidDate || undefined,
+            remarks: row.remarks || undefined,
+            createdAt: row.createdAt || '',
+            updatedAt: row.updatedAt || '',
+            status: row.status === 'VOIDED' ? 'VOIDED' : 'POSTED',
+            voidedAt: row.voidedAt || null,
+            voidedByUserId: row.voidedByUserId || null,
+            voidReason: row.voidReason || null
+          } satisfies FinanceAccountRecord
+        ]
+      } catch {
+        return []
+      }
+    })
+    return { rows: cached }
   }
 
   create(request: FinanceAccountCreateRequest): FinanceAccountRecord {
@@ -63,16 +124,82 @@ export class FinanceAccountRepository {
     return this.getById(request.id)
   }
 
-  delete(ids: readonly string[]): void {
-    const remove = this.db.transaction(() => {
-      for (const id of ids) this.getById(id)
-      const placeholders = ids.map(() => '?').join(', ')
-      this.db
-        .prepare(`DELETE FROM finance_account_items WHERE finance_account_id IN (${placeholders})`)
-        .run(...ids)
-      this.db.prepare(`DELETE FROM finance_accounts WHERE id IN (${placeholders})`).run(...ids)
+  void(ids: readonly string[], actorUserId: string, reason: string): void {
+    const run = this.db.transaction(() => {
+      const now = new Date().toISOString()
+      for (const id of ids) {
+        const before = this.getById(id)
+        const result = this.db
+          .prepare(
+            `UPDATE finance_accounts SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?, void_reason = ?, updated_at = ? WHERE id = ? AND status = 'POSTED'`
+          )
+          .run(now, actorUserId, reason, now, id)
+        if (result.changes === 0)
+          throw new AppError('CONFLICT', 'Finance account was already voided.')
+        recordAudit(this.db, {
+          actorUserId,
+          entityType: 'finance_account' as never,
+          entityId: id,
+          action: 'VOIDED' as never,
+          reason,
+          changes: [{ field: 'status', oldValue: before.status, newValue: 'VOIDED' }]
+        })
+      }
     })
-    remove()
+    run()
+  }
+
+  unvoid(ids: readonly string[], actorUserId: string): void {
+    const run = this.db.transaction(() => {
+      const now = new Date().toISOString()
+      for (const id of ids) {
+        const before = this.getById(id)
+        if (before.status !== 'VOIDED')
+          throw new AppError('CONFLICT', 'Finance account is not voided.')
+        this.db
+          .prepare(
+            `UPDATE finance_accounts SET status = 'POSTED', voided_at = NULL, voided_by_user_id = NULL, void_reason = NULL, updated_at = ? WHERE id = ?`
+          )
+          .run(now, id)
+        recordAudit(this.db, {
+          actorUserId,
+          entityType: 'finance_account' as never,
+          entityId: id,
+          action: 'UPDATED' as never,
+          changes: [{ field: 'status', oldValue: 'VOIDED', newValue: 'POSTED' }]
+        })
+      }
+    })
+    run()
+  }
+
+  transfer(
+    id: string,
+    branch: FinanceAccountRecord['branch'],
+    actorUserId: string,
+    reason: string
+  ): FinanceAccountRecord {
+    const transfer = this.db.transaction(() => {
+      const current = this.db
+        .prepare('SELECT branch FROM finance_accounts WHERE id = ?')
+        .get(id) as { branch: string } | undefined
+      if (!current) throw new AppError('NOT_FOUND', 'Finance account was not found.')
+      if (current.branch === branch)
+        throw new AppError('CONFLICT', 'Finance account already belongs to that branch.')
+      this.db
+        .prepare('UPDATE finance_accounts SET branch = ?, updated_at = ? WHERE id = ?')
+        .run(branch, new Date().toISOString(), id)
+      recordAudit(this.db, {
+        actorUserId,
+        entityType: 'finance_account' as never,
+        entityId: id,
+        action: 'UPDATED' as never,
+        reason,
+        changes: [{ field: 'branch', oldValue: current.branch, newValue: branch }]
+      })
+    })
+    transfer()
+    return this.getById(id)
   }
 
   private write(
@@ -223,7 +350,11 @@ export class FinanceAccountRepository {
       paidDate: row.paid_date ?? undefined,
       remarks: row.remarks ?? undefined,
       createdAt: row.created_at,
-      updatedAt: row.updated_at
+      updatedAt: row.updated_at,
+      status: row.status,
+      voidedAt: row.voided_at,
+      voidedByUserId: row.voided_by_user_id,
+      voidReason: row.void_reason
     }
   }
 }

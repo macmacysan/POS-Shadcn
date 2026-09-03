@@ -29,12 +29,17 @@ import {
   installmentRulesIpcChannels,
   type ReportRecord,
   type PdfExportApi,
-  type TelegramSettingsApi,
-  telegramSettingsIpcChannels,
-  type UserProfilesApi,
-  userProfileIpcChannels,
+  type ProductCatalogApi,
+  productCatalogIpcChannels,
   windowIpcChannels,
-  type WindowControlsApi
+  type WindowControlsApi,
+  type GoogleSyncApi,
+  googleSyncIpcChannels,
+  googleSyncProgressSchema,
+  type BackupsApi,
+  backupIpcChannels,
+  type UserProfilesApi,
+  userProfileIpcChannels
 } from '../shared/contracts'
 
 // Custom APIs for renderer
@@ -49,8 +54,13 @@ const api: ExpensesApi &
   DailyReportsApi &
   GeocodingApi &
   PdfExportApi &
-  TelegramSettingsApi &
+  ProductCatalogApi &
+  GoogleSyncApi &
+  BackupsApi &
   UserProfilesApi = {
+  productCatalog: {
+    list: () => ipcRenderer.invoke(productCatalogIpcChannels.list)
+  },
   catalogOptions: {
     list: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.list, request),
     create: (request) => ipcRenderer.invoke(catalogOptionIpcChannels.create, request),
@@ -60,18 +70,35 @@ const api: ExpensesApi &
   },
   auth: {
     login: (request) => ipcRenderer.invoke(authIpcChannels.login, request),
+    createAccount: (request) => ipcRenderer.invoke(authIpcChannels.createAccount, request),
+    getMode: () => ipcRenderer.invoke(authIpcChannels.getMode),
+    switchBranch: (request) => ipcRenderer.invoke(authIpcChannels.switchBranch, request),
+    getCashierLoginBranch: () => ipcRenderer.invoke(authIpcChannels.getCashierLoginBranch),
+    setCashierLoginBranch: (branch) =>
+      ipcRenderer.invoke(authIpcChannels.setCashierLoginBranch, branch),
+    getInitialRecoveryStatus: () => ipcRenderer.invoke(authIpcChannels.getInitialRecoveryStatus),
+    restoreInitialBranchSnapshot: (branch) =>
+      ipcRenderer.invoke(authIpcChannels.restoreInitialBranchSnapshot, branch),
     logout: () => ipcRenderer.invoke(authIpcChannels.logout),
-    needsSetup: () => ipcRenderer.invoke(authIpcChannels.needsSetup),
-    setupInitialAdmin: (request) => ipcRenderer.invoke(authIpcChannels.setupInitialAdmin, request)
+    onAccountSyncCompleted: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, count: unknown): void => {
+        if (typeof count === 'number') listener(count)
+      }
+      ipcRenderer.on(authIpcChannels.accountSyncCompleted, handler)
+      return () => ipcRenderer.removeListener(authIpcChannels.accountSyncCompleted, handler)
+    }
   },
   dashboard: {
-    get: (request) => ipcRenderer.invoke(dashboardIpcChannels.get, request)
+    get: (request) => ipcRenderer.invoke(dashboardIpcChannels.get, request),
+    getPdfCharts: (request) => ipcRenderer.invoke(dashboardIpcChannels.pdfCharts, request)
   },
   dailyReports: {
     resolveActive: (request) => ipcRenderer.invoke(dailyReportIpcChannels.resolveActive, request),
     listCalendar: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listCalendar, request),
     getSnapshot: (request) => ipcRenderer.invoke(dailyReportIpcChannels.getSnapshot, request),
     updateSummary: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateSummary, request),
+    updateNote: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateNote, request),
+    markDelivery: (request) => ipcRenderer.invoke(dailyReportIpcChannels.markDelivery, request),
     listIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listIncome, request),
     createIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.createIncome, request),
     updateIncome: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateIncome, request),
@@ -98,7 +125,8 @@ const api: ExpensesApi &
       getById: (id: string) => ipcRenderer.invoke(expenseIpcChannels.getById, { id }),
       create: (input: ExpenseCreateInput) => ipcRenderer.invoke(expenseIpcChannels.create, input),
       update: (input: ExpenseUpdateInput) => ipcRenderer.invoke(expenseIpcChannels.update, input),
-      remove: (input: { ids: string[] }) => ipcRenderer.invoke(expenseIpcChannels.remove, input),
+      void: (input: { ids: string[]; reason: string }) =>
+        ipcRenderer.invoke(expenseIpcChannels.void, input),
       summaryTotals: (reportId: string) =>
         ipcRenderer.invoke(expenseIpcChannels.summaryTotals, { reportId })
     }
@@ -109,10 +137,16 @@ const api: ExpensesApi &
   installments: {
     list: (request) => ipcRenderer.invoke(installmentIpcChannels.list, request),
     bootstrap: (request) => ipcRenderer.invoke(installmentIpcChannels.bootstrap, request),
+    updateLoan: (request) => ipcRenderer.invoke(installmentIpcChannels.updateLoan, request),
+    restructureLoan: (request) =>
+      ipcRenderer.invoke(installmentIpcChannels.restructureLoan, request),
     closeContract: (request) => ipcRenderer.invoke(installmentIpcChannels.closeContract, request),
     blacklistAccount: (request) =>
       ipcRenderer.invoke(installmentIpcChannels.blacklistAccount, request),
-    delete: (request) => ipcRenderer.invoke(installmentIpcChannels.delete, request),
+    restoreStatus: (request) => ipcRenderer.invoke(installmentIpcChannels.restoreStatus, request),
+    void: (request) => ipcRenderer.invoke(installmentIpcChannels.void, request),
+    unvoid: (request) => ipcRenderer.invoke(installmentIpcChannels.unvoid, request),
+    voidPayments: (request) => ipcRenderer.invoke(installmentIpcChannels.voidPayments, request),
     getPaymentWorkspace: (request) =>
       ipcRenderer.invoke(installmentIpcChannels.paymentWorkspace, request),
     listHistory: (request) => ipcRenderer.invoke(installmentIpcChannels.history, request),
@@ -128,7 +162,9 @@ const api: ExpensesApi &
     list: (request) => ipcRenderer.invoke(financeAccountIpcChannels.list, request),
     create: (request) => ipcRenderer.invoke(financeAccountIpcChannels.create, request),
     update: (request) => ipcRenderer.invoke(financeAccountIpcChannels.update, request),
-    delete: (request) => ipcRenderer.invoke(financeAccountIpcChannels.delete, request)
+    void: (request) => ipcRenderer.invoke(financeAccountIpcChannels.void, request),
+    unvoid: (request) => ipcRenderer.invoke(financeAccountIpcChannels.unvoid, request),
+    transfer: (request) => ipcRenderer.invoke(financeAccountIpcChannels.transfer, request)
   },
   geocoding: {
     forward: (request) => ipcRenderer.invoke(geocodingIpcChannels.forward, request)
@@ -136,16 +172,35 @@ const api: ExpensesApi &
   pdfExport: {
     preview: (request) => ipcRenderer.invoke(pdfExportIpcChannels.preview, request),
     save: (request) => ipcRenderer.invoke(pdfExportIpcChannels.save, request),
-    sendTelegram: (request) => ipcRenderer.invoke(pdfExportIpcChannels.sendTelegram, request)
+    sendTelegram: (request) => ipcRenderer.invoke(pdfExportIpcChannels.sendTelegram, request),
+    saveExcel: (request) => ipcRenderer.invoke(pdfExportIpcChannels.saveExcel, request)
   },
-  telegramSettings: {
-    get: () => ipcRenderer.invoke(telegramSettingsIpcChannels.get),
-    save: (request) => ipcRenderer.invoke(telegramSettingsIpcChannels.save, request)
+  googleSync: {
+    sync: (request) => ipcRenderer.invoke(googleSyncIpcChannels.sync, request),
+    onProgress: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, value: unknown): void => {
+        const result = googleSyncProgressSchema.safeParse(value)
+        if (result.success) listener(result.data)
+      }
+      ipcRenderer.on(googleSyncIpcChannels.progress, handler)
+      return () => ipcRenderer.removeListener(googleSyncIpcChannels.progress, handler)
+    },
+    records: () => ipcRenderer.invoke(googleSyncIpcChannels.records),
+    blacklisted: () => ipcRenderer.invoke(googleSyncIpcChannels.blacklisted)
+  },
+  backups: {
+    create: () => ipcRenderer.invoke(backupIpcChannels.create),
+    restore: (request) => ipcRenderer.invoke(backupIpcChannels.restore, request),
+    listOnlineRevisions: (request) =>
+      ipcRenderer.invoke(backupIpcChannels.listOnlineRevisions, request),
+    restoreOnlineRevision: (request) =>
+      ipcRenderer.invoke(backupIpcChannels.restoreOnlineRevision, request)
   },
   userProfiles: {
     list: () => ipcRenderer.invoke(userProfileIpcChannels.list),
     create: (request) => ipcRenderer.invoke(userProfileIpcChannels.create, request),
     update: (request) => ipcRenderer.invoke(userProfileIpcChannels.update, request),
+    delete: (request) => ipcRenderer.invoke(userProfileIpcChannels.delete, request),
     resetPassword: (request) => ipcRenderer.invoke(userProfileIpcChannels.resetPassword, request),
     audit: () => ipcRenderer.invoke(userProfileIpcChannels.audit)
   }

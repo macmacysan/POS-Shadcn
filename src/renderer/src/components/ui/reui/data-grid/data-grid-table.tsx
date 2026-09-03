@@ -1011,6 +1011,7 @@ function DataGridTableBodyRow<TData>({
       className={cn(
         'outline-none hover:bg-muted/45 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[active]:bg-primary/8 data-[state=selected]:bg-primary/10 data-[active]:[&>td:first-child]:border-l-2 data-[active]:[&>td:first-child]:border-l-primary data-[state=selected]:[&>td:first-child]:border-l-2 data-[state=selected]:[&>td:first-child]:border-l-primary',
         'cursor-pointer',
+        (row.original as { status?: string }).status === 'VOIDED' && 'text-destructive',
         !props.tableLayout?.stripped && props.tableLayout?.rowBorder && bodyRowBottomBorderClasses,
         props.tableLayout?.cellBorder && `*:last:border-e-0 ${bodyRowBottomBorderClasses}`,
         props.tableLayout?.stripped && 'odd:bg-muted/90 odd:hover:bg-muted hover:bg-transparent',

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 26
+export const currentSchemaVersion = 45
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -1479,6 +1479,452 @@ export function runMigrations(db: Database.Database): void {
         'CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_reports_branch_business_date ON daily_reports (branch_id, business_date)'
       )
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(26, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 27) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE user_branch_assignments (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          branch_id TEXT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+          PRIMARY KEY (user_id, branch_id)
+        );
+        INSERT OR IGNORE INTO user_branch_assignments (user_id, branch_id)
+          SELECT id, branch_id FROM users WHERE branch_id IS NOT NULL;
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(27, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 28) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE users ADD COLUMN first_name TEXT NOT NULL DEFAULT '';
+        ALTER TABLE users ADD COLUMN last_name TEXT NOT NULL DEFAULT '';
+        UPDATE users SET first_name = display_name WHERE first_name = '';
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(28, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 29) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        DELETE FROM audit_log_changes
+         WHERE audit_log_id IN (
+           SELECT id FROM audit_logs
+            WHERE actor_user_id LIKE 'development-%' OR entity_id LIKE 'development-%'
+         );
+        DELETE FROM audit_logs
+         WHERE actor_user_id LIKE 'development-%' OR entity_id LIKE 'development-%';
+        DELETE FROM daily_receipt_totals
+         WHERE daily_report_id IN (
+           SELECT id FROM daily_reports
+            WHERE id LIKE 'development-%' OR cashier_user_id LIKE 'development-%'
+         );
+        DELETE FROM daily_report_payment_entries
+         WHERE daily_report_id IN (
+           SELECT id FROM daily_reports
+            WHERE id LIKE 'development-%' OR cashier_user_id LIKE 'development-%'
+         );
+        DELETE FROM cash_out_entries
+         WHERE daily_report_id IN (
+           SELECT id FROM daily_reports
+            WHERE id LIKE 'development-%' OR cashier_user_id LIKE 'development-%'
+         );
+        DELETE FROM daily_report_deductions
+         WHERE daily_report_id IN (
+           SELECT id FROM daily_reports
+            WHERE id LIKE 'development-%' OR cashier_user_id LIKE 'development-%'
+         );
+        DELETE FROM daily_report_cash_counts
+         WHERE daily_report_id IN (
+           SELECT id FROM daily_reports
+            WHERE id LIKE 'development-%' OR cashier_user_id LIKE 'development-%'
+         );
+        DELETE FROM income_entries
+         WHERE daily_report_id IN (
+           SELECT id FROM daily_reports
+            WHERE id LIKE 'development-%' OR cashier_user_id LIKE 'development-%'
+         );
+        DELETE FROM expense_entries
+         WHERE daily_report_id IN (
+           SELECT id FROM daily_reports
+            WHERE id LIKE 'development-%' OR cashier_user_id LIKE 'development-%'
+         );
+        DELETE FROM daily_reports
+         WHERE id LIKE 'development-%' OR cashier_user_id LIKE 'development-%';
+        DELETE FROM reports
+         WHERE id = '00000000-0000-4000-8000-000000000001'
+            OR cashier_id LIKE 'development-%';
+        DELETE FROM installment_payment_allocations
+         WHERE payment_id IN (
+           SELECT id FROM in_house_payments
+            WHERE contract_id IN (
+              SELECT id FROM installment_contracts
+               WHERE id LIKE 'development-%' OR account_id LIKE 'development-%'
+            )
+         ) OR schedule_id IN (
+           SELECT id FROM in_house_schedules
+            WHERE contract_id IN (
+              SELECT id FROM installment_contracts
+               WHERE id LIKE 'development-%' OR account_id LIKE 'development-%'
+            )
+         );
+        DELETE FROM in_house_payments
+         WHERE contract_id IN (
+           SELECT id FROM installment_contracts
+            WHERE id LIKE 'development-%' OR account_id LIKE 'development-%'
+         );
+        DELETE FROM in_house_schedules
+         WHERE contract_id IN (
+           SELECT id FROM installment_contracts
+            WHERE id LIKE 'development-%' OR account_id LIKE 'development-%'
+         );
+        DELETE FROM installment_items
+         WHERE contract_id IN (
+           SELECT id FROM installment_contracts
+            WHERE id LIKE 'development-%' OR account_id LIKE 'development-%'
+         );
+        DELETE FROM installment_activity_history
+         WHERE contract_id IN (
+           SELECT id FROM installment_contracts
+            WHERE id LIKE 'development-%' OR account_id LIKE 'development-%'
+         );
+        DELETE FROM installment_contracts
+         WHERE id LIKE 'development-%' OR account_id LIKE 'development-%';
+        DELETE FROM account_contacts WHERE account_id LIKE 'development-%';
+        DELETE FROM accounts WHERE id LIKE 'development-%';
+        DELETE FROM finance_account_items WHERE finance_account_id LIKE 'development-%';
+        DELETE FROM finance_accounts WHERE id LIKE 'development-%';
+        DELETE FROM users WHERE id LIKE 'development-%';
+      `)
+      const insertBranch = db.prepare(
+        `INSERT OR IGNORE INTO branches (id, code, name, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?)`
+      )
+      for (const [id, code, name] of [
+        ['system-goa', 'GOA', 'Goa'],
+        ['system-tinambac', 'TIN', 'Tinambac'],
+        ['system-tigaon', 'TIG', 'Tigaon'],
+        ['system-lagonoy', 'LAG', 'Lagonoy']
+      ]) {
+        insertBranch.run(id, code, name, now, now)
+      }
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(29, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 30) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+      `)
+      const now = new Date().toISOString()
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(30, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 31) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE installment_import_runs (
+          source_sha256 TEXT PRIMARY KEY,
+          source_path TEXT NOT NULL,
+          imported_at TEXT NOT NULL,
+          report_json TEXT NOT NULL
+        );
+        CREATE TABLE installment_import_issues (
+          source_sha256 TEXT NOT NULL REFERENCES installment_import_runs(source_sha256) ON DELETE CASCADE,
+          sheet_name TEXT NOT NULL,
+          row_number INTEGER NOT NULL,
+          code TEXT NOT NULL,
+          detail TEXT NOT NULL,
+          PRIMARY KEY (source_sha256, sheet_name, row_number, code)
+        );
+        CREATE INDEX installment_import_issues_code_idx ON installment_import_issues (source_sha256, code);
+        CREATE INDEX installment_items_contract_idx ON installment_items (contract_id);
+        CREATE INDEX in_house_payments_contract_idx ON in_house_payments (contract_id);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(31, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 32) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE in_house_payments ADD COLUMN penalty_centavos INTEGER NOT NULL DEFAULT 0 CHECK (penalty_centavos >= 0);
+        ALTER TABLE installment_payment_allocations ADD COLUMN penalty_centavos INTEGER NOT NULL DEFAULT 0 CHECK (penalty_centavos >= 0);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(32, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 33) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(
+        'ALTER TABLE daily_reports ADD COLUMN updated_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL'
+      )
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(33, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 34) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec('ALTER TABLE daily_reports ADD COLUMN note TEXT')
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(34, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 35) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE google_sheet_sources (
+          key TEXT PRIMARY KEY NOT NULL,
+          spreadsheet_id TEXT NOT NULL,
+          branch TEXT,
+          updated_at TEXT NOT NULL
+        );
+        CREATE TABLE google_sheet_imports (
+          id TEXT PRIMARY KEY NOT NULL,
+          spreadsheet_id TEXT NOT NULL,
+          sheet_name TEXT NOT NULL,
+          source_row INTEGER NOT NULL,
+          source_record_id TEXT NOT NULL,
+          source_updated_at TEXT NOT NULL,
+          status TEXT NOT NULL CHECK (status IN ('IMPORTED', 'DUPLICATE', 'CONFLICT', 'INVALID', 'FAILED')),
+          detail TEXT,
+          imported_at TEXT NOT NULL,
+          UNIQUE (spreadsheet_id, sheet_name, source_row, source_record_id, source_updated_at)
+        );
+        CREATE INDEX google_sheet_imports_record_idx
+          ON google_sheet_imports (source_record_id, source_updated_at);
+        CREATE TABLE google_sheet_conflicts (
+          id TEXT PRIMARY KEY NOT NULL,
+          spreadsheet_id TEXT NOT NULL,
+          sheet_name TEXT NOT NULL,
+          source_row INTEGER NOT NULL,
+          source_record_id TEXT NOT NULL,
+          local_updated_at TEXT NOT NULL,
+          source_updated_at TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'RESOLVED', 'REJECTED')),
+          created_at TEXT NOT NULL,
+          resolved_at TEXT
+        );
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(35, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 36) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE backup_records (
+          id TEXT PRIMARY KEY NOT NULL,
+          file_name TEXT NOT NULL,
+          local_path TEXT NOT NULL,
+          sha256 TEXT NOT NULL,
+          size_bytes INTEGER NOT NULL,
+          encrypted INTEGER NOT NULL CHECK (encrypted IN (0, 1)),
+          remote_path TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX backup_records_created_idx ON backup_records (created_at DESC);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(36, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 37) {
+    const migrate = db.transaction(() => {
+      db.exec(`
+        ALTER TABLE finance_accounts ADD COLUMN status TEXT NOT NULL DEFAULT 'POSTED'
+          CHECK (status IN ('POSTED', 'VOIDED'));
+        ALTER TABLE finance_accounts ADD COLUMN voided_at TEXT;
+        ALTER TABLE finance_accounts ADD COLUMN voided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL;
+        ALTER TABLE finance_accounts ADD COLUMN void_reason TEXT;
+        ALTER TABLE installment_contracts ADD COLUMN previous_status TEXT;
+        UPDATE installment_contracts SET previous_status = 'ACTIVE' WHERE status = 'VOIDED';
+        CREATE INDEX finance_accounts_status_idx ON finance_accounts (status);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        37,
+        new Date().toISOString()
+      )
+    })
+    migrate()
+  }
+
+  if (applied.version < 38) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE accounts ADD COLUMN branch_id TEXT REFERENCES branches(id) ON DELETE SET NULL;
+        UPDATE accounts
+           SET branch_id = (
+             SELECT c.branch_id
+               FROM installment_contracts c
+              WHERE c.account_id = accounts.id
+              ORDER BY c.created_at DESC
+              LIMIT 1
+           )
+         WHERE branch_id IS NULL;
+        CREATE INDEX accounts_branch_idx ON accounts (branch_id);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(38, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 39) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE installment_contracts ADD COLUMN down_payment_applied_centavos INTEGER NOT NULL DEFAULT 0;
+        UPDATE installment_contracts
+           SET down_payment_applied_centavos = down_payment_centavos
+         WHERE COALESCE(NULLIF(schedule_frequency, ''), payment_frequency) = 'Monthly';
+        ALTER TABLE in_house_schedules ADD COLUMN is_restructured INTEGER NOT NULL DEFAULT 0 CHECK (is_restructured IN (0, 1));
+        ALTER TABLE in_house_schedules ADD COLUMN restructure_id TEXT;
+        CREATE TABLE installment_restructures (
+          id TEXT PRIMARY KEY,
+          contract_id TEXT NOT NULL REFERENCES installment_contracts(id) ON DELETE RESTRICT,
+          first_due_date TEXT NOT NULL,
+          payment_frequency TEXT NOT NULL,
+          terms INTEGER NOT NULL CHECK (terms > 0),
+          outstanding_balance_centavos INTEGER NOT NULL CHECK (outstanding_balance_centavos > 0),
+          reason TEXT NOT NULL,
+          created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX installment_restructures_contract_idx ON installment_restructures(contract_id, created_at);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(39, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 40) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE daily_reports ADD COLUMN google_drive_submitted_at TEXT;
+        ALTER TABLE daily_reports ADD COLUMN telegram_submitted_at TEXT;
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(40, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 41) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE google_sheet_branch_cache (
+          spreadsheet_id TEXT NOT NULL,
+          sheet_name TEXT NOT NULL,
+          source_record_id TEXT NOT NULL,
+          source_row INTEGER NOT NULL,
+          payload_json TEXT NOT NULL,
+          downloaded_at TEXT NOT NULL,
+          PRIMARY KEY (spreadsheet_id, sheet_name, source_record_id)
+        );
+        CREATE INDEX google_sheet_branch_cache_sheet_idx
+          ON google_sheet_branch_cache (spreadsheet_id, sheet_name, source_row);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(41, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 42) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE google_sheet_branch_cache ADD COLUMN source_branch TEXT NOT NULL DEFAULT '';
+        UPDATE google_sheet_branch_cache
+           SET source_branch = CASE spreadsheet_id
+             WHEN '1TA2gZhlEYLvnHhtu8b1TFoStBenPCC7CsP44_GN41Ho' THEN 'Tinambac'
+             WHEN '1c2plt4gWAH_w7EQskzvlqgffXVN-Wc0a3S93BZ_twug' THEN 'Tigaon'
+             WHEN '1QGKuhWpwSQYwHL9hGCFsO2CaGHvNI-GIIZgMK2hzmKI' THEN 'Lagonoy'
+             WHEN '1YwjbVkRFscTenRsrApQKMSypC5cvt4CC9nEYmlVn2oU' THEN 'Goa'
+             ELSE ''
+           END;
+        CREATE INDEX google_sheet_branch_cache_branch_sheet_idx
+          ON google_sheet_branch_cache (source_branch, sheet_name, source_row);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(42, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 43) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE google_drive_snapshots (
+          branch TEXT PRIMARY KEY,
+          remote_file_id TEXT,
+          remote_revision TEXT,
+          sha256 TEXT,
+          uploaded_at TEXT,
+          downloaded_at TEXT,
+          last_error TEXT
+        );
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(43, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 44) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE product_catalog_items (
+          description TEXT PRIMARY KEY,
+          retail_price_centavos INTEGER NOT NULL CHECK (retail_price_centavos >= 0),
+          imported_at TEXT NOT NULL
+        );
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(44, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 45) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(
+        'ALTER TABLE product_catalog_items ADD COLUMN cost_price_centavos INTEGER CHECK (cost_price_centavos >= 0)'
+      )
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(45, now)
     })
     migrate()
   }

@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow } from 'electron'
-import { copyFileSync, existsSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -11,10 +11,8 @@ import { registerExpenseIpc } from './ipc/expenses'
 import { registerReportIpc } from './ipc/reports'
 import { ExpenseService } from './services/expense-service'
 import { ReportService } from './services/report-service'
-import { InstallmentRepository } from './database/installment-repository'
 import { InstallmentService } from './services/installment-service'
 import { registerInstallmentIpc } from './ipc/installments'
-import { FinanceAccountRepository } from './database/finance-account-repository'
 import { FinanceAccountService } from './services/finance-account-service'
 import { registerFinanceAccountIpc } from './ipc/finance-accounts'
 import { UserRepository } from './database/user-repository'
@@ -32,8 +30,9 @@ import { registerCatalogOptionIpc } from './ipc/catalog-options'
 import { registerWindowIpc, showWindowMenu } from './ipc/window'
 import { registerGeocodingIpc } from './ipc/geocoding'
 import { registerPdfExportIpc } from './ipc/pdf-export'
-import { registerTelegramSettingsIpc } from './ipc/telegram-settings'
-import { registerUserProfilesIpc } from './ipc/user-profiles'
+import { registerGoogleSyncIpc } from './ipc/google-sync'
+import { registerBackupIpc } from './ipc/backups'
+import { registerProductCatalogIpc } from './ipc/product-catalog'
 import { registerEntryHistoryIpc } from './ipc/entry-history'
 import { AuditRepository } from './database/audit-repository'
 import { EntryHistoryService } from './services/entry-history-service'
@@ -42,15 +41,68 @@ import { InstallmentRulesService } from './services/installment-rules-service'
 import { registerInstallmentRulesIpc } from './ipc/installment-rules'
 import { GeocodingService } from './services/geocoding-service'
 import { TelegramSettingsService } from './services/telegram-settings-service'
+import { registerUserProfilesIpc } from './ipc/user-profiles'
 import { UserProfilesService } from './services/user-profiles-service'
-import { windowIpcChannels } from '../shared/contracts'
+import { AccountSpreadsheetService } from './services/account-spreadsheet-service'
+import { FinanceAccountRepository } from './database/finance-account-repository'
+import { ProductCatalogRepository } from './database/product-catalog-repository'
+import { GoogleSheetsClient } from './services/google-sheets-client'
+import { googleSheetSources } from './config/google-sheets'
+import { GoogleSheetSyncService } from './services/google-sheet-sync-service'
+import { GoogleDriveSnapshotService } from './services/google-drive-snapshot-service'
+import { ProductCatalogService } from './services/product-catalog-service'
+import { BackupService } from './services/backup-service'
+import { OnlineBackupRevisionService } from './services/online-backup-revision-service'
+import { InstallmentRepository } from './database/installment-repository'
+import {
+  authIpcChannels,
+  googleSyncIpcChannels,
+  type GoogleSyncProgress,
+  windowIpcChannels
+} from '../shared/contracts'
 
 let database: ReturnType<typeof openDatabase> | undefined
+let accountSpreadsheet: AccountSpreadsheetService | undefined
+let googleSheets: GoogleSheetsClient | undefined
+let initialRecoveryRequired = false
 
-function createWindow(): void {
+function sendGoogleSyncProgress(progress: GoogleSyncProgress): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.webContents.send(googleSyncIpcChannels.progress, progress)
+  }
+}
+
+function copyDatabaseWithWal(sourcePath: string, targetPath: string): void {
+  copyFileSync(sourcePath, targetPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const sourceSidecar = `${sourcePath}${suffix}`
+    if (existsSync(sourceSidecar)) copyFileSync(sourceSidecar, `${targetPath}${suffix}`)
+  }
+}
+
+function installInitialDatabase(
+  stagedPath: string,
+  databasePath: string,
+  preserveCurrent = false
+): void {
+  database?.close()
+  database = undefined
+  const datedPath = `${databasePath}.${preserveCurrent ? 'recovery' : 'uninitialized'}-${new Date().toISOString().replace(/[:.]/g, '-')}`
+  if (existsSync(databasePath)) renameSync(databasePath, datedPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const sidecar = `${databasePath}${suffix}`
+    if (existsSync(sidecar)) {
+      if (preserveCurrent) renameSync(sidecar, `${datedPath}${suffix}`)
+      else unlinkSync(sidecar)
+    }
+  }
+  renameSync(stagedPath, databasePath)
+}
+
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 1200,
+    width: 1300,
     height: 670,
     show: false,
     autoHideMenuBar: true,
@@ -67,7 +119,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
-    //mainWindow.maximize()
+    mainWindow.maximize()
     mainWindow.show()
   })
   mainWindow.on('maximize', () => {
@@ -97,12 +149,13 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+  return mainWindow
 }
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -114,39 +167,134 @@ app.whenReady().then(() => {
   })
 
   try {
-    const databasePath = join(app.getPath('userData'), 'cashiers-report.db')
-    const legacyDatabasePath = join(app.getPath('userData'), 'cashiers-report.sqlite')
-    if (!existsSync(databasePath) && existsSync(legacyDatabasePath)) {
-      copyFileSync(legacyDatabasePath, databasePath)
+    const previousUserDataPath = app.getPath('userData')
+    const stableUserDataPath = join(app.getPath('appData'), 'cashiers-report')
+    mkdirSync(stableUserDataPath, { recursive: true })
+    app.setPath('userData', stableUserDataPath)
+
+    const databasePath = join(stableUserDataPath, 'cashiers-report.db')
+    const initialRecoveryPath = join(stableUserDataPath, 'initial-recovery.json')
+    const legacyDatabasePaths = [
+      join(stableUserDataPath, 'cashiers-report.sqlite'),
+      join(previousUserDataPath, 'cashiers-report.db'),
+      join(previousUserDataPath, 'cashiers-report.sqlite')
+    ]
+    const legacyDatabasePath = legacyDatabasePaths.find(
+      (candidate) => candidate !== databasePath && existsSync(candidate)
+    )
+    if (!existsSync(databasePath) && legacyDatabasePath) {
+      copyDatabaseWithWal(legacyDatabasePath, databasePath)
     }
-    database = openDatabase(databasePath, {
-      seedDevelopmentData: is.dev
-    })
-    const authService = new AuthService(new UserRepository(database))
-    registerAuthIpc(authService)
+    if (!existsSync(databasePath) && !legacyDatabasePath)
+      writeFileSync(initialRecoveryPath, JSON.stringify({ required: true }))
+    initialRecoveryRequired = existsSync(initialRecoveryPath)
+    database = openDatabase(databasePath)
+    const userRepository = new UserRepository(database)
+    const authService = new AuthService(userRepository)
+    googleSheets = new GoogleSheetsClient()
+    accountSpreadsheet = new AccountSpreadsheetService(userRepository, googleSheets)
+    const legacyGoogleSync = new GoogleSheetSyncService(
+      database,
+      googleSheets,
+      authService,
+      sendGoogleSyncProgress
+    )
+    const googleSync = new GoogleDriveSnapshotService(
+      database,
+      databasePath,
+      join(stableUserDataPath, 'drive-snapshots'),
+      new BackupService(database, databasePath),
+      googleSheets,
+      authService,
+      sendGoogleSyncProgress,
+      legacyGoogleSync
+    )
+    const onlineBackupRevisions = new OnlineBackupRevisionService(
+      database,
+      databasePath,
+      join(stableUserDataPath, 'online-backup-revisions'),
+      new BackupService(database, databasePath),
+      googleSheets
+    )
+    registerGoogleSyncIpc(googleSync)
+    registerBackupIpc(
+      new BackupService(database, databasePath, googleSheets),
+      onlineBackupRevisions,
+      authService,
+      (stagedPath) => {
+        installInitialDatabase(stagedPath, databasePath, true)
+        app.relaunch()
+        app.quit()
+      }
+    )
     registerCatalogOptionIpc(
       new CatalogOptionService(new CatalogOptionRepository(database), authService)
     )
+    registerProductCatalogIpc(new ProductCatalogService(new ProductCatalogRepository(database), googleSheets))
     registerInstallmentRulesIpc(
       new InstallmentRulesService(new InstallmentRulesRepository(database), authService)
     )
-    registerExpenseIpc(new ExpenseService(new ExpenseRepository(database), authService))
-    registerReportIpc(new ReportService(new ReportRepository(database), authService))
-    registerDailyReportIpc(new DailyReportService(new DailyReportRepository(database), authService))
+    registerExpenseIpc(new ExpenseService(new ExpenseRepository(database), authService), () =>
+      googleSync.queueActiveBranchUpload()
+    )
+    registerReportIpc(new ReportService(new ReportRepository(database), authService), () =>
+      googleSync.queueActiveBranchUpload()
+    )
+    registerDailyReportIpc(
+      new DailyReportService(new DailyReportRepository(database), authService),
+      () => googleSync.queueActiveBranchUpload()
+    )
     registerDashboardIpc(new DashboardService(new DashboardRepository(database), authService))
-    registerInstallmentIpc(new InstallmentService(new InstallmentRepository(database)), authService)
+    registerInstallmentIpc(
+      new InstallmentService(new InstallmentRepository(database), authService),
+      authService,
+      () => googleSync.queueActiveBranchUpload()
+    )
     registerFinanceAccountIpc(
-      new FinanceAccountService(new FinanceAccountRepository(database)),
-      authService
+      new FinanceAccountService(new FinanceAccountRepository(database), authService),
+      authService,
+      () => googleSync.queueActiveBranchUpload()
     )
     registerGeocodingIpc(new GeocodingService())
     const telegramSettings = new TelegramSettingsService(
-      authService,
-      join(app.getPath('userData'), 'telegram-settings.json')
+      googleSheets,
+      googleSheetSources.credentials
     )
-    registerTelegramSettingsIpc(telegramSettings)
+    registerUserProfilesIpc(new UserProfilesService(userRepository, authService))
+    registerAuthIpc(
+      authService,
+      async (user) => {
+        if (user.role === 'ADMIN') return
+        if (initialRecoveryRequired) return
+        onlineBackupRevisions.queueDailyRevision(
+          user.branch as 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
+        )
+        const branches = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const
+        await Promise.all(
+          branches.map((branch) =>
+            branch === user.branch
+              ? googleSync.uploadActiveBranch().catch(() => undefined)
+              : googleSync.syncBranch(branch).catch(() => undefined)
+          )
+        )
+      },
+      async () => {
+        await accountSpreadsheet?.sync()
+      },
+      {
+        required: () => initialRecoveryRequired,
+        restore: async (branch) => {
+          const stagedPath = await googleSync.prepareInitialRestore(branch)
+          if (stagedPath) installInitialDatabase(stagedPath, databasePath)
+          else authService.setCashierLoginBranch(branch)
+          unlinkSync(initialRecoveryPath)
+          initialRecoveryRequired = false
+          app.relaunch()
+          app.quit()
+        }
+      }
+    )
     registerPdfExportIpc(telegramSettings)
-    registerUserProfilesIpc(new UserProfilesService(new UserRepository(database), authService))
     registerEntryHistoryIpc(
       new EntryHistoryService(
         new AuditRepository(database),
@@ -162,7 +310,11 @@ app.whenReady().then(() => {
     return
   }
 
-  createWindow()
+  const accountSyncCount = await accountSpreadsheet?.sync()
+  const mainWindow = createWindow()
+  mainWindow.webContents.once('did-finish-load', () => {
+    mainWindow.webContents.send(authIpcChannels.accountSyncCompleted, accountSyncCount ?? -1)
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

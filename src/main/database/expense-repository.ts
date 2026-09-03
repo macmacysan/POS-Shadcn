@@ -9,6 +9,7 @@ import type {
   ExpenseSortField,
   ExpenseUpdateInput
 } from '../../shared/contracts'
+import { parseAmountToCentavos } from '../../shared/contracts'
 import { AppError } from './errors'
 import { recordAudit } from './audit-repository'
 
@@ -30,8 +31,10 @@ type ExpenseRow = {
   void_reason: string | null
   created_by_user_id: string
   created_by_name: string
+  created_by_first_name: string
   cashier_user_id: string
   business_date: string
+  source: 'local' | 'google-cache'
 }
 
 const sortColumns: Record<ExpenseSortField, string> = {
@@ -63,9 +66,11 @@ function mapExpense(row: ExpenseRow): ExpenseRecord {
     voidReason: row.void_reason,
     createdByUserId: row.created_by_user_id,
     createdByName: row.created_by_name,
+    createdByFirstName: row.created_by_first_name,
     cashierUserId: row.cashier_user_id,
     cashierName: row.created_by_name,
-    businessDate: row.business_date
+    businessDate: row.business_date,
+    source: row.source
   }
 }
 
@@ -74,28 +79,28 @@ export class ExpenseRepository {
 
   findPage(request: ExpenseListRequest): { rows: ExpenseRecord[]; totalRows: number } {
     const where = [
-      request.includeVoided ? "e.status IN ('POSTED', 'VOIDED')" : "e.status = 'POSTED'"
+      request.includeVoided ? "status IN ('POSTED', 'VOIDED')" : "status = 'POSTED'"
     ]
     const params: Record<string, string | number> = {}
 
     if (request.reportId) {
-      where.push('e.report_id = @reportId')
+      where.push("(source = 'google-cache' OR report_id = @reportId)")
       params.reportId = request.reportId
     }
     if (request.branch && request.branch !== 'All Branch') {
-      where.push('b.name = @branch')
+      where.push('branch = @branch')
       params.branch = request.branch
     }
     if (request.dateFrom) {
-      where.push('dr.business_date >= @dateFrom')
+      where.push('business_date >= @dateFrom')
       params.dateFrom = request.dateFrom
     }
     if (request.dateTo) {
-      where.push('dr.business_date <= @dateTo')
+      where.push('business_date <= @dateTo')
       params.dateTo = request.dateTo
     }
     if (request.filters.branch) {
-      where.push('b.name = @branchFilter')
+      where.push('branch = @branchFilter')
       params.branchFilter = request.filters.branch
     }
 
@@ -114,8 +119,24 @@ export class ExpenseRepository {
       params.type = request.filters.type
     }
     if (request.filters.category) {
-      where.push('category = @category')
-      params.category = request.filters.category
+      where.push('LOWER(category) LIKE @category')
+      params.category = `%${request.filters.category.toLowerCase()}%`
+    }
+    if (request.filters.createdByName) {
+      where.push('created_by_name = @createdByName')
+      params.createdByName = request.filters.createdByName
+    }
+    if (request.filters.receiptNo) {
+      where.push('LOWER(receipt_no) LIKE @receiptNo')
+      params.receiptNo = `%${request.filters.receiptNo.toLowerCase()}%`
+    }
+    if (request.filters.amountMin) {
+      where.push('amount_centavos >= @amountMin')
+      params.amountMin = parseAmountToCentavos(request.filters.amountMin)
+    }
+    if (request.filters.amountMax) {
+      where.push('amount_centavos <= @amountMax')
+      params.amountMax = parseAmountToCentavos(request.filters.amountMax)
     }
     if (request.filters.vat) {
       where.push('vat = @vat')
@@ -128,15 +149,67 @@ export class ExpenseRepository {
     const sortDirection = sorting?.direction === 'asc' ? 'ASC' : 'DESC'
     const offset = request.pageIndex * request.pageSize
 
+    const source = `
+      WITH all_expenses AS (
+        SELECT e.id, e.report_id, b.name AS branch, e.type, e.description, e.category, e.receipt_no, e.vat,
+               e.amount_centavos, e.created_at, e.updated_at, e.status, e.voided_at,
+               e.voided_by_user_id, e.void_reason, e.created_by_user_id,
+               u.display_name AS created_by_name,
+               COALESCE(NULLIF(u.first_name, ''), u.display_name) AS created_by_first_name,
+               dr.cashier_user_id, dr.business_date, 'local' AS source
+          FROM expenses e
+          JOIN daily_reports dr ON dr.id = e.report_id
+          JOIN branches b ON b.id = dr.branch_id
+          LEFT JOIN users u ON u.id = e.created_by_user_id
+        UNION ALL
+        SELECT json_extract(c.payload_json, '$.id'),
+               COALESCE(json_extract(c.payload_json, '$.reportId'), json_extract(c.payload_json, '$.report_id')),
+               c.source_branch,
+               json_extract(c.payload_json, '$.type'),
+               json_extract(c.payload_json, '$.description'),
+               json_extract(c.payload_json, '$.category'),
+               COALESCE(json_extract(c.payload_json, '$.receiptNo'), json_extract(c.payload_json, '$.receipt_no')),
+               json_extract(c.payload_json, '$.vat'),
+               CAST(COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) AS INTEGER),
+               COALESCE(json_extract(c.payload_json, '$.createdAt'), json_extract(c.payload_json, '$.created_at')),
+               COALESCE(json_extract(c.payload_json, '$.updatedAt'), json_extract(c.payload_json, '$.updated_at')),
+               json_extract(c.payload_json, '$.status'),
+               NULLIF(COALESCE(json_extract(c.payload_json, '$.voidedAt'), json_extract(c.payload_json, '$.voided_at')), ''),
+               NULLIF(COALESCE(json_extract(c.payload_json, '$.voidedByUserId'), json_extract(c.payload_json, '$.voided_by_user_id')), ''),
+               NULLIF(COALESCE(json_extract(c.payload_json, '$.voidReason'), json_extract(c.payload_json, '$.void_reason')), ''),
+               COALESCE(json_extract(c.payload_json, '$.createdByUserId'), json_extract(c.payload_json, '$.created_by_user_id')),
+               COALESCE(json_extract(c.payload_json, '$.createdByName'), json_extract(c.payload_json, '$.created_by_name')),
+               COALESCE(json_extract(c.payload_json, '$.createdByFirstName'), json_extract(c.payload_json, '$.created_by_first_name')),
+               COALESCE(json_extract(c.payload_json, '$.cashierUserId'), json_extract(c.payload_json, '$.cashier_user_id')),
+               COALESCE(json_extract(c.payload_json, '$.businessDate'), json_extract(c.payload_json, '$.business_date')),
+               'google-cache' AS source
+          FROM google_sheet_branch_cache c
+         WHERE c.sheet_name = 'Expenses'
+           AND json_extract(c.payload_json, '$.id') IS NOT NULL
+           AND COALESCE(json_extract(c.payload_json, '$.reportId'), json_extract(c.payload_json, '$.report_id')) IS NOT NULL
+           AND json_extract(c.payload_json, '$.type') IS NOT NULL
+           AND json_extract(c.payload_json, '$.description') IS NOT NULL
+           AND json_extract(c.payload_json, '$.category') IS NOT NULL
+           AND COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) IS NOT NULL
+           AND COALESCE(json_extract(c.payload_json, '$.createdAt'), json_extract(c.payload_json, '$.created_at')) IS NOT NULL
+           AND COALESCE(json_extract(c.payload_json, '$.updatedAt'), json_extract(c.payload_json, '$.updated_at')) IS NOT NULL
+           AND COALESCE(json_extract(c.payload_json, '$.createdByUserId'), json_extract(c.payload_json, '$.created_by_user_id')) IS NOT NULL
+           AND COALESCE(json_extract(c.payload_json, '$.createdByName'), json_extract(c.payload_json, '$.created_by_name')) IS NOT NULL
+           AND COALESCE(json_extract(c.payload_json, '$.cashierUserId'), json_extract(c.payload_json, '$.cashier_user_id')) IS NOT NULL
+           AND COALESCE(json_extract(c.payload_json, '$.businessDate'), json_extract(c.payload_json, '$.business_date')) IS NOT NULL
+           AND c.source_branch <> ''
+           AND json_extract(c.payload_json, '$.status') IN ('POSTED', 'VOIDED')
+           AND NOT EXISTS (
+             SELECT 1 FROM expenses e WHERE e.id = json_extract(c.payload_json, '$.id')
+           )
+      )`
+
     const readPage = this.db.transaction(() => {
       const totalRows = (
         this.db
           .prepare(
-            `SELECT COUNT(*) AS count
-               FROM expenses e
-               JOIN daily_reports dr ON dr.id = e.report_id
-               JOIN branches b ON b.id = dr.branch_id
-              WHERE ${whereSql}`
+            `${source}
+             SELECT COUNT(*) AS count FROM all_expenses WHERE ${whereSql}`
           )
           .get(params) as {
           count: number
@@ -144,17 +217,10 @@ export class ExpenseRepository {
       ).count
       const rows = this.db
         .prepare(
-          `SELECT e.id, e.report_id, b.name AS branch, e.type, e.description, e.category, e.receipt_no, e.vat,
-                  e.amount_centavos, e.created_at, e.updated_at, e.status, e.voided_at,
-                  e.voided_by_user_id, e.void_reason, e.created_by_user_id,
-                  u.display_name AS created_by_name, dr.cashier_user_id AS cashier_user_id,
-                  dr.business_date
-             FROM expenses e
-             JOIN daily_reports dr ON dr.id = e.report_id
-             JOIN branches b ON b.id = dr.branch_id
-             LEFT JOIN users u ON u.id = e.created_by_user_id
+          `${source}
+           SELECT * FROM all_expenses
             WHERE ${whereSql}
-            ORDER BY e.${sortColumn} ${sortDirection}, e.id ${sortDirection}
+            ORDER BY ${sortColumn} ${sortDirection}, id ${sortDirection}
             LIMIT @limit OFFSET @offset`
         )
         .all({ ...params, limit: request.pageSize, offset }) as ExpenseRow[]
@@ -171,7 +237,7 @@ export class ExpenseRepository {
         `SELECT e.id, e.report_id, b.name AS branch, e.type, e.description, e.category, e.receipt_no, e.vat,
                 e.amount_centavos, e.created_at, e.updated_at, e.status, e.voided_at,
                 e.voided_by_user_id, e.void_reason, e.created_by_user_id,
-                u.display_name AS created_by_name, dr.cashier_user_id AS cashier_user_id,
+                u.display_name AS created_by_name, COALESCE(NULLIF(u.first_name, ''), u.display_name) AS created_by_first_name, dr.cashier_user_id AS cashier_user_id,
                 dr.business_date
            FROM expenses e
            JOIN daily_reports dr ON dr.id = e.report_id
@@ -267,16 +333,18 @@ export class ExpenseRepository {
     return this.findById(input.id) as ExpenseRecord
   }
 
-  remove(ids: string[], actorUserId: string, reason: string): void {
+  void(ids: string[], actorUserId: string, reason: string): void {
     const voidMany = this.db.transaction(() => {
-      const now = new Date().toISOString()
       const statement = this.db.prepare(
-        `UPDATE expenses SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?, void_reason = ?
+        `UPDATE expenses
+            SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?, void_reason = ?, updated_at = ?
           WHERE id = ? AND status = 'POSTED'`
       )
+      const now = new Date().toISOString()
       for (const id of ids) {
         const before = this.findById(id)
-        statement.run(now, actorUserId, reason, id)
+        const result = statement.run(now, actorUserId, reason, now, id)
+        if (result.changes === 0) throw new AppError('CONFLICT', 'Expense was already voided.')
         if (before) {
           recordAudit(this.db, {
             actorUserId,
@@ -284,8 +352,14 @@ export class ExpenseRepository {
             entityId: id,
             action: 'VOIDED',
             reason,
-            changes: [{ field: 'status', oldValue: before.status, newValue: 'VOIDED' }]
+            changes: [
+              { field: 'status', oldValue: before.status, newValue: 'VOIDED' },
+              { field: 'voidReason', oldValue: null, newValue: reason }
+            ]
           })
+          this.db
+            .prepare('UPDATE daily_reports SET updated_at = ?, updated_by_user_id = ? WHERE id = ?')
+            .run(now, actorUserId, before.reportId)
         }
       }
     })
@@ -303,6 +377,13 @@ export class ExpenseRepository {
       .prepare('SELECT branch_id FROM daily_reports WHERE id = ?')
       .get(reportId) as { branch_id: string } | undefined
     return row?.branch_id ?? null
+  }
+
+  branchNameForId(branchId: string | null): string | null {
+    if (!branchId) return null
+    const row = this.db.prepare('SELECT name FROM branches WHERE id = ?').get(branchId) as
+      { name: string } | undefined
+    return row?.name ?? null
   }
 
   findSummaryTotals(reportId: string): ExpenseSummaryTotals {

@@ -4,6 +4,11 @@ out
 .DS_Store
 .eslintcache
 *.log*
+*.service-account.json
+/credentials/appcashierreport-d2e89141daa9.json
+/credentials/cashiers-backup-key.txt
+/datasource/gsheet-automation-462500-4fcb5fd3cadd.json
+/datasource/appcashierreport-ac05a6bc631c.json
 
 # Playwright
 /test-results/
@@ -11,3 +16,8 @@ out
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Ignore local data files
+datasource/*.xlsx
+datasource/outputs/*.xlsx
+datasource/*.txt

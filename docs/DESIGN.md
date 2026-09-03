@@ -15,6 +15,15 @@ Use these products as inspiration only. Do not copy branding, proprietary layout
 
 ## Component Priority
 
+### Shared control rules
+
+- Use the shared `Button`; do not add button colors, typography, height, padding, radius, or icon sizing inline.
+- Primary buttons use zinc; `outline` uses white with a zinc border; `ghost` is for low-emphasis actions.
+- Button sizes are `sm` (h-8) and default (h-9); all buttons use rounded-md, text-[13px], font-medium, and gap-1.5.
+- Use the shared `Input` or `SearchInput`; inputs are h-9, rounded-md, zinc bordered, and use zinc-400 placeholders.
+- Use `FilterButton` for filters; do not create a separately styled filter trigger.
+- Use the shared `Badge` color variants: amber, blue, emerald, or zinc. Do not style badges inline.
+
 Use components in this order:
 
 1. Existing project components

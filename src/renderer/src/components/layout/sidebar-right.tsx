@@ -1,7 +1,7 @@
-import * as React from "react"
+import * as React from 'react'
 
-import { Calendars, DatePicker } from "@/features/calendar"
-import { NavUser } from "@/components/layout/navigation/nav-user"
+import { Calendars, DatePicker } from '@/features/calendar'
+import { NavUser } from '@/components/layout/navigation/nav-user'
 import {
   Sidebar,
   SidebarContent,
@@ -10,44 +10,46 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
-} from "@/components/ui/sidebar"
-import { PlusIcon } from "lucide-react"
+  SidebarSeparator
+} from '@/components/ui/sidebar'
+import { PlusIcon } from 'lucide-react'
 
 // This is sample data.
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    name: 'shadcn',
+    role: 'Admin',
+    branch: 'All Branch' as const
   },
   calendars: [
     {
-      name: "My Calendars",
-      items: ["Personal", "Work", "Family"],
+      name: 'My Calendars',
+      items: ['Personal', 'Work', 'Family']
     },
     {
-      name: "Favorites",
-      items: ["Holidays", "Birthdays"],
+      name: 'Favorites',
+      items: ['Holidays', 'Birthdays']
     },
     {
-      name: "Other",
-      items: ["Travel", "Reminders", "Deadlines"],
-    },
-  ],
+      name: 'Other',
+      items: ['Travel', 'Reminders', 'Deadlines']
+    }
+  ]
 }
 
-export function SidebarRight({
-  ...props
-}: React.ComponentProps<typeof Sidebar>) {
+export function SidebarRight({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
-    <Sidebar
-      collapsible="none"
-      className="sticky top-0 hidden h-svh border-l lg:flex"
-      {...props}
-    >
+    <Sidebar collapsible="none" className="sticky top-0 hidden h-svh border-l lg:flex" {...props}>
       <SidebarHeader className="h-16 border-b border-sidebar-border">
-        <NavUser user={data.user} />
+        <NavUser
+          user={data.user}
+          isDark={false}
+          onOpenSettings={() => undefined}
+          onToggleTheme={() => undefined}
+          onLogout={() => undefined}
+          isAdmin={false}
+          onBranchChange={() => undefined}
+        />
       </SidebarHeader>
       <SidebarContent>
         <DatePicker />
@@ -58,8 +60,7 @@ export function SidebarRight({
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton>
-              <PlusIcon
-              />
+              <PlusIcon />
               <span>New Calendar</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

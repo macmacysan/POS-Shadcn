@@ -25,31 +25,6 @@ export type RowActionItem = {
   confirmationMessage?: string
 }
 
-export function createRowSelectionColumn<TData extends RowData>(): ColumnDef<TData> {
-  return {
-    id: 'select',
-    enableSorting: false,
-    enableColumnFilter: false,
-    enableHiding: false,
-    size: 42,
-    header: 'Select all',
-    cell: ({ row }) => (
-      <div onClick={(event) => event.stopPropagation()}>
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          className="mx-auto align-[inherit]"
-          aria-label="Select row"
-        />
-      </div>
-    ),
-    meta: {
-      headerClassName: 'w-[42px]',
-      cellClassName: 'w-[42px]'
-    }
-  }
-}
-
 type RowActionsProps = {
   label: string
   actions: readonly RowActionItem[]
@@ -91,7 +66,7 @@ export function RowActions({
               size="icon-sm"
               aria-label={label}
               className={cn(
-                'opacity-100 md:opacity-0 md:group-hover/row:opacity-100 md:focus-visible:opacity-100 md:data-popup-open:opacity-100',
+                'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100',
                 className
               )}
               onClick={(event) => event.stopPropagation()}
@@ -172,5 +147,30 @@ export function createRowActionsColumn<TData extends RowData>({
         </div>
       )
     }
+  }
+}
+
+export function createRowSelectionColumn<TData extends RowData>(): ColumnDef<TData> {
+  return {
+    id: 'select',
+    enableSorting: false,
+    enableColumnFilter: false,
+    enableHiding: false,
+    size: 40,
+    header: ({ table }) => (
+      <Checkbox
+        aria-label="Select all rows"
+        checked={table.getIsAllPageRowsSelected()}
+        indeterminate={table.getIsSomePageRowsSelected()}
+        onCheckedChange={(checked) => table.toggleAllPageRowsSelected(checked === true)}
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        aria-label="Select row"
+        checked={row.getIsSelected()}
+        onCheckedChange={(checked) => row.toggleSelected(checked === true)}
+      />
+    )
   }
 }

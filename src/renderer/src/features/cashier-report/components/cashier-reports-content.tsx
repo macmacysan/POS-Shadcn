@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { addDays, format, isValid, parse, startOfDay } from 'date-fns'
+import * as XLSX from 'xlsx'
+import { format, parse, parseISO } from 'date-fns'
 import { CalendarIcon } from '@phosphor-icons/react'
 import {
   BadgeCheck,
@@ -7,7 +8,6 @@ import {
   Building2,
   Bus,
   CarFront,
-  ChevronLeft,
   ChevronRight,
   Check,
   CircleAlert,
@@ -22,6 +22,7 @@ import {
   Phone,
   Printer,
   FileDown,
+  Plus,
   ReceiptText,
   Scale,
   ShieldCheck,
@@ -34,8 +35,6 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Card, CardContent } from '@/components/ui/card'
-import { Calendar } from '@/components/ui/calendar'
 import {
   Dialog,
   DialogContent,
@@ -51,6 +50,7 @@ import {
   type ReportRow
 } from '@/features/cashier-report/components/report-data-table'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
@@ -64,6 +64,15 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle
+} from '@/components/ui/drawer'
+import {
   Select,
   SelectContent,
   SelectGroup,
@@ -71,14 +80,16 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  InputGroupText
-} from '@/components/ui/input-group'
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet
+} from '@/components/ui/field'
+import { AmountInputGroup } from '@/components/ui/amount-input-group'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   InstallmentHistoryInspector,
@@ -88,18 +99,17 @@ import type { RowActionItem } from '@/components/shared/data-table/row-actions'
 import { ConfirmationAlertDialog } from '@/components/shared/confirmation-alert-dialog'
 import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import type { EntryEntityType, EntryHistoryRecord } from '@/../../shared/contracts'
-import type { DateSelectorValue } from '@/../../components/reui/date-selector'
+import { DateSelector, type DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
-import { formatAmountInput, formatPhilippinePeso, pesoSign } from '@/lib/currency'
+import { formatAmountInput, formatPhilippinePeso } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
+import { useNotifications } from '@/hooks/use-notifications'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
-import { ReportDateDialog } from '@/features/cashier-report/components/report-date-dialog'
 import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hooks/use-expenses'
 import { useActiveReport } from '@/contexts/active-report-context'
 import {
-  expenseTypeValues,
   amountFromCentavos,
   type CatalogOptionRecord,
   parseAmountToCentavos,
@@ -111,18 +121,62 @@ import {
   type ExpenseRecord,
   type IncomeEntryRecord,
   type InstallmentHistoryRecord as PersistedInstallmentHistoryRecord,
+  type InstallmentAccountRecord,
+  type FinanceAccountRecord,
   type LoginBranch
 } from '@/../../shared/contracts'
-import { cashierReportPdfHtml } from '@/features/cashier-report/lib/cashier-report-pdf'
+import {
+  cashierReportPdfHtml,
+  type CashierReportSection
+} from '@/features/cashier-report/lib/cashier-report-pdf'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 const noopHistorySelect = (): void => undefined
+type ExcelCell = string | number | null
+type ExcelSheetRows = Record<string, ExcelCell>[]
+
+function flattenExcelRecord(value: unknown, prefix = ''): Record<string, ExcelCell> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return {
+      [prefix || 'Value']: Array.isArray(value) ? JSON.stringify(value) : String(value ?? '')
+    }
+  const result: Record<string, ExcelCell> = {}
+  for (const [key, nested] of Object.entries(value)) {
+    const name = prefix ? `${prefix}.${key}` : key
+    if (nested && typeof nested === 'object' && !Array.isArray(nested))
+      Object.assign(result, flattenExcelRecord(nested, name))
+    else if (Array.isArray(nested)) result[name] = JSON.stringify(nested)
+    else if (nested == null || (typeof nested === 'number' && !Number.isFinite(nested)))
+      result[name] = null
+    else
+      result[name] =
+        typeof nested === 'boolean' ? (nested ? 'TRUE' : 'FALSE') : (nested as ExcelCell)
+  }
+  return result
+}
+
+function installmentAccountRow(item: InstallmentAccountRecord): Record<string, ExcelCell> {
+  return {
+    id: item.contractId || item.loan.id || item.account.id,
+    ...flattenExcelRecord(item)
+  }
+}
+
+function workbookBase64(sheets: Record<string, ExcelSheetRows>): string {
+  const workbook = XLSX.utils.book_new()
+  for (const [name, rows] of Object.entries(sheets)) {
+    const worksheet = XLSX.utils.json_to_sheet(rows)
+    worksheet['!freeze'] = { xSplit: 0, ySplit: 1 }
+    XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31))
+  }
+  return XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' })
+}
 
 const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT'] as const
 const paymentTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
 
-type PdfProgressStepId = 'save' | 'telegram'
+type PdfProgressStepId = 'save' | 'sheets' | 'telegram'
 type PdfProgressStatus = 'pending' | 'processing' | 'done' | 'failed'
 type PdfProgressStep = {
   id: PdfProgressStepId
@@ -132,17 +186,22 @@ type PdfProgressStep = {
   attempts: number
 }
 
+type PdfReviewRequest = {
+  sections?: readonly CashierReportSection[]
+  filters?: { branch: LoginBranch; dateFrom?: string; dateTo?: string; accountType?: string }
+}
+
 const initialPdfProgress: PdfProgressStep[] = [
-  { id: 'save', label: 'Saving to Documents', status: 'pending', attempts: 0 },
-  { id: 'telegram', label: 'Sending to Telegram', status: 'pending', attempts: 0 }
+  { id: 'save', label: 'Save to Documents', status: 'pending', attempts: 0 },
+  { id: 'sheets', label: 'Upload encrypted Drive snapshot', status: 'pending', attempts: 0 },
+  { id: 'telegram', label: 'Send to Telegram', status: 'pending', attempts: 0 }
 ]
 
-function filenameSegment(value: string): string {
-  const segment = value
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9]/g, '')
-  return segment || 'Report'
+function filenameName(value: string): string {
+  const parts = value.trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return 'Report'
+  const lastName = parts.pop()!
+  return [...parts, lastName.charAt(0)].join(' ').replace(/[^A-Za-z0-9 ]/g, '') || 'Report'
 }
 
 type ExpenseCategoryConfig = {
@@ -261,6 +320,7 @@ type ExpenseRow = ExpenseTableRow
 type ReportEntryRow = ExpenseRow | IncomeRow | PaymentRow
 
 type IncomeRow = ReportRow & {
+  source: 'local' | 'google-cache'
   branch: string
   categoryId: string
   particular: string
@@ -274,10 +334,12 @@ type IncomeRow = ReportRow & {
   voidReason: string | null
   createdByUserId: string
   createdByName: string
+  createdByFirstName: string
   createdAt: string
   updatedAt: string
 }
 type PaymentRow = ReportRow & {
+  source: 'local' | 'google-cache'
   branch: string
   paymentMethodId: string
   type: string
@@ -292,6 +354,7 @@ type PaymentRow = ReportRow & {
   voidReason: string | null
   createdByUserId: string
   createdByName: string
+  createdByFirstName: string
   createdAt: string
   updatedAt: string
 }
@@ -303,9 +366,30 @@ type EntryLoadState = {
 
 const money = formatPhilippinePeso
 
+function createdByInitials(name: string): string {
+  const parts = name.trim().split(/\s+/)
+  return `${parts[0]?.[0] ?? '?'}${parts.length > 1 ? (parts.at(-1)?.[0] ?? '') : ''}`.toUpperCase()
+}
+
+function CreatedByBadge({ name }: { name: string }): React.JSX.Element {
+  return (
+    <Badge variant="secondary" className="h-5 px-1 text-[10px] leading-none" aria-label={name}>
+      {createdByInitials(name)}
+    </Badge>
+  )
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].filter(Boolean).sort()
+}
+
 function installmentHistoryRow(
   record: PersistedInstallmentHistoryRecord
 ): InstallmentHistoryRecord {
+  const rawRecord = record as PersistedInstallmentHistoryRecord & {
+    balance_centavos?: number
+  }
+  const balanceCentavos = record.balanceCentavos ?? rawRecord.balance_centavos
   const accountDetails = `${record.accountName} · ${record.accountNumber}`
   const paymentDetails = {
     datePaid: record.occurredAt.slice(0, 10),
@@ -332,39 +416,13 @@ function installmentHistoryRow(
     activity: record.activity,
     amount:
       record.amountCentavos === undefined ? undefined : amountFromCentavos(record.amountCentavos),
+    balance: balanceCentavos === undefined ? undefined : amountFromCentavos(balanceCentavos),
+    balanceCentavos,
     details
   }
 }
 
-function CashierReportHeader({
-  branchId,
-  cashierUserId,
-  dateRange,
-  isLoading,
-  isExporting,
-  error,
-  showExport = true,
-  showDateSelector = true,
-  onDateRangeChange,
-  onExport
-}: {
-  branchId: string
-  cashierUserId: string
-  dateRange: DateSelectorValue
-  isLoading: boolean
-  isExporting: boolean
-  error?: string
-  showExport?: boolean
-  showDateSelector?: boolean
-  onDateRangeChange: (value: DateSelectorValue) => void
-  onExport: () => void
-}): React.JSX.Element {
-  const startDate = dateRange.startDate
-  const today = startOfDay(new Date())
-  const selectedDay = startDate ? startOfDay(startDate) : undefined
-  const selectDate = (date: Date): void =>
-    onDateRangeChange({ period: 'day', operator: 'is', startDate: date, endDate: date })
-
+function CashierReportHeader({ error }: { error?: string }): React.JSX.Element {
   return (
     <header className="flex shrink-0 items-center justify-end gap-2 px-3 py-1">
       {error && (
@@ -372,53 +430,6 @@ function CashierReportHeader({
           {error}
         </span>
       )}
-      <div className="flex shrink-0 items-center gap-1">
-        {showExport && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-            aria-label="Review report"
-            disabled={isLoading || isExporting}
-            onClick={onExport}
-          >
-            <FileDown aria-hidden="true" />
-            Review Report
-          </Button>
-        )}
-        {showDateSelector && (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="View previous business day"
-              disabled={isLoading || !startDate}
-              onClick={() => startDate && selectDate(addDays(startDate, -1))}
-            >
-              <ChevronLeft aria-hidden="true" />
-            </Button>
-            <ReportDateDialog
-              branchId={branchId}
-              cashierUserId={cashierUserId}
-              date={startDate}
-              disabled={isLoading}
-              onSelect={selectDate}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="View next business day"
-              disabled={isLoading || !selectedDay || selectedDay.getTime() >= today.getTime()}
-              onClick={() => startDate && selectDate(addDays(startDate, 1))}
-            >
-              <ChevronRight aria-hidden="true" />
-            </Button>
-          </>
-        )}
-      </div>
     </header>
   )
 }
@@ -508,7 +519,7 @@ function TruncatedText({
 function ExpenseCategoryCell({ category }: { category: string }): React.JSX.Element {
   const fallbackLabel = category.trim() || 'Unknown'
   const label = expenseCategoryConfigByValue.get(category)?.shortLabel ?? fallbackLabel
-  return <TruncatedText value={label} className="text-muted-foreground" />
+  return <TruncatedText value={label} className="text-[13px] text-muted-foreground" />
 }
 
 const expenseColumns: ReportColumn<ExpenseRow>[] = [
@@ -516,15 +527,15 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'type',
     header: 'Type',
     cell: ({ getValue }) => <TypeBox value={getValue<string>()} kind="expense" />,
-    size: 132,
+    size: 145,
     meta: { className: 'text-muted-foreground' }
   },
   {
     accessorKey: 'description',
     header: 'Description',
-    size: 220,
+    size: 176,
     cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
-    meta: { className: 'min-w-0', autoSize: true }
+    meta: { className: 'min-w-0' }
   },
   {
     accessorKey: 'category',
@@ -550,17 +561,18 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   },
   {
     accessorKey: 'createdByName',
-    header: 'Added by',
-    size: 120,
-    meta: { className: 'text-muted-foreground' }
+    header: 'By',
+    cell: ({ row }) => <CreatedByBadge name={row.original.createdByName} />,
+    size: 20,
+    meta: { className: 'px-1 text-center text-muted-foreground' }
   },
   {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    size: 120,
+    size: 144,
     meta: {
-      className: 'text-right font-light tabular-nums text-foreground'
+      className: 'px-4 text-right font-light tabular-nums text-foreground'
     }
   }
 ]
@@ -588,9 +600,9 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
   {
     accessorKey: 'particular',
     header: 'Particular',
-    size: 300,
+    size: 240,
     cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
-    meta: { className: 'min-w-0', autoSize: true }
+    meta: { className: 'min-w-0' }
   },
   {
     accessorKey: 'receiptRefNo',
@@ -610,19 +622,20 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
     ),
-    meta: { className: 'min-w-0', autoSize: true }
+    meta: { className: 'min-w-0' }
   },
   {
     accessorKey: 'createdByName',
-    header: 'Added by',
-    size: 120,
-    meta: { className: 'text-muted-foreground' }
+    header: 'By',
+    cell: ({ row }) => <CreatedByBadge name={row.original.createdByName} />,
+    size: 20,
+    meta: { className: 'px-1 text-center text-muted-foreground' }
   },
   {
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    size: 112,
+    size: 134,
     meta: {
       className: cn('w-30', 'text-right font-light tabular-nums text-foreground')
     }
@@ -645,22 +658,23 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
     ),
-    meta: { className: 'min-w-0', autoSize: true }
+    meta: { className: 'min-w-0' }
   },
   {
     accessorKey: 'accountName',
     header: 'Account name',
     size: 200,
     cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
-    meta: { className: 'min-w-0', autoSize: true }
+    meta: { className: 'min-w-0' }
   },
   {
     accessorKey: 'referenceNo',
     header: 'Reference no.',
+    size: 140,
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
     ),
-    meta: { className: 'min-w-0 text-muted-foreground', autoSize: true }
+    meta: { className: 'min-w-0 text-muted-foreground' }
   },
   {
     accessorKey: 'date',
@@ -670,14 +684,15 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   },
   {
     accessorKey: 'createdByName',
-    header: 'Added by',
-    size: 120,
-    meta: { className: 'text-muted-foreground' }
+    header: 'By',
+    cell: ({ row }) => <CreatedByBadge name={row.original.createdByName} />,
+    size: 20,
+    meta: { className: 'px-1 text-center text-muted-foreground' }
   },
   {
     accessorKey: 'amount',
     header: 'Amount',
-    size: 112,
+    size: 134,
     cell: ({ getValue }) => money(getValue<number>()),
     meta: { className: 'text-right font-light tabular-nums text-foreground' }
   }
@@ -716,8 +731,10 @@ function incomeRow(record: IncomeEntryRecord): IncomeRow {
     voidReason: record.voidReason,
     createdByUserId: record.createdByUserId,
     createdByName: record.createdByName ?? 'Unknown',
+    createdByFirstName: record.createdByFirstName ?? record.createdByName ?? 'Unknown',
     createdAt: record.createdAt,
-    updatedAt: record.updatedAt
+    updatedAt: record.updatedAt,
+    source: record.source
   }
 }
 
@@ -739,13 +756,11 @@ function paymentRow(record: DailyReportPaymentEntryRecord): PaymentRow {
     voidReason: record.voidReason,
     createdByUserId: record.createdByUserId,
     createdByName: record.createdByName ?? 'Unknown',
+    createdByFirstName: record.createdByFirstName ?? record.createdByName ?? 'Unknown',
     createdAt: record.createdAt,
-    updatedAt: record.updatedAt
+    updatedAt: record.updatedAt,
+    source: record.source
   }
-}
-
-function acknowledgeRow(row: ReportRow): void {
-  void row.id
 }
 
 function expenseRowActions(
@@ -753,25 +768,20 @@ function expenseRowActions(
   onView: (row: ExpenseRow, entityType: EntryEntityType) => void,
   onVoid: (row: ExpenseRow, entityType: EntryEntityType) => void,
   onEdit: (row: ExpenseRow) => void,
-  onDuplicate: (row: ExpenseRow) => void,
-  isAdmin: boolean
+  onDuplicate: (row: ExpenseRow) => void
 ): readonly RowActionItem[] {
-  return row.status === 'VOIDED'
+  return row.source === 'google-cache' || row.status === 'VOIDED'
     ? [{ id: 'view', label: 'View Details', onSelect: () => onView(row, 'EXPENSE') }]
     : [
         { id: 'view', label: 'View Details', onSelect: () => onView(row, 'EXPENSE') },
         { id: 'edit', label: 'Edit Expense', onSelect: () => onEdit(row) },
         { id: 'duplicate', label: 'Duplicate Expense', onSelect: () => onDuplicate(row) },
-        ...(isAdmin
-          ? [
-              {
-                id: 'void',
-                label: 'Void Expense',
-                onSelect: () => onVoid(row, 'EXPENSE'),
-                destructive: true
-              }
-            ]
-          : [])
+        {
+          id: 'void',
+          label: 'Void Expense',
+          onSelect: () => onVoid(row, 'EXPENSE'),
+          destructive: true
+        }
       ]
 }
 
@@ -780,25 +790,20 @@ function incomeRowActions(
   onView: (row: IncomeRow, entityType: EntryEntityType) => void,
   onVoid: (row: IncomeRow, entityType: EntryEntityType) => void,
   onEdit: (row: IncomeRow) => void,
-  onDuplicate: (row: IncomeRow) => void,
-  isAdmin: boolean
+  onDuplicate: (row: IncomeRow) => void
 ): readonly RowActionItem[] {
-  return row.status === 'VOIDED'
+  return row.source === 'google-cache' || row.status === 'VOIDED'
     ? [{ id: 'view', label: 'View Details', onSelect: () => onView(row, 'INCOME') }]
     : [
         { id: 'view', label: 'View Details', onSelect: () => onView(row, 'INCOME') },
         { id: 'edit', label: 'Edit Income', onSelect: () => onEdit(row) },
         { id: 'duplicate', label: 'Duplicate Income', onSelect: () => onDuplicate(row) },
-        ...(isAdmin
-          ? [
-              {
-                id: 'void',
-                label: 'Void Income',
-                onSelect: () => onVoid(row, 'INCOME'),
-                destructive: true
-              }
-            ]
-          : [])
+        {
+          id: 'void',
+          label: 'Void Income',
+          onSelect: () => onVoid(row, 'INCOME'),
+          destructive: true
+        }
       ]
 }
 
@@ -807,23 +812,20 @@ function paymentRowActions(
   onView: (row: PaymentRow, entityType: EntryEntityType) => void,
   onVoid: (row: PaymentRow, entityType: EntryEntityType) => void,
   onEdit: (row: PaymentRow) => void,
-  onDuplicate: (row: PaymentRow) => void,
-  isAdmin: boolean
+  onDuplicate: (row: PaymentRow) => void
 ): readonly RowActionItem[] {
+  if (row.source === 'google-cache')
+    return [{ id: 'view', label: 'View Details', onSelect: () => onView(row, 'PAYMENT') }]
   return [
     { id: 'view', label: 'View Details', onSelect: () => onView(row, 'PAYMENT') },
     { id: 'edit', label: 'Edit Payment', onSelect: () => onEdit(row) },
     { id: 'duplicate', label: 'Duplicate Payment', onSelect: () => onDuplicate(row) },
-    ...(isAdmin
-      ? [
-          {
-            id: 'void',
-            label: 'Void Payment',
-            onSelect: () => onVoid(row, 'PAYMENT'),
-            destructive: true
-          }
-        ]
-      : [])
+    {
+      id: 'void',
+      label: 'Void Payment',
+      onSelect: () => onVoid(row, 'PAYMENT'),
+      destructive: true
+    }
   ].filter((action) => row.status !== 'VOIDED' || action.id === 'view')
 }
 
@@ -963,16 +965,20 @@ function ReportTab({
   expenseRows,
   incomeRows,
   paymentRows,
+  expenseTypes,
+  paymentTypes,
   expenseQuery,
-  onDeleteSelectedExpenses,
+  onVoidSelectedExpenses,
   onView,
   onVoid,
   onDuplicate,
+  onReview,
   onAddEntry,
   addEntryLabel,
   selectedHistoryId,
   onSelectHistory,
-  onDeleteSelected,
+  onVoidSelected,
+  onVoidSelectedHistory,
   onEdit,
   incomeLoadState,
   paymentLoadState,
@@ -980,6 +986,7 @@ function ReportTab({
   historyRecords,
   historyLoadState,
   onRetryHistory,
+  onVisibleHistoryCountChange,
   isAdmin,
   showVoided,
   onShowVoidedChange
@@ -995,16 +1002,20 @@ function ReportTab({
   expenseRows: ExpenseRow[]
   incomeRows: IncomeRow[]
   paymentRows: PaymentRow[]
+  expenseTypes: readonly string[]
+  paymentTypes: readonly string[]
   expenseQuery: ReturnType<typeof useExpenses>
-  onDeleteSelectedExpenses: (rows: ExpenseRow[]) => Promise<boolean>
+  onVoidSelectedExpenses: (rows: ExpenseRow[]) => Promise<boolean>
   onView: (row: ReportEntryRow, entityType: EntryEntityType) => void
   onVoid: (row: ReportEntryRow, entityType: EntryEntityType) => void
   onDuplicate: (row: ReportEntryRow) => void
-  onAddEntry: () => void
-  addEntryLabel: string
+  onReview: () => void
+  onAddEntry?: () => void
+  addEntryLabel?: string
   selectedHistoryId?: string
   onSelectHistory: (record: InstallmentHistoryRecord) => void
-  onDeleteSelected: (rows: ReportRow[]) => boolean | Promise<boolean>
+  onVoidSelected: (rows: ReportRow[]) => boolean | Promise<boolean>
+  onVoidSelectedHistory: (rows: InstallmentHistoryRecord[], password: string) => Promise<void>
   onEdit: (row: ExpenseRow | IncomeRow | PaymentRow) => void
   incomeLoadState: EntryLoadState
   paymentLoadState: EntryLoadState
@@ -1012,28 +1023,79 @@ function ReportTab({
   historyRecords: InstallmentHistoryRecord[]
   historyLoadState: EntryLoadState
   onRetryHistory: () => void
+  onVisibleHistoryCountChange: (count: number) => void
   isAdmin: boolean
   showVoided: boolean
   onShowVoidedChange: (value: boolean) => void
 }): React.JSX.Element {
+  const expenseAddedByOptions = React.useMemo(
+    () => uniqueSorted(expenseRows.map((row) => row.createdByName)),
+    [expenseRows]
+  )
+  const incomeAddedByOptions = React.useMemo(
+    () => uniqueSorted(incomeRows.map((row) => row.createdByName)),
+    [incomeRows]
+  )
+  const paymentAddedByOptions = React.useMemo(
+    () => uniqueSorted(paymentRows.map((row) => row.createdByName)),
+    [paymentRows]
+  )
+  const expenseFilterOptions = React.useMemo(
+    () => ({
+      type: expenseTypes,
+      createdByName: expenseAddedByOptions
+    }),
+    [expenseAddedByOptions, expenseTypes]
+  )
+  const reportActions = (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={onReview}>
+        <FileDown aria-hidden="true" />
+        Review Report
+      </Button>
+      {onAddEntry && (
+        <Button type="button" size="sm" onClick={onAddEntry}>
+          <Plus data-icon="inline-start" aria-hidden="true" />
+          {addEntryLabel ?? 'Add Entry'}
+        </Button>
+      )}
+    </>
+  )
   const getExpenseActions = React.useCallback(
-    (row: ExpenseRow) => expenseRowActions(row, onView, onVoid, onEdit, onDuplicate, isAdmin),
-    [isAdmin, onDuplicate, onEdit, onView, onVoid]
+    (row: ExpenseRow) => expenseRowActions(row, onView, onVoid, onEdit, onDuplicate),
+    [onDuplicate, onEdit, onView, onVoid]
   )
   const getIncomeActions = React.useCallback(
-    (row: IncomeRow) => incomeRowActions(row, onView, onVoid, onEdit, onDuplicate, isAdmin),
-    [isAdmin, onDuplicate, onEdit, onView, onVoid]
+    (row: IncomeRow) => incomeRowActions(row, onView, onVoid, onEdit, onDuplicate),
+    [onDuplicate, onEdit, onView, onVoid]
   )
   const getPaymentActions = React.useCallback(
-    (row: PaymentRow) => paymentRowActions(row, onView, onVoid, onEdit, onDuplicate, isAdmin),
-    [isAdmin, onDuplicate, onEdit, onView, onVoid]
+    (row: PaymentRow) => paymentRowActions(row, onView, onVoid, onEdit, onDuplicate),
+    [onDuplicate, onEdit, onView, onVoid]
+  )
+  const getAdminExpenseActions = React.useCallback(
+    (row: ExpenseRow) => (row.source === 'google-cache' ? expenseRowActions(row, onView, onVoid, onEdit, onDuplicate) : []),
+    [onDuplicate, onEdit, onView, onVoid]
+  )
+  const getAdminIncomeActions = React.useCallback(
+    (row: IncomeRow) => (row.source === 'google-cache' ? incomeRowActions(row, onView, onVoid, onEdit, onDuplicate) : []),
+    [onDuplicate, onEdit, onView, onVoid]
+  )
+  const getAdminPaymentActions = React.useCallback(
+    (row: PaymentRow) => (row.source === 'google-cache' ? paymentRowActions(row, onView, onVoid, onEdit, onDuplicate) : []),
+    [onDuplicate, onEdit, onView, onVoid]
   )
   const onExpenseDefaultAction = React.useCallback(
     (row: ExpenseRow) => {
-      expenseQuery.setSelectedId(row.id)
-      acknowledgeRow(row)
+      if (row.source === 'local') onEdit(row)
     },
-    [expenseQuery.setSelectedId]
+    [onEdit]
+  )
+  const onEntryDefaultAction = React.useCallback(
+    (row: IncomeRow | PaymentRow) => {
+      if (row.source === 'local') onEdit(row)
+    },
+    [onEdit]
   )
 
   switch (tab) {
@@ -1049,31 +1111,52 @@ function ReportTab({
           }
           data={expenseRows}
           filterPlaceholder="Filter expenses..."
+          additionalFilterFields={[
+            {
+              key: 'category',
+              label: 'Category',
+              options: expenseCategoryConfigs.map(({ value, fullLabel }) => ({
+                value,
+                label: fullLabel
+              }))
+            },
+            {
+              key: 'receiptNo',
+              label: 'Receipt No.',
+              type: 'text',
+              placeholder: 'Search receipt...'
+            },
+            {
+              key: 'amount',
+              label: 'Amount',
+              type: 'range',
+              minKey: 'amountMin',
+              maxKey: 'amountMax',
+              minPlaceholder: 'Min',
+              maxPlaceholder: 'Max'
+            }
+          ]}
           globalFilterValue={globalFilter}
           onGlobalFilterValueChange={onGlobalFilterChange}
-          onAddEntry={onAddEntry}
-          addEntryLabel={addEntryLabel}
-          getRowActions={getExpenseActions}
-          onDeleteSelected={isAdmin ? onDeleteSelectedExpenses : undefined}
-          onDefaultAction={onExpenseDefaultAction}
+          getRowActions={isAdmin ? getAdminExpenseActions : getExpenseActions}
+          onVoidSelected={isAdmin ? undefined : onVoidSelectedExpenses}
+          onDefaultAction={isAdmin ? undefined : onExpenseDefaultAction}
           serverState={expenseQuery}
-          filterOptions={{
-            type: expenseTypeValues,
-            category: expenseCategories,
-            vat: vatOptions,
-            ...(showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : {})
-          }}
+          filterOptions={expenseFilterOptions}
           toolbarContent={
-            isAdmin ? (
-              <Button
-                type="button"
-                variant={showVoided ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => onShowVoidedChange(!showVoided)}
-              >
-                {showVoided ? 'Hide voided' : 'Show voided'}
-              </Button>
-            ) : undefined
+            <>
+              {reportActions}
+              {isAdmin && (
+                <Button
+                  type="button"
+                  variant={showVoided ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => onShowVoidedChange(!showVoided)}
+                >
+                  {showVoided ? 'Hide voided' : 'Show voided'}
+                </Button>
+              )}
+            </>
           }
         />
       )
@@ -1091,28 +1174,30 @@ function ReportTab({
           filterPlaceholder="Filter income..."
           globalFilterValue={globalFilter}
           onGlobalFilterValueChange={onGlobalFilterChange}
-          onAddEntry={onAddEntry}
-          addEntryLabel={addEntryLabel}
-          getRowActions={getIncomeActions}
-          onDeleteSelected={isAdmin ? onDeleteSelected : undefined}
-          onDefaultAction={acknowledgeRow}
+          getRowActions={isAdmin ? getAdminIncomeActions : getIncomeActions}
+          onVoidSelected={isAdmin ? undefined : onVoidSelected}
+          onDefaultAction={isAdmin ? undefined : onEntryDefaultAction}
           isLoading={incomeLoadState.isLoading}
           loadError={incomeLoadState.error}
           onRetry={onRetryEntries}
-          filterOptions={
-            showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : undefined
-          }
+          filterOptions={{
+            date: uniqueSorted(incomeRows.map((row) => row.date)),
+            createdByName: incomeAddedByOptions
+          }}
           toolbarContent={
-            isAdmin ? (
-              <Button
-                type="button"
-                variant={showVoided ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => onShowVoidedChange(!showVoided)}
-              >
-                {showVoided ? 'Hide voided' : 'Show voided'}
-              </Button>
-            ) : undefined
+            <>
+              {reportActions}
+              {isAdmin && (
+                <Button
+                  type="button"
+                  variant={showVoided ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => onShowVoidedChange(!showVoided)}
+                >
+                  {showVoided ? 'Hide voided' : 'Show voided'}
+                </Button>
+              )}
+            </>
           }
         />
       )
@@ -1130,28 +1215,31 @@ function ReportTab({
           filterPlaceholder="Filter payments..."
           globalFilterValue={globalFilter}
           onGlobalFilterValueChange={onGlobalFilterChange}
-          onAddEntry={onAddEntry}
-          addEntryLabel={addEntryLabel}
-          getRowActions={getPaymentActions}
-          onDeleteSelected={isAdmin ? onDeleteSelected : undefined}
-          onDefaultAction={acknowledgeRow}
+          getRowActions={isAdmin ? getAdminPaymentActions : getPaymentActions}
+          onVoidSelected={isAdmin ? undefined : onVoidSelected}
+          onDefaultAction={isAdmin ? undefined : onEntryDefaultAction}
           isLoading={paymentLoadState.isLoading}
           loadError={paymentLoadState.error}
           onRetry={onRetryEntries}
-          filterOptions={
-            showBranch ? { branch: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] } : undefined
-          }
+          filterOptions={{
+            type: paymentTypes,
+            date: uniqueSorted(paymentRows.map((row) => row.date)),
+            createdByName: paymentAddedByOptions
+          }}
           toolbarContent={
-            isAdmin ? (
-              <Button
-                type="button"
-                variant={showVoided ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => onShowVoidedChange(!showVoided)}
-              >
-                {showVoided ? 'Hide voided' : 'Show voided'}
-              </Button>
-            ) : undefined
+            <>
+              {reportActions}
+              {isAdmin && (
+                <Button
+                  type="button"
+                  variant={showVoided ? 'secondary' : 'outline'}
+                  size="sm"
+                  onClick={() => onShowVoidedChange(!showVoided)}
+                >
+                  {showVoided ? 'Hide voided' : 'Show voided'}
+                </Button>
+              )}
+            </>
           }
         />
       )
@@ -1167,6 +1255,7 @@ function ReportTab({
             </div>
           )}
           <InstallmentHistoryTable
+            key={selectedBranch}
             records={historyRecords}
             isLoading={historyLoadState.isLoading}
             selectedBranch={selectedBranch}
@@ -1174,9 +1263,11 @@ function ReportTab({
             dateTo={dateTo}
             globalSearch={globalFilter}
             onGlobalSearchChange={onGlobalFilterChange}
+            onVisibleRecordCountChange={onVisibleHistoryCountChange}
             selectedId={selectedHistoryId}
             onSelect={noopHistorySelect}
             onDoubleClick={onSelectHistory}
+            onVoidSelected={onVoidSelectedHistory}
           />
         </div>
       )
@@ -1199,60 +1290,14 @@ function ReportDatePicker({
   label: string
   initialValue?: string
 }): React.JSX.Element {
-  const [open, setOpen] = React.useState(false)
-  const [date, setDate] = React.useState<Date>()
-  const [value, setValue] = React.useState(initialValue ?? '')
-
   return (
-    <InputGroup>
-      <InputGroupInput
-        id={id}
-        name={id}
-        value={value}
-        placeholder="YYYY-MM-DD"
-        aria-label="Date"
-        onChange={(event) => {
-          const nextValue = event.target.value
-          const nextDate = parse(nextValue, 'yyyy-MM-dd', new Date())
-          setValue(nextValue)
-          if (
-            isValid(nextDate) &&
-            nextValue.length === 10 &&
-            format(nextDate, 'yyyy-MM-dd') === nextValue
-          ) {
-            setDate(nextDate)
-          }
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowDown') {
-            event.preventDefault()
-            setOpen(true)
-          }
-        }}
-      />
-      <InputGroupAddon align="inline-end">
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger
-            render={
-              <InputGroupButton variant="ghost" size="icon-xs" aria-label={`Select ${label}`} />
-            }
-          >
-            <CalendarIcon />
-          </PopoverTrigger>
-          <PopoverContent className="w-auto overflow-hidden p-0" align="end">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={(nextDate) => {
-                setDate(nextDate)
-                setValue(nextDate ? format(nextDate, 'yyyy-MM-dd') : '')
-                setOpen(false)
-              }}
-            />
-          </PopoverContent>
-        </Popover>
-      </InputGroupAddon>
-    </InputGroup>
+    <DatePickerInput
+      id={id}
+      name={id}
+      defaultValue={initialValue ?? format(new Date(), 'yyyy-MM-dd')}
+      required
+      aria-label={label}
+    />
   )
 }
 
@@ -1303,22 +1348,12 @@ function ReportDetailsForm({
             ) : field === 'Date' ? (
               <ReportDatePicker id={id} label={field} initialValue={initialValues[id]} />
             ) : /(amount|balance|principal)/i.test(field) ? (
-              <InputGroup>
-                <InputGroupAddon align="inline-start">
-                  {pesoSign() && <InputGroupText>{pesoSign()}</InputGroupText>}
-                </InputGroupAddon>
-                <InputGroupInput
-                  id={id}
-                  name={id}
-                  type="text"
-                  inputMode="decimal"
-                  defaultValue={initialValues[id]}
-                  placeholder={`Enter ${field.toLowerCase()}`}
-                  onChange={(event) => {
-                    event.currentTarget.value = formatAmountInput(event.currentTarget.value)
-                  }}
-                />
-              </InputGroup>
+              <AmountInputGroup
+                id={id}
+                name={id}
+                defaultValue={initialValues[id]}
+                placeholder={`Enter ${field.toLowerCase()}`}
+              />
             ) : (
               <Input
                 id={id}
@@ -1334,19 +1369,39 @@ function ReportDetailsForm({
   )
 }
 
-function EntryFormActions(): React.JSX.Element {
+function EntryFormActions({
+  tab,
+  isEdit,
+  isSaving
+}: {
+  tab: (typeof reportTabs)[number]
+  isEdit: boolean
+  isSaving: boolean
+}): React.JSX.Element {
   return (
-    <div className="flex shrink-0 flex-wrap gap-2 border-t p-3">
-      <Button type="submit" size="sm">
-        Save Entry
+    <DrawerFooter>
+      <Button type="submit" size="sm" disabled={isSaving}>
+        {isEdit
+          ? `Update ${tab}`
+          : tab === 'Payment'
+            ? 'Save Payment'
+            : tab === 'Expenses'
+              ? 'Save Expense'
+              : 'Save Income'}
       </Button>
-      <Button type="button" variant="outline" size="sm">
-        Save &amp; New
-      </Button>
-      <Button type="reset" variant="ghost" size="sm">
-        Clear
-      </Button>
-    </div>
+      {!isEdit && (
+        <Button type="reset" variant="ghost" size="sm" disabled={isSaving}>
+          Clear
+        </Button>
+      )}
+      <DrawerClose
+        render={
+          <Button type="button" variant="outline" size="sm" disabled={isSaving}>
+            Cancel
+          </Button>
+        }
+      />
+    </DrawerFooter>
   )
 }
 
@@ -1357,7 +1412,9 @@ function EntryFormPanel({
   saveError,
   expenseTypes,
   paymentTypes,
-  initialValues
+  initialValues,
+  isEdit,
+  isSaving
 }: {
   tab: (typeof reportTabs)[number]
   onSave: (form: FormData) => void
@@ -1366,12 +1423,19 @@ function EntryFormPanel({
   expenseTypes: readonly string[]
   paymentTypes: readonly string[]
   initialValues?: Record<string, string>
+  isEdit: boolean
+  isSaving: boolean
 }): React.JSX.Element {
+  const [resetKey, setResetKey] = React.useState(0)
+
   return (
     <form
       className="flex min-h-0 flex-1 flex-col"
       onChange={() => onDirtyChange(true)}
-      onReset={() => onDirtyChange(false)}
+      onReset={() => {
+        setResetKey((value) => value + 1)
+        onDirtyChange(false)
+      }}
       onSubmit={(event) => {
         event.preventDefault()
         onSave(new FormData(event.currentTarget))
@@ -1387,47 +1451,116 @@ function EntryFormPanel({
       )}
       <ScrollArea className="min-h-0 flex-1">
         <ReportDetailsForm
+          key={resetKey}
           tab={tab}
           expenseTypes={expenseTypes}
           paymentTypes={paymentTypes}
           initialValues={initialValues}
         />
       </ScrollArea>
-      <EntryFormActions />
+      <EntryFormActions tab={tab} isEdit={isEdit} isSaving={isSaving} />
     </form>
   )
 }
 
 export function CashierReportsContent({
-  summaryAlwaysDark = false,
   selectedBranch = 'All Branch',
   cashierName = 'Cashier',
-  isAdmin = false
+  isAdmin = false,
+  initialTab = 'Expenses',
+  openExportReports = false,
+  exportDate,
+  onExportReportsOpened,
+  onOpenCollection,
+  onOpenHistoryPayment,
+  onOpenFinance
 }: {
-  summaryAlwaysDark?: boolean
   selectedBranch?: LoginBranch
   cashierName?: string
   isAdmin?: boolean
+  initialTab?: (typeof reportTabs)[number]
+  openExportReports?: boolean
+  exportDate?: string
+  onExportReportsOpened?: () => void
+  onOpenCollection?: (accountId: string) => void
+  onOpenHistoryPayment?: (accountId: string, paymentId: string) => void
+  onOpenFinance?: (accountId: string, returnToHistory?: boolean) => void
 }): React.JSX.Element {
-  const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(reportTabs[0])
-  const activeReport = useActiveReport()
+  const { notify } = useNotifications()
+  const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(initialTab)
+  const activeReportValue = useActiveReport()
+  const hasActiveReport = activeReportValue !== null
+  const activeReport = activeReportValue ?? {
+    id: '',
+    reportId: '',
+    branchId: '',
+    cashierUserId: '',
+    businessDate: format(new Date(), 'yyyy-MM-dd'),
+    openingCashCentavos: 0,
+    cashRemittedCentavos: null,
+    status: 'DRAFT' as const,
+    submittedAt: null,
+    approvedAt: null,
+    approvedByUserId: null,
+    updatedByUserId: null,
+    updatedByName: null,
+    note: null,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString()
+  }
   const [selectedReport, setSelectedReport] = React.useState(activeReport)
   const [isDateLoading, setIsDateLoading] = React.useState(false)
+  const [selectedReportMissing, setSelectedReportMissing] = React.useState(!hasActiveReport)
   const [dateError, setDateError] = React.useState<string>()
   const [exportError, setExportError] = React.useState<string>()
   const [isReviewingPdf, setIsReviewingPdf] = React.useState(false)
-  const [pdfPreview, setPdfPreview] = React.useState<{ fileName: string; pdfBase64: string }>()
+  const [isExportReportsOpen, setIsExportReportsOpen] = React.useState(false)
+  const [exportSections, setExportSections] = React.useState<CashierReportSection[]>([])
+  const [exportBranch, setExportBranch] = React.useState<LoginBranch>(selectedBranch)
+  const [exportType, setExportType] = React.useState('All Types')
+  const [exportStartDate, setExportStartDate] = React.useState(() =>
+    format(new Date(), 'yyyy-MM-dd')
+  )
+  const [exportEndDate, setExportEndDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [pdfPreview, setPdfPreview] = React.useState<{
+    fileName: string
+    pdfBase64: string
+    note: string
+  }>()
+  const [excelSheets, setExcelSheets] = React.useState<Record<string, ExcelSheetRows>>({})
+  const [publishContext, setPublishContext] = React.useState<{
+    branch: LoginBranch
+    businessDate?: string
+    tabs: Record<string, ExcelSheetRows>
+  }>()
+  const [isExcelExporting, setIsExcelExporting] = React.useState(false)
+  const [excelExportMessage, setExcelExportMessage] = React.useState<string>()
   const summarySnapshotRef = React.useRef<DailyReportSnapshotResponse | undefined>(undefined)
   const [isPdfReviewOpen, setIsPdfReviewOpen] = React.useState(false)
   const [pdfProgress, setPdfProgress] = React.useState<PdfProgressStep[]>(initialPdfProgress)
   const [isPdfProcessing, setIsPdfProcessing] = React.useState(false)
+  const [pdfNote, setPdfNote] = React.useState('')
+  const [pdfReviewRequest, setPdfReviewRequest] = React.useState<PdfReviewRequest>()
   const [telegramNote, setTelegramNote] = React.useState('')
+  React.useEffect(() => {
+    if (!openExportReports) return
+    const date = exportDate ?? format(new Date(), 'yyyy-MM-dd')
+    setExportSections([])
+    setExportBranch(selectedBranch)
+    setExportStartDate(date)
+    setExportEndDate(date)
+    setIsExportReportsOpen(true)
+    onExportReportsOpened?.()
+  }, [exportDate, onExportReportsOpened, openExportReports, selectedBranch])
   const [reportSearch, setReportSearch] = React.useState('')
   const [dateRange, setDateRange] = React.useState<DateSelectorValue>(() => {
     const today = new Date()
     return { period: 'day', operator: 'is', startDate: today, endDate: today }
   })
   const dateRequestVersionRef = React.useRef(0)
+  React.useEffect(() => {
+    if (!activeReportValue) setSelectedReportMissing(true)
+  }, [activeReportValue])
   const reportId = selectedReport.reportId
   const selectedStartDate = dateRange.startDate
     ? format(dateRange.startDate, 'yyyy-MM-dd')
@@ -1445,11 +1578,12 @@ export function CashierReportsContent({
     dateTo,
     isAdmin && showVoided
   )
-  const { createExpense, removeExpenses, updateExpense } = expenseQuery
+  const { createExpense, voidExpenses, updateExpense } = expenseQuery
   const [incomes, setIncomes] = React.useState<IncomeRow[]>([])
   const [payments, setPayments] = React.useState<PaymentRow[]>([])
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
   const [historyRecords, setHistoryRecords] = React.useState<InstallmentHistoryRecord[]>([])
+  const [visibleHistoryCount, setVisibleHistoryCount] = React.useState(0)
   const [historyLoadState, setHistoryLoadState] = React.useState<EntryLoadState>({
     isLoading: true
   })
@@ -1460,6 +1594,7 @@ export function CashierReportsContent({
     isLoading: true
   })
   const [isEntryFormVisible, setIsEntryFormVisible] = React.useState(false)
+  const [isEntryFormSaving, setIsEntryFormSaving] = React.useState(false)
   const [isEntryFormDirty, setIsEntryFormDirty] = React.useState(false)
   const [entrySaveError, setEntrySaveError] = React.useState<string>()
   const [confirmation, setConfirmation] = React.useState<{
@@ -1485,6 +1620,20 @@ export function CashierReportsContent({
   const isEntryFormCompact = useMediaQuery('(max-width: 900px)')
   const isSummaryCompact = useMediaQuery('(max-width: 760px)')
   const isHistoryTab = activeTab === 'Activity'
+  const openHistoryRecord = React.useCallback(
+    (record: InstallmentHistoryRecord): void => {
+      if (record.source === 'in-house' && record.activity.toLowerCase().includes('payment')) {
+        onOpenHistoryPayment?.(record.accountId, record.id)
+        return
+      }
+      if (record.source === 'finance' && record.activity.toLowerCase().includes('finance')) {
+        onOpenFinance?.(record.accountId, true)
+        return
+      }
+      setSelectedHistory(record)
+    },
+    [onOpenHistoryPayment, onOpenFinance]
+  )
   const activeCatalogValues = React.useCallback(
     (kind: CatalogOptionRecord['kind'], fallback: readonly string[]) => {
       const values = catalogOptions
@@ -1502,7 +1651,6 @@ export function CashierReportsContent({
       .then(({ rows }) => setCatalogOptions(rows))
       .catch(() => undefined)
   }, [])
-  const showRightPanel = !isEntryFormCompact && isEntryFormVisible
   React.useEffect(() => {
     const requestVersion = ++historyRequestVersionRef.current
     setHistoryLoadState({ isLoading: true })
@@ -1536,7 +1684,10 @@ export function CashierReportsContent({
           businessDate
         })
         if (requestVersion !== dateRequestVersionRef.current) return
-        setSelectedReport({ ...report, reportId: report.id })
+        if (report) {
+          setSelectedReport({ ...report, reportId: report.id })
+          setSelectedReportMissing(false)
+        } else setSelectedReportMissing(true)
       } catch {
         if (requestVersion !== dateRequestVersionRef.current) return
         setDateError('That report date could not be loaded.')
@@ -1604,107 +1755,222 @@ export function CashierReportsContent({
     ...incomes.map((income) => `${income.id}:${income.amount}`),
     ...payments.map((payment) => `${payment.id}:${payment.paymentMethodId}:${payment.amount}`)
   ].join(':')
-  const reviewPdf = React.useCallback(async (): Promise<void> => {
-    setIsReviewingPdf(true)
-    setExportError(undefined)
-    setIsPdfReviewOpen(false)
-    setPdfPreview(undefined)
-    try {
-      const allExpenses: ExpenseRecord[] = []
-      for (let pageIndex = 0; ; pageIndex += 1) {
-        const result = await window.api.reports.expenses.list({
-          reportId,
-          includeVoided: false,
-          pageIndex,
-          pageSize: 100,
-          search: '',
-          sorting: [],
-          filters: {}
-        })
-        allExpenses.push(...result.rows)
-        if (allExpenses.length >= result.totalRows) break
-      }
-      const [
-        snapshot,
-        incomeResult,
-        paymentResult,
-        installmentHistory,
-        records,
-        active,
-        closed,
-        blacklisted
-      ] = await Promise.all([
-        window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
-        window.api.dailyReports.listIncome({ dailyReportId: reportId, status: 'POSTED' }),
-        window.api.dailyReports.listPayments({ dailyReportId: reportId, status: 'POSTED' }),
-        window.api.installments.listHistory({
-          dateFrom: selectedReport.businessDate,
-          dateTo: selectedReport.businessDate
-        }),
-        window.api.installments.list({
-          view: 'records',
-          search: '',
-          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
-        }),
-        window.api.installments.list({
-          view: 'active',
-          search: '',
-          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
-        }),
-        window.api.installments.list({
-          view: 'closed',
-          search: '',
-          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
-        }),
-        window.api.installments.list({
-          view: 'blacklisted',
-          search: '',
-          branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
-        })
-      ])
-      const branch = selectedBranch === 'All Branch' ? 'All Branch' : selectedBranch
-      const contributors = [
-        ...allExpenses.map((item) => item.createdByName),
-        ...incomeResult.rows.map((item) => item.createdByName),
-        ...paymentResult.rows.map((item) => item.createdByName)
-      ].filter((name): name is string => Boolean(name?.trim()))
-      const contributorLabel = [...new Set(contributors)].join(', ') || cashierName
-      const now = new Date()
-      const html = cashierReportPdfHtml({
-        cashierName: contributorLabel,
-        branch,
-        businessDate: selectedReport.businessDate,
-        generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
-        snapshot:
-          summarySnapshotRef.current?.report.id === reportId
-            ? summarySnapshotRef.current
-            : snapshot,
-        expenses: allExpenses,
-        incomes: incomeResult.rows,
-        payments: paymentResult.rows,
-        installmentHistory: installmentHistory.filter(
-          (item) => selectedBranch === 'All Branch' || item.branch === selectedBranch
-        ),
-        accountCounts: {
-          records: records.rows.length,
-          active: active.rows.length,
-          closed: closed.rows.length,
-          blacklisted: blacklisted.rows.length
+  const reviewPdf = React.useCallback(
+    async (
+      sections?: readonly CashierReportSection[],
+      filters?: { branch: LoginBranch; dateFrom?: string; dateTo?: string; accountType?: string }
+    ): Promise<void> => {
+      setPdfReviewRequest({ sections, filters })
+      setIsReviewingPdf(true)
+      setExportError(undefined)
+      setIsPdfReviewOpen(false)
+      setPdfPreview(undefined)
+      try {
+        const branchFilter = filters?.branch ?? selectedBranch
+        const allExpenses: ExpenseRecord[] = []
+        for (let pageIndex = 0; ; pageIndex += 1) {
+          const result = await window.api.reports.expenses.list({
+            reportId: undefined,
+            includeVoided: true,
+            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+            dateFrom: filters?.dateFrom,
+            dateTo: filters?.dateTo,
+            pageIndex,
+            pageSize: 100,
+            search: '',
+            sorting: [],
+            filters: {}
+          })
+          allExpenses.push(...result.rows)
+          if (allExpenses.length >= result.totalRows) break
         }
-      })
-      const time = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
-      const fileName = `${filenameSegment(branch)}-${selectedReport.businessDate}-${time}.pdf`
-      const { pdfBase64 } = await window.api.pdfExport.preview({ html, fileName })
-      setPdfProgress(initialPdfProgress)
-      setTelegramNote('')
-      setPdfPreview({ fileName, pdfBase64 })
-      setIsPdfReviewOpen(true)
-    } catch {
-      setExportError('The PDF could not be exported. Please try again.')
-    } finally {
-      setIsReviewingPdf(false)
-    }
-  }, [cashierName, reportId, selectedBranch, selectedReport.businessDate])
+        const [
+          snapshot,
+          incomeResult,
+          paymentResult,
+          installmentHistory,
+          records,
+          active,
+          closed,
+          blacklisted,
+          financeAccounts,
+          charts
+        ] = await Promise.all([
+          window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
+          window.api.dailyReports.listIncome({
+            branch: branchFilter,
+            dateFrom: filters?.dateFrom,
+            dateTo: filters?.dateTo,
+            includeVoided: true
+          }),
+          window.api.dailyReports.listPayments({
+            branch: branchFilter,
+            dateFrom: filters?.dateFrom,
+            dateTo: filters?.dateTo,
+            includeVoided: true
+          }),
+          window.api.installments.listHistory({
+            dateFrom: filters?.dateFrom,
+            dateTo: filters?.dateTo
+          }),
+          window.api.installments.list({
+            view: 'records',
+            search: '',
+            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+            includeVoided: true
+          }),
+          window.api.installments.list({
+            view: 'active',
+            search: '',
+            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+            includeVoided: true
+          }),
+          window.api.installments.list({
+            view: 'closed',
+            search: '',
+            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+            includeVoided: true
+          }),
+          window.api.installments.list({
+            view: 'blacklisted',
+            search: '',
+            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+            includeVoided: true
+          }),
+          window.api.financeAccounts.list({
+            search: '',
+            includeVoided: true,
+            ...(branchFilter === 'All Branch' ? {} : { branch: branchFilter })
+          }),
+          window.api.dashboard.getPdfCharts({
+            businessDate: filters?.dateTo ?? selectedReport.businessDate,
+            ...(branchFilter === 'All Branch' ? {} : { branch: branchFilter })
+          })
+        ])
+        const branch = branchFilter === 'All Branch' ? 'All Branch' : branchFilter
+        const postedExpenses = allExpenses.filter(
+          (item) => item.source === 'local' && item.status === 'POSTED'
+        )
+        const postedIncomes = incomeResult.rows.filter(
+          (item) => item.source === 'local' && item.status === 'POSTED'
+        )
+        const postedPayments = paymentResult.rows.filter(
+          (item) => item.source === 'local' && item.status === 'POSTED'
+        )
+        const filteredFinanceAccounts = financeAccounts.rows.filter(
+          (item: FinanceAccountRecord) =>
+            (!filters?.dateFrom || item.dateReleased >= filters.dateFrom) &&
+            (!filters?.dateTo || item.dateReleased <= filters.dateTo) &&
+            (!filters?.accountType ||
+              filters.accountType === 'All Types' ||
+              item.provider === filters.accountType)
+        )
+        const nextExcelSheets: Record<string, ExcelSheetRows> = {}
+        if (sections?.includes('Expenses'))
+          nextExcelSheets.Expenses = postedExpenses.map((item) => flattenExcelRecord(item))
+        if (sections?.includes('Income'))
+          nextExcelSheets.Income = postedIncomes.map((item) => flattenExcelRecord(item))
+        if (sections?.includes('Payment'))
+          nextExcelSheets.Payment = postedPayments.map((item) => flattenExcelRecord(item))
+        if (sections?.includes('Activity History'))
+          nextExcelSheets['Activity History'] = installmentHistory
+            .filter((item) => branchFilter === 'All Branch' || item.branch === branchFilter)
+            .map((item) => flattenExcelRecord(item))
+        if (sections?.includes('Accounts'))
+          nextExcelSheets.Finance = filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
+        if (sections?.includes('Records'))
+          nextExcelSheets.Records = records.rows.map(installmentAccountRow)
+        if (sections?.includes('Active'))
+          nextExcelSheets.Active = active.rows.map(installmentAccountRow)
+        if (sections?.includes('Closed'))
+          nextExcelSheets.Closed = closed.rows.map(installmentAccountRow)
+        if (sections?.includes('Blacklisted'))
+          nextExcelSheets.Blacklisted = blacklisted.rows.map(installmentAccountRow)
+        setExcelSheets(nextExcelSheets)
+        const publishDate =
+          filters?.dateFrom && filters.dateFrom === filters.dateTo ? filters.dateFrom : undefined
+        setPublishContext({
+          branch: branchFilter,
+          businessDate: publishDate,
+          tabs: {
+            Expenses: allExpenses
+              .filter((item) => item.source === 'local')
+              .map((item) => flattenExcelRecord(item)),
+            Income: incomeResult.rows
+              .filter((item) => item.source === 'local')
+              .map((item) => flattenExcelRecord(item)),
+            Payment: paymentResult.rows
+              .filter((item) => item.source === 'local')
+              .map((item) => flattenExcelRecord(item)),
+            Records: records.rows.map(installmentAccountRow),
+            Finance: filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
+          }
+        })
+        setExcelExportMessage(undefined)
+        const contributors = [
+          ...postedExpenses.map((item) => item.createdByName),
+          ...postedIncomes.map((item) => item.createdByName),
+          ...postedPayments.map((item) => item.createdByName)
+        ].filter((name): name is string => Boolean(name?.trim()))
+        const contributorLabel = [...new Set(contributors)].join(', ') || cashierName
+        const now = new Date()
+        const html = cashierReportPdfHtml({
+          cashierName: contributorLabel,
+          branch,
+          businessDate:
+            filters?.dateFrom && filters?.dateTo
+              ? `${filters.dateFrom} to ${filters.dateTo}`
+              : selectedReport.businessDate,
+          generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
+          note: pdfNote,
+          snapshot:
+            summarySnapshotRef.current?.report.id === reportId
+              ? summarySnapshotRef.current
+              : snapshot,
+          expenses: postedExpenses,
+          incomes: postedIncomes,
+          payments: postedPayments,
+          installmentHistory: installmentHistory.filter(
+            (item) => branchFilter === 'All Branch' || item.branch === branchFilter
+          ),
+          accountCounts: {
+            records: records.rows.length,
+            active: active.rows.length,
+            closed: closed.rows.length,
+            blacklisted: blacklisted.rows.length
+          },
+          charts,
+          sections,
+          financeAccounts: sections ? filteredFinanceAccounts : undefined,
+          accountLists: {
+            records: records.rows,
+            active: active.rows,
+            closed: closed.rows,
+            blacklisted: blacklisted.rows
+          }
+        })
+        const reportDate = filters?.dateFrom ?? selectedReport.businessDate
+        const fileName = `${format(parseISO(reportDate), 'MMMM d, yyyy')} - ${filenameName(cashierName)}.pdf`
+        const { pdfBase64 } = await window.api.pdfExport.preview({ html, fileName })
+        setPdfProgress(initialPdfProgress)
+        setTelegramNote('')
+        setPdfPreview({ fileName, pdfBase64, note: pdfNote })
+        setIsPdfReviewOpen(true)
+      } catch (error) {
+        const message =
+          error &&
+          typeof error === 'object' &&
+          'message' in error &&
+          typeof error.message === 'string'
+            ? error.message
+            : 'The PDF could not be exported. Please try again.'
+        setExportError(message)
+      } finally {
+        setIsReviewingPdf(false)
+      }
+    },
+    [cashierName, pdfNote, reportId, selectedBranch, selectedReport.businessDate]
+  )
   const updatePdfStep = React.useCallback(
     (id: PdfProgressStepId, patch: Partial<PdfProgressStep>): void => {
       setPdfProgress((steps) =>
@@ -1720,18 +1986,27 @@ export function CashierReportsContent({
         updatePdfStep(id, { status: 'processing', attempts: attempt, error: undefined })
         try {
           await operation()
+          if (id === 'sheets' || id === 'telegram') {
+            await window.api.dailyReports.markDelivery({
+              dailyReportId: reportId,
+              channel: id === 'sheets' ? 'GOOGLE_DRIVE' : 'TELEGRAM'
+            })
+            window.dispatchEvent(new Event('daily-report-delivery-updated'))
+          }
           updatePdfStep(id, { status: 'done', error: undefined })
           return
-        } catch {
+        } catch (error) {
           lastError =
-            id === 'telegram'
-              ? 'Telegram could not send the report.'
-              : 'Saving the report was canceled or failed.'
+            id === 'sheets' && error instanceof Error && error.message
+              ? error.message
+              : id === 'telegram' && error instanceof Error && error.message
+                ? error.message
+                : 'Saving the report was canceled or failed.'
         }
       }
       updatePdfStep(id, { status: 'failed', error: lastError })
     },
-    [updatePdfStep]
+    [reportId, updatePdfStep]
   )
   const pdfOperation = React.useCallback(
     (
@@ -1742,6 +2017,17 @@ export function CashierReportsContent({
         return async () => {
           const result = await window.api.pdfExport.save(preview)
           if (result.canceled) throw new Error('Save canceled')
+        }
+      }
+      if (id === 'sheets') {
+        return async () => {
+          if (
+            !publishContext ||
+            publishContext.branch === 'All Branch' ||
+            !publishContext.businessDate
+          )
+            throw new Error('Select one branch and one business date to publish.')
+          await window.api.googleSync.sync({ branch: publishContext.branch })
         }
       }
       return () =>
@@ -1757,7 +2043,7 @@ export function CashierReportsContent({
           ].join('\n')
         })
     },
-    [cashierName, selectedBranch, selectedReport.businessDate, telegramNote]
+    [cashierName, publishContext, selectedBranch, selectedReport.businessDate, telegramNote]
   )
   const startPdfExport = React.useCallback(async (): Promise<void> => {
     if (!pdfPreview) return
@@ -1775,13 +2061,29 @@ export function CashierReportsContent({
   }, [pdfPreview, startPdfExport])
   const retryPdfStep = React.useCallback(
     async (id: PdfProgressStepId): Promise<void> => {
-      if (!pdfPreview || isPdfProcessing) return
+      if (!pdfPreview || isPdfProcessing || pdfPreview.note !== pdfNote) return
       setIsPdfProcessing(true)
       await runPdfStep(id, pdfOperation(id, pdfPreview))
       setIsPdfProcessing(false)
     },
-    [isPdfProcessing, pdfOperation, pdfPreview, runPdfStep]
+    [isPdfProcessing, pdfNote, pdfOperation, pdfPreview, runPdfStep]
   )
+  const exportExcel = React.useCallback(async (): Promise<void> => {
+    if (!pdfPreview || !Object.keys(excelSheets).length || isExcelExporting) return
+    setIsExcelExporting(true)
+    setExcelExportMessage(undefined)
+    try {
+      const result = await window.api.pdfExport.saveExcel({
+        workbookBase64: workbookBase64(excelSheets),
+        fileName: pdfPreview.fileName.replace(/\.pdf$/i, '.xlsx')
+      })
+      if (!result.canceled) setExcelExportMessage('Excel workbook saved.')
+    } catch {
+      setExcelExportMessage('Excel could not be exported. Please try again.')
+    } finally {
+      setIsExcelExporting(false)
+    }
+  }, [excelSheets, isExcelExporting, pdfPreview])
   const refreshEntries = React.useCallback(async (): Promise<void> => {
     const requestVersion = ++entriesRequestVersionRef.current
     setIncomeLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
@@ -1874,7 +2176,7 @@ export function CashierReportsContent({
       if (!rows.length || !entityType) return
       try {
         if (entityType === 'EXPENSE') {
-          await removeExpenses(
+          await voidExpenses(
             rows.map((row) => row.id),
             reason
           )
@@ -1896,7 +2198,7 @@ export function CashierReportsContent({
         return
       }
     },
-    [bulkVoidRows, bulkVoidType, refreshEntries, removeExpenses, voidEntry, voidEntryType]
+    [bulkVoidRows, bulkVoidType, refreshEntries, voidExpenses, voidEntry, voidEntryType]
   )
 
   const saveEntry = React.useCallback(
@@ -1931,9 +2233,10 @@ export function CashierReportsContent({
             })
           } else {
             const type = String(form.get('payment-type') || formEntry.type)
-            const paymentMethodId = catalogOptions.find(
-              (option) => option.kind === 'CASHIER_PAYMENT_TYPE' && option.value === type
-            )?.referenceId
+            const paymentMethodId =
+              catalogOptions.find(
+                (option) => option.kind === 'CASHIER_PAYMENT_TYPE' && option.value === type
+              )?.referenceId ?? (type === formEntry.type ? formEntry.paymentMethodId : undefined)
             if (!paymentMethodId) throw new Error('Payment type is unavailable.')
             await window.api.dailyReports.updatePayment({
               id: formEntry.id,
@@ -1945,6 +2248,7 @@ export function CashierReportsContent({
               remarks: null,
               amountCentavos
             })
+            notify({ type: 'success', title: 'Payment updated.' })
           }
           await refreshEntries()
           setFormMode('create')
@@ -2016,6 +2320,10 @@ export function CashierReportsContent({
             amountCentavos,
             ...(formMode === 'duplicate' && formEntry ? { duplicatedFromId: formEntry.id } : {})
           })
+          notify({
+            type: 'success',
+            title: formMode === 'duplicate' ? 'Payment duplicated.' : 'Payment saved.'
+          })
         }
         await refreshEntries()
         setIsEntryFormDirty(false)
@@ -2032,7 +2340,8 @@ export function CashierReportsContent({
       formMode,
       refreshEntries,
       reportId,
-      updateExpense
+      updateExpense,
+      notify
     ]
   )
 
@@ -2040,7 +2349,7 @@ export function CashierReportsContent({
     Expenses: expenseQuery.totalRows,
     Income: incomes.length,
     Payment: payments.length,
-    Activity: historyRecords.length
+    Activity: visibleHistoryCount
   }
 
   const initialFormValues = React.useMemo<Record<string, string>>((): Record<string, string> => {
@@ -2053,7 +2362,7 @@ export function CashierReportsContent({
         'expenses-category': formEntry.category,
         'expenses-receipt-no-': duplicate ? '' : formEntry.receiptNo,
         'expenses-vat': formEntry.vat,
-        'expenses-amount': String(formEntry.amount)
+        'expenses-amount': formatAmountInput(String(formEntry.amount))
       } as Record<string, string>
     }
     if ('particular' in formEntry) {
@@ -2062,7 +2371,7 @@ export function CashierReportsContent({
         'income-particular': formEntry.particular,
         'income-receipt-reference-no-': duplicate ? '' : formEntry.receiptRefNo,
         'income-remarks': formEntry.remarks,
-        'income-amount': String(formEntry.amount)
+        'income-amount': formatAmountInput(String(formEntry.amount))
       } as Record<string, string>
     }
     return {
@@ -2071,7 +2380,7 @@ export function CashierReportsContent({
       'payment-account-name': formEntry.accountName,
       'payment-reference-no-': duplicate ? '' : formEntry.referenceNo,
       'payment-date': duplicate ? format(new Date(), 'yyyy-MM-dd') : formEntry.date,
-      'payment-amount': String(formEntry.amount)
+      'payment-amount': formatAmountInput(String(formEntry.amount))
     } as Record<string, string>
   }, [formEntry, formMode])
 
@@ -2082,25 +2391,34 @@ export function CashierReportsContent({
     document.getElementById(id)?.focus()
   }, [activeTab, isEntryFormVisible])
 
+  if (selectedReportMissing) {
+    return (
+      <div className="flex h-full min-h-0 flex-col bg-workspace">
+        <CashierReportHeader error={dateError} />
+        <main className="flex min-h-0 flex-1 items-center justify-center p-6">
+          <div className="text-center">
+            <h1 className="text-lg font-semibold">No report started</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              There is no daily report for this branch and date.
+            </p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div
       className={
         isSummaryCompact
-          ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden p-3'
-          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(200px,220px)_minmax(0,1fr)] gap-3 overflow-hidden p-3'
+          ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden bg-workspace p-3'
+          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(220px,252px)_minmax(0,1fr)] gap-4 overflow-hidden bg-workspace p-3'
       }
     >
       {!isSummaryCompact && (
-        <Card
-          className={cn(
-            'flex min-h-0 min-w-0 flex-col py-0 ring-0',
-            summaryAlwaysDark &&
-              'dark sidebar-always-dark bg-sidebar text-sidebar-foreground ring-sidebar-border'
-          )}
-        >
+        <div className="-my-3 -ml-3 flex min-h-0 min-w-0 flex-col bg-card">
           <ReportSummary
             key={reportId}
-            alwaysDark={summaryAlwaysDark}
             refreshKey={summaryRefreshKey}
             reportId={reportId}
             businessDate={selectedReport.businessDate}
@@ -2110,149 +2428,151 @@ export function CashierReportsContent({
             isDateLoading={isDateLoading}
             onDateRangeChange={changeDateRange}
             expenseTotals={expenseQuery.expenseTotals}
+            onOpenCollection={onOpenCollection}
+            onOpenFinance={onOpenFinance}
+            readOnly={isAdmin}
             onSnapshotChange={(snapshot) => {
               summarySnapshotRef.current = snapshot
             }}
           />
-        </Card>
+        </div>
       )}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div
-          className={
-            showRightPanel
-              ? 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(260px,302px)] gap-3'
-              : 'grid min-h-0 w-full min-w-0 flex-1 grid-cols-1'
-          }
-        >
-          <Card className="flex min-h-0 min-w-0 flex-col py-0 shadow-sm">
-            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-              <Tabs
-                value={activeTab}
-                onValueChange={(value) => {
-                  const nextTab = value as (typeof reportTabs)[number]
-                  if (nextTab !== activeTab && isEntryFormVisible && isEntryFormDirty) {
-                    setConfirmation({
-                      title: 'Discard unsaved entry changes?',
-                      description: 'Your entered report details will be lost.',
-                      confirmLabel: 'Discard changes',
-                      destructive: true,
-                      onConfirm: () => {
-                        setConfirmation(undefined)
-                        setIsEntryFormDirty(false)
-                        setActiveTab(nextTab)
-                        if (nextTab === 'Activity') setIsEntryFormVisible(false)
-                      }
-                    })
-                    return
-                  }
-                  setIsEntryFormDirty(false)
-                  setActiveTab(nextTab)
-                  if (nextTab === 'Activity') setIsEntryFormVisible(false)
-                }}
-                className="flex min-h-0 flex-1 flex-col gap-0"
-              >
-                <div className="flex shrink-0 items-center">
-                  <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <TabsList
-                      aria-label="Cashier report sections"
-                      variant="line"
-                      className="h-10 w-max  justify-start rounded-none bg-transparent pb-2"
-                    >
-                      {reportTabs.map((tab) => (
-                        <TabsTrigger
-                          key={tab}
-                          value={tab}
-                          className="h-10 flex-none gap-1.5 rounded-none px-3.5 text-xs font-normal data-active:text-primary data-active:font-semibold"
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-workspace">
+        <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <Tabs
+              value={activeTab}
+              onValueChange={(value) => {
+                const nextTab = value as (typeof reportTabs)[number]
+                if (nextTab !== activeTab && isEntryFormVisible && isEntryFormDirty) {
+                  setConfirmation({
+                    title: 'Discard unsaved entry changes?',
+                    description: 'Your entered report details will be lost.',
+                    confirmLabel: 'Discard changes',
+                    destructive: true,
+                    onConfirm: () => {
+                      setConfirmation(undefined)
+                      setIsEntryFormDirty(false)
+                      setActiveTab(nextTab)
+                      if (nextTab === 'Activity') setIsEntryFormVisible(false)
+                    }
+                  })
+                  return
+                }
+                setIsEntryFormDirty(false)
+                setActiveTab(nextTab)
+                if (nextTab === 'Activity') setIsEntryFormVisible(false)
+              }}
+              className="flex min-h-0 flex-1 flex-col gap-0"
+            >
+              <div className="mx-4 flex shrink-0 items-center">
+                <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <TabsList
+                    aria-label="Cashier report sections"
+                    variant="line"
+                    className="mb-3.5 w-fit justify-start rounded-none bg-transparent pb-0"
+                  >
+                    {reportTabs.map((tab) => (
+                      <TabsTrigger
+                        key={tab}
+                        value={tab}
+                        className="h-10 flex-none gap-2 rounded-none px-3.5 text-xs data-active:font-semibold data-active:text-foreground group-data-[variant=line]/tabs-list:data-active:after:bg-muted-foreground/60"
+                      >
+                        <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
+                        <Badge
+                          variant="secondary"
+                          className="min-w-5 justify-center rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
                         >
-                          <span>{tab === 'Activity' ? 'Installment' : tab}</span>
-                          <Badge
-                            variant="secondary"
-                            className="min-w-5 justify-center px-1 tabular-nums"
-                          >
-                            {tabRowCounts[tab]}
-                          </Badge>
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                  </div>
-                  <CashierReportHeader
-                    branchId={selectedReport.branchId}
-                    cashierUserId={selectedReport.cashierUserId}
-                    dateRange={dateRange}
-                    isLoading={isDateLoading}
-                    isExporting={isReviewingPdf}
-                    error={dateError ?? exportError}
-                    showDateSelector={false}
-                    onDateRangeChange={changeDateRange}
-                    onExport={() => void reviewPdf()}
-                  />
+                          {tabRowCounts[tab]}
+                        </Badge>
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
                 </div>
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                  {reportTabs.map((tab) => (
-                    <TabsContent
-                      key={tab}
-                      value={tab}
-                      className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                    >
-                      <ReportTab
-                        isCompact={isEntryFormCompact}
-                        tab={tab}
-                        showBranch={selectedBranch === 'All Branch'}
-                        globalFilter={reportSearch}
-                        onGlobalFilterChange={(value) => {
-                          setReportSearch(value)
-                          expenseQuery.onGlobalFilterChange(value)
-                        }}
-                        selectedBranch={selectedBranch}
-                        dateFrom={dateFrom}
-                        dateTo={dateTo}
-                        expenseRows={expenseQuery.rows}
-                        incomeRows={incomes}
-                        paymentRows={payments}
-                        expenseQuery={expenseQuery}
-                        onDeleteSelectedExpenses={deleteSelectedExpenses}
-                        onView={openEntryView}
-                        onVoid={requestVoid}
-                        onDuplicate={(row) => startEntryForm(row, 'duplicate')}
-                        isAdmin={isAdmin}
-                        showVoided={showVoided}
-                        onShowVoidedChange={setShowVoided}
-                        onAddEntry={toggleEntryForm}
-                        addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
-                        selectedHistoryId={selectedHistory?.id}
-                        onSelectHistory={setSelectedHistory}
-                        onDeleteSelected={deleteSelectedEntries}
-                        onEdit={(row) => startEntryForm(row, 'edit')}
-                        incomeLoadState={incomeLoadState}
-                        paymentLoadState={paymentLoadState}
-                        onRetryEntries={() => void refreshEntries()}
-                        historyRecords={historyRecords}
-                        historyLoadState={historyLoadState}
-                        onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
-                      />
-                    </TabsContent>
-                  ))}
-                </div>
-              </Tabs>
-            </CardContent>
-          </Card>
-          {showRightPanel && !isHistoryTab && (
-            <Card className="flex min-h-0 min-w-0 flex-col">
-              <EntryFormPanel
-                key={formSeed}
-                tab={activeTab}
-                onSave={(form) => saveEntry(activeTab, form)}
-                onDirtyChange={(isDirty) => {
-                  setIsEntryFormDirty(isDirty)
-                  if (isDirty) setEntrySaveError(undefined)
-                }}
-                saveError={entrySaveError}
-                expenseTypes={activeExpenseTypes}
-                paymentTypes={activePaymentTypes}
-                initialValues={initialFormValues}
-              />
-            </Card>
-          )}
+                <CashierReportHeader error={dateError ?? exportError} />
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                {reportTabs.map((tab) => (
+                  <TabsContent
+                    key={tab}
+                    value={tab}
+                    className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                  >
+                    <ReportTab
+                      isCompact={isEntryFormCompact}
+                      tab={tab}
+                      showBranch={selectedBranch === 'All Branch'}
+                      globalFilter={reportSearch}
+                      onGlobalFilterChange={(value) => {
+                        setReportSearch(value)
+                        expenseQuery.onGlobalFilterChange(value)
+                      }}
+                      selectedBranch={selectedBranch}
+                      dateFrom={dateFrom}
+                      dateTo={dateTo}
+                      expenseRows={expenseQuery.rows}
+                      incomeRows={incomes}
+                      paymentRows={payments}
+                      expenseTypes={activeExpenseTypes}
+                      paymentTypes={activePaymentTypes}
+                      expenseQuery={expenseQuery}
+                      onVoidSelectedExpenses={isAdmin ? async () => false : deleteSelectedExpenses}
+                      onView={openEntryView}
+                      onVoid={isAdmin ? () => undefined : requestVoid}
+                      onDuplicate={
+                        isAdmin ? () => undefined : (row) => startEntryForm(row, 'duplicate')
+                      }
+                      isAdmin={isAdmin}
+                      showVoided={showVoided}
+                      onShowVoidedChange={setShowVoided}
+                      onReview={() =>
+                        void reviewPdf(undefined, {
+                          branch: selectedBranch,
+                          dateFrom: selectedReport.businessDate,
+                          dateTo: selectedReport.businessDate
+                        })
+                      }
+                      onAddEntry={isAdmin ? undefined : toggleEntryForm}
+                      addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
+                      selectedHistoryId={selectedHistory?.id}
+                      onSelectHistory={openHistoryRecord}
+                      onVoidSelected={deleteSelectedEntries}
+                      onVoidSelectedHistory={async (rows, password) => {
+                        const payments = rows.filter((row) =>
+                          row.activity.toLowerCase().includes('payment')
+                        )
+                        const contracts = rows
+                          .filter((row) => row.activity === 'Installment record added')
+                          .map((row) => row.id.split(':', 1)[0])
+                        if (payments.length) {
+                          await window.api.installments.voidPayments({
+                            paymentIds: payments.map((row) => row.id),
+                            password
+                          })
+                        }
+                        if (contracts.length) {
+                          await window.api.installments.void({
+                            contractIds: contracts,
+                            password,
+                            reason: 'Voided by administrator'
+                          })
+                        }
+                        setHistoryRefreshKey((key) => key + 1)
+                      }}
+                      onEdit={(row) => startEntryForm(row, 'edit')}
+                      incomeLoadState={incomeLoadState}
+                      paymentLoadState={paymentLoadState}
+                      onRetryEntries={() => void refreshEntries()}
+                      historyRecords={historyRecords}
+                      historyLoadState={historyLoadState}
+                      onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
+                      onVisibleHistoryCountChange={setVisibleHistoryCount}
+                    />
+                  </TabsContent>
+                ))}
+              </div>
+            </Tabs>
+          </div>
         </div>
       </div>
       {isSummaryCompact && (
@@ -2281,7 +2601,6 @@ export function CashierReportsContent({
               </SheetHeader>
               <ReportSummary
                 key={reportId}
-                alwaysDark={summaryAlwaysDark}
                 refreshKey={summaryRefreshKey}
                 reportId={reportId}
                 businessDate={selectedReport.businessDate}
@@ -2291,6 +2610,9 @@ export function CashierReportsContent({
                 isDateLoading={isDateLoading}
                 onDateRangeChange={changeDateRange}
                 expenseTotals={expenseQuery.expenseTotals}
+                onOpenCollection={onOpenCollection}
+                onOpenFinance={onOpenFinance}
+                readOnly={isAdmin}
                 onSnapshotChange={(snapshot) => {
                   summarySnapshotRef.current = snapshot
                 }}
@@ -2299,19 +2621,38 @@ export function CashierReportsContent({
           </Sheet>
         </>
       )}
-      {isEntryFormCompact && !isHistoryTab && (
-        <Sheet open={isEntryFormVisible} onOpenChange={setEntryFormOpen}>
-          <SheetContent side="right" className="w-[min(92vw,26rem)] p-0">
-            <SheetHeader>
-              <SheetTitle>{activeTab} Entry</SheetTitle>
-              <SheetDescription>
-                Add a cashier report entry for {activeTab.toLowerCase()}.
-              </SheetDescription>
-            </SheetHeader>
+      {!isHistoryTab && (
+        <Drawer
+          open={isEntryFormVisible}
+          onOpenChange={(open) => {
+            if (!isEntryFormSaving) setEntryFormOpen(open)
+          }}
+          swipeDirection="right"
+        >
+          <DrawerContent className="w-full sm:w-[28rem] sm:max-w-xl">
+            <DrawerHeader>
+              <DrawerTitle>
+                {formMode === 'edit'
+                  ? `Edit ${activeTab}`
+                  : formMode === 'duplicate'
+                    ? `Duplicate ${activeTab}`
+                    : activeTab === 'Payment'
+                      ? 'Add Payment'
+                      : `${activeTab} Entry`}
+              </DrawerTitle>
+              <DrawerDescription>
+                {activeTab === 'Payment'
+                  ? 'Record a payment for this cashier report.'
+                  : `Add a cashier report entry for ${activeTab.toLowerCase()}.`}
+              </DrawerDescription>
+            </DrawerHeader>
             <EntryFormPanel
               key={formSeed}
               tab={activeTab}
-              onSave={(form) => saveEntry(activeTab, form)}
+              onSave={(form) => {
+                setIsEntryFormSaving(true)
+                void saveEntry(activeTab, form).finally(() => setIsEntryFormSaving(false))
+              }}
               onDirtyChange={(isDirty) => {
                 setIsEntryFormDirty(isDirty)
                 if (isDirty) setEntrySaveError(undefined)
@@ -2320,9 +2661,11 @@ export function CashierReportsContent({
               expenseTypes={activeExpenseTypes}
               paymentTypes={activePaymentTypes}
               initialValues={initialFormValues}
+              isEdit={formMode === 'edit'}
+              isSaving={isEntryFormSaving}
             />
-          </SheetContent>
-        </Sheet>
+          </DrawerContent>
+        </Drawer>
       )}
       {isHistoryTab && (
         <Sheet
@@ -2338,6 +2681,297 @@ export function CashierReportsContent({
           </SheetContent>
         </Sheet>
       )}
+      <Dialog open={isExportReportsOpen} onOpenChange={setIsExportReportsOpen}>
+        <DialogContent className="flex h-[min(88vh,720px)] w-[min(94vw,860px)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
+          <DialogHeader className="border-b bg-muted/30 px-7 py-6 pr-12">
+            <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
+              Report builder
+            </p>
+            <DialogTitle className="text-2xl tracking-tight">Build a PDF export</DialogTitle>
+            <DialogDescription>
+              Choose the scope first, then add the report data you need.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-background px-5 py-6 sm:px-7">
+            <div className="mx-auto flex max-w-3xl flex-col gap-8">
+              <FieldSet className="gap-5">
+                <FieldLegend className="mb-0 flex items-start gap-3">
+                  <span className="font-mono text-xs text-muted-foreground">01</span>
+                  <span>
+                    <span className="block font-medium">Set the report scope</span>
+                    <span className="block text-sm font-normal text-muted-foreground">
+                      This applies to every selected section.
+                    </span>
+                  </span>
+                </FieldLegend>
+                <FieldGroup className="grid gap-4 sm:grid-cols-2">
+                  <Field>
+                    <FieldLabel>Starting date</FieldLabel>
+                    <Popover>
+                      <PopoverTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-between font-normal"
+                          >
+                            <span className="flex min-w-0 items-center gap-2 truncate">
+                              <CalendarIcon aria-hidden="true" />
+                              <span className="truncate">
+                                {format(parseISO(exportStartDate), 'MMM d, yyyy')}
+                              </span>
+                            </span>
+                            <ChevronRight
+                              aria-hidden="true"
+                              className="rotate-90 text-muted-foreground"
+                            />
+                          </Button>
+                        }
+                      />
+                      <PopoverContent align="start" className="w-[min(92vw,360px)] p-4">
+                        <DateSelector
+                          value={{
+                            period: 'day',
+                            operator: 'is',
+                            startDate: parseISO(exportStartDate),
+                            endDate: parseISO(exportStartDate)
+                          }}
+                          onChange={(value) => {
+                            if (value.startDate)
+                              setExportStartDate(format(value.startDate, 'yyyy-MM-dd'))
+                          }}
+                          allowRange={false}
+                          defaultFilterType="is"
+                          showInput={false}
+                          showTwoMonths={false}
+                          className="w-full sm:max-w-none"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Ending date</FieldLabel>
+                    <Popover>
+                      <PopoverTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-between font-normal"
+                          >
+                            <span className="flex min-w-0 items-center gap-2 truncate">
+                              <CalendarIcon aria-hidden="true" />
+                              <span className="truncate">
+                                {format(parseISO(exportEndDate), 'MMM d, yyyy')}
+                              </span>
+                            </span>
+                            <ChevronRight
+                              aria-hidden="true"
+                              className="rotate-90 text-muted-foreground"
+                            />
+                          </Button>
+                        }
+                      />
+                      <PopoverContent align="start" className="w-[min(92vw,360px)] p-4">
+                        <DateSelector
+                          value={{
+                            period: 'day',
+                            operator: 'is',
+                            startDate: parseISO(exportEndDate),
+                            endDate: parseISO(exportEndDate)
+                          }}
+                          onChange={(value) => {
+                            if (value.startDate)
+                              setExportEndDate(format(value.startDate, 'yyyy-MM-dd'))
+                          }}
+                          allowRange={false}
+                          defaultFilterType="is"
+                          showInput={false}
+                          showTwoMonths={false}
+                          className="w-full sm:max-w-none"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Branch</FieldLabel>
+                    <Select
+                      value={exportBranch}
+                      onValueChange={(value) => setExportBranch(value as LoginBranch)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="All Branch">All Branch</SelectItem>
+                        <SelectItem value="Goa">Goa</SelectItem>
+                        <SelectItem value="Tinambac">Tinambac</SelectItem>
+                        <SelectItem value="Tigaon">Tigaon</SelectItem>
+                        <SelectItem value="Lagonoy">Lagonoy</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Account type</FieldLabel>
+                    <Select
+                      value={exportType}
+                      onValueChange={(value) => value && setExportType(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="All Types">All Types</SelectItem>
+                        <SelectItem value="Home Credit">Home Credit</SelectItem>
+                        <SelectItem value="Salmon">Salmon</SelectItem>
+                        <SelectItem value="Skyro">Skyro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </FieldGroup>
+              </FieldSet>
+
+              <FieldSet className="gap-5 border-t pt-7">
+                <FieldLegend className="mb-0 flex items-start gap-3">
+                  <span className="font-mono text-xs text-muted-foreground">02</span>
+                  <span>
+                    <span className="block font-medium">Choose report contents</span>
+                    <span className="block text-sm font-normal text-muted-foreground">
+                      Add only the sections you want to review.
+                    </span>
+                  </span>
+                </FieldLegend>
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <FieldSet className="gap-3">
+                    <FieldLegend variant="label">Cashier report</FieldLegend>
+                    <FieldDescription>Daily entries and activity.</FieldDescription>
+                    <FieldGroup data-slot="checkbox-group" className="grid grid-cols-2 gap-2">
+                      {(['Expenses', 'Income', 'Payment', 'Activity History'] as const).map(
+                        (section) => {
+                          const selected = exportSections.includes(section)
+                          const id = `export-section-${section.toLowerCase().replaceAll(' ', '-')}`
+                          return (
+                            <Field
+                              key={section}
+                              orientation="horizontal"
+                              className="items-center gap-2"
+                            >
+                              <Checkbox
+                                id={id}
+                                checked={selected}
+                                onCheckedChange={(checked) =>
+                                  setExportSections((current) =>
+                                    checked
+                                      ? [...current, section]
+                                      : current.filter((item) => item !== section)
+                                  )
+                                }
+                              />
+                              <FieldLabel
+                                htmlFor={id}
+                                className="cursor-pointer text-sm font-normal"
+                              >
+                                {section}
+                              </FieldLabel>
+                            </Field>
+                          )
+                        }
+                      )}
+                    </FieldGroup>
+                  </FieldSet>
+                  <FieldSet className="gap-3">
+                    <FieldLegend variant="label">Accounts</FieldLegend>
+                    <FieldDescription>Account lists and finance data.</FieldDescription>
+                    <FieldGroup data-slot="checkbox-group" className="grid grid-cols-2 gap-2">
+                      {(['Records', 'Active', 'Closed', 'Blacklisted'] as const).map((section) => {
+                        const selected = exportSections.includes(section)
+                        const id = `export-section-${section.toLowerCase()}`
+                        return (
+                          <Field
+                            key={section}
+                            orientation="horizontal"
+                            className="items-center gap-2"
+                          >
+                            <Checkbox
+                              id={id}
+                              checked={selected}
+                              onCheckedChange={(checked) =>
+                                setExportSections((current) =>
+                                  checked
+                                    ? [...current, section]
+                                    : current.filter((item) => item !== section)
+                                )
+                              }
+                            />
+                            <FieldLabel htmlFor={id} className="cursor-pointer text-sm font-normal">
+                              {section}
+                            </FieldLabel>
+                          </Field>
+                        )
+                      })}
+                      <Field orientation="horizontal" className="items-center gap-2">
+                        <Checkbox
+                          id="export-section-finance"
+                          checked={exportSections.includes('Accounts')}
+                          onCheckedChange={(checked) =>
+                            setExportSections((current) =>
+                              checked
+                                ? [...current, 'Accounts']
+                                : current.filter((item) => item !== 'Accounts')
+                            )
+                          }
+                        />
+                        <FieldLabel
+                          htmlFor="export-section-finance"
+                          className="cursor-pointer text-sm font-normal"
+                        >
+                          Finance
+                        </FieldLabel>
+                      </Field>
+                    </FieldGroup>
+                  </FieldSet>
+                </div>
+              </FieldSet>
+            </div>
+          </div>
+          <DialogFooter className="items-center border-t bg-muted/30 px-7 py-4">
+            <div className="sm:mr-auto">
+              <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
+                03 — Review
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {exportSections.length
+                  ? `${exportSections.length} section${exportSections.length === 1 ? '' : 's'} included`
+                  : 'Choose at least one section'}
+              </p>
+            </div>
+            <Button type="button" variant="outline" onClick={() => setIsExportReportsOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                !exportSections.length ||
+                !exportStartDate ||
+                !exportEndDate ||
+                exportEndDate < exportStartDate ||
+                isReviewingPdf
+              }
+              onClick={() => {
+                setIsExportReportsOpen(false)
+                void reviewPdf(exportSections, {
+                  branch: exportBranch,
+                  dateFrom: exportStartDate,
+                  dateTo: exportEndDate,
+                  accountType: exportType
+                })
+              }}
+            >
+              Review PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={Boolean(pdfPreview) && isPdfReviewOpen}
         onOpenChange={(open) => {
@@ -2347,29 +2981,93 @@ export function CashierReportsContent({
           }
         }}
       >
-        <DialogContent className="h-[min(84vh,52rem)] w-[min(94vw,84rem)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-none">
-          <DialogHeader className="border-b px-6 py-5 pr-12">
-            <DialogTitle>Review Report</DialogTitle>
-            <DialogDescription>Review the final PDF before sending it.</DialogDescription>
+        <DialogContent className="h-[min(88vh,54rem)] w-[min(96vw,88rem)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-none">
+          <DialogHeader className="border-b bg-background px-6 py-4 pr-12 sm:px-7">
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <FileDown className="size-4" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="truncate text-lg tracking-tight">Review Report</DialogTitle>
+                <DialogDescription className="mt-0.5">
+                  Check the PDF, then choose how to deliver it.
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          <div className="grid min-h-0 grid-rows-[minmax(18rem,1fr)_auto] lg:grid-cols-[minmax(0,7fr)_minmax(19rem,3fr)] lg:grid-rows-1">
-            <div className="min-h-0 bg-muted/30 p-4 lg:border-r">
+          <div className="grid min-h-0 grid-rows-[minmax(16rem,1fr)_minmax(21rem,auto)] lg:grid-cols-[minmax(0,7fr)_minmax(20rem,3fr)] lg:grid-rows-1">
+            <section
+              className="flex min-h-0 flex-col bg-muted/30 p-3 sm:p-4 lg:border-r"
+              aria-label="PDF preview"
+            >
+              <div className="flex items-center justify-between px-1 pb-2.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                <span>PDF preview</span>
+                <span>Final document</span>
+              </div>
               {pdfPreview && (
                 <iframe
                   title="Cashier report PDF preview"
                   src={`data:application/pdf;base64,${pdfPreview.pdfBase64}`}
-                  className="h-full min-h-0 w-full rounded-lg border border-border bg-background"
+                  className="min-h-0 flex-1 w-full rounded-md border border-border bg-background shadow-sm"
                 />
               )}
-            </div>
-            <aside className="flex min-h-0 flex-col bg-card">
-              <div className="flex flex-col gap-3">
-                <div className="border-b bg-muted/35 p-5">
-                  <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                    Delivery progress
+            </section>
+            <aside className="flex min-h-0 flex-col bg-card lg:border-l-0">
+              <div className="shrink-0 border-b bg-muted/20 p-4 sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold">Report details</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Add context before delivery.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    Optional
                   </span>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <span className="text-4xl font-semibold tracking-tight tabular-nums">
+                </div>
+                <label
+                  htmlFor="pdf-report-note"
+                  className="mt-4 block text-xs font-medium text-muted-foreground"
+                >
+                  PDF note
+                </label>
+                <Textarea
+                  id="pdf-report-note"
+                  value={pdfNote}
+                  onChange={(event) => setPdfNote(event.target.value)}
+                  placeholder="Optional note at the end of this PDF"
+                  maxLength={800}
+                  rows={3}
+                  disabled={isPdfProcessing || isReviewingPdf}
+                  className="mt-2 min-h-20 resize-none text-sm"
+                />
+                {pdfPreview?.note !== pdfNote && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    disabled={isReviewingPdf}
+                    onClick={() =>
+                      pdfReviewRequest &&
+                      void reviewPdf(pdfReviewRequest.sections, pdfReviewRequest.filters)
+                    }
+                  >
+                    {isReviewingPdf ? <Spinner data-icon="inline-start" /> : null}
+                    Update preview
+                  </Button>
+                )}
+              </div>
+              <div className="shrink-0 border-b px-4 py-4 sm:px-5">
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Delivery progress</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Save a copy and send to Telegram.
+                    </p>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <span className="text-3xl font-semibold tracking-tight tabular-nums">
                       {Math.round(
                         (pdfProgress.filter(
                           (step) => step.status === 'done' || step.status === 'failed'
@@ -2379,28 +3077,36 @@ export function CashierReportsContent({
                       )}
                       %
                     </span>
-                    <span className="pb-1 text-xs text-muted-foreground">
+                    <span className="pb-0.5 text-xs text-muted-foreground">
                       {pdfProgress.filter((step) => step.status === 'done').length} of{' '}
                       {pdfProgress.length} done
                     </span>
                   </div>
-                  <Progress
-                    className="mt-4"
-                    value={
-                      (pdfProgress.filter(
-                        (step) => step.status === 'done' || step.status === 'failed'
-                      ).length /
-                        pdfProgress.length) *
-                      100
-                    }
-                    aria-label="Report delivery progress"
-                  />
                 </div>
+                <Progress
+                  className="mt-3"
+                  value={
+                    (pdfProgress.filter(
+                      (step) => step.status === 'done' || step.status === 'failed'
+                    ).length /
+                      pdfProgress.length) *
+                    100
+                  }
+                  aria-label="Report delivery progress"
+                />
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                <p className="mb-3 text-xs text-muted-foreground">
-                  Use the PDF preview's print control when a paper copy is needed.
-                </p>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    Delivery checklist
+                  </p>
+                  <p className="text-xs text-muted-foreground">Print from preview</p>
+                </div>
+                {excelExportMessage && (
+                  <p className="mb-3 text-xs text-primary" role="status">
+                    {excelExportMessage}
+                  </p>
+                )}
                 <div className="flex flex-col gap-2">
                   {pdfProgress.map((step) => (
                     <div
@@ -2437,7 +3143,7 @@ export function CashierReportsContent({
                         {step.id === 'telegram' && (
                           <div className="mt-3 flex flex-col gap-1.5">
                             <label htmlFor="telegram-report-note" className="text-xs font-medium">
-                              Note
+                              Telegram note
                             </label>
                             <Textarea
                               id="telegram-report-note"
@@ -2457,6 +3163,7 @@ export function CashierReportsContent({
                             variant="outline"
                             size="sm"
                             className="mt-2"
+                            disabled={pdfPreview.note !== pdfNote}
                             onClick={() => void retryPdfStep(step.id)}
                           >
                             Retry
@@ -2467,11 +3174,20 @@ export function CashierReportsContent({
                   ))}
                 </div>
               </div>
-              <DialogFooter className="mx-0 mb-0 rounded-none border-t px-4 py-4">
+              <DialogFooter className="mx-0 mb-0 flex-wrap rounded-none border-t px-4 py-4 sm:px-5">
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={isPdfProcessing}
+                  disabled={isPdfProcessing || isExcelExporting}
+                  onClick={() => void exportExcel()}
+                >
+                  {isExcelExporting ? <Spinner data-icon="inline-start" /> : null}
+                  Export in Excel
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isPdfProcessing || isExcelExporting}
                   onClick={() => {
                     setIsPdfReviewOpen(false)
                     setPdfPreview(undefined)
@@ -2481,7 +3197,7 @@ export function CashierReportsContent({
                 </Button>
                 <Button
                   type="button"
-                  disabled={isPdfProcessing}
+                  disabled={isPdfProcessing || pdfPreview?.note !== pdfNote}
                   onClick={() => {
                     if (pdfProgress.every((step) => step.status === 'pending')) beginPdfExport()
                     else {

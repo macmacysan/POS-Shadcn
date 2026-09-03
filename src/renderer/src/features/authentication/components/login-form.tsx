@@ -1,48 +1,123 @@
-import { useState, type FormEvent } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
-import {
-  loginBranchValues,
-  type AuthenticatedUser,
-  type LoginBranch
-} from '@/../../shared/contracts'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { CircleAlert, CircleCheck, Eye, EyeOff, LoaderCircle, RefreshCw } from 'lucide-react'
+import type { AuthenticatedUser, FinanceBranch, GoogleSyncProgress } from '@/../../shared/contracts'
 
+import { Frame, FramePanel } from '@/../../components/reui/frame'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
+import { Separator } from '@/components/ui/separator'
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput
 } from '@/components/ui/input-group'
-import { Input } from '@/components/ui/input'
 import { useNotifications } from '@/hooks/use-notifications'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 
 type LoginValues = {
-  branch: LoginBranch | ''
   username: string
   password: string
 }
 
-type LoginErrors = Partial<Record<keyof LoginValues, string>>
-
-const LAST_LOGIN_BRANCH_STORAGE_KEY = 'cashiers-report-last-login-branch'
-
-function getLastLoginBranch(): LoginBranch | '' {
-  const branch = window.localStorage.getItem(LAST_LOGIN_BRANCH_STORAGE_KEY)
-  return loginBranchValues.includes(branch as LoginBranch) ? (branch as LoginBranch) : ''
+function progressKey(progress: Pick<GoogleSyncProgress, 'branch' | 'sheet'>): string {
+  return `${progress.branch}:${progress.sheet}`
 }
 
-function companyNameForBranch(branch: LoginBranch | ''): string {
-  return branch === 'All Branch' || branch === 'Goa'
-    ? 'Nueva Camsur Home Furnishing'
-    : 'Nueva Camsur Trading'
+function DownloadProgress({
+  progress
+}: {
+  progress: readonly GoogleSyncProgress[]
+}): React.JSX.Element {
+  const groups = Object.values(
+    progress.reduce<Record<string, GoogleSyncProgress[]>>((result, item) => {
+      const group = result[item.branch] ?? []
+      group.push(item)
+      result[item.branch] = group
+      return result
+    }, {})
+  )
+
+  if (!groups.length) {
+    return (
+      <Alert>
+        <LoaderCircle data-icon="inline-start" className="animate-spin" />
+        <AlertTitle>Preparing download</AlertTitle>
+        <AlertDescription>Checking your branch data before opening the workspace.</AlertDescription>
+      </Alert>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-5" aria-live="polite">
+      {groups.map((items) => {
+        const latest = items.reduce((current, item) =>
+          item.completed >= current.completed ? item : current
+        )
+        const percent = Math.round((latest.completed / latest.total) * 100)
+        return (
+          <section key={latest.branch} className="flex flex-col gap-3">
+            <div className="flex items-center justify-between text-sm font-medium">
+              <span>Downloading {latest.branch} data</span>
+              <span className="tabular-nums text-muted-foreground">{percent}%</span>
+            </div>
+            <Progress value={percent} aria-label={`Downloaded ${percent}% for ${latest.branch}`} />
+            <div
+              className="flex flex-col gap-2"
+              role="list"
+              aria-label={`${latest.branch} Drive snapshot`}
+            >
+              {items.map((item) => {
+                const isFailed = item.phase === 'failed'
+                const isWorking =
+                  item.phase === 'downloading' ||
+                  item.phase === 'retrying' ||
+                  item.phase === 'importing' ||
+                  item.phase === 'validating' ||
+                  item.phase === 'uploading'
+                return (
+                  <div
+                    key={progressKey(item)}
+                    role="listitem"
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    {isFailed ? (
+                      <CircleAlert className="text-destructive" aria-hidden="true" />
+                    ) : isWorking ? (
+                      <LoaderCircle
+                        className="animate-spin text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <CircleCheck className="text-primary" aria-hidden="true" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{item.sheet}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {isFailed
+                        ? item.message
+                        : item.phase === 'retrying'
+                          ? 'Retrying…'
+                          : isWorking
+                            ? item.phase === 'importing'
+                              ? 'Importing…'
+                              : item.phase === 'validating'
+                                ? 'Validating…'
+                                : item.phase === 'uploading'
+                                  ? 'Uploading…'
+                                  : 'Downloading…'
+                            : `${item.rowCount ?? 0} rows`}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })}
+    </div>
+  )
 }
 
 export function LoginForm({
@@ -50,50 +125,59 @@ export function LoginForm({
   onSuccess,
   ...props
 }: React.ComponentProps<'div'> & {
-  onSuccess?: (branch: LoginBranch, user: AuthenticatedUser) => void
+  onSuccess?: (user: AuthenticatedUser, failedSheets: GoogleSyncProgress[]) => void
 }): React.JSX.Element {
-  const [values, setValues] = useState<LoginValues>({
-    branch: getLastLoginBranch(),
-    username: '',
-    password: ''
-  })
-  const [errors, setErrors] = useState<LoginErrors>({})
-  const [submitError, setSubmitError] = useState<string>()
+  const [values, setValues] = useState<LoginValues>({ username: '', password: '' })
+  const [error, setError] = useState<string>()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [cashierLoginBranch, setCashierLoginBranch] = useState<FinanceBranch>()
+  const [syncProgress, setSyncProgress] = useState<Record<string, GoogleSyncProgress>>({})
+  const syncProgressRef = useRef<Record<string, GoogleSyncProgress>>({})
   const { notify } = useNotifications()
 
-  function updateValue<Key extends keyof LoginValues>(key: Key, value: LoginValues[Key]): void {
+  const receiveProgress = useCallback((progress: GoogleSyncProgress): void => {
+    syncProgressRef.current = { ...syncProgressRef.current, [progressKey(progress)]: progress }
+    setSyncProgress(syncProgressRef.current)
+  }, [])
+
+  useEffect(() => {
+    void window.api.auth
+      .getCashierLoginBranch()
+      .then(setCashierLoginBranch)
+      .catch(() => undefined)
+  }, [])
+
+  useEffect(() => window.api.googleSync.onProgress(receiveProgress), [receiveProgress])
+
+  const update = <Key extends keyof LoginValues>(key: Key, value: LoginValues[Key]): void => {
     setValues((current) => ({ ...current, [key]: value }))
-    setErrors((current) => ({ ...current, [key]: undefined }))
+    setError(undefined)
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
+    if (!values.username.trim() || !values.password) {
+      setError('Enter your username and password.')
+      return
+    }
 
-    const nextErrors: LoginErrors = {}
-
-    if (!values.branch) nextErrors.branch = 'Select a branch.'
-    if (!values.username.trim()) nextErrors.username = 'Enter your username.'
-    if (!values.password) nextErrors.password = 'Enter your password.'
-
-    setErrors(nextErrors)
-    const isValid = Object.keys(nextErrors).length === 0
-    if (!isValid) return
     setIsSubmitting(true)
-    setSubmitError(undefined)
+    syncProgressRef.current = {}
+    setSyncProgress({})
     try {
       const user = await window.api.auth.login({
-        branch: values.branch as LoginBranch,
         username: values.username,
         password: values.password
       })
-      window.localStorage.setItem(LAST_LOGIN_BRANCH_STORAGE_KEY, values.branch)
       notify({ type: 'success', title: 'Signed in successfully.' })
-      onSuccess?.(values.branch as LoginBranch, user)
+      onSuccess?.(
+        user,
+        Object.values(syncProgressRef.current).filter((progress) => progress.phase === 'failed')
+      )
     } catch {
       const message = 'Unable to sign in. Check your details or contact an administrator.'
-      setSubmitError(message)
+      setError(message)
       notify({ type: 'error', title: 'Sign-in failed.', description: message, id: 'auth:login' })
     } finally {
       setIsSubmitting(false)
@@ -102,78 +186,110 @@ export function LoginForm({
 
   return (
     <div className={className} {...props}>
-      <form className="flex w-full max-w-sm flex-col gap-8" onSubmit={handleSubmit} noValidate>
-        <div className="flex flex-col gap-1">
-          <h1 className="text-xl font-semibold tracking-tight">Cashier Daily Report</h1>
-          <p className="text-sm text-muted-foreground">{companyNameForBranch(values.branch)}</p>
-        </div>
+      <Frame className="w-full max-w-3xl" dense>
+        <FramePanel className="p-0">
+          <div className="grid min-h-112 lg:grid-cols-2">
+            <section className="flex flex-col justify-between gap-10 bg-muted/50 p-7 sm:p-10">
+              <div className="flex flex-col gap-8">
+                <div className="flex items-center gap-3 text-sm font-medium tracking-tight">
+                  <span className="brand-mark" aria-hidden="true">
+                    NC
+                  </span>
+                  Nueva Camsur Home Furnishing
+                </div>
+                <div className="flex flex-col gap-3">
+                  <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+                    Cashiers report
+                  </p>
+                  <h1 className="font-heading text-3xl leading-tight font-semibold tracking-tight">
+                    Start the day with the numbers in order.
+                  </h1>
+                  <p className="max-w-sm text-sm leading-6 text-muted-foreground">
+                    Sign in to reconcile collections, track payments, and keep your branch report
+                    current.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 border-t pt-5 text-sm">
+                <span className="text-muted-foreground">
+                  {cashierLoginBranch ? 'Cashier login branch' : 'Loading cashier branch'}
+                </span>
+                <span className="font-medium">{cashierLoginBranch ?? '…'}</span>
+              </div>
+            </section>
 
-        <FieldGroup>
-          <Field data-invalid={Boolean(errors.branch)}>
-            <FieldLabel htmlFor="branch">Branch</FieldLabel>
-            <Select
-              value={values.branch || null}
-              onValueChange={(value) => updateValue('branch', (value ?? '') as LoginBranch | '')}
-            >
-              <SelectTrigger id="branch" aria-invalid={Boolean(errors.branch)} className="w-full">
-                <SelectValue placeholder="Select a branch" />
-              </SelectTrigger>
-              <SelectContent>
-                {loginBranchValues.map((branch) => (
-                  <SelectItem key={branch} value={branch}>
-                    {branch}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.branch && <FieldError>{errors.branch}</FieldError>}
-          </Field>
-
-          <Field data-invalid={Boolean(errors.username)}>
-            <FieldLabel htmlFor="username">Username</FieldLabel>
-            <Input
-              id="username"
-              autoComplete="username"
-              placeholder="Enter your username"
-              value={values.username}
-              aria-invalid={Boolean(errors.username)}
-              onChange={(event) => updateValue('username', event.target.value)}
-            />
-            {errors.username && <FieldError>{errors.username}</FieldError>}
-          </Field>
-
-          <Field data-invalid={Boolean(errors.password)}>
-            <FieldLabel htmlFor="password">Password</FieldLabel>
-            <InputGroup>
-              <InputGroupInput
-                id="password"
-                type={isPasswordVisible ? 'text' : 'password'}
-                autoComplete="current-password"
-                placeholder="Enter your password"
-                value={values.password}
-                aria-invalid={Boolean(errors.password)}
-                onChange={(event) => updateValue('password', event.target.value)}
-              />
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  type="button"
-                  size="icon-xs"
-                  aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
-                  onClick={() => setIsPasswordVisible((current) => !current)}
+            <section className="flex flex-col justify-center p-7 sm:p-10">
+              <div className="flex flex-col gap-7">
+                <header className="flex flex-col gap-2">
+                  <p className="text-sm font-medium">Workspace access</p>
+                  <p className="text-sm text-muted-foreground">
+                    Use the username and password provided by your administrator.
+                  </p>
+                </header>
+                <Separator />
+                <form
+                  className="flex flex-col gap-6"
+                  onSubmit={(event) => void submit(event)}
+                  noValidate
                 >
-                  {isPasswordVisible ? <EyeOff /> : <Eye />}
-                </InputGroupButton>
-              </InputGroupAddon>
-            </InputGroup>
-            {errors.password && <FieldError>{errors.password}</FieldError>}
-          </Field>
-
-          <Button type="submit" className="w-full">
-            {isSubmitting ? 'Signing in…' : 'Continue'}
-          </Button>
-          {submitError && <FieldError>{submitError}</FieldError>}
-        </FieldGroup>
-      </form>
+                  {isSubmitting ? (
+                    <DownloadProgress progress={Object.values(syncProgress)} />
+                  ) : (
+                    <FieldGroup>
+                      <Field data-invalid={Boolean(error)}>
+                        <FieldLabel htmlFor="username">Username</FieldLabel>
+                        <Input
+                          id="username"
+                          autoComplete="username"
+                          aria-invalid={Boolean(error)}
+                          placeholder="Enter username"
+                          value={values.username}
+                          onChange={(event) => update('username', event.target.value)}
+                        />
+                      </Field>
+                      <Field data-invalid={Boolean(error)}>
+                        <FieldLabel htmlFor="password">Password</FieldLabel>
+                        <InputGroup>
+                          <InputGroupInput
+                            id="password"
+                            type={showPassword ? 'text' : 'password'}
+                            autoComplete="current-password"
+                            aria-invalid={Boolean(error)}
+                            placeholder="Enter password"
+                            value={values.password}
+                            onChange={(event) => update('password', event.target.value)}
+                          />
+                          <InputGroupAddon align="inline-end">
+                            <InputGroupButton
+                              type="button"
+                              size="icon-xs"
+                              aria-label={showPassword ? 'Hide password' : 'Show password'}
+                              onClick={() => setShowPassword((current) => !current)}
+                            >
+                              {showPassword ? <EyeOff /> : <Eye />}
+                            </InputGroupButton>
+                          </InputGroupAddon>
+                        </InputGroup>
+                        {error ? <FieldError>{error}</FieldError> : null}
+                      </Field>
+                    </FieldGroup>
+                  )}
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw data-icon="inline-start" className="animate-spin" />
+                        Downloading data…
+                      </>
+                    ) : (
+                      'Sign in to workspace'
+                    )}
+                  </Button>
+                </form>
+              </div>
+            </section>
+          </div>
+        </FramePanel>
+      </Frame>
     </div>
   )
 }

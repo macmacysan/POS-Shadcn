@@ -1,56 +1,46 @@
 import * as React from 'react'
-import { format } from 'date-fns'
-import { useReactTable, getCoreRowModel, type ColumnDef } from '@tanstack/react-table'
+import { addDays, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip as ChartTooltip,
   XAxis,
   YAxis
 } from 'recharts'
-import {
-  ArrowUpRight,
-  Banknote,
-  CalendarDays,
-  CircleAlert,
-  HandCoins,
-  Landmark,
-  ReceiptText,
-  RefreshCw,
-  TrendingUp,
-  WalletCards
-} from 'lucide-react'
+import { ArrowUpRight, CircleAlert, FileDown, RefreshCw } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
   CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
-import { AccountBranchBadge } from '@/features/in-house-accounts/components/account-badges'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatCentavos } from '@/lib/currency'
+import { cn } from '@/lib/utils'
 import type { DashboardOverview, LoginBranch } from '@/../../shared/contracts'
 
 type Props = {
   selectedBranch: LoginBranch
   onOpenCashierReports: () => void
+  onOpenExportReports: (businessDate: string) => void
   onOpenInHouse: () => void
   onOpenFinance: () => void
   onOpenPaymentWorkspace: (accountId: string) => void
 }
 
-type OverdueRow = DashboardOverview['overdueAccounts'][number]
 type TrendPoint = DashboardOverview['collectionTrend'][number]
+type ReportCalendar = NonNullable<DashboardOverview['reportCalendar']>
+type ReportCalendarDay = ReportCalendar['days'][number]
 
 const money = formatCentavos
 const today = (): string => format(new Date(), 'yyyy-MM-dd')
@@ -88,90 +78,214 @@ function TrendTooltip({
   if (!active || !payload?.length || !label) return null
   const point = payload[0].payload
   return (
-    <div className="min-w-48 rounded-lg border bg-popover p-3 text-popover-foreground shadow-lg">
+    <div className="min-w-48 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg">
       <p className="mb-2 text-xs font-medium text-muted-foreground">
-        {format(new Date(`${label}T00:00:00`), 'EEEE, MMMM d')}
+        {format(new Date(`${label}T00:00:00`), 'EEEE, MMM d')}
       </p>
-      <div className="flex flex-col gap-1.5 text-xs">
-        <span className="flex justify-between gap-4">
-          Sales <strong className="font-mono tabular-nums">{money(point.salesCentavos)}</strong>
-        </span>
-        <span className="flex justify-between gap-4 text-muted-foreground">
-          In-house
-          <strong className="font-mono font-medium tabular-nums">
-            {money(point.inHouseCollectionsCentavos)}
-          </strong>
-        </span>
-        <span className="flex justify-between gap-4 text-muted-foreground">
-          Finance
-          <strong className="font-mono font-medium tabular-nums">
-            {money(point.financeCollectionsCentavos)}
-          </strong>
-        </span>
+      <div className="space-y-1.5 text-xs">
+        <p className="flex justify-between gap-4">
+          Cashier sales <strong className="font-mono">{money(point.salesCentavos)}</strong>
+        </p>
+        <p className="flex justify-between gap-4">
+          In-house <strong className="font-mono">{money(point.inHouseCollectionsCentavos)}</strong>
+        </p>
+        <p className="flex justify-between gap-4">
+          Finance <strong className="font-mono">{money(point.financeCollectionsCentavos)}</strong>
+        </p>
       </div>
     </div>
   )
 }
 
-function MetricCard({
-  title,
+function CashTooltip({
+  active,
+  payload,
+  label
+}: {
+  active?: boolean
+  payload?: Array<{ payload: { expected: number; physical: number } }>
+  label?: string
+}): React.JSX.Element | null {
+  if (!active || !payload?.length || !label) return null
+  const point = payload[0].payload
+  return (
+    <div className="rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
+      <p className="mb-2 font-medium text-muted-foreground">{label}</p>
+      <p className="flex justify-between gap-4">
+        Expected <strong className="font-mono">{money(point.expected)}</strong>
+      </p>
+      <p className="mt-1 flex justify-between gap-4">
+        Physical <strong className="font-mono">{money(point.physical)}</strong>
+      </p>
+    </div>
+  )
+}
+
+function Metric({
+  label,
   value,
   detail,
-  icon: Icon,
   actionLabel,
   onOpen,
-  attention = false
+  tone = 'default'
 }: {
-  title: string
+  label: string
   value: string
   detail: string
-  icon: React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
-  actionLabel: string
-  onOpen: () => void
-  attention?: boolean
+  actionLabel?: string
+  onOpen?: () => void
+  tone?: 'default' | 'warning' | 'destructive'
 }): React.JSX.Element {
+  const valueClass =
+    tone === 'destructive'
+      ? 'text-destructive'
+      : tone === 'warning'
+        ? 'text-warning-foreground'
+        : 'text-foreground'
   return (
-    <Card size="sm" className="animate-in fade-in slide-in-from-bottom-1 duration-300">
-      <CardHeader>
-        <CardDescription>{title}</CardDescription>
-        <CardTitle className="text-xl font-semibold tabular-nums">{value}</CardTitle>
+    <div className="group relative min-w-0 border-l border-border pl-3">
+      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={cn(
+          'mt-1 font-mono text-xl font-semibold tracking-tight tabular-nums',
+          valueClass
+        )}
+      >
+        {value}
+      </p>
+      <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+      {onOpen && actionLabel && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="absolute right-0 top-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                  aria-label={actionLabel}
+                  onClick={onOpen}
+                >
+                  <ArrowUpRight />
+                </Button>
+              }
+            />
+            <TooltipContent>{actionLabel}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </div>
+  )
+}
+
+function ReportCalendar({ calendar }: { calendar: ReportCalendar | null }): React.JSX.Element {
+  if (!calendar)
+    return (
+      <Card className="flex min-h-0 flex-col">
+        <CardHeader className="shrink-0 border-b px-4 py-3">
+          <CardDescription>Cashier report health</CardDescription>
+          <CardTitle className="text-base">Choose a branch</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-1 items-center p-4 text-sm leading-relaxed text-muted-foreground">
+          Select one branch to view its monthly cashier report coverage, cash counts, and variances.
+        </CardContent>
+      </Card>
+    )
+  const month = new Date(`${calendar.month}-01T00:00:00`)
+  const first = startOfWeek(startOfMonth(month))
+  const last = endOfWeek(endOfMonth(month))
+  const days = Array.from(
+    { length: Math.round((last.getTime() - first.getTime()) / 86400000) + 1 },
+    (_, index) => addDays(first, index)
+  )
+  const byDate = new Map(calendar.days.map((day) => [day.businessDate, day]))
+  const dayClass = (day: ReportCalendarDay | undefined): string => {
+    if (!day) return 'bg-muted/50 text-muted-foreground'
+    if (day.cashVarianceCentavos !== 0) return 'bg-destructive/15 text-destructive'
+    if (!day.hasCashCount) return 'bg-warning/15 text-warning-foreground'
+    return 'bg-success/15 text-success-foreground'
+  }
+  return (
+    <Card className="flex min-h-0 flex-col">
+      <CardHeader className="shrink-0 border-b px-4 py-3">
+        <CardDescription>Cashier report health</CardDescription>
+        <CardTitle className="text-base">{format(month, 'MMMM yyyy')}</CardTitle>
         <CardAction>
-          <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-            <Icon aria-hidden className="size-4" />
+          <span className="text-[10px] text-muted-foreground">
+            green counted · amber pending · red variance
           </span>
         </CardAction>
       </CardHeader>
-      <CardContent>
-        <p className={attention ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
-          {detail}
-        </p>
+      <CardContent className="min-h-0 flex-1 p-3">
+        <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase text-muted-foreground">
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, index) => (
+            <span key={`${label}-${index}`}>{label}</span>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {days.map((date) => {
+            const key = format(date, 'yyyy-MM-dd')
+            const report = byDate.get(key)
+            const inMonth = date.getMonth() === month.getMonth()
+            return (
+              <TooltipProvider key={key}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span
+                        tabIndex={report ? 0 : undefined}
+                        className={cn(
+                          'flex aspect-square items-center justify-center rounded-sm text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                          inMonth ? dayClass(report) : 'bg-transparent text-muted-foreground/35'
+                        )}
+                      >
+                        {format(date, 'd')}
+                      </span>
+                    }
+                  />
+                  <TooltipContent>
+                    {report ? (
+                      <span className="space-y-1">
+                        <span className="block font-medium">{format(date, 'MMMM d')}</span>
+                        <span className="block">
+                          {report.hasCashCount ? 'Cash count recorded' : 'Cash count pending'}
+                        </span>
+                        <span className="block">
+                          Variance: {money(report.cashVarianceCentavos)}
+                        </span>
+                      </span>
+                    ) : (
+                      'No cashier report'
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
+          })}
+        </div>
       </CardContent>
-      <CardFooter>
-        <Button variant="ghost" size="xs" onClick={onOpen}>
-          {actionLabel}
-          <ArrowUpRight data-icon="inline-end" />
-        </Button>
-      </CardFooter>
     </Card>
   )
 }
 
 function DashboardLoading(): React.JSX.Element {
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-6">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-5 w-44" />
-          <Skeleton className="h-3 w-64" />
-        </div>
-        <Skeleton className="h-9 w-36" />
+    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-11 w-64" />
+        <Skeleton className="h-8 w-64" />
       </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <Skeleton key={index} className="h-38" />
-        ))}
+      <div className="grid gap-4 lg:grid-cols-[minmax(19rem,.9fr)_minmax(0,1.4fr)]">
+        <Skeleton className="h-38" />
+        <Skeleton className="h-38" />
       </div>
-      <Skeleton className="min-h-80 flex-1" />
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(14rem,.85fr)_minmax(16rem,.9fr)]">
+        <Skeleton className="h-full" />
+        <Skeleton className="h-full" />
+        <Skeleton className="h-full" />
+      </div>
     </main>
   )
 }
@@ -179,9 +293,9 @@ function DashboardLoading(): React.JSX.Element {
 export function DashboardContent({
   selectedBranch,
   onOpenCashierReports,
+  onOpenExportReports,
   onOpenInHouse,
-  onOpenFinance,
-  onOpenPaymentWorkspace
+  onOpenFinance
 }: Props): React.JSX.Element {
   const [businessDate, setBusinessDate] = React.useState(today)
   const [rangeDays, setRangeDays] = React.useState<7 | 14 | 30>(14)
@@ -189,7 +303,6 @@ export function DashboardContent({
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string>()
   const requestVersionRef = React.useRef(0)
-
   const load = React.useCallback(
     async (preserveOverview = false): Promise<void> => {
       const requestVersion = ++requestVersionRef.current
@@ -202,67 +315,20 @@ export function DashboardContent({
           branch: selectedBranch === 'All Branch' ? undefined : selectedBranch,
           rangeDays
         })
-        if (requestVersion !== requestVersionRef.current) return
-        setOverview(next)
+        if (requestVersion === requestVersionRef.current) setOverview(next)
       } catch (caught) {
-        if (requestVersion !== requestVersionRef.current) return
-        setError(errorMessage(caught))
+        if (requestVersion === requestVersionRef.current) setError(errorMessage(caught))
       } finally {
         if (requestVersion === requestVersionRef.current) setIsLoading(false)
       }
     },
     [businessDate, rangeDays, selectedBranch]
   )
-
   React.useEffect(() => {
-    void load()
+    void Promise.resolve().then(() => load())
   }, [load])
-
-  const overdueColumns = React.useMemo<ColumnDef<OverdueRow>[]>(
-    () => [
-      {
-        accessorKey: 'accountName',
-        header: 'Account',
-        cell: ({ row }) => <span className="font-medium">{row.original.accountName}</span>
-      },
-      {
-        accessorKey: 'branch',
-        header: 'Branch',
-        cell: ({ row }) => <AccountBranchBadge branch={row.original.branch} />,
-        size: 42
-      },
-      { accessorKey: 'dueDate', header: 'Oldest due', size: 116 },
-      {
-        accessorKey: 'delayedDays',
-        header: 'Delayed',
-        cell: ({ row }) => (
-          <span className="text-destructive">{row.original.delayedDays} days</span>
-        ),
-        size: 96
-      },
-      {
-        accessorKey: 'outstandingCentavos',
-        header: 'Outstanding',
-        cell: ({ row }) => (
-          <span className="block text-right font-medium tabular-nums">
-            {money(row.original.outstandingCentavos)}
-          </span>
-        ),
-        size: 136,
-        meta: { cellClassName: 'text-right' }
-      }
-    ],
-    []
-  )
-  const overdueTable = useReactTable({
-    data: overview?.overdueAccounts ?? [],
-    columns: overdueColumns,
-    getCoreRowModel: getCoreRowModel(),
-    getRowId: (row) => row.accountId
-  })
-
   if (isLoading && !overview) return <DashboardLoading />
-  if (error && !overview) {
+  if (error && !overview)
     return (
       <main className="flex min-h-0 flex-1 items-center justify-center p-6">
         <Card size="sm" className="w-full max-w-md">
@@ -270,127 +336,161 @@ export function DashboardContent({
             <CardTitle>Dashboard unavailable</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
-          <CardFooter>
+          <CardContent>
             <Button variant="outline" size="sm" onClick={() => void load()}>
               Retry
             </Button>
-          </CardFooter>
+          </CardContent>
         </Card>
       </main>
     )
-  }
 
   const variance = overview?.cashVarianceCentavos ?? 0
-  const hasVariance = variance !== 0
-  const pendingReconciliations =
+  const physicalCash = overview?.physicalCashCentavos ?? 0
+  const expectedCash = physicalCash - variance
+  const pendingReports = Math.max(
+    0,
     (overview?.cashierReportCount ?? 0) - (overview?.reconciledReportCount ?? 0)
-  const totalCollections =
-    (overview?.inHouseCollectionsCentavos ?? 0) + (overview?.financeCollectionsCentavos ?? 0)
-  const previousSales = overview?.collectionTrend.at(-2)?.salesCentavos ?? 0
-  const salesChange = previousSales
-    ? (((overview?.salesCentavos ?? 0) - previousSales) / previousSales) * 100
-    : undefined
+  )
+  const calendarCashData = (overview?.reportCalendar?.days ?? []).map((day) => ({
+    label: shortDate(day.businessDate),
+    expected: day.expectedCashCentavos,
+    physical: day.physicalCashCentavos
+  }))
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto p-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-muted-foreground">
-            Dashboard · {overview?.scopeLabel ?? `${selectedBranch} Branch`}
+          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            {overview?.scopeLabel ?? `${selectedBranch} Branch`} · {businessDate}
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Daily sales overview</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Sales performance, collections, and reconciliation exceptions.
-          </p>
+          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">Cash position</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Input
+          <DatePickerInput
             aria-label="Business date"
-            className="w-38"
-            type="date"
+            className="w-36"
             value={businessDate}
-            onChange={(event) => setBusinessDate(event.target.value)}
+            onValueChange={setBusinessDate}
           />
+          <Button variant="outline" size="sm" onClick={() => onOpenExportReports(businessDate)}>
+            <FileDown data-icon="inline-start" />
+            Export
+          </Button>
           <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={isLoading}>
             <RefreshCw
               data-icon="inline-start"
               className={isLoading ? 'animate-spin' : undefined}
             />
-            {isLoading ? 'Refreshing' : 'Refresh'}
+            Refresh
           </Button>
         </div>
       </header>
-
       {error && (
-        <Card size="sm" className="ring-destructive/30">
-          <CardContent className="flex items-center justify-between gap-3 text-destructive">
-            <span className="flex items-center gap-2">
-              <CircleAlert aria-hidden className="size-4" />
-              {error}
-            </span>
-            <Button variant="outline" size="xs" onClick={() => void load(true)}>
-              Retry
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="flex shrink-0 items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <span className="flex items-center gap-2">
+            <CircleAlert aria-hidden className="size-4" />
+            {error}
+          </span>
+          <Button variant="ghost" size="xs" onClick={() => void load(true)}>
+            Retry
+          </Button>
+        </div>
       )}
-
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label="Daily summary">
-        <MetricCard
-          title="Recorded sales"
-          value={money(overview?.salesCentavos ?? 0)}
-          detail={
-            salesChange === undefined
-              ? 'No prior-day comparison available'
-              : `${salesChange >= 0 ? '+' : ''}${salesChange.toFixed(1)}% from previous day`
-          }
-          icon={TrendingUp}
-          actionLabel="Open cashier reports"
-          onOpen={onOpenCashierReports}
-        />
-        <MetricCard
-          title="Collections"
-          value={money(totalCollections)}
-          detail={`${money(overview?.inHouseCollectionsCentavos ?? 0)} in-house · ${money(overview?.financeCollectionsCentavos ?? 0)} finance`}
-          icon={HandCoins}
-          actionLabel="Open in-house"
-          onOpen={onOpenInHouse}
-        />
-        <MetricCard
-          title="Cash variance"
-          value={pendingReconciliations > 0 ? `${pendingReconciliations} pending` : money(variance)}
-          detail={
-            pendingReconciliations > 0
-              ? `${pendingReconciliations} cash count${pendingReconciliations === 1 ? '' : 's'} pending`
-              : hasVariance
-                ? 'Variance requires review'
-                : 'Cash is balanced'
-          }
-          icon={Banknote}
-          actionLabel="Review reconciliation"
-          onOpen={onOpenCashierReports}
-          attention={pendingReconciliations > 0 || hasVariance}
-        />
-        <MetricCard
-          title="Report completion"
-          value={`${overview?.reconciledReportCount ?? 0} / ${overview?.cashierReportCount ?? 0}`}
-          detail={
-            pendingReconciliations > 0
-              ? 'Reports still require cash counts'
-              : 'All reports reconciled'
-          }
-          icon={ReceiptText}
-          actionLabel="Open reports"
-          onOpen={onOpenCashierReports}
-          attention={pendingReconciliations > 0}
-        />
+      <section className="grid shrink-0 gap-4 lg:grid-cols-[minmax(19rem,.9fr)_minmax(0,1.4fr)]">
+        <Card
+          className={cn('border-l-4', variance === 0 ? 'border-l-success' : 'border-l-destructive')}
+        >
+          <CardHeader className="gap-1 px-5 py-4">
+            <CardDescription>Physical cash counted</CardDescription>
+            <CardTitle className="font-mono text-[clamp(2rem,4vw,3.5rem)] leading-none tracking-[-0.06em] tabular-nums">
+              {money(physicalCash)}
+            </CardTitle>
+            <div className="mt-3 grid grid-cols-3 gap-3 border-t pt-3 text-xs">
+              <div>
+                <p className="text-muted-foreground">Expected</p>
+                <p className="mt-1 font-mono font-medium tabular-nums">{money(expectedCash)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Remitted</p>
+                <p className="mt-1 font-mono font-medium tabular-nums">
+                  {money(overview?.remittedCashCentavos ?? 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Variance</p>
+                <p
+                  className={cn(
+                    'mt-1 font-mono font-medium tabular-nums',
+                    variance === 0 ? 'text-success-foreground' : 'text-destructive'
+                  )}
+                >
+                  {money(variance)}
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+        <div className="grid gap-x-4 gap-y-5 sm:grid-cols-3">
+          <Metric
+            label="Cashier sales"
+            value={money(overview?.salesCentavos ?? 0)}
+            detail={`${overview?.cashierReportCount ?? 0} report${overview?.cashierReportCount === 1 ? '' : 's'} today`}
+            actionLabel="Open cashier reports"
+            onOpen={onOpenCashierReports}
+          />
+          <Metric
+            label="Reports counted"
+            value={`${overview?.reconciledReportCount ?? 0}/${overview?.cashierReportCount ?? 0}`}
+            detail={
+              pendingReports
+                ? `${pendingReports} cash count${pendingReports === 1 ? '' : 's'} pending`
+                : 'All cash counts complete'
+            }
+            tone={pendingReports ? 'warning' : 'default'}
+            actionLabel="Open cashier reports"
+            onOpen={onOpenCashierReports}
+          />
+          <Metric
+            label="In-house"
+            value={money(overview?.inHouseCollectionsCentavos ?? 0)}
+            detail={`${overview?.overdueCount ?? 0} accounts overdue`}
+            actionLabel="Open in-house accounts"
+            onOpen={onOpenInHouse}
+          />
+          <Metric
+            label="Finance"
+            value={money(overview?.financeCollectionsCentavos ?? 0)}
+            detail="Downpayments received"
+            actionLabel="Open finance accounts"
+            onOpen={onOpenFinance}
+          />
+          <Metric
+            label="Overdue balance"
+            value={money(overview?.overdueBalanceCentavos ?? 0)}
+            detail="Active in-house receivables"
+            tone={(overview?.overdueCount ?? 0) > 0 ? 'destructive' : 'default'}
+            actionLabel="Open in-house accounts"
+            onOpen={onOpenInHouse}
+          />
+          <Metric
+            label="Cash status"
+            value={variance === 0 ? 'Balanced' : 'Review'}
+            detail={
+              variance === 0
+                ? 'Physical count matches expected cash'
+                : 'Cash difference requires review'
+            }
+            tone={variance === 0 ? 'default' : 'destructive'}
+          />
+        </div>
       </section>
-
-      <section className="grid min-h-80 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
-        <Card className="min-w-0">
-          <CardHeader className="border-b">
-            <CardDescription>Performance trend</CardDescription>
-            <CardTitle>Recorded sales</CardTitle>
+      <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(14rem,.85fr)_minmax(16rem,.9fr)]">
+        <Card className="flex min-h-0 min-w-0 flex-col">
+          <CardHeader className="shrink-0 border-b px-4 py-3">
+            <CardDescription>Sales performance</CardDescription>
+            <CardTitle className="text-base">Cashier sales and collections</CardTitle>
             <CardAction className="flex items-center gap-1">
               {([7, 14, 30] as const).map((days) => (
                 <Button
@@ -405,16 +505,20 @@ export function DashboardContent({
               ))}
             </CardAction>
           </CardHeader>
-          <CardContent className="h-72 pt-5">
+          <CardContent className="min-h-0 flex-1 p-3 pt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={overview?.collectionTrend ?? []} margin={{ left: 4, right: 8 }}>
+              <AreaChart
+                data={overview?.collectionTrend ?? []}
+                margin={{ top: 8, left: 0, right: 4, bottom: 0 }}
+                accessibilityLayer
+              >
                 <defs>
-                  <linearGradient id="sales-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.24} />
-                    <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
+                  <linearGradient id="dashboard-sales-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--info)" stopOpacity={0.28} />
+                    <stop offset="100%" stopColor="var(--info)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+                <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="4 4" />
                 <XAxis
                   dataKey="businessDate"
                   tickFormatter={shortDate}
@@ -422,133 +526,87 @@ export function DashboardContent({
                   axisLine={false}
                   minTickGap={28}
                 />
-                <YAxis tickFormatter={compactMoney} tickLine={false} axisLine={false} width={68} />
-                <ChartTooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--border)' }} />
+                <YAxis tickFormatter={compactMoney} tickLine={false} axisLine={false} width={62} />
+                <ChartTooltip
+                  content={<TrendTooltip />}
+                  cursor={{ stroke: 'var(--primary)', strokeDasharray: '4 4' }}
+                />
                 <Area
                   type="monotone"
                   dataKey="salesCentavos"
-                  stroke="var(--primary)"
-                  strokeWidth={2}
-                  fill="url(#sales-fill)"
-                  activeDot={{ r: 4 }}
+                  name="Cashier sales"
+                  stroke="var(--info)"
+                  strokeWidth={2.5}
+                  fill="url(#dashboard-sales-fill)"
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 2, stroke: 'var(--background)' }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="inHouseCollectionsCentavos"
+                  name="In-house"
+                  stroke="var(--warning)"
+                  strokeWidth={1.75}
+                  fill="none"
+                  dot={false}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="financeCollectionsCentavos"
+                  name="Finance"
+                  stroke="var(--success)"
+                  strokeWidth={1.75}
+                  fill="none"
+                  dot={false}
                 />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardDescription>Today at a glance</CardDescription>
-            <CardTitle>Cash position</CardTitle>
+        <Card className="flex min-h-0 min-w-0 flex-col">
+          <CardHeader className="shrink-0 border-b px-4 py-3">
+            <CardDescription>Cash controls</CardDescription>
+            <CardTitle className="text-base">Expected vs counted</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1 border-b pb-3">
-              <span className="text-xs text-muted-foreground">Physical cash</span>
-              <strong className="font-mono text-lg font-semibold tabular-nums">
-                {money(overview?.physicalCashCentavos ?? 0)}
-              </strong>
-            </div>
-            <div className="flex flex-col gap-1 pb-3">
-              <span className="text-xs text-muted-foreground">Cash remitted</span>
-              <strong className="font-mono text-lg font-semibold tabular-nums">
-                {money(overview?.remittedCashCentavos ?? 0)}
-              </strong>
-            </div>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="flex items-center gap-2 text-muted-foreground">
-                <Landmark aria-hidden className="size-4" /> Finance
-              </span>
-              <strong className="font-mono font-medium tabular-nums">
-                {money(overview?.financeCollectionsCentavos ?? 0)}
-              </strong>
-            </div>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="flex items-center gap-2 text-muted-foreground">
-                <WalletCards aria-hidden className="size-4" /> In-house
-              </span>
-              <strong className="font-mono font-medium tabular-nums">
-                {money(overview?.inHouseCollectionsCentavos ?? 0)}
-              </strong>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" size="sm" onClick={onOpenFinance}>
-              Open finance
-              <ArrowUpRight data-icon="inline-end" />
-            </Button>
-          </CardFooter>
-        </Card>
-      </section>
-
-      <section className="grid min-h-72 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
-        <Card className="flex min-h-0 flex-col">
-          <CardHeader className="border-b">
-            <CardDescription>Exception queue</CardDescription>
-            <CardTitle className="flex items-center gap-2">
-              Overdue in-house accounts
-              <Badge variant={overview?.overdueCount ? 'destructive' : 'secondary'}>
-                {overview?.overdueCount ?? 0}
-              </Badge>
-            </CardTitle>
-            <CardAction>
-              <Badge variant="secondary">{money(overview?.overdueBalanceCentavos ?? 0)}</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 pt-0">
-            <UniversalDataTable
-              className="min-h-0"
-              table={overdueTable}
-              recordCount={overview?.overdueAccounts.length ?? 0}
-              isLoading={isLoading}
-              emptyMessage="No overdue accounts for this date."
-              showPagination={false}
-              onRowClick={(row) => onOpenPaymentWorkspace(row.accountId)}
-              tableLayout={{ rowBorder: true, headerSticky: true }}
-            />
+          <CardContent className="min-h-0 flex-1 p-3 pt-2">
+            {calendarCashData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={calendarCashData}
+                  margin={{ top: 8, left: 0, right: 0, bottom: 0 }}
+                  accessibilityLayer
+                >
+                  <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="4 4" />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={20} />
+                  <YAxis
+                    tickFormatter={compactMoney}
+                    tickLine={false}
+                    axisLine={false}
+                    width={54}
+                  />
+                  <ChartTooltip content={<CashTooltip />} />
+                  <Bar
+                    dataKey="expected"
+                    name="Expected"
+                    fill="var(--chart-2)"
+                    radius={[3, 3, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="physical"
+                    name="Physical"
+                    fill="var(--info)"
+                    radius={[3, 3, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center text-sm text-muted-foreground">
+                Select a branch to compare monthly cash counts.
+              </div>
+            )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardDescription>Reconciliation</CardDescription>
-            <CardTitle>Cash status</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div
-              className={
-                hasVariance || pendingReconciliations > 0
-                  ? 'rounded-lg bg-destructive/10 p-3 text-destructive'
-                  : 'rounded-lg bg-muted p-3'
-              }
-            >
-              <p className="text-xs font-medium uppercase tracking-wide">
-                {pendingReconciliations > 0
-                  ? 'Cash count pending'
-                  : hasVariance
-                    ? 'Needs review'
-                    : 'Balanced'}
-              </p>
-              <p className="mt-1 text-xl font-semibold tabular-nums">
-                {pendingReconciliations > 0 ? `${pendingReconciliations} pending` : money(variance)}
-              </p>
-            </div>
-            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <ReceiptText aria-hidden className="mt-0.5 size-4 shrink-0" />
-              Consolidated from saved daily reports and cash counts.
-            </div>
-            <div className="flex items-start gap-2 text-sm text-muted-foreground">
-              <CalendarDays aria-hidden className="mt-0.5 size-4 shrink-0" />
-              Business date: {businessDate}
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" size="sm" onClick={onOpenCashierReports}>
-              Open cashier reports
-              <ArrowUpRight data-icon="inline-end" />
-            </Button>
-          </CardFooter>
-        </Card>
+        <ReportCalendar calendar={overview?.reportCalendar ?? null} />
       </section>
     </main>
   )

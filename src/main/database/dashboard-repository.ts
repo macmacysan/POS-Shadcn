@@ -1,4 +1,4 @@
-import type { DashboardOverview } from '../../shared/contracts'
+import type { DashboardOverview, PdfReportCharts } from '../../shared/contracts'
 import type { AppDatabase } from './database'
 
 type Scope = { branch?: string | null; label: string }
@@ -65,7 +65,8 @@ export class DashboardRepository {
            FROM in_house_payments p
            JOIN installment_contracts c ON c.id = p.contract_id
            JOIN branches b ON b.id = c.branch_id
-          WHERE p.status = 'POSTED' AND p.payment_date = ? AND (? IS NULL OR b.name = ?)`
+           WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
+             AND p.payment_date = ? AND (? IS NULL OR b.name = ?)`
       )
       .get(businessDate, branch, branch) as { amount_centavos: number }
     const finance = this.db
@@ -96,7 +97,7 @@ export class DashboardRepository {
              FROM in_house_payments p
              JOIN installment_contracts c ON c.id = p.contract_id
              JOIN branches b ON b.id = c.branch_id
-            WHERE p.status = 'POSTED'
+             WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
               AND p.payment_date BETWEEN date(?, '-' || (? - 1) || ' days') AND ?
               AND (? IS NULL OR b.name = ?)
             GROUP BY p.payment_date
@@ -145,6 +146,56 @@ export class DashboardRepository {
       in_house_centavos: number
       finance_centavos: number
     }>
+    const reportCalendar = branch
+      ? (this.db
+          .prepare(
+            `WITH report_totals AS (
+               SELECT dr.business_date,
+                      dr.status,
+                      dr.opening_cash_centavos
+                        + COALESCE((SELECT SUM(amount_centavos) FROM daily_receipt_totals
+                                     WHERE daily_report_id = dr.id), 0)
+                        + COALESCE((SELECT SUM(amount_centavos) FROM income_entries
+                                     WHERE daily_report_id = dr.id AND status = 'POSTED'), 0)
+                        - COALESCE((SELECT SUM(amount_centavos) FROM daily_report_deductions
+                                     WHERE daily_report_id = dr.id), 0)
+                        - COALESCE((SELECT SUM(amount_centavos) FROM cash_out_entries
+                                     WHERE daily_report_id = dr.id AND status = 'POSTED'), 0)
+                        - COALESCE((SELECT SUM(amount_centavos) FROM expenses
+                                     WHERE report_id = dr.id AND status = 'POSTED'), 0)
+                        AS expected_cash_centavos,
+                      COALESCE((SELECT SUM(d.value_centavos * c.quantity)
+                                  FROM daily_report_cash_counts c
+                                  JOIN cash_denominations d ON d.id = c.denomination_id
+                                 WHERE c.daily_report_id = dr.id), 0) AS physical_cash_centavos,
+                      EXISTS(SELECT 1 FROM daily_report_cash_counts c WHERE c.daily_report_id = dr.id)
+                        AS has_cash_count
+                 FROM daily_reports dr
+                 JOIN branches b ON b.id = dr.branch_id
+                WHERE dr.business_date >= ?
+                  AND dr.business_date < date(?, '+1 month')
+                  AND dr.status <> 'VOIDED'
+                  AND b.name = ?
+             )
+             SELECT business_date, status, has_cash_count, expected_cash_centavos,
+                    physical_cash_centavos,
+                    physical_cash_centavos - expected_cash_centavos AS cash_variance_centavos
+               FROM report_totals
+              ORDER BY business_date`
+          )
+          .all(
+            `${businessDate.slice(0, 7)}-01`,
+            `${businessDate.slice(0, 7)}-01`,
+            branch
+          ) as Array<{
+          business_date: string
+          status: NonNullable<DashboardOverview['reportCalendar']>['days'][number]['status']
+          has_cash_count: number
+          expected_cash_centavos: number
+          physical_cash_centavos: number
+          cash_variance_centavos: number
+        }>)
+      : null
     const overdueRows = this.db
       .prepare(
         `SELECT a.id AS account_id, a.display_name AS account_name, b.name AS branch,
@@ -222,6 +273,17 @@ export class DashboardRepository {
         inHouseCollectionsCentavos: row.in_house_centavos,
         financeCollectionsCentavos: row.finance_centavos
       })),
+      reportCalendar: reportCalendar && {
+        month: businessDate.slice(0, 7),
+        days: reportCalendar.map((row) => ({
+          businessDate: row.business_date,
+          status: row.status,
+          hasCashCount: Boolean(row.has_cash_count),
+          expectedCashCentavos: row.expected_cash_centavos,
+          physicalCashCentavos: row.physical_cash_centavos,
+          cashVarianceCentavos: row.cash_variance_centavos
+        }))
+      },
       overdueCount: overdueTotals.overdue_count,
       overdueBalanceCentavos: overdueTotals.overdue_balance_centavos,
       overdueAccounts: overdueRows.map((row) => ({
@@ -231,6 +293,122 @@ export class DashboardRepository {
         dueDate: row.due_date,
         outstandingCentavos: row.outstanding_centavos,
         delayedDays: row.delayed_days
+      }))
+    }
+  }
+
+  getPdfCharts(businessDate: string, scope: Scope): PdfReportCharts {
+    const branch = scope.branch ?? null
+    const weeklySales = this.db
+      .prepare(
+        `WITH RECURSIVE dates(business_date) AS (
+           SELECT date(?, '-6 days')
+           UNION ALL SELECT date(business_date, '+1 day') FROM dates WHERE business_date < ?
+         ), sales AS (
+           SELECT dr.business_date, SUM(rt.amount_centavos) AS amount_centavos
+             FROM daily_receipt_totals rt
+             JOIN daily_reports dr ON dr.id = rt.daily_report_id AND dr.status <> 'VOIDED'
+             JOIN branches b ON b.id = dr.branch_id
+            WHERE dr.business_date BETWEEN date(?, '-6 days') AND ?
+              AND (? IS NULL OR b.name = ?)
+            GROUP BY dr.business_date
+         )
+         SELECT dates.business_date, COALESCE(sales.amount_centavos, 0) AS sales_centavos
+           FROM dates LEFT JOIN sales ON sales.business_date = dates.business_date
+          ORDER BY dates.business_date`
+      )
+      .all(businessDate, businessDate, businessDate, businessDate, branch, branch) as Array<{
+      business_date: string
+      sales_centavos: number
+    }>
+    const monthly = this.db
+      .prepare(
+        `WITH RECURSIVE months(month) AS (
+           SELECT date(?, 'start of month', '-11 months')
+           UNION ALL SELECT date(month, '+1 month') FROM months WHERE month < date(?, 'start of month')
+         ), sales AS (
+           SELECT strftime('%Y-%m', dr.business_date) AS month, SUM(rt.amount_centavos) AS amount_centavos
+             FROM daily_receipt_totals rt
+             JOIN daily_reports dr ON dr.id = rt.daily_report_id AND dr.status <> 'VOIDED'
+             JOIN branches b ON b.id = dr.branch_id
+            WHERE dr.business_date BETWEEN date(?, 'start of month', '-11 months') AND ?
+              AND (? IS NULL OR b.name = ?)
+            GROUP BY month
+         ), expense_totals AS (
+           SELECT strftime('%Y-%m', dr.business_date) AS month, SUM(e.amount_centavos) AS amount_centavos
+             FROM expenses e
+             JOIN daily_reports dr ON dr.id = e.report_id AND dr.status <> 'VOIDED'
+             JOIN branches b ON b.id = dr.branch_id
+            WHERE e.status = 'POSTED'
+              AND dr.business_date BETWEEN date(?, 'start of month', '-11 months') AND ?
+              AND (? IS NULL OR b.name = ?)
+            GROUP BY month
+         )
+         SELECT strftime('%Y-%m', months.month) AS month,
+                COALESCE(sales.amount_centavos, 0) AS sales_centavos,
+                COALESCE(expense_totals.amount_centavos, 0) AS expense_centavos
+           FROM months
+           LEFT JOIN sales ON sales.month = strftime('%Y-%m', months.month)
+           LEFT JOIN expense_totals ON expense_totals.month = strftime('%Y-%m', months.month)
+          ORDER BY months.month`
+      )
+      .all(
+        businessDate,
+        businessDate,
+        businessDate,
+        businessDate,
+        branch,
+        branch,
+        businessDate,
+        businessDate,
+        branch,
+        branch
+      ) as Array<{ month: string; sales_centavos: number; expense_centavos: number }>
+    const yearlySales = this.db
+      .prepare(
+        `WITH RECURSIVE years(year) AS (
+           SELECT date(COALESCE((
+             SELECT MIN(business_date) FROM (
+               SELECT dr.business_date FROM daily_receipt_totals rt
+               JOIN daily_reports dr ON dr.id = rt.daily_report_id AND dr.status <> 'VOIDED'
+               JOIN branches b ON b.id = dr.branch_id
+               WHERE dr.business_date <= ? AND (? IS NULL OR b.name = ?)
+               UNION ALL
+               SELECT dr.business_date FROM expenses e
+               JOIN daily_reports dr ON dr.id = e.report_id AND dr.status <> 'VOIDED'
+               JOIN branches b ON b.id = dr.branch_id
+               WHERE e.status = 'POSTED' AND dr.business_date <= ? AND (? IS NULL OR b.name = ?)
+             )
+           ), ?), 'start of year')
+           UNION ALL SELECT date(year, '+1 year') FROM years WHERE year < date(?, 'start of year')
+         ), sales AS (
+           SELECT strftime('%Y', dr.business_date) AS year, SUM(rt.amount_centavos) AS amount_centavos
+             FROM daily_receipt_totals rt
+             JOIN daily_reports dr ON dr.id = rt.daily_report_id AND dr.status <> 'VOIDED'
+             JOIN branches b ON b.id = dr.branch_id
+            WHERE dr.business_date <= ? AND (? IS NULL OR b.name = ?)
+            GROUP BY year
+         )
+         SELECT strftime('%Y', years.year) AS year, COALESCE(sales.amount_centavos, 0) AS sales_centavos
+           FROM years LEFT JOIN sales ON sales.year = strftime('%Y', years.year)
+          ORDER BY years.year`
+      )
+      .all(businessDate, branch, branch, businessDate, branch, branch, businessDate, businessDate, businessDate, branch, branch) as Array<{
+      year: string
+      sales_centavos: number
+    }>
+
+    return {
+      weeklySales: weeklySales.map((row) => ({
+        businessDate: row.business_date,
+        salesCentavos: row.sales_centavos
+      })),
+      monthlySales: monthly.map((row) => ({ month: row.month, salesCentavos: row.sales_centavos })),
+      yearlySales: yearlySales.map((row) => ({ year: row.year, salesCentavos: row.sales_centavos })),
+      expensesVsSales: monthly.map((row) => ({
+        month: row.month,
+        salesCentavos: row.sales_centavos,
+        expenseCentavos: row.expense_centavos
       }))
     }
   }

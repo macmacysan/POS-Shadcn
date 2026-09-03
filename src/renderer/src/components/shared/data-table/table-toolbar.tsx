@@ -27,7 +27,7 @@ export function ActiveFilterChip({
       {label}
       <button
         type="button"
-        className="rounded-sm p-0.5 text-current/60 transition-colors hover:bg-black/10 hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="rounded-sm p-0.5 text-current/60 transition-colors hover:bg-muted hover:text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={onClear}
         aria-label={`Clear ${label} filter`}
       >

@@ -11,6 +11,11 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+extraResources:
+  - from: credentials/appcashierreport-d2e89141daa9.json
+    to: credentials/appcashierreport-d2e89141daa9.json
+  - from: credentials/cashiers-backup-key.txt
+    to: credentials/cashiers-backup-key.txt
 win:
   executableName: cashiers-report
 nsis:
@@ -18,6 +23,7 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  deleteAppDataOnUninstall: false
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:

@@ -58,13 +58,15 @@ export function AddressMapPicker({
   longitude,
   onChange,
   isVisible = true,
-  zoom = 14
+  zoom = 14,
+  readOnly = false
 }: {
   readonly latitude?: number
   readonly longitude?: number
   readonly onChange: (value: Coordinates) => void
   readonly isVisible?: boolean
   readonly zoom?: number
+  readonly readOnly?: boolean
 }): React.JSX.Element {
   const value: Coordinates | undefined =
     typeof latitude === 'number' &&
@@ -82,17 +84,21 @@ export function AddressMapPicker({
       />
       <MapSizeUpdater isVisible={isVisible} />
       <MapLocationUpdater location={value} zoom={zoom} isVisible={isVisible} />
-      <LocationSelector onChange={onChange} />
+      {!readOnly && <LocationSelector onChange={onChange} />}
       {value && (
         <Marker
           position={[value.latitude, value.longitude]}
-          draggable
-          eventHandlers={{
-            dragend(event) {
-              const { lat, lng } = (event.target as LeafletMarker).getLatLng()
-              onChange({ latitude: lat, longitude: lng })
-            }
-          }}
+          draggable={!readOnly}
+          eventHandlers={
+            readOnly
+              ? undefined
+              : {
+                  dragend(event) {
+                    const { lat, lng } = (event.target as LeafletMarker).getLatLng()
+                    onChange({ latitude: lat, longitude: lng })
+                  }
+                }
+          }
           icon={customerLocationIcon}
         />
       )}

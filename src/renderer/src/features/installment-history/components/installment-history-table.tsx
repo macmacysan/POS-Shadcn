@@ -2,12 +2,14 @@ import * as React from 'react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
+  getSortedRowModel,
   useReactTable,
-  type ColumnDef
+  type ColumnDef,
+  type SortingState
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, Search } from 'lucide-react'
+import { Search, Trash2 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -16,15 +18,18 @@ import {
 } from '@/components/shared/data-table/row-actions'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
-import { ReuiFilters } from '@/components/shared/data-table/reui-filters'
-import type { Filter } from '@/../../components/reui/filters'
+import {
+  ShadcnTableFilters,
+  type ShadcnFilterField
+} from '@/components/shared/data-table/shadcn-table-filters'
+import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
-  actionLabels,
   formatHistoryDateTime,
   formatHistoryMoney,
+  historyActionLabel,
   sourceLabels,
-  type InstallmentHistoryAction,
   type InstallmentHistoryRecord,
   type InstallmentHistorySource
 } from '@/lib/installment-history'
@@ -40,11 +45,10 @@ type InstallmentHistoryTableProps = {
   dateTo?: string
   globalSearch?: string
   onGlobalSearchChange?: (value: string) => void
+  onVisibleRecordCountChange?: (count: number) => void
+  onVoidSelected: (records: InstallmentHistoryRecord[], password: string) => Promise<void>
 }
 
-type SortDirection = 'asc' | 'desc'
-
-const actionOptions: Array<InstallmentHistoryAction | 'all'> = ['all', 'new', 'edited', 'deleted']
 const sourceOptions: Array<InstallmentHistorySource | 'all'> = [
   'all',
   'in-house',
@@ -57,7 +61,7 @@ const historyBranchColumn: ColumnDef<InstallmentHistoryRecord> = {
   id: 'branch',
   accessorKey: 'branch',
   header: 'Branch',
-  enableSorting: false,
+  enableSorting: true,
   size: 42,
   meta: {
     headerTitle: 'Branch',
@@ -108,9 +112,14 @@ function historyRowActions(
   ]
 }
 
+function canVoidHistoryRecord(record: InstallmentHistoryRecord): boolean {
+  if (record.action === 'deleted' || record.source !== 'in-house') return false
+  const activity = record.activity.toLowerCase()
+  return activity.includes('payment') || activity === 'installment record added'
+}
+
 export function InstallmentHistoryTable({
   records,
-  selectedId,
   onSelect,
   onDoubleClick,
   isLoading = false,
@@ -118,69 +127,81 @@ export function InstallmentHistoryTable({
   dateFrom,
   dateTo,
   globalSearch,
-  onGlobalSearchChange
+  onGlobalSearchChange,
+  onVisibleRecordCountChange,
+  onVoidSelected
 }: InstallmentHistoryTableProps): React.JSX.Element {
   const [search, setSearch] = React.useState('')
   const searchValue = globalSearch ?? search
-  const [action, setAction] = React.useState<InstallmentHistoryAction | 'all'>('all')
+  const [action, setAction] = React.useState<string>('all')
+  const [branch, setBranch] = React.useState(selectedBranch)
   const [source, setSource] = React.useState<InstallmentHistorySource | 'all'>('all')
-  const [branch, setBranch] = React.useState('all')
-  const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc')
+  const [date, setDate] = React.useState('all')
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: 'occurredAt', desc: true }])
   const [contextMenu, setContextMenu] = React.useState({ rowId: '', signal: 0 })
-  const filterFields = React.useMemo(
+  const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({})
+  const [isVoidDialogOpen, setIsVoidDialogOpen] = React.useState(false)
+  const filterFields = React.useMemo<ShadcnFilterField[]>(
     () => [
       {
         key: 'action',
         label: 'Action',
-        type: 'select' as const,
-        options: actionOptions
-          .filter((option) => option !== 'all')
-          .map((option) => ({ value: option, label: actionLabels[option] }))
+        options: [...new Set(records.map((record) => historyActionLabel(record)))]
+          .sort()
+          .map((value) => ({
+            value,
+            label: value
+          }))
       },
       {
         key: 'source',
         label: 'Source',
-        type: 'select' as const,
         options: sourceOptions
           .filter((option) => option !== 'all')
           .map((option) => ({ value: option, label: sourceLabels[option] }))
       },
-      ...(selectedBranch === 'All Branch'
-        ? [
-            {
-              key: 'branch',
-              label: 'Branch',
-              type: 'select' as const,
-              options: ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'].map((value) => ({
-                value,
-                label: value
-              }))
-            }
-          ]
-        : [])
+      {
+        key: 'branch',
+        label: 'Branch',
+        options: [
+          ...new Set([
+            ...(selectedBranch === 'All Branch' ? records.map((record) => record.branch) : []),
+            selectedBranch
+          ])
+        ]
+          .filter((option) => option !== 'All Branch')
+          .sort()
+          .map((value) => ({ value, label: value }))
+      },
+      {
+        key: 'date',
+        label: 'Date',
+        options: [...new Set(records.map((record) => record.occurredAt.slice(0, 10)))]
+          .sort()
+          .map((value) => ({
+            value,
+            label: value
+          }))
+      }
     ],
-    [selectedBranch]
+    [records, selectedBranch]
   )
-  const filters = React.useMemo<Filter<string>[]>(() => {
-    const next: Filter<string>[] = []
-    if (action !== 'all')
-      next.push({ id: 'history-action', field: 'action', operator: 'is', values: [action] })
-    if (source !== 'all')
-      next.push({ id: 'history-source', field: 'source', operator: 'is', values: [source] })
-    if (branch !== 'all')
-      next.push({ id: 'history-branch', field: 'branch', operator: 'is', values: [branch] })
+  const filters = React.useMemo(() => {
+    const next: Array<{ field: string; value: string }> = []
+    if (action !== 'all') next.push({ field: 'action', value: action })
+    if (source !== 'all') next.push({ field: 'source', value: source })
+    if (branch !== 'All Branch') next.push({ field: 'branch', value: branch })
+    if (date !== 'all') next.push({ field: 'date', value: date })
     return next
-  }, [action, branch, searchValue, source])
-  const handleFiltersChange = (next: Filter<string>[]): void => {
-    setAction(
-      (next.find((filter) => filter.field === 'action')?.values[0] as
-        InstallmentHistoryAction | undefined) ?? 'all'
-    )
+  }, [action, branch, date, source])
+  const handleFiltersChange = (next: Array<{ field: string; value: string }>): void => {
+    setAction(next.find((filter) => filter.field === 'action')?.value ?? 'all')
     setSource(
-      (next.find((filter) => filter.field === 'source')?.values[0] as
+      (next.find((filter) => filter.field === 'source')?.value as
         InstallmentHistorySource | undefined) ?? 'all'
     )
-    setBranch(next.find((filter) => filter.field === 'branch')?.values[0] ?? 'all')
+    setBranch(next.find((filter) => filter.field === 'branch')?.value ?? 'All Branch')
+    setDate(next.find((filter) => filter.field === 'date')?.value ?? 'all')
   }
   const handleRowContextMenu = React.useCallback(
     (record: InstallmentHistoryRecord, event: React.MouseEvent<HTMLTableRowElement>) => {
@@ -196,34 +217,24 @@ export function InstallmentHistoryTable({
   const visibleRecords = React.useMemo(() => {
     const query = searchValue.trim().toLowerCase()
     return records
-      .filter((record) => action === 'all' || record.action === action)
+      .filter((record) => action === 'all' || historyActionLabel(record) === action)
       .filter((record) => source === 'all' || record.source === source)
-      .filter((record) => selectedBranch === 'All Branch' || record.branch === selectedBranch)
-      .filter((record) => branch === 'all' || record.branch === branch)
+      .filter((record) => branch === 'All Branch' || record.branch === branch)
+      .filter((record) => date === 'all' || record.occurredAt.slice(0, 10) === date)
       .filter((record) => !dateFrom || record.occurredAt.slice(0, 10) >= dateFrom)
       .filter((record) => !dateTo || record.occurredAt.slice(0, 10) <= dateTo)
       .filter(
         (record) =>
           !query ||
-          `${record.accountName} ${record.activity} ${record.reference ?? ''} ${sourceLabels[record.source]} ${actionLabels[record.action]} ${record.amount} ${record.balance} ${record.occurredAt}`
+          `${record.accountName} ${record.activity} ${record.reference ?? ''} ${sourceLabels[record.source]} ${historyActionLabel(record)} ${record.amount} ${record.balance} ${record.occurredAt}`
             .toLowerCase()
             .includes(query)
       )
-      .sort((left, right) => {
-        const difference = left.occurredAt.localeCompare(right.occurredAt)
-        return sortDirection === 'desc' ? -difference : difference
-      })
-  }, [
-    action,
-    branch,
-    dateFrom,
-    dateTo,
-    records,
-    searchValue,
-    selectedBranch,
-    sortDirection,
-    source
-  ])
+  }, [action, date, dateFrom, dateTo, records, searchValue, branch, source])
+
+  React.useEffect(() => {
+    onVisibleRecordCountChange?.(visibleRecords.length)
+  }, [onVisibleRecordCountChange, visibleRecords.length])
 
   const columns = React.useMemo<ColumnDef<InstallmentHistoryRecord>[]>(
     () => [
@@ -232,21 +243,25 @@ export function InstallmentHistoryTable({
         id: 'action',
         accessorKey: 'action',
         header: 'Action',
-        enableSorting: false,
+        enableSorting: true,
         size: 76,
         meta: {
           headerTitle: 'Action',
           headerClassName: 'text-xs text-muted-foreground'
         },
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{actionLabels[row.original.action]}</span>
+          <Badge
+            variant={historyActionLabel(row.original) === 'Voided' ? 'destructive' : 'secondary'}
+          >
+            {historyActionLabel(row.original)}
+          </Badge>
         )
       },
       {
         id: 'source',
         accessorKey: 'source',
         header: 'Source',
-        enableSorting: false,
+        enableSorting: true,
         size: 86,
         meta: {
           headerTitle: 'Source',
@@ -259,13 +274,12 @@ export function InstallmentHistoryTable({
         id: 'account',
         accessorKey: 'accountName',
         header: 'Account',
-        enableSorting: false,
+        enableSorting: true,
         size: 200,
         meta: {
           headerTitle: 'Account',
           headerClassName: 'text-xs text-muted-foreground',
-          cellClassName: 'min-w-0',
-          autoSize: true
+          cellClassName: 'min-w-0'
         },
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -282,13 +296,12 @@ export function InstallmentHistoryTable({
         id: 'activity',
         accessorKey: 'activity',
         header: 'Activity',
-        enableSorting: false,
+        enableSorting: true,
         size: 200,
         meta: {
           headerTitle: 'Activity',
           headerClassName: 'text-xs text-muted-foreground',
-          cellClassName: 'min-w-0',
-          autoSize: true
+          cellClassName: 'min-w-0'
         },
         cell: ({ row }) => (
           <TruncatedText value={row.original.activity} className="text-xs text-muted-foreground" />
@@ -298,7 +311,7 @@ export function InstallmentHistoryTable({
         id: 'amount',
         accessorKey: 'amount',
         header: 'Amount',
-        enableSorting: false,
+        enableSorting: true,
         size: 100,
         meta: {
           headerTitle: 'Amount',
@@ -311,20 +324,26 @@ export function InstallmentHistoryTable({
         id: 'balance',
         accessorKey: 'balance',
         header: 'Balance',
-        enableSorting: false,
+        enableSorting: true,
         size: 100,
         meta: {
           headerTitle: 'Balance',
           headerClassName: 'text-right text-xs text-foreground',
           cellClassName: 'text-right text-xs font-light tabular-nums text-foreground'
         },
-        cell: ({ row }) => formatHistoryMoney(row.original.balance)
+        cell: ({ row }) =>
+          formatHistoryMoney(
+            row.original.balance ??
+              (row.original.balanceCentavos === undefined
+                ? undefined
+                : row.original.balanceCentavos / 100)
+          )
       },
       {
         id: 'occurredAt',
         accessorKey: 'occurredAt',
         header: 'Date & time',
-        enableSorting: false,
+        enableSorting: true,
         size: 140,
         meta: {
           headerTitle: 'Date & time',
@@ -347,10 +366,14 @@ export function InstallmentHistoryTable({
     data: visibleRecords,
     columns,
     state: {
-      rowSelection: selectedId ? { [selectedId]: true } : {}
+      rowSelection,
+      sorting
     },
-    enableRowSelection: true,
+    enableRowSelection: (row) => canVoidHistoryRecord(row.original),
+    onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.id,
     initialState: { pagination: { pageSize: 50 } }
@@ -358,8 +381,8 @@ export function InstallmentHistoryTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <TableToolbar>
-        <InputGroup className="h-7 w-52 shrink-0">
+      <TableToolbar className="flex-wrap gap-3 border-b-0 bg-transparent px-4 py-3">
+        <InputGroup className="h-8 w-56 shrink-0 rounded-md">
           <InputGroupInput
             className="h-7"
             value={searchValue}
@@ -375,37 +398,52 @@ export function InstallmentHistoryTable({
             <Search aria-hidden="true" />
           </InputGroupAddon>
         </InputGroup>
-        <ReuiFilters
+        <ShadcnTableFilters
           filters={filters}
           fields={filterFields}
           onChange={handleFiltersChange}
           className="shrink-0"
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="ml-auto text-muted-foreground"
-          onClick={() => setSortDirection((direction) => (direction === 'desc' ? 'asc' : 'desc'))}
-          aria-label={`Sort date and time ${sortDirection === 'desc' ? 'oldest first' : 'newest first'}`}
-        >
-          {sortDirection === 'desc' ? (
-            <ArrowDown data-icon="inline-start" aria-hidden="true" />
-          ) : (
-            <ArrowUp data-icon="inline-start" aria-hidden="true" />
-          )}
-          Date &amp; time
-        </Button>
+        {Object.keys(rowSelection).length > 0 && (
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            onClick={() => setIsVoidDialogOpen(true)}
+          >
+            <Trash2 data-icon="inline-start" aria-hidden="true" />
+            Void ({Object.keys(rowSelection).length})
+          </Button>
+        )}
       </TableToolbar>
-      <UniversalDataTable
-        table={table}
-        recordCount={visibleRecords.length}
-        isLoading={isLoading}
-        emptyMessage={records.length === 0 ? 'No installment history yet' : 'No matching history.'}
-        onRowDoubleClick={onDoubleClick}
-        onRowContextMenu={handleRowContextMenu}
-        paginationSizes={historyPaginationSizes}
-        paginationInfo="{from}-{to} of {count} records"
+      <div className="mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border/70 bg-background">
+        <UniversalDataTable
+          table={table}
+          recordCount={visibleRecords.length}
+          isLoading={isLoading}
+          emptyMessage={
+            records.length === 0 ? 'No installment history yet' : 'No matching history.'
+          }
+          onRowDoubleClick={onDoubleClick}
+          onRowContextMenu={handleRowContextMenu}
+          paginationSizes={historyPaginationSizes}
+          paginationInfo="{from}-{to} of {count} records"
+          paginationClassName="px-4"
+        />
+      </div>
+      <AdminPasswordConfirmationDialog
+        open={isVoidDialogOpen}
+        title={`Void ${Object.keys(rowSelection).length} selected payment${Object.keys(rowSelection).length === 1 ? '' : 's'}?`}
+        description="This voids the selected payment records and recalculates the affected installments."
+        confirmLabel="Void selected"
+        onOpenChange={setIsVoidDialogOpen}
+        onConfirm={async (password) => {
+          await onVoidSelected(
+            records.filter((record) => rowSelection[record.id]),
+            password
+          )
+          setRowSelection({})
+        }}
       />
     </div>
   )

@@ -137,7 +137,7 @@ export function InstallmentRulesSettings(): React.JSX.Element {
       />
       <RulesTable
         title="Daily Plans"
-        headers={['Payments', 'Required Fee Payments']}
+        headers={['Payments', 'Downpayment Payments']}
         rows={draft.dailyPlans.map((plan, index) => [
           <Input
             key="terms"

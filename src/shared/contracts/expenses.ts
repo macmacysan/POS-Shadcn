@@ -1,8 +1,6 @@
 import { z } from 'zod'
 import type { ReportsApi } from './reports'
 
-export const developmentReportId = '00000000-0000-4000-8000-000000000001'
-
 export const expenseTypeValues = [
   'Company Expenses',
   'Drawings',
@@ -44,6 +42,11 @@ export const expensePageSizes = [15, 25, 50, 100] as const
 const expenseTypeSchema = z.string().trim().min(1).max(200)
 const expenseCategorySchema = z.enum(expenseCategoryValues)
 const expenseVatSchema = z.enum(expenseVatValues)
+const expenseFilterTextSchema = z.string().trim().max(200)
+const expenseAmountFilterSchema = z
+  .string()
+  .trim()
+  .regex(/^\d+(?:\.\d{1,2})?$/)
 const uuidSchema = z.string().uuid()
 const expenseIdSchemaValue = z.string().trim().min(1).max(100)
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -85,7 +88,11 @@ export const expenseListRequestSchema = z.object({
     .object({
       branch: z.string().trim().max(100).optional(),
       type: expenseTypeSchema.optional(),
-      category: expenseCategorySchema.optional(),
+      category: expenseFilterTextSchema.optional(),
+      createdByName: expenseFilterTextSchema.optional(),
+      receiptNo: expenseFilterTextSchema.optional(),
+      amountMin: expenseAmountFilterSchema.optional(),
+      amountMax: expenseAmountFilterSchema.optional(),
       vat: expenseVatSchema.optional()
     })
     .default({})
@@ -107,7 +114,7 @@ export const expenseUpdateInputSchema = expenseCreateInputSchema
   .extend({ id: uuidSchema })
 
 export const expenseIdSchema = z.object({ id: expenseIdSchemaValue })
-export const expenseRemoveInputSchema = z.object({
+export const expenseVoidInputSchema = z.object({
   ids: z.array(expenseIdSchemaValue).min(1),
   reason: z.string().trim().min(1).max(1000)
 })
@@ -139,9 +146,11 @@ export type ExpenseRecord = {
   voidReason: string | null
   createdByUserId: string
   createdByName: string
+  createdByFirstName: string
   cashierUserId: string
   cashierName: string
   businessDate: string
+  source: 'local' | 'google-cache'
 }
 
 export type ExpensePageResult = {
@@ -166,7 +175,7 @@ export const expenseIpcChannels = {
   getById: 'reports:expenses:get-by-id',
   create: 'reports:expenses:create',
   update: 'reports:expenses:update',
-  remove: 'reports:expenses:remove',
+  void: 'reports:expenses:void',
   summaryTotals: 'reports:expenses:summary-totals'
 } as const
 
@@ -177,7 +186,7 @@ export type ExpensesApi = ReportsApi & {
       getById(id: string): Promise<ExpenseRecord | null>
       create(input: ExpenseCreateInput): Promise<ExpenseRecord>
       update(input: ExpenseUpdateInput): Promise<ExpenseRecord>
-      remove(input: { ids: string[]; reason: string }): Promise<void>
+      void(input: { ids: string[]; reason: string }): Promise<void>
       summaryTotals(reportId: string): Promise<ExpenseSummaryTotals>
     }
   }

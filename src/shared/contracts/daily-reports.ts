@@ -21,6 +21,7 @@ export const postedVoidStatusValues = ['POSTED', 'VOIDED'] as const
 export const incomeSummaryGroupValues = ['COLLECTION', 'OTHER_INCOME', 'FINANCE'] as const
 
 export const dailyReportStatusSchema = z.enum(dailyReportStatusValues)
+export const dailyReportDeliveryChannelSchema = z.enum(['GOOGLE_DRIVE', 'TELEGRAM'])
 export const postedVoidStatusSchema = z.enum(postedVoidStatusValues)
 export const incomeSummaryGroupSchema = z.enum(incomeSummaryGroupValues)
 
@@ -45,18 +46,39 @@ export const dailyReportRecordSchema = z.object({
   openingCashCentavos: centavosSchema.nonnegative(),
   cashRemittedCentavos: centavosSchema.nonnegative().nullable(),
   status: dailyReportStatusSchema,
+  googleDriveSubmittedAt: isoTimestampSchema.nullable(),
+  telegramSubmittedAt: isoTimestampSchema.nullable(),
   submittedAt: isoTimestampSchema.nullable(),
   approvedAt: isoTimestampSchema.nullable(),
   approvedByUserId: uuidSchema.nullable(),
+  updatedByUserId: uuidSchema.nullable(),
+  updatedByName: z.string().trim().max(200).nullable(),
+  note: z.string().trim().max(800).nullable(),
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema
 })
-export const dailyReportResolveActiveResponseSchema = dailyReportRecordSchema
+export const dailyReportResolveActiveResponseSchema = dailyReportRecordSchema.nullable()
 export const dailyReportCalendarDaySchema = z.object({
   businessDate: businessDateSchema,
+  reportId: uuidSchema,
   status: dailyReportStatusSchema,
+  googleDriveSubmittedAt: isoTimestampSchema.nullable(),
+  telegramSubmittedAt: isoTimestampSchema.nullable(),
+  hasData: z.boolean(),
   cashVarianceCentavos: centavosSchema,
-  noteCount: z.number().int().nonnegative()
+  expectedCashCentavos: centavosSchema,
+  physicalCashCentavos: centavosSchema.nonnegative(),
+  updatedAt: isoTimestampSchema,
+  updatedByName: z.string().trim().max(200).nullable(),
+  note: z.string().trim().max(800).nullable()
+})
+export const dailyReportNoteUpdateRequestSchema = z.object({
+  dailyReportId: uuidSchema,
+  note: z.string().trim().max(800).nullable()
+})
+export const dailyReportDeliveryUpdateRequestSchema = z.object({
+  dailyReportId: uuidSchema,
+  channel: dailyReportDeliveryChannelSchema
 })
 export const dailyReportCalendarResponseSchema = z.object({
   rows: z.array(dailyReportCalendarDaySchema)
@@ -90,15 +112,18 @@ export const incomeEntryRecordSchema = z.object({
   voidReason: optionalTextSchema,
   createdByUserId: uuidSchema,
   createdByName: z.string().trim().min(1).max(100).optional(),
+  createdByFirstName: z.string().trim().min(1).max(100).optional(),
   createdAt: isoTimestampSchema,
-  updatedAt: isoTimestampSchema
+  updatedAt: isoTimestampSchema,
+  source: z.enum(['local', 'google-cache'])
 })
 export const incomeListRequestSchema = z.object({
   dailyReportId: uuidSchema.optional(),
   branch: z.string().trim().max(100).optional(),
   dateFrom: businessDateSchema.optional(),
   dateTo: businessDateSchema.optional(),
-  status: postedVoidStatusSchema.optional()
+  status: postedVoidStatusSchema.optional(),
+  includeVoided: z.boolean().default(false)
 })
 export const incomeListResponseSchema = z.object({ rows: z.array(incomeEntryRecordSchema) })
 export const incomeCreateRequestSchema = z.object({
@@ -148,15 +173,18 @@ export const dailyReportPaymentEntryRecordSchema = z.object({
   voidReason: optionalTextSchema,
   createdByUserId: uuidSchema,
   createdByName: z.string().trim().min(1).max(100).optional(),
+  createdByFirstName: z.string().trim().min(1).max(100).optional(),
   createdAt: isoTimestampSchema,
-  updatedAt: isoTimestampSchema
+  updatedAt: isoTimestampSchema,
+  source: z.enum(['local', 'google-cache'])
 })
 export const dailyReportPaymentListRequestSchema = z.object({
   dailyReportId: uuidSchema.optional(),
   branch: z.string().trim().max(100).optional(),
   dateFrom: businessDateSchema.optional(),
   dateTo: businessDateSchema.optional(),
-  status: postedVoidStatusSchema.optional()
+  status: postedVoidStatusSchema.optional(),
+  includeVoided: z.boolean().default(false)
 })
 export const dailyReportPaymentListResponseSchema = z.object({
   rows: z.array(dailyReportPaymentEntryRecordSchema)
@@ -253,6 +281,11 @@ export const cashDenominationRecordSchema = z.object({
 })
 
 export const dailyReportSnapshotRequestSchema = z.object({ dailyReportId: uuidSchema })
+export const dailyReportDetailSchema = z.object({
+  id: uuidSchema,
+  name: z.string().trim().min(1).max(200),
+  amountCentavos: centavosSchema.nonnegative()
+})
 export const dailyReportSnapshotResponseSchema = z.object({
   report: dailyReportRecordSchema,
   receiptTotals: z.array(dailyReceiptTotalRecordSchema),
@@ -264,6 +297,9 @@ export const dailyReportSnapshotResponseSchema = z.object({
   receiptTypes: z.array(dailyReportReceiptTypeRecordSchema),
   deductionTypes: z.array(dailyReportReferenceRecordSchema),
   cashDenominations: z.array(cashDenominationRecordSchema),
+  collectionDetails: z.array(dailyReportDetailSchema),
+  financeDownDetails: z.array(dailyReportDetailSchema),
+  financeBalanceDetails: z.array(dailyReportDetailSchema),
   legacyExpenseCashOutCentavos: centavosSchema.nonnegative(),
   cashCollectionsCentavos: centavosSchema.nonnegative(),
   otherIncomeCentavos: centavosSchema.nonnegative(),
@@ -294,6 +330,7 @@ export const dailyReportSummaryUpdateRequestSchema = z.object({
 export const dailyReportSummaryUpdateResponseSchema = dailyReportSnapshotResponseSchema
 
 export type DailyReportStatus = z.infer<typeof dailyReportStatusSchema>
+export type DailyReportDeliveryChannel = z.infer<typeof dailyReportDeliveryChannelSchema>
 export type PostedVoidStatus = z.infer<typeof postedVoidStatusSchema>
 export type IncomeSummaryGroup = z.infer<typeof incomeSummaryGroupSchema>
 export type DailyReportResolveActiveRequest = z.infer<typeof dailyReportResolveActiveRequestSchema>
@@ -306,7 +343,9 @@ export type DailyReportCalendarDay = z.infer<typeof dailyReportCalendarDaySchema
 export type DailyReportCalendarResponse = z.infer<typeof dailyReportCalendarResponseSchema>
 export type IncomeCategoryRecord = z.infer<typeof incomeCategoryRecordSchema>
 export type IncomeEntryRecord = z.infer<typeof incomeEntryRecordSchema>
-export type IncomeListRequest = z.infer<typeof incomeListRequestSchema>
+export type IncomeListRequest = Omit<z.infer<typeof incomeListRequestSchema>, 'includeVoided'> & {
+  includeVoided?: boolean
+}
 export type IncomeListResponse = z.infer<typeof incomeListResponseSchema>
 export type IncomeCreateRequest = z.infer<typeof incomeCreateRequestSchema>
 export type IncomeCreateResponse = z.infer<typeof incomeCreateResponseSchema>
@@ -316,7 +355,10 @@ export type IncomeVoidRequest = z.infer<typeof incomeVoidRequestSchema>
 export type IncomeVoidResponse = z.infer<typeof incomeVoidResponseSchema>
 export type ReportPaymentMethodRecord = z.infer<typeof reportPaymentMethodRecordSchema>
 export type DailyReportPaymentEntryRecord = z.infer<typeof dailyReportPaymentEntryRecordSchema>
-export type DailyReportPaymentListRequest = z.infer<typeof dailyReportPaymentListRequestSchema>
+export type DailyReportPaymentListRequest = Omit<
+  z.infer<typeof dailyReportPaymentListRequestSchema>,
+  'includeVoided'
+> & { includeVoided?: boolean }
 export type DailyReportPaymentListResponse = z.infer<typeof dailyReportPaymentListResponseSchema>
 export type DailyReportPaymentCreateRequest = z.infer<typeof dailyReportPaymentCreateRequestSchema>
 export type DailyReportPaymentCreateResponse = z.infer<
@@ -354,6 +396,10 @@ export type DailyReportCashCountRecord = z.infer<typeof dailyReportCashCountReco
 export type DailyReportSnapshotRequest = z.infer<typeof dailyReportSnapshotRequestSchema>
 export type DailyReportSnapshotResponse = z.infer<typeof dailyReportSnapshotResponseSchema>
 export type DailyReportSummaryUpdateRequest = z.infer<typeof dailyReportSummaryUpdateRequestSchema>
+export type DailyReportNoteUpdateRequest = z.infer<typeof dailyReportNoteUpdateRequestSchema>
+export type DailyReportDeliveryUpdateRequest = z.infer<
+  typeof dailyReportDeliveryUpdateRequestSchema
+>
 export type DailyReportSummaryUpdateResponse = z.infer<
   typeof dailyReportSummaryUpdateResponseSchema
 >
@@ -362,6 +408,8 @@ export const dailyReportIpcChannels = {
   resolveActive: 'daily-reports:resolve-active',
   listCalendar: 'daily-reports:calendar:list',
   getSnapshot: 'daily-reports:get-snapshot',
+  updateNote: 'daily-reports:note:update',
+  markDelivery: 'daily-reports:delivery:mark',
   updateSummary: 'daily-reports:summary:update',
   listIncome: 'daily-reports:income:list',
   createIncome: 'daily-reports:income:create',
@@ -387,6 +435,8 @@ export type DailyReportsApi = {
     updateSummary(
       request: DailyReportSummaryUpdateRequest
     ): Promise<DailyReportSummaryUpdateResponse>
+    updateNote(request: DailyReportNoteUpdateRequest): Promise<DailyReportRecord>
+    markDelivery(request: DailyReportDeliveryUpdateRequest): Promise<DailyReportRecord>
     listIncome(request: IncomeListRequest): Promise<IncomeListResponse>
     createIncome(request: IncomeCreateRequest): Promise<IncomeCreateResponse>
     updateIncome(request: IncomeUpdateRequest): Promise<IncomeUpdateResponse>

@@ -14,7 +14,7 @@ export class EntryHistoryService {
   ) {}
 
   list(request: EntryHistoryListRequest) {
-    const user = this.auth.requireSession()
+    const user = this.auth.requireCashierWorkspace()
     const reportId =
       request.entityType === 'EXPENSE'
         ? this.expenses.reportId(request.entityId)
@@ -24,7 +24,7 @@ export class EntryHistoryService {
     if (!reportId) throw new AppError('NOT_FOUND', 'Entry was not found.')
     const report = this.reports.findById(reportId)
     if (!report) throw new AppError('NOT_FOUND', 'Report was not found.')
-    if (user.role !== 'ADMIN' && this.reports.branchIdForReport(reportId) !== user.branchId) {
+    if (this.reports.branchIdForReport(reportId) !== user.branchId) {
       throw new AppError('FORBIDDEN', 'You cannot access this entry.')
     }
     return { rows: this.audit.list(request.entityType, request.entityId) }

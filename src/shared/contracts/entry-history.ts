@@ -1,7 +1,13 @@
 import { z } from 'zod'
 
 export const entryEntityTypeSchema = z.enum(['EXPENSE', 'INCOME', 'PAYMENT'])
-export const entryHistoryActionSchema = z.enum(['CREATED', 'UPDATED', 'DUPLICATED', 'VOIDED'])
+export const entryHistoryActionSchema = z.enum([
+  'CREATED',
+  'UPDATED',
+  'DUPLICATED',
+  'VOIDED',
+  'DELETED'
+])
 
 export const entryHistoryListRequestSchema = z.object({
   entityType: entryEntityTypeSchema,

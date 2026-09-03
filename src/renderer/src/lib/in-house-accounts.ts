@@ -68,6 +68,8 @@ export type PaymentFrequency = 'Daily' | 'Weekly' | 'Semi-monthly' | 'Monthly' |
 export type InHouseLoanItem = {
   readonly id: string
   readonly name: string
+  readonly model: string
+  readonly serialNo?: string
   readonly quantity: number
   readonly price: number
 }
@@ -108,7 +110,6 @@ export const loanTermOptions: readonly string[] = Array.from({ length: 12 }, (_,
   return `${months} ${months === 1 ? 'month' : 'months'}`
 })
 
-const mobilePattern = /^(?:\+?63|0)\d{10}$/
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const sampleAccounts: readonly InHouseAccount[] = [
@@ -226,11 +227,15 @@ export function validateAccountDraft(draft: AccountDraft): AccountValidationErro
   if (!draft.branch) errors.branch = 'Branch is required.'
   if (!draft.lastName.trim()) errors.lastName = 'Last Name is required.'
   if (!draft.firstName.trim()) errors.firstName = 'First Name is required.'
+  if (!draft.province.trim()) errors.province = 'Province is required.'
+  if (!draft.cityMunicipality.trim()) errors.cityMunicipality = 'City is required.'
+  if (!draft.barangay.trim()) errors.barangay = 'Barangay is required.'
+  if (!draft.streetSubdivision?.trim()) errors.streetSubdivision = 'Street is required.'
   const mobiles = draft.contacts.filter(
     (contact) => contact.kind === 'mobile' && contact.value.trim()
   )
   if (!mobiles.length) errors.contacts = 'At least one valid mobile number is required.'
-  if (mobiles.some((contact) => !mobilePattern.test(contact.value.replace(/[\s()-]/g, '')))) {
+  if (mobiles.some((contact) => !/^09\d{9}$/.test(contact.value.replace(/[\s()-]/g, '')))) {
     errors.contacts = 'Enter a valid mobile number.'
   }
   if (mobiles.filter((contact) => contact.isPrimary).length > 1)
@@ -283,6 +288,8 @@ export function normalizeLoanDraft(draft: LoanDraft): LoanDraft {
       .map((item) => ({
         ...item,
         name: item.name.trim(),
+        model: item.model?.trim() ?? '',
+        serialNo: item.serialNo?.trim() || undefined,
         quantity: Number(item.quantity) || 0,
         price: Number(item.price) || 0
       }))
@@ -297,13 +304,19 @@ export function validateLoanDraft(draft: LoanDraft): LoanValidationErrors {
   if (!draft.firstDueDate) errors.firstDueDate = 'First Due Date is required.'
   if (!draft.paymentFrequency) errors.paymentFrequency = 'Payment Frequency is required.'
   const termCount = Number.parseInt(draft.terms, 10)
-  if (!Number.isFinite(termCount) || termCount < 1) errors.terms = 'Enter a positive number of terms.'
+  if (!Number.isFinite(termCount) || termCount < 1)
+    errors.terms = 'Enter a positive number of terms.'
   else if (draft.paymentFrequency === 'Monthly' && termCount > 12)
     errors.terms = 'Monthly terms must be from 1 to 12.'
   if (draft.principal <= 0) errors.principal = 'Grand Total must be greater than zero.'
   if (draft.installmentAmount <= 0)
     errors.installmentAmount = 'Installment Amount must be greater than zero.'
   if (draft.grandTotal <= 0) errors.grandTotal = 'Grand Total must be greater than zero.'
+  if (draft.downPayment <= 0) errors.downPayment = 'Down Payment must be greater than zero.'
+  else if (draft.downPayment < draft.fees)
+    errors.downPayment = 'Down Payment must be equal to or greater than the Downpayment.'
+  if (!draft.items.some((item) => item.name.trim() && item.quantity > 0 && item.price > 0))
+    errors.items = 'Add at least one complete item.'
   return errors
 }
 

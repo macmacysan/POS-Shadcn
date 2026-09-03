@@ -11,22 +11,22 @@ import {
   type SortingState,
   useReactTable
 } from '@tanstack/react-table'
-import { Plus, Search, Trash2 } from 'lucide-react'
+import { FileText, Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import {
   createRowActionsColumn,
   type RowActionItem
 } from '@/components/shared/data-table/row-actions'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
-import { ReuiFilters } from '@/components/shared/data-table/reui-filters'
-import type { Filter } from '@/../../components/reui/filters'
+import {
+  ShadcnTableFilters,
+  type ShadcnFilterField
+} from '@/components/shared/data-table/shadcn-table-filters'
 import { cn } from '@/lib/utils'
 
-export type ReportRow = { id: string }
+export type ReportRow = { id: string; source?: 'local' | 'google-cache' }
 
 export type ReportColumn<TData extends ReportRow> = ColumnDef<TData>
 
@@ -40,7 +40,7 @@ type ReportDataTableProps<TData extends ReportRow> = {
   addEntryLabel?: string
   getRowActions?: (row: TData) => readonly RowActionItem[]
   onDefaultAction?: (row: TData) => void
-  onDeleteSelected?: (rows: TData[]) => boolean | Promise<boolean>
+  onVoidSelected?: (rows: TData[]) => boolean | Promise<boolean>
   isLoading?: boolean
   loadError?: string
   onRetry?: () => void
@@ -62,7 +62,9 @@ type ReportDataTableProps<TData extends ReportRow> = {
     refresh?: () => void
   }
   filterOptions?: Record<string, readonly string[]>
+  additionalFilterFields?: ShadcnFilterField[]
   toolbarContent?: React.ReactNode
+  emptyStateFooter?: React.ReactNode
 }
 
 function getHeaderTitle<TData extends ReportRow>(column: ReportColumn<TData>): string {
@@ -87,7 +89,7 @@ export function ReportDataTable<TData extends ReportRow>({
   addEntryLabel = 'Add Entry',
   getRowActions,
   onDefaultAction,
-  onDeleteSelected,
+  onVoidSelected,
   isLoading,
   loadError,
   onRetry,
@@ -95,7 +97,9 @@ export function ReportDataTable<TData extends ReportRow>({
   onGlobalFilterValueChange,
   serverState,
   filterOptions,
-  toolbarContent
+  additionalFilterFields,
+  toolbarContent,
+  emptyStateFooter
 }: ReportDataTableProps<TData>): React.JSX.Element {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -115,26 +119,6 @@ export function ReportDataTable<TData extends ReportRow>({
 
   const tableColumns = React.useMemo<ColumnDef<TData>[]>(
     () => [
-      {
-        id: 'select',
-        enableSorting: false,
-        enableColumnFilter: false,
-        enableHiding: false,
-        size: 42,
-        header: 'Select all',
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            className="mx-auto align-[inherit]"
-            aria-label="Select row"
-          />
-        ),
-        meta: {
-          headerClassName: 'w-[42px]',
-          cellClassName: 'w-[42px]'
-        }
-      },
       ...(columns.map((column) => {
         const headerTitle = getHeaderTitle(column)
         const legacyMeta = column.meta as { className?: string } | undefined
@@ -146,7 +130,7 @@ export function ReportDataTable<TData extends ReportRow>({
             ...column.meta,
             headerTitle,
             headerClassName: cn('text-xs font-medium text-muted-foreground', legacyMeta?.className),
-            cellClassName: cn('max-w-72 truncate align-middle text-xs', legacyMeta?.className)
+            cellClassName: cn('align-middle text-xs', legacyMeta?.className)
           }
         }
       }) as ColumnDef<TData>[]),
@@ -175,7 +159,7 @@ export function ReportDataTable<TData extends ReportRow>({
       rowSelection,
       ...(serverState ? { pagination: serverState.pagination } : {})
     },
-    enableRowSelection: true,
+    enableRowSelection: (row) => row.original.source !== 'google-cache',
     onSortingChange: serverState?.onSortingChange ?? setSorting,
     onColumnFiltersChange: serverState?.onColumnFiltersChange ?? setColumnFilters,
     onGlobalFilterChange:
@@ -209,18 +193,14 @@ export function ReportDataTable<TData extends ReportRow>({
   const filteredRowCount = serverState?.totalRows ?? table.getFilteredRowModel().rows.length
   const currentGlobalFilter = serverState?.globalFilter ?? globalFilterValue ?? globalFilter
   const currentColumnFilters = serverState?.columnFilters ?? columnFilters
-  const filterFields = React.useMemo(
+  const shadcnFilterFields = React.useMemo<ShadcnFilterField[]>(
     () => [
-      ...(globalFilterValue === undefined
-        ? [
-            {
-              key: 'global',
-              label: 'Search all columns',
-              type: 'text' as const,
-              placeholder: filterPlaceholder
-            }
-          ]
-        : []),
+      {
+        key: 'search',
+        label: 'Search entries',
+        type: 'text',
+        placeholder: filterPlaceholder
+      },
       ...filterableColumns.map((column) => {
         const key = column.accessorKey
         const options = filterOptions?.[key]
@@ -231,76 +211,50 @@ export function ReportDataTable<TData extends ReportRow>({
         return {
           key,
           label: getHeaderTitle(column),
-          type: 'select' as const,
-          searchable: options.length > 8,
           options: options.map((value) => ({ value, label: value }))
         }
-      })
+      }),
+      ...(additionalFilterFields ?? [])
     ],
-    [data, filterOptions, filterPlaceholder, filterableColumns, globalFilterValue]
+    [additionalFilterFields, data, filterOptions, filterPlaceholder, filterableColumns]
   )
-  const reuiFilters = React.useMemo<Filter<string>[]>(() => {
-    const next: Filter<string>[] = []
-    if (globalFilterValue === undefined && currentGlobalFilter.trim()) {
-      next.push({
-        id: 'global-filter',
-        field: 'global',
-        operator: 'contains',
-        values: [currentGlobalFilter]
-      })
-    }
-    for (const item of currentColumnFilters) {
-      if (typeof item.value !== 'string' || !item.value) continue
-      next.push({
-        id: `column-filter-${String(item.id)}`,
-        field: String(item.id),
-        operator: 'is',
-        values: [item.value]
-      })
-    }
-    return next
-  }, [currentColumnFilters, currentGlobalFilter, globalFilterValue])
 
-  const handleReuiFiltersChange = (next: Filter<string>[]): void => {
-    const global =
-      next.find((filter) => filter.field === 'global')?.values[0] ?? currentGlobalFilter
-    const columns = next
-      .filter((filter) => filter.field !== 'global' && filter.values[0])
-      .map((filter) => ({ id: filter.field, value: filter.values[0] }))
-    if (globalFilterValue === undefined) table.setGlobalFilter(global)
-    table.setColumnFilters(columns)
+  const handleShadcnFiltersChange = (
+    next: Array<{ field: string; value: string }>
+  ): void => {
+    table.setGlobalFilter(next.find((filter) => filter.field === 'search')?.value ?? '')
+    table.setColumnFilters(
+      next
+        .filter((filter) => filter.field !== 'search')
+        .map(({ field, value }) => ({ id: field, value }))
+    )
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <TableToolbar className="px-4 min-[901px]:flex-nowrap">
-        <InputGroup className="h-7 w-56 shrink-0">
-          <InputGroupInput
-            className="h-7"
-            value={currentGlobalFilter}
-            onChange={(event) => table.setGlobalFilter(event.target.value)}
-            placeholder={filterPlaceholder}
-            aria-label={filterPlaceholder}
-          />
-          <InputGroupAddon align="inline-start">
-            <Search aria-hidden="true" />
-          </InputGroupAddon>
-        </InputGroup>
-        <ReuiFilters
-          filters={reuiFilters}
-          fields={filterFields}
-          onChange={handleReuiFiltersChange}
+    <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col">
+      <TableToolbar className="flex-wrap gap-3 border-b-0 bg-transparent px-4 py-3">
+        <ShadcnTableFilters
+          fields={shadcnFilterFields}
+          filters={[
+            ...(currentGlobalFilter ? [{ field: 'search', value: currentGlobalFilter }] : []),
+            ...currentColumnFilters.flatMap((item) =>
+              typeof item.value === 'string' && item.value
+                ? [{ field: item.id, value: item.value }]
+                : []
+            )
+          ]}
+          onChange={handleShadcnFiltersChange}
           className="shrink-0"
         />
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
           {toolbarContent}
-          {onDeleteSelected && selectedRows.length > 0 && (
+          {onVoidSelected && selectedRows.length > 0 && (
             <Button
               type="button"
               variant="destructive"
               size="sm"
               onClick={async () => {
-                if (await onDeleteSelected(selectedRows)) setRowSelection({})
+                if (await onVoidSelected(selectedRows)) setRowSelection({})
               }}
             >
               <Trash2 data-icon="inline-start" aria-hidden="true" />
@@ -330,19 +284,36 @@ export function ReportDataTable<TData extends ReportRow>({
         </div>
       )}
 
-      <UniversalDataTable
-        table={table}
-        recordCount={filteredRowCount}
-        isLoading={serverState?.loading ?? isLoading}
-        error={serverState?.error ?? (data.length === 0 ? loadError : undefined)}
-        onRetry={serverState?.refresh ?? onRetry}
-        onRowDoubleClick={onDefaultAction}
-        onRowContextMenu={getRowActions ? handleRowContextMenu : undefined}
-        emptyMessage="No matching entries."
-        paginationSizes={reportPaginationSizes}
-        paginationInfo="{from}-{to} of {count} entries"
-        paginationClassName="px-4"
-      />
+      <div
+        className={cn(
+          'mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border/70 bg-card'
+        )}
+      >
+        <UniversalDataTable
+          table={table}
+          recordCount={filteredRowCount}
+          isLoading={serverState?.loading ?? isLoading}
+          error={serverState?.error ?? (data.length === 0 ? loadError : undefined)}
+          onRetry={serverState?.refresh ?? onRetry}
+          onRowDoubleClick={onDefaultAction}
+          onRowContextMenu={getRowActions ? handleRowContextMenu : undefined}
+          emptyMessage="No matching entries."
+          paginationSizes={reportPaginationSizes}
+          paginationInfo="{from}-{to} of {count} entries"
+          paginationClassName="px-4"
+        />
+        {emptyStateFooter && data.length > 0 && data.length < 5 && (
+          <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
+          <div className="h-9 w-9 rounded-full border border-border bg-muted flex items-center justify-center mb-2.5">
+            <FileText size={15} className="text-muted-foreground" />
+          </div>
+          <p className="text-[13px] font-medium text-muted-foreground">{emptyStateFooter}</p>
+          <p className="text-[12px] text-muted-foreground mt-0.5">
+            New entries you add will show up above this line.
+          </p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

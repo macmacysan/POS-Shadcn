@@ -2,13 +2,18 @@ import { ipcMain } from 'electron'
 
 import {
   installmentBootstrapRequestSchema,
+  installmentLoanUpdateRequestSchema,
+  installmentLoanRestructureRequestSchema,
   installmentAdjustPaymentRequestSchema,
   installmentCreatePaymentRequestSchema,
-  installmentDeleteRequestSchema,
+  installmentUnvoidRequestSchema,
+  installmentVoidRequestSchema,
+  installmentVoidPaymentsRequestSchema,
   installmentIpcChannels,
   installmentListRequestSchema,
   installmentPaymentWorkspaceRequestSchema,
   installmentHistoryRequestSchema,
+  installmentRestoreStatusRequestSchema,
   installmentTransitionRequestSchema
 } from '../../shared/contracts'
 import { toIpcError } from '../database/errors'
@@ -16,78 +21,132 @@ import { InstallmentService } from '../services/installment-service'
 import { AuthService } from '../services/auth-service'
 
 function rethrowIpcError(error: unknown): never {
-  throw toIpcError(error)
+  const payload = toIpcError(error)
+  const ipcError = new Error(payload.message)
+  Object.assign(ipcError, { code: payload.code })
+  throw ipcError
 }
 
-export function registerInstallmentIpc(service: InstallmentService, authService: AuthService): void {
-  ipcMain.handle(installmentIpcChannels.list, (_event, input: unknown) => {
+export function registerInstallmentIpc(
+  service: InstallmentService,
+  authService: AuthService,
+  onCommitted?: () => void
+): void {
+  ipcMain.handle(installmentIpcChannels.list, async (_event, input: unknown) => {
     try {
-      return service.list(installmentListRequestSchema.parse(input))
+      return await service.list(installmentListRequestSchema.parse(input))
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
 
-  ipcMain.handle(installmentIpcChannels.bootstrap, (_event, input: unknown) => {
+  ipcMain.handle(installmentIpcChannels.bootstrap, async (_event, input: unknown) => {
     try {
-      service.bootstrap(installmentBootstrapRequestSchema.parse(input))
+      await service.bootstrap(installmentBootstrapRequestSchema.parse(input)); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
 
-  ipcMain.handle(installmentIpcChannels.closeContract, (_event, input: unknown) => {
+  ipcMain.handle(installmentIpcChannels.updateLoan, async (_event, input: unknown) => {
     try {
-      service.closeContract(installmentTransitionRequestSchema.parse(input))
+      await service.updateLoan(installmentLoanUpdateRequestSchema.parse(input)); onCommitted?.()
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+  ipcMain.handle(installmentIpcChannels.restructureLoan, async (_event, input: unknown) => {
+    try {
+      await service.restructureLoan(installmentLoanRestructureRequestSchema.parse(input)); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
 
-  ipcMain.handle(installmentIpcChannels.blacklistAccount, (_event, input: unknown) => {
+  ipcMain.handle(installmentIpcChannels.closeContract, async (_event, input: unknown) => {
     try {
-      service.blacklistAccount(installmentTransitionRequestSchema.parse(input))
+      const request = installmentTransitionRequestSchema.parse(input)
+      await service.closeContract({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
-  ipcMain.handle(installmentIpcChannels.delete, (_event, input: unknown) => {
+
+  ipcMain.handle(installmentIpcChannels.blacklistAccount, async (_event, input: unknown) => {
     try {
-      const request = installmentDeleteRequestSchema.parse(input)
+      const request = installmentTransitionRequestSchema.parse(input)
+      await service.blacklistAccount({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+  ipcMain.handle(installmentIpcChannels.restoreStatus, async (_event, input: unknown) => {
+    try {
+      const request = installmentRestoreStatusRequestSchema.parse(input)
+      await service.restoreStatus({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+  ipcMain.handle(installmentIpcChannels.void, async (_event, input: unknown) => {
+    try {
+      const request = installmentVoidRequestSchema.parse(input)
       const user = authService.confirmAdminPassword(request.password)
-      service.delete(request, user.id)
+      await service.void(request, user.id); onCommitted?.()
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+  ipcMain.handle(installmentIpcChannels.unvoid, async (_event, input: unknown) => {
+    try {
+      const request = installmentUnvoidRequestSchema.parse(input)
+      const user = authService.requireAdmin()
+      await service.unvoid(request, user.id); onCommitted?.()
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+  ipcMain.handle(installmentIpcChannels.voidPayments, async (_event, input: unknown) => {
+    try {
+      const request = installmentVoidPaymentsRequestSchema.parse(input)
+      const user = authService.confirmAdminPassword(request.password)
+      await service.voidPayments(request.paymentIds, user.id); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
 
-  ipcMain.handle(installmentIpcChannels.paymentWorkspace, (_event, input: unknown) => {
+  ipcMain.handle(installmentIpcChannels.paymentWorkspace, async (_event, input: unknown) => {
     try {
-      return service.getPaymentWorkspace(installmentPaymentWorkspaceRequestSchema.parse(input))
+      return await service.getPaymentWorkspace(
+        installmentPaymentWorkspaceRequestSchema.parse(input)
+      )
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
 
-  ipcMain.handle(installmentIpcChannels.history, (_event, input: unknown) => {
+  ipcMain.handle(installmentIpcChannels.history, async (_event, input: unknown) => {
     try {
-      return service.listHistory(installmentHistoryRequestSchema.parse(input))
+      return await service.listHistory(installmentHistoryRequestSchema.parse(input))
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
 
-  ipcMain.handle(installmentIpcChannels.createPayment, (_event, input: unknown) => {
+  ipcMain.handle(installmentIpcChannels.createPayment, async (_event, input: unknown) => {
     try {
-      service.createPayment(installmentCreatePaymentRequestSchema.parse(input))
+      const request = installmentCreatePaymentRequestSchema.parse(input)
+      await service.createPayment({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
 
-  ipcMain.handle(installmentIpcChannels.adjustPayment, (_event, input: unknown) => {
+  ipcMain.handle(installmentIpcChannels.adjustPayment, async (_event, input: unknown) => {
     try {
-      service.adjustPayment(installmentAdjustPaymentRequestSchema.parse(input))
+      const request = installmentAdjustPaymentRequestSchema.parse(input)
+      await service.adjustPayment({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }

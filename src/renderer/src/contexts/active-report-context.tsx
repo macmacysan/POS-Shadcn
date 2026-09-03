@@ -14,7 +14,7 @@ import type { AuthenticatedUser, DailyReportRecord } from '@/../../shared/contra
 
 export type ActiveReportContextValue = DailyReportRecord & { reportId: string }
 
-const ActiveReportContext = React.createContext<ActiveReportContextValue | undefined>(undefined)
+const ActiveReportContext = React.createContext<ActiveReportContextValue | null | undefined>(undefined)
 
 export function ActiveReportProvider({
   user,
@@ -22,12 +22,15 @@ export function ActiveReportProvider({
 }: React.PropsWithChildren<{ user: AuthenticatedUser }>): React.JSX.Element {
   const [report, setReport] = React.useState<ActiveReportContextValue | null>(null)
   const [error, setError] = React.useState(false)
+  const [loaded, setLoaded] = React.useState(user.role === 'ADMIN')
   const [reloadKey, setReloadKey] = React.useState(0)
 
   React.useEffect(() => {
+    if (user.role === 'ADMIN') return
     let active = true
     setError(false)
     setReport(null)
+    setLoaded(false)
     void window.api.dailyReports
       .resolveActive({
         branchId: user.branchId,
@@ -38,7 +41,7 @@ export function ActiveReportProvider({
         (value) => {
           if (!active) return
           if (value) setReport({ ...value, reportId: value.id })
-          else setError(true)
+          setLoaded(true)
         },
         () => {
           if (active) setError(true)
@@ -47,7 +50,7 @@ export function ActiveReportProvider({
     return () => {
       active = false
     }
-  }, [reloadKey, user.branchId, user.id])
+  }, [reloadKey, user.branchId, user.id, user.role])
 
   if (error) {
     return (
@@ -68,7 +71,7 @@ export function ActiveReportProvider({
       </main>
     )
   }
-  if (!report) {
+  if (!loaded) {
     return (
       <main
         className="flex h-full items-center justify-center p-6"
@@ -87,8 +90,8 @@ export function ActiveReportProvider({
   return <ActiveReportContext.Provider value={report}>{children}</ActiveReportContext.Provider>
 }
 
-export function useActiveReport(): ActiveReportContextValue {
+export function useActiveReport(): ActiveReportContextValue | null {
   const context = React.useContext(ActiveReportContext)
-  if (!context) throw new Error('Active report context is not available.')
+  if (context === undefined) throw new Error('Active report context is not available.')
   return context
 }

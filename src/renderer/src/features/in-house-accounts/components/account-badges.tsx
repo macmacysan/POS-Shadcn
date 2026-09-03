@@ -44,16 +44,17 @@ export const AccountStatusBadge = React.memo(function AccountStatusBadge({
       variant={
         status === 'blacklisted'
           ? 'destructive'
-          : status === 'overdue' || status === 'delayed' || status === 'due-today'
-            ? 'outline'
-            : status === 'active' || status === 'due-soon' || status === 'fully-paid'
-              ? 'secondary'
-              : 'outline'
-      }
-      className={
-        status === 'overdue' || status === 'delayed' || status === 'due-today'
-          ? 'border-warning/40 bg-warning/10 text-warning-foreground'
-          : undefined
+          : status === 'overdue'
+            ? 'orange'
+            : status === 'fully-paid'
+              ? 'emerald'
+              : status === 'due-today' || status === 'due-soon'
+                ? 'zinc'
+                : status === 'delayed'
+                  ? 'amber'
+                : status === 'active'
+                  ? 'secondary'
+                  : 'outline'
       }
     >
       {accountStatusLabel[status]}

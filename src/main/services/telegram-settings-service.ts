@@ -1,70 +1,30 @@
-import { safeStorage } from 'electron'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
-
-import type { TelegramSettingsResponse, TelegramSettingsSaveRequest } from '../../shared/contracts'
 import { AppError } from '../database/errors'
-import { AuthService } from './auth-service'
+import type { GoogleSheetsClient } from './google-sheets-client'
 
-type StoredTelegramSettings = { chatId: string; encryptedToken: string }
+const telegramConfigRange = 'TELEGRAM_config!B2:C7'
+const chatIdPattern = /^-?\d{1,20}$/
+const tokenPattern = /^\d{6,20}:[A-Za-z0-9_-]{20,}$/
 
 export class TelegramSettingsService {
   constructor(
-    private readonly auth: AuthService,
-    private readonly filePath: string
+    private readonly sheets: Pick<GoogleSheetsClient, 'values'>,
+    private readonly spreadsheetId: string
   ) {}
 
-  async get(): Promise<TelegramSettingsResponse> {
-    this.auth.requireAdmin()
-    const settings = await this.read()
-    return settings ? { configured: true, chatId: settings.chatId } : { configured: false }
-  }
-
-  async save(request: TelegramSettingsSaveRequest): Promise<TelegramSettingsResponse> {
-    this.auth.requireAdmin()
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new AppError('DATABASE_ERROR', 'Secure credential storage is unavailable on this device.')
-    }
-    const current = await this.read()
-    const token = request.token ?? (current && safeStorage.decryptString(Buffer.from(current.encryptedToken, 'base64')))
-    if (!token) throw new AppError('VALIDATION_ERROR', 'Enter a Telegram bot token.')
-    await mkdir(dirname(this.filePath), { recursive: true })
-    await writeFile(
-      this.filePath,
-      JSON.stringify({
-        chatId: request.chatId,
-        encryptedToken: safeStorage.encryptString(token).toString('base64')
-      } satisfies StoredTelegramSettings),
-      'utf8'
-    )
-    return { configured: true, chatId: request.chatId }
-  }
-
-  async forDelivery(): Promise<{ token: string; chatId: string }> {
-    const settings = await this.read()
-    if (!settings) throw new AppError('FORBIDDEN', 'Telegram delivery is not configured.')
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new AppError('DATABASE_ERROR', 'Secure credential storage is unavailable on this device.')
-    }
-    return { chatId: settings.chatId, token: safeStorage.decryptString(Buffer.from(settings.encryptedToken, 'base64')) }
-  }
-
-  private async read(): Promise<StoredTelegramSettings | undefined> {
+  async forDelivery(): Promise<{ token: string; chatIds: string[] }> {
+    let values: string[][]
     try {
-      const value: unknown = JSON.parse(await readFile(this.filePath, 'utf8'))
-      if (
-        typeof value === 'object' &&
-        value !== null &&
-        typeof (value as StoredTelegramSettings).chatId === 'string' &&
-        typeof (value as StoredTelegramSettings).encryptedToken === 'string'
-      ) {
-        return value as StoredTelegramSettings
-      }
-      throw new AppError('DATABASE_ERROR', 'Telegram settings could not be read.')
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-      if (error instanceof AppError) throw error
-      throw new AppError('DATABASE_ERROR', 'Telegram settings could not be read.')
+      values = await this.sheets.values(this.spreadsheetId, telegramConfigRange)
+    } catch {
+      throw new AppError('DATABASE_ERROR', 'Telegram configuration could not be read from Google Sheets.')
     }
+    const chatIds = values.map((row) => String(row[0] ?? '').trim()).filter(Boolean)
+    const token = String(values[0]?.[1] ?? '').trim()
+    if (!chatIds.length || chatIds.some((chatId) => !chatIdPattern.test(chatId)) || !tokenPattern.test(token))
+      throw new AppError(
+        'FORBIDDEN',
+        'Telegram configuration is missing or invalid in Google Sheets.'
+      )
+    return { chatIds, token }
   }
 }
