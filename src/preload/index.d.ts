@@ -15,6 +15,7 @@ import type {
   GoogleSyncApi,
   BackupsApi,
   UserProfilesApi,
+  UpdaterApi,
   WindowControlsApi
 } from '../shared/contracts'
 
@@ -35,7 +36,8 @@ declare global {
       ProductCatalogApi &
       GoogleSyncApi &
       BackupsApi &
-      UserProfilesApi
+      UserProfilesApi &
+      UpdaterApi
     windowControls?: WindowControlsApi
   }
 }

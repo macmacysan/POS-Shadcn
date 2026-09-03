@@ -39,7 +39,10 @@ import {
   type BackupsApi,
   backupIpcChannels,
   type UserProfilesApi,
-  userProfileIpcChannels
+  userProfileIpcChannels,
+  type UpdaterApi,
+  updaterIpcChannels,
+  updateStateSchema
 } from '../shared/contracts'
 
 // Custom APIs for renderer
@@ -57,7 +60,8 @@ const api: ExpensesApi &
   ProductCatalogApi &
   GoogleSyncApi &
   BackupsApi &
-  UserProfilesApi = {
+  UserProfilesApi &
+  UpdaterApi = {
   productCatalog: {
     list: () => ipcRenderer.invoke(productCatalogIpcChannels.list)
   },
@@ -187,6 +191,20 @@ const api: ExpensesApi &
     },
     records: () => ipcRenderer.invoke(googleSyncIpcChannels.records),
     blacklisted: () => ipcRenderer.invoke(googleSyncIpcChannels.blacklisted)
+  },
+  updater: {
+    checkForUpdates: () => ipcRenderer.invoke(updaterIpcChannels.checkForUpdates),
+    downloadUpdate: () => ipcRenderer.invoke(updaterIpcChannels.downloadUpdate),
+    installUpdate: () => ipcRenderer.invoke(updaterIpcChannels.installUpdate),
+    getState: () => ipcRenderer.invoke(updaterIpcChannels.getState),
+    onStateChange: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, value: unknown): void => {
+        const result = updateStateSchema.safeParse(value)
+        if (result.success) listener(result.data)
+      }
+      ipcRenderer.on(updaterIpcChannels.stateChanged, handler)
+      return () => ipcRenderer.removeListener(updaterIpcChannels.stateChanged, handler)
+    }
   },
   backups: {
     create: () => ipcRenderer.invoke(backupIpcChannels.create),

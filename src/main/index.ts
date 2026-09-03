@@ -42,6 +42,7 @@ import { registerInstallmentRulesIpc } from './ipc/installment-rules'
 import { GeocodingService } from './services/geocoding-service'
 import { TelegramSettingsService } from './services/telegram-settings-service'
 import { registerUserProfilesIpc } from './ipc/user-profiles'
+import { registerUpdaterIpc } from './ipc/updater'
 import { UserProfilesService } from './services/user-profiles-service'
 import { AccountSpreadsheetService } from './services/account-spreadsheet-service'
 import { FinanceAccountRepository } from './database/finance-account-repository'
@@ -230,7 +231,9 @@ app.whenReady().then(async () => {
     registerCatalogOptionIpc(
       new CatalogOptionService(new CatalogOptionRepository(database), authService)
     )
-    registerProductCatalogIpc(new ProductCatalogService(new ProductCatalogRepository(database), googleSheets))
+    registerProductCatalogIpc(
+      new ProductCatalogService(new ProductCatalogRepository(database), googleSheets)
+    )
     registerInstallmentRulesIpc(
       new InstallmentRulesService(new InstallmentRulesRepository(database), authService)
     )
@@ -312,6 +315,7 @@ app.whenReady().then(async () => {
 
   const accountSyncCount = await accountSpreadsheet?.sync()
   const mainWindow = createWindow()
+  if (app.isPackaged) registerUpdaterIpc()
   mainWindow.webContents.once('did-finish-load', () => {
     mainWindow.webContents.send(authIpcChannels.accountSyncCompleted, accountSyncCount ?? -1)
   })
