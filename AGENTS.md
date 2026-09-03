@@ -41,13 +41,11 @@ Read each applicable document once per task. Re-read only when the working scope
 
 For substantial UI work:
 
-1. Read `docs/DESIGN.md` first. It is authoritative.
-2. Inspect existing project components before adding anything.
-3. Use the ReUI skill when selecting or adapting higher-level UI components.
-4. Use the shadcn skill for shared primitives and implementation guidance.
-5. Use `design-taste-frontend` only for visual/UX audits unless the task
-   explicitly requests a redesign.
-6. Do not invoke multiple visual-taste/redesign skills for the same task.
+1. Read `docs/DESIGN.md` first. It is the authoritative product design contract; skill guidance and component-library defaults must not override it.
+2. Select components in this order: existing project shared components; existing compatible ReUI components; an installed compatible ReUI component when justified; existing shadcn/ui components; an installed shadcn/ui component when justified; custom implementation only when no suitable reusable component exists.
+3. Do not replace a stable project component merely to use ReUI or shadcn/ui.
+4. Use the ReUI skill when selecting or adapting higher-level UI components, and the shadcn skill for primitives and implementation guidance.
+5. `design-taste-frontend` may be used for UX or visual review. Do not invoke multiple visual-taste/redesign skills for the same ordinary UI task.
 
 ## Completion Report
 
