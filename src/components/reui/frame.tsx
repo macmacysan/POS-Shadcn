@@ -43,6 +43,10 @@ const frameVariants = cva(
         // No frame border, so the panel is inset by --frame-px padding only.
         ghost: '[--frame-panel-radius:calc(var(--frame-radius)_-_var(--frame-px))]'
       },
+      radius: {
+        normal: '[--frame-radius:var(--radius-xl)]',
+        prominent: '[--frame-radius:var(--radius-2xl)]'
+      },
       // Header/footer vertical rhythm is tighter than the panel body's, and
       // the gap widens as the frame grows: the bars read as chrome rather than
       // as another content block. py ladder is 0.5 / 1.5 / 2 / 2.5 against a
@@ -81,6 +85,7 @@ const frameVariants = cva(
     },
     defaultVariants: {
       variant: 'default',
+      radius: 'normal',
       spacing: 'default',
       stacked: false,
       dense: false
@@ -91,6 +96,7 @@ const frameVariants = cva(
 function Frame({
   className,
   variant,
+  radius,
   spacing,
   stacked,
   dense,
@@ -98,7 +104,7 @@ function Frame({
 }: React.ComponentProps<'div'> & VariantProps<typeof frameVariants>) {
   return (
     <div
-      className={cn(frameVariants({ variant, spacing, stacked, dense }), className)}
+      className={cn(frameVariants({ variant, radius, spacing, stacked, dense }), className)}
       data-slot="frame"
       data-spacing={spacing}
       {...props}

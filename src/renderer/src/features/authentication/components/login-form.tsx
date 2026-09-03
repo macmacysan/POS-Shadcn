@@ -187,7 +187,7 @@ export function LoginForm({
 
   return (
     <div className={className} {...props}>
-      <Frame className="w-full max-w-md" spacing="default">
+      <Frame className="w-full max-w-md" radius="prominent" spacing="default">
         <FramePanel className="p-4 sm:p-5">
           <section className="flex flex-col gap-5">
             <div className="flex items-center gap-2">

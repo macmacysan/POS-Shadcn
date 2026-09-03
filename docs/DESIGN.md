@@ -58,7 +58,7 @@ All components must follow the project theme tokens, typography, spacing, access
 - Page and workspace titles use `text-base` or `text-lg` with medium emphasis; section titles use `text-sm` with medium emphasis; labels, table data, and controls use `text-[13px]` or `text-sm`; metadata and helper text use `text-xs` or `text-sm` with `text-muted-foreground`.
 - Preserve entered values as stronger than labels, placeholders, and secondary metadata. Do not use oversized display type.
 - Use the 4px spacing rhythm. Default gaps are 8px within a control group, 12px between adjacent workspace elements, 16px within form sections, and 24px between major form sections.
-- Use `rounded-md` for controls and small UI. Use `rounded-lg` for cards and normal contained surfaces, and `rounded-lg` or `rounded-xl` for prominent workspace, dialog, and authentication surfaces. Do not introduce page-specific radii.
+- Use `rounded-md` for controls and small interactive elements, `rounded-xl` for normal cards, table shells, and contained panels, and `rounded-2xl` for prominent standalone application surfaces. `rounded-3xl` and larger are not normal defaults; features must not choose radii independently or change the global `--radius` token.
 
 ## Surface Containment and Radius
 
