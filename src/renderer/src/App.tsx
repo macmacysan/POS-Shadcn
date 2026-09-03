@@ -12,6 +12,7 @@ import { DashboardContent } from '@/features/dashboard'
 import { InstallmentOverviewContent } from '@/features/installment-overview'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { NotificationCenter } from '@/components/layout/notification-center'
+import { UpdateNotifications } from '@/components/layout/update-notifications'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import {
   Breadcrumb,
@@ -570,6 +571,7 @@ function App(): React.JSX.Element {
         ) : null}
         <div className="relative min-h-0 flex-1">
           <Toaster theme={isDark ? 'dark' : 'light'} />
+          <UpdateNotifications />
           {isLoggedIn && authenticatedUser ? (
             <ActiveReportProvider user={authenticatedUser}>
               <div className="h-full w-full">

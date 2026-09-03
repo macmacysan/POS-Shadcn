@@ -2,6 +2,7 @@ import { Bell, CheckCheck } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Progress, ProgressLabel, ProgressValue } from '@/components/ui/progress'
 import {
   Popover,
   PopoverContent,
@@ -68,6 +69,35 @@ export function NotificationCenter(): React.JSX.Element {
                     <p className="text-sm font-medium">{item.title}</p>
                     {item.description && (
                       <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
+                    )}
+                    {item.progress && (
+                      <Progress
+                        value={item.progress.value}
+                        aria-label="Update download progress"
+                        className="mt-2"
+                      >
+                        <ProgressLabel className="sr-only">Update download progress</ProgressLabel>
+                        <ProgressValue>{() => item.progress?.label}</ProgressValue>
+                      </Progress>
+                    )}
+                    {(item.cancel || item.action) && (
+                      <div className="mt-3 flex justify-end gap-2">
+                        {item.cancel && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={item.cancel.onClick}
+                          >
+                            {item.cancel.label}
+                          </Button>
+                        )}
+                        {item.action && (
+                          <Button type="button" size="sm" onClick={item.action.onClick}>
+                            {item.action.label}
+                          </Button>
+                        )}
+                      </div>
                     )}
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {new Date(item.createdAt).toLocaleTimeString([], {
