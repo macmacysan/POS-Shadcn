@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils'
 const frameVariants = cva(
   [
     'relative flex flex-col bg-muted/50 gap-(--frame-gap) px-(--frame-px) py-(--frame-py) rounded-(--frame-radius)',
-    '(--radius-xl)] [--frame-radius:var(--radius-xl)]',
     '(--radius-none)] (--radius-2xl)] (--radius-lg)] (--radius-none)]',
     '[--frame-gap:--spacing(0.75)] [--frame-px:--spacing(0.75)] [--frame-py:--spacing(0.75)] [--frame-panel-header-gap:0rem] [--frame-panel-footer-gap:--spacing(1)]',
     '[--frame-panel-px-adjust:0px] [--frame-panel-py-adjust:0px] [--frame-panel-header-px-adjust:0px] [--frame-panel-header-py-adjust:0px] [--frame-panel-footer-px-adjust:0px] [--frame-panel-footer-py-adjust:0px]',
