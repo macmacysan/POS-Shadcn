@@ -1,5 +1,7 @@
 import * as React from 'react'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useUpdater } from '@/hooks/use-updater'
 
@@ -12,7 +14,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 ** unit).toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
 }
 
-export function UpdateNotifications(): null {
+export function UpdateNotifications(): React.JSX.Element | null {
   const { notify } = useNotifications()
   const { state, activeAction, isRequesting, checkForUpdates, downloadUpdate, installUpdate } =
     useUpdater()
@@ -114,5 +116,41 @@ export function UpdateNotifications(): null {
     }
   }, [activeAction, checkForUpdates, downloadUpdate, installUpdate, isRequesting, notify, state])
 
-  return null
+  const status = state?.type === 'checking'
+    ? { title: 'Checking for updates', description: 'Looking for a newer version.' }
+    : state?.type === 'update-available'
+      ? {
+          title: 'Update found',
+          description: `Downloading Cashiers Report ${state.availableVersion} automatically.`
+        }
+      : state?.type === 'download-progress'
+        ? {
+            title: 'Downloading update',
+            description: `Cashiers Report ${state.availableVersion}`
+          }
+        : state?.type === 'update-downloaded'
+          ? {
+              title: 'Installing update',
+              description: 'The app will restart automatically.'
+            }
+          : state?.type === 'error'
+            ? { title: 'Update failed', description: state.message }
+            : undefined
+
+  if (!status) return null
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-10 z-50 flex justify-center px-4">
+      <Alert
+        className="pointer-events-auto w-full max-w-md bg-popover shadow-lg"
+        role={state?.type === 'error' ? 'alert' : 'status'}
+      >
+        <AlertTitle>{status.title}</AlertTitle>
+        <AlertDescription>{status.description}</AlertDescription>
+        {state?.type === 'download-progress' ? (
+          <Progress className="mt-3" value={state.percent} aria-label="Update download progress" />
+        ) : null}
+      </Alert>
+    </div>
+  )
 }
