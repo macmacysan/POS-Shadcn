@@ -188,7 +188,7 @@ export function LoginForm({
 
   return (
     <div className={className} {...props}>
-      <Card className="w-[22rem] max-w-full rounded-2xl" size="sm">
+      <Card className="w-88 max-w-full rounded-2xl" size="sm">
         <section className="flex flex-col gap-5 px-(--card-spacing)">
           <div className="flex items-center gap-2 py-1">
             <img src={appIcon} alt="" className="size-10 shrink-0 rounded-2xl object-contain" />

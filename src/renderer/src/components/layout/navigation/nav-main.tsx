@@ -113,7 +113,13 @@ function compactBadge(value?: number): string | undefined {
   return value > 99 ? '99+' : String(value)
 }
 
-function NavChildList({ items, activeView }: { items: NavChildItem[]; activeView: string }): React.JSX.Element {
+function NavChildList({
+  items,
+  activeView
+}: {
+  items: NavChildItem[]
+  activeView: string
+}): React.JSX.Element {
   return (
     <>
       {items.map((item) =>
@@ -123,7 +129,11 @@ function NavChildList({ items, activeView }: { items: NavChildItem[]; activeView
             className={item.title === 'In-house' || item.title === 'Finance' ? 'pt-2' : undefined}
           >
             <div className="flex h-8 items-center gap-2 px-2.5 text-xs font-medium text-sidebar-foreground/75">
-              {item.icon && <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">{item.icon}</span>}
+              {item.icon && (
+                <span className="flex size-4 shrink-0 items-center justify-center [&>svg]:size-4">
+                  {item.icon}
+                </span>
+              )}
               <span className="min-w-0 flex-1 truncate">{item.title}</span>
             </div>
             <SidebarMenuSub className="mx-0 mb-1 mt-0.5 border-0 px-0 py-0.5">
@@ -131,7 +141,7 @@ function NavChildList({ items, activeView }: { items: NavChildItem[]; activeView
             </SidebarMenuSub>
           </SidebarMenuSubItem>
         ) : (
-      <SidebarMenuSubItem key={item.title}>
+          <SidebarMenuSubItem key={item.title}>
             <SidebarMenuSubButton
               className="h-8 rounded-md px-2.5 text-xs"
               isActive={item.isActive}
@@ -173,7 +183,13 @@ function NavItemLink({ item }: { item: NavLinkItem }): React.JSX.Element {
   )
 }
 
-function NavGroup({ item, activeView }: { item: NavGroupItem; activeView: string }): React.JSX.Element {
+function NavGroup({
+  item,
+  activeView
+}: {
+  item: NavGroupItem
+  activeView: string
+}): React.JSX.Element {
   return (
     <Collapsible defaultOpen className="group/collapsible">
       <SidebarMenuItem>
@@ -185,7 +201,7 @@ function NavGroup({ item, activeView }: { item: NavGroupItem; activeView: string
         >
           {item.icon}
           <span>{item.title}</span>
-          <CaretDownIcon className="ml-auto transition-transform group-data-[panel-open]/collapsible:rotate-180" />
+          <CaretDownIcon className="ml-auto transition-transform group-data-panel-open/collapsible:rotate-180" />
         </SidebarMenuButton>
         <CollapsibleContent>
           <SidebarMenuSub className="mt-1 py-0.5">
@@ -223,8 +239,10 @@ export function NavMain({
   unpaidFinanceCount?: number
 }): React.JSX.Element {
   const items = navigation.navMain.map((item) => {
-    if (item.title === 'Dashboard') return { ...item, isActive: activeView === 'dashboard', onClick: onDashboard }
-    if (item.title === 'Calendar') return { ...item, isActive: activeView === 'calendar', onClick: onCalendar }
+    if (item.title === 'Dashboard')
+      return { ...item, isActive: activeView === 'dashboard', onClick: onDashboard }
+    if (item.title === 'Calendar')
+      return { ...item, isActive: activeView === 'calendar', onClick: onCalendar }
     return {
       ...item,
       children: item.children?.map((child) =>
@@ -232,28 +250,45 @@ export function NavMain({
           ? { ...child, isActive: activeView === 'cashier-reports', onClick: onCashierReports }
           : child.title === 'Calendar'
             ? { ...child, isActive: activeView === 'calendar', onClick: onCalendar }
-          : child.title === 'In-house'
-            ? {
-                ...child,
-                children: child.children?.map((entry) =>
-                  entry.title === 'Records'
-                    ? { ...entry, isActive: activeView === 'in-house-accounts', onClick: onAllAccounts }
-                    : entry.title === 'Active'
-                      ? { ...entry, isActive: activeView === 'in-house-active-accounts', badge: overdueCount, onClick: onActiveAccounts }
-                      : entry.title === 'Closed'
-                        ? { ...entry, isActive: activeView === 'in-house-closed-accounts', onClick: onClosedAccounts }
-                        : { ...entry, isActive: activeView === 'in-house-blacklisted-accounts', onClick: onBlacklistedAccounts }
-                )
-              }
-            : {
-                ...child,
-                children: child.children?.map((entry) => ({
-                  ...entry,
-                  isActive: activeView === 'finance-accounts',
-                  badge: unpaidFinanceCount,
-                  onClick: onFinanceAccounts
-                }))
-              }
+            : child.title === 'In-house'
+              ? {
+                  ...child,
+                  children: child.children?.map((entry) =>
+                    entry.title === 'Records'
+                      ? {
+                          ...entry,
+                          isActive: activeView === 'in-house-accounts',
+                          onClick: onAllAccounts
+                        }
+                      : entry.title === 'Active'
+                        ? {
+                            ...entry,
+                            isActive: activeView === 'in-house-active-accounts',
+                            badge: overdueCount,
+                            onClick: onActiveAccounts
+                          }
+                        : entry.title === 'Closed'
+                          ? {
+                              ...entry,
+                              isActive: activeView === 'in-house-closed-accounts',
+                              onClick: onClosedAccounts
+                            }
+                          : {
+                              ...entry,
+                              isActive: activeView === 'in-house-blacklisted-accounts',
+                              onClick: onBlacklistedAccounts
+                            }
+                  )
+                }
+              : {
+                  ...child,
+                  children: child.children?.map((entry) => ({
+                    ...entry,
+                    isActive: activeView === 'finance-accounts',
+                    badge: unpaidFinanceCount,
+                    onClick: onFinanceAccounts
+                  }))
+                }
       )
     }
   }) as NavItem[]
@@ -264,31 +299,49 @@ export function NavMain({
       <SidebarGroupContent>
         <SidebarMenu className="gap-1.5">
           {items.map((item) =>
-        isNavSection(item) ? (
-          <SidebarMenuItem key={item.title} className="pt-4 group-data-[collapsible=icon]:hidden">
-            <div className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">
-              {item.title}
-            </div>
-            {item.children && (
-              <SidebarMenuSub className="mx-0 border-0 px-0 py-1">
-                <NavChildList items={item.children} activeView={activeView} />
-              </SidebarMenuSub>
-            )}
-          </SidebarMenuItem>
-        ) : isNavGroup(item) ? (
-          <NavGroup key={item.title} item={item} activeView={activeView} />
-        ) : (
-          <NavItemLink key={item.title} item={item} />
-        )
+            isNavSection(item) ? (
+              <SidebarMenuItem
+                key={item.title}
+                className="pt-4 group-data-[collapsible=icon]:hidden"
+              >
+                <div className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">
+                  {item.title}
+                </div>
+                {item.children && (
+                  <SidebarMenuSub className="mx-0 border-0 px-0 py-1">
+                    <NavChildList items={item.children} activeView={activeView} />
+                  </SidebarMenuSub>
+                )}
+              </SidebarMenuItem>
+            ) : isNavGroup(item) ? (
+              <NavGroup key={item.title} item={item} activeView={activeView} />
+            ) : (
+              <NavItemLink key={item.title} item={item} />
+            )
           )}
         </SidebarMenu>
         <SidebarMenu className="hidden gap-1.5 group-data-[collapsible=icon]:flex">
           {[
-            ['Cashier reports', <ClipboardTextIcon />, activeView === 'cashier-reports', onCashierReports],
+            [
+              'Cashier reports',
+              <ClipboardTextIcon />,
+              activeView === 'cashier-reports',
+              onCashierReports
+            ],
             ['Records', <ListBulletsIcon />, activeView === 'in-house-accounts', onAllAccounts],
             ['Active', <ClockIcon />, activeView === 'in-house-active-accounts', onActiveAccounts],
-            ['Closed', <CheckCircleIcon />, activeView === 'in-house-closed-accounts', onClosedAccounts],
-            ['Blacklisted', <ProhibitIcon />, activeView === 'in-house-blacklisted-accounts', onBlacklistedAccounts],
+            [
+              'Closed',
+              <CheckCircleIcon />,
+              activeView === 'in-house-closed-accounts',
+              onClosedAccounts
+            ],
+            [
+              'Blacklisted',
+              <ProhibitIcon />,
+              activeView === 'in-house-blacklisted-accounts',
+              onBlacklistedAccounts
+            ],
             ['Accounts', <CreditCardIcon />, activeView === 'finance-accounts', onFinanceAccounts],
             ['Calendar', <CalendarIcon />, activeView === 'calendar', onCalendar]
           ].map(([title, icon, isActive, onClick]) => (
@@ -297,7 +350,12 @@ export function NavMain({
                 className="relative"
                 isActive={isActive as boolean}
                 tooltip={title as string}
-                render={<a href="#" onClick={(event) => handleNavClick(event, onClick as (() => void) | undefined)} />}
+                render={
+                  <a
+                    href="#"
+                    onClick={(event) => handleNavClick(event, onClick as (() => void) | undefined)}
+                  />
+                }
               >
                 {icon as React.ReactNode}
                 <span>{title as string}</span>
