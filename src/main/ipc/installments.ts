@@ -10,6 +10,7 @@ import {
   installmentVoidRequestSchema,
   installmentVoidPaymentsRequestSchema,
   installmentIpcChannels,
+  installmentAttentionRequestSchema,
   installmentListRequestSchema,
   installmentPaymentWorkspaceRequestSchema,
   installmentHistoryRequestSchema,
@@ -35,6 +36,15 @@ export function registerInstallmentIpc(
   ipcMain.handle(installmentIpcChannels.list, async (_event, input: unknown) => {
     try {
       return await service.list(installmentListRequestSchema.parse(input))
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+
+  ipcMain.handle(installmentIpcChannels.attentionSummary, async (_event, input: unknown) => {
+    try {
+      const request = installmentAttentionRequestSchema.parse(input)
+      return await service.getAttentionSummary(request.branch)
     } catch (error) {
       return rethrowIpcError(error)
     }

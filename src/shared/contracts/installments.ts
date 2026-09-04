@@ -11,6 +11,10 @@ export const installmentListRequestSchema = z.object({
   includeVoided: z.boolean().default(false)
 })
 
+export const installmentAttentionRequestSchema = z.object({
+  branch: z.string().trim().max(100).optional()
+})
+
 const jsonObjectSchema = z.record(z.string(), z.unknown())
 export const installmentBootstrapRequestSchema = z.object({
   accounts: z.array(jsonObjectSchema).max(10000),
@@ -107,6 +111,7 @@ export type InstallmentListRequest = Omit<
   z.infer<typeof installmentListRequestSchema>,
   'includeVoided'
 > & { includeVoided?: boolean }
+export type InstallmentAttentionRequest = z.infer<typeof installmentAttentionRequestSchema>
 export type InstallmentBootstrapRequest = z.infer<typeof installmentBootstrapRequestSchema>
 export type InstallmentLoanUpdateRequest = z.infer<typeof installmentLoanUpdateRequestSchema>
 export type InstallmentLoanRestructureRequest = z.infer<typeof installmentLoanRestructureRequestSchema>
@@ -209,6 +214,20 @@ export type InstallmentAccountRecord = {
 
 export type InstallmentListResult = { rows: InstallmentAccountRecord[] }
 
+export type InstallmentAttentionItem = {
+  accountId: string
+  accountName: string
+  nextDue: string
+  daysFromToday: number
+}
+
+export type InstallmentAttentionSummary = {
+  overdueCount: number
+  nearDueCount: number
+  overdue: InstallmentAttentionItem[]
+  nearDue: InstallmentAttentionItem[]
+}
+
 export type InHouseScheduleRecord = {
   id: string
   installmentNumber: number
@@ -268,6 +287,7 @@ export type InstallmentPaymentWorkspace = {
 
 export const installmentIpcChannels = {
   list: 'installments:list',
+  attentionSummary: 'installments:attention-summary',
   bootstrap: 'installments:bootstrap',
   updateLoan: 'installments:update-loan',
   restructureLoan: 'installments:restructure-loan',
@@ -286,6 +306,7 @@ export const installmentIpcChannels = {
 export type InstallmentsApi = {
   installments: {
     list(request: InstallmentListRequest): Promise<InstallmentListResult>
+    getAttentionSummary(request: InstallmentAttentionRequest): Promise<InstallmentAttentionSummary>
     bootstrap(request: InstallmentBootstrapRequest): Promise<void>
     updateLoan(request: InstallmentLoanUpdateRequest): Promise<void>
     restructureLoan(request: InstallmentLoanRestructureRequest): Promise<void>

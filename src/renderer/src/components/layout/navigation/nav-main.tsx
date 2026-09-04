@@ -108,6 +108,11 @@ function handleNavClick(event: React.MouseEvent<HTMLElement>, onClick?: () => vo
   onClick()
 }
 
+function compactBadge(value?: number): string | undefined {
+  if (!value || value < 1) return undefined
+  return value > 99 ? '99+' : String(value)
+}
+
 function NavChildList({ items, activeView }: { items: NavChildItem[]; activeView: string }): React.JSX.Element {
   return (
     <>
@@ -138,11 +143,11 @@ function NavChildList({ items, activeView }: { items: NavChildItem[]; activeView
               <span className="min-w-0 flex-1 truncate">{item.title}</span>
               {item.badge !== undefined && item.badge > 0 && (
                 <ReuiBadge
-                  variant="warning-light"
+                  variant="destructive-light"
                   className="ml-auto"
-                  aria-label={`${item.badge} ${item.title === 'Active' ? 'due accounts' : 'accounts without a paid date'}`}
+                  aria-label={`${item.badge} ${item.title === 'Active' ? 'overdue accounts' : 'accounts without a paid date'}`}
                 >
-                  {item.badge}
+                  {compactBadge(item.badge)}
                 </ReuiBadge>
               )}
             </SidebarMenuSubButton>
@@ -202,7 +207,7 @@ export function NavMain({
   onBlacklistedAccounts,
   onFinanceAccounts,
   onCalendar,
-  dueCount,
+  overdueCount,
   unpaidFinanceCount
 }: {
   activeView: string
@@ -214,7 +219,7 @@ export function NavMain({
   onBlacklistedAccounts?: () => void
   onFinanceAccounts?: () => void
   onCalendar?: () => void
-  dueCount?: number
+  overdueCount?: number
   unpaidFinanceCount?: number
 }): React.JSX.Element {
   const items = navigation.navMain.map((item) => {
@@ -234,7 +239,7 @@ export function NavMain({
                   entry.title === 'Records'
                     ? { ...entry, isActive: activeView === 'in-house-accounts', onClick: onAllAccounts }
                     : entry.title === 'Active'
-                      ? { ...entry, isActive: activeView === 'in-house-active-accounts', badge: dueCount, onClick: onActiveAccounts }
+                      ? { ...entry, isActive: activeView === 'in-house-active-accounts', badge: overdueCount, onClick: onActiveAccounts }
                       : entry.title === 'Closed'
                         ? { ...entry, isActive: activeView === 'in-house-closed-accounts', onClick: onClosedAccounts }
                         : { ...entry, isActive: activeView === 'in-house-blacklisted-accounts', onClick: onBlacklistedAccounts }
@@ -289,12 +294,24 @@ export function NavMain({
           ].map(([title, icon, isActive, onClick]) => (
             <SidebarMenuItem key={title as string}>
               <SidebarMenuButton
+                className="relative"
                 isActive={isActive as boolean}
                 tooltip={title as string}
                 render={<a href="#" onClick={(event) => handleNavClick(event, onClick as (() => void) | undefined)} />}
               >
                 {icon as React.ReactNode}
                 <span>{title as string}</span>
+                {title === 'Active' && compactBadge(overdueCount) && (
+                  <ReuiBadge
+                    variant="destructive-light"
+                    size="xs"
+                    radius="full"
+                    className="absolute -right-0.5 -top-0.5 scale-75"
+                    aria-label={`${overdueCount} overdue accounts`}
+                  >
+                    {compactBadge(overdueCount)}
+                  </ReuiBadge>
+                )}
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}

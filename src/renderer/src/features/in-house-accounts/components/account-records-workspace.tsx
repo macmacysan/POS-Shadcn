@@ -111,6 +111,7 @@ type Props = {
   readonly view: InstallmentView
   readonly initialBranch?: BranchName
   readonly initialSearch?: string
+  readonly initialPaymentStatus?: 'overdue'
   readonly ownBranch?: BranchName
   readonly showAllBranches?: boolean
   readonly onOpenPaymentWorkspace?: (
@@ -989,6 +990,7 @@ export function AccountRecordsWorkspace({
   view,
   initialBranch,
   initialSearch = '',
+  initialPaymentStatus,
   ownBranch,
   showAllBranches = false,
   onOpenPaymentWorkspace
@@ -1006,7 +1008,9 @@ export function AccountRecordsWorkspace({
   }, [reload])
   const [search, setSearch] = React.useState(initialSearch)
   const [filters, setFilters] = React.useState<Array<{ field: string; value: string }>>([])
-  const [activeStatusFilter, setActiveStatusFilter] = React.useState<ActiveStatusFilter>('all')
+  const [activeStatusFilter, setActiveStatusFilter] = React.useState<ActiveStatusFilter>(
+    initialPaymentStatus ?? 'all'
+  )
   const [selected, setSelected] = React.useState<PersistedInstallmentRow>()
   const [transition, setTransition] = React.useState<Transition>()
   const [remarks, setRemarks] = React.useState('')

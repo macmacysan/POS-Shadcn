@@ -4,6 +4,7 @@ import type Database from 'better-sqlite3'
 import type {
   InstallmentAdjustPaymentRequest,
   InstallmentAccountRecord,
+  InstallmentAttentionSummary,
   InstallmentAccountStatus,
   InstallmentBootstrapRequest,
   InstallmentCreatePaymentRequest,
@@ -107,6 +108,12 @@ function dateValue(value: unknown, fallback: string): string {
   return result.length >= 10 ? result.slice(0, 10) : fallback
 }
 
+function daysFromToday(date: string): number {
+  const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`).getTime()
+  const due = new Date(`${date}T00:00:00Z`).getTime()
+  return Math.round((due - today) / 86_400_000)
+}
+
 function branchId(branch: string): string {
   return `branch-${branch.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
 }
@@ -128,10 +135,7 @@ function toMeta(row: ContractRow): InstallmentAccountRecord['meta'] {
   else if (row.contract_status === 'CLOSED') status = 'closed'
   else if (totalPayable > 0 && outstanding === 0) status = 'fully-paid'
   else if (nextDue) {
-    const today = new Date().toISOString().slice(0, 10)
-    const due = new Date(`${nextDue}T00:00:00Z`).getTime()
-    const now = new Date(`${today}T00:00:00Z`).getTime()
-    const days = Math.round((due - now) / 86_400_000)
+    const days = daysFromToday(nextDue)
     if (days < 0) status = 'overdue'
     else if (days === 0) status = 'due-today'
     else if (days <= 7) status = 'due-soon'
@@ -251,6 +255,78 @@ export class InstallmentRepository {
       .all(params) as ContractRow[]
 
     return { rows: rows.map((row) => this.toRecord(row, request.view)) }
+  }
+
+  getAttentionSummary(branch?: string): InstallmentAttentionSummary {
+    const rows = this.db
+      .prepare(
+        `WITH payment_totals AS (
+           SELECT p.contract_id,
+                  SUM(CASE WHEN p.status = 'POSTED'
+                    THEN COALESCE(pa.allocated_amount_centavos, p.amount_centavos)
+                    ELSE 0 END) AS total_paid_centavos
+             FROM in_house_payments p
+             LEFT JOIN installment_payment_allocations pa ON pa.payment_id = p.id
+            GROUP BY p.contract_id
+         ), next_due AS (
+           SELECT contract_id, MIN(due_date) AS next_due_date
+             FROM in_house_schedules
+            WHERE status NOT IN ('PAID', 'WAIVED') AND is_restructured = 0
+            GROUP BY contract_id
+         ), active_attention AS (
+           SELECT a.id AS account_id,
+                  a.last_name,
+                  a.first_name,
+                  a.middle_name,
+                  a.suffix,
+                  COALESCE(nd.next_due_date, c.first_due_date) AS next_due_date,
+                  MAX(0, c.total_payable_centavos - c.down_payment_applied_centavos
+                    - COALESCE(pt.total_paid_centavos, 0)) AS outstanding_centavos
+             FROM accounts a
+             JOIN installment_contracts c ON c.account_id = a.id
+             JOIN branches ab ON ab.id = a.branch_id
+             LEFT JOIN next_due nd ON nd.contract_id = c.id
+             LEFT JOIN payment_totals pt ON pt.contract_id = c.id
+            WHERE c.status = 'ACTIVE'
+              AND a.status = 'ACTIVE'
+              AND COALESCE(nd.next_due_date, c.first_due_date) <= date('now', '+7 day')
+              ${branch ? 'AND ab.name = @branch' : ''}
+         )
+         SELECT account_id, last_name, first_name, middle_name, suffix, next_due_date
+           FROM active_attention
+          WHERE outstanding_centavos > 0
+          ORDER BY next_due_date, last_name COLLATE NOCASE, first_name COLLATE NOCASE`
+      )
+      .all(branch ? { branch } : {}) as Array<{
+      account_id: string
+      last_name: string
+      first_name: string
+      middle_name?: string
+      suffix?: string
+      next_due_date: string
+    }>
+
+    const attention = rows.map((row) => ({
+      accountId: row.account_id,
+      accountName: [
+        row.last_name.trim() ? `${row.last_name.trim()},` : '',
+        row.first_name.trim(),
+        row.middle_name?.trim(),
+        row.suffix?.trim()
+      ]
+        .filter(Boolean)
+        .join(' '),
+      nextDue: row.next_due_date,
+      daysFromToday: daysFromToday(row.next_due_date)
+    }))
+    const overdue = attention.filter((item) => item.daysFromToday < 0)
+    const nearDue = attention.filter((item) => item.daysFromToday >= 0)
+    return {
+      overdueCount: overdue.length,
+      nearDueCount: nearDue.length,
+      overdue: overdue.slice(0, 5),
+      nearDue: nearDue.slice(0, 5)
+    }
   }
 
   bootstrap(request: InstallmentBootstrapRequest): void {

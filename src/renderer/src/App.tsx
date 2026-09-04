@@ -27,7 +27,12 @@ import { useNotifications } from '@/hooks/use-notifications'
 import { Toaster } from '@/components/ui/sonner'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import type { AuthenticatedUser, GoogleSyncProgress, LoginBranch } from '@/../../shared/contracts'
+import type {
+  AuthenticatedUser,
+  GoogleSyncProgress,
+  InstallmentAttentionSummary,
+  LoginBranch
+} from '@/../../shared/contracts'
 import { PESO_SIGN_HIDDEN_STORAGE_KEY, setPesoSignHidden } from '@/lib/currency'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
@@ -141,6 +146,7 @@ function Workspace({
   const [installmentFilter, setInstallmentFilter] = useState<{
     branch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
     search?: string
+    paymentStatus?: 'overdue'
     financeAccountId?: string
     returnToHistory?: boolean
   }>({})
@@ -150,9 +156,11 @@ function Workspace({
   const [isCashierReportExportRequested, setIsCashierReportExportRequested] = useState(false)
   const [cashierReportExportDate, setCashierReportExportDate] = useState<string>()
   const [navigationCounts, setNavigationCounts] = useState<{
-    due?: number
+    overdue?: number
+    installmentAttention?: InstallmentAttentionSummary
     unpaidFinance?: number
   }>({})
+  const [attentionRefreshKey, setAttentionRefreshKey] = useState(0)
   const [syncFailures, setSyncFailures] = useState(initialSyncFailures)
   const [retryingBranch, setRetryingBranch] = useState<string>()
 
@@ -197,22 +205,25 @@ function Workspace({
   }
 
   useEffect(() => {
+    const refreshAttention = (): void => setAttentionRefreshKey((value) => value + 1)
+    window.addEventListener('installments:changed', refreshAttention)
+    return () => window.removeEventListener('installments:changed', refreshAttention)
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
     const loadNavigationCounts = async (): Promise<void> => {
       try {
-        const [installments, financeAccounts] = await Promise.all([
-          window.api.installments.list({ view: 'active', search: '', includeVoided: false }),
+        const [installmentAttention, financeAccounts] = await Promise.all([
+          window.api.installments.getAttentionSummary({
+            ...(selectedBranch === 'All Branch' ? {} : { branch: selectedBranch })
+          }),
           window.api.financeAccounts.list({ search: '', includeVoided: false })
         ])
         if (cancelled) return
         setNavigationCounts({
-          due: installments.rows.filter(
-            (row) =>
-              (selectedBranch === 'All Branch' || row.account.branch === selectedBranch) &&
-              (row.meta.status === 'overdue' ||
-                row.meta.status === 'delayed' ||
-                row.meta.status === 'due-today')
-          ).length,
+          overdue: installmentAttention.overdueCount,
+          installmentAttention,
           unpaidFinance: financeAccounts.rows.filter(
             (account) =>
               (selectedBranch === 'All Branch' || account.branch === selectedBranch) &&
@@ -227,7 +238,7 @@ function Workspace({
     return () => {
       cancelled = true
     }
-  }, [activeView, selectedBranch])
+  }, [activeView, attentionRefreshKey, selectedBranch])
 
   useEffect(() => {
     const syncRoute = (): void => {
@@ -305,7 +316,7 @@ function Workspace({
         onBlacklistedAccounts={() => selectView('in-house-blacklisted-accounts')}
         onFinanceAccounts={() => selectView('finance-accounts')}
         onCalendar={() => selectView('calendar')}
-        dueCount={navigationCounts.due}
+        overdueCount={navigationCounts.overdue}
         unpaidFinanceCount={navigationCounts.unpaidFinance}
         onToggleTheme={onToggleTheme}
         hidePesoSign={hidePesoSign}
@@ -384,6 +395,23 @@ function Workspace({
               setInstallmentFilter({ financeAccountId, returnToHistory })
               selectView('finance-accounts')
             }}
+            installmentAttention={navigationCounts.installmentAttention}
+            onViewOverdueInstallments={() => {
+              setInstallmentFilter({
+                branch: selectedBranch === 'All Branch' ? undefined : selectedBranch,
+                paymentStatus: 'overdue'
+              })
+              selectView('in-house-active-accounts')
+            }}
+            onViewInstallmentAccounts={() => {
+              setInstallmentFilter({
+                branch: selectedBranch === 'All Branch' ? undefined : selectedBranch
+              })
+              selectView('in-house-active-accounts')
+            }}
+            onOpenInstallmentAccount={(accountId) =>
+              openPaymentWorkspace(accountId, 'schedule', 'active')
+            }
           />
         ) : activeView === 'installment-overview' ? (
           <InstallmentOverviewContent
@@ -400,6 +428,7 @@ function Workspace({
           <InHouseActiveAccountsContent
             initialBranch={installmentFilter.branch}
             initialSearch={installmentFilter.search}
+            initialPaymentStatus={installmentFilter.paymentStatus}
             ownBranch={isAdmin || selectedBranch === 'All Branch' ? undefined : selectedBranch}
             onOpenPaymentWorkspace={openPaymentWorkspace}
           />

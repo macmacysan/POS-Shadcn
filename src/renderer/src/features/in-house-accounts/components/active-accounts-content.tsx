@@ -3,6 +3,7 @@ import { AccountRecordsWorkspace } from './account-records-workspace'
 type Props = {
   readonly initialBranch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
   readonly initialSearch?: string
+  readonly initialPaymentStatus?: 'overdue'
   readonly ownBranch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
   readonly onOpenPaymentWorkspace?: (
     accountId: string,
@@ -16,6 +17,7 @@ type Props = {
 export function InHouseActiveAccountsContent({
   initialBranch,
   initialSearch,
+  initialPaymentStatus,
   ownBranch,
   onOpenPaymentWorkspace
 }: Props): React.JSX.Element {
@@ -24,6 +26,7 @@ export function InHouseActiveAccountsContent({
       view="active"
       initialBranch={initialBranch}
       initialSearch={initialSearch}
+      initialPaymentStatus={initialPaymentStatus}
       ownBranch={ownBranch}
       onOpenPaymentWorkspace={onOpenPaymentWorkspace}
     />

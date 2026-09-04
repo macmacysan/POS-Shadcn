@@ -27,9 +27,11 @@ import {
   Scale,
   ShieldCheck,
   Soup,
+  TriangleAlert,
   Utensils,
   WalletCards,
   Zap,
+  Clock3,
   type LucideIcon
 } from 'lucide-react'
 
@@ -101,6 +103,7 @@ import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import type { EntryEntityType, EntryHistoryRecord } from '@/../../shared/contracts'
 import { DateSelector, type DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import type { InstallmentHistoryRecord } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { formatAmountInput, formatPhilippinePeso } from '@/lib/currency'
@@ -120,6 +123,7 @@ import {
   type ExpenseVat,
   type ExpenseRecord,
   type IncomeEntryRecord,
+  type InstallmentAttentionSummary,
   type InstallmentHistoryRecord as PersistedInstallmentHistoryRecord,
   type InstallmentAccountRecord,
   type FinanceAccountRecord,
@@ -422,14 +426,148 @@ function installmentHistoryRow(
   }
 }
 
-function CashierReportHeader({ error }: { error?: string }): React.JSX.Element {
+function attentionTiming(item: InstallmentAttentionSummary['overdue'][number]): string {
+  if (item.daysFromToday < 0) {
+    const days = Math.abs(item.daysFromToday)
+    const months = Math.floor(days / 30)
+    return months > 0
+      ? `${months} month${months === 1 ? '' : 's'} overdue`
+      : `${days} day${days === 1 ? '' : 's'} overdue`
+  }
+  return item.daysFromToday === 0
+    ? 'Due today'
+    : `Due in ${item.daysFromToday} day${item.daysFromToday === 1 ? '' : 's'}`
+}
+
+function InstallmentAttentionPopover({
+  summary,
+  onViewOverdue,
+  onViewAll,
+  onOpenAccount
+}: {
+  summary?: InstallmentAttentionSummary
+  onViewOverdue?: () => void
+  onViewAll?: () => void
+  onOpenAccount?: (accountId: string) => void
+}): React.JSX.Element | null {
+  const [open, setOpen] = React.useState(false)
+  if (!summary || (summary.overdueCount === 0 && summary.nearDueCount === 0)) return null
+  const closeAnd = (action?: () => void): void => {
+    setOpen(false)
+    action?.()
+  }
+  const renderRows = (items: InstallmentAttentionSummary['overdue']): React.JSX.Element => (
+    <div className="flex flex-col gap-0.5">
+      {items.map((item) => (
+        <button
+          key={item.accountId}
+          type="button"
+          className="flex min-w-0 items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => closeAnd(() => onOpenAccount?.(item.accountId))}
+        >
+          <span className="min-w-0 truncate">{item.accountName}</span>
+          <span
+            className={cn(
+              'shrink-0 tabular-nums',
+              item.daysFromToday < 0 ? 'text-destructive' : 'text-warning-foreground'
+            )}
+          >
+            {attentionTiming(item)}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
   return (
-    <header className="flex shrink-0 items-center justify-end gap-2 px-3 py-1">
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-w-0 shrink-0 gap-1.5 border-border/70 bg-background px-2.5"
+            aria-label="Open installment attention"
+          />
+        }
+      >
+        {summary.overdueCount > 0 ? (
+          <TriangleAlert data-icon="inline-start" className="text-destructive" aria-hidden="true" />
+        ) : (
+          <Clock3 data-icon="inline-start" className="text-warning-foreground" aria-hidden="true" />
+        )}
+        {summary.overdueCount > 0 && (
+          <span className="text-destructive">
+            <span className="hidden sm:inline">{summary.overdueCount} Overdue</span>
+            <span className="sm:hidden">{summary.overdueCount}</span>
+          </span>
+        )}
+        {summary.overdueCount > 0 && summary.nearDueCount > 0 && (
+          <span className="text-muted-foreground">·</span>
+        )}
+        {summary.nearDueCount > 0 && (
+          <span className="text-warning-foreground">
+            <Clock3 data-icon="inline-start" aria-hidden="true" />
+            <span className="hidden sm:inline">{summary.nearDueCount} Near due</span>
+            <span className="sm:hidden">{summary.nearDueCount}</span>
+          </span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[min(26rem,calc(100vw-2rem))] p-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold">Installment attention</p>
+          <span className="text-xs text-muted-foreground">Active accounts</span>
+        </div>
+        {summary.overdueCount > 0 && (
+          <section aria-label="Overdue installments">
+            <div className="mb-1 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.12em]">
+              <span className="text-destructive">Overdue</span>
+              <span className="text-muted-foreground">{summary.overdueCount} accounts</span>
+            </div>
+            {renderRows(summary.overdue)}
+          </section>
+        )}
+        {summary.overdueCount > 0 && summary.nearDueCount > 0 && <Separator />}
+        {summary.nearDueCount > 0 && (
+          <section aria-label="Installments near due">
+            <div className="mb-1 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.12em]">
+              <span className="text-warning-foreground">Near due</span>
+              <span className="text-muted-foreground">{summary.nearDueCount} accounts</span>
+            </div>
+            {renderRows(summary.nearDue)}
+          </section>
+        )}
+        <Separator />
+        <div className="flex items-center justify-between gap-2">
+          {summary.overdueCount > 0 ? (
+            <Button type="button" variant="ghost" size="xs" onClick={() => closeAnd(onViewOverdue)}>
+              View overdue accounts
+            </Button>
+          ) : <span />}
+          <Button type="button" variant="outline" size="xs" onClick={() => closeAnd(onViewAll)}>
+            View all
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function CashierReportHeader({
+  error,
+  actions
+}: {
+  error?: string
+  actions?: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <header className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2 px-3 py-1">
       {error && (
-        <span className="mr-auto text-xs text-destructive" role="alert">
+        <span className="max-w-48 truncate text-xs text-destructive" role="alert">
           {error}
         </span>
       )}
+      {actions}
     </header>
   )
 }
@@ -972,9 +1110,6 @@ function ReportTab({
   onView,
   onVoid,
   onDuplicate,
-  onReview,
-  onAddEntry,
-  addEntryLabel,
   selectedHistoryId,
   onSelectHistory,
   onVoidSelected,
@@ -1009,9 +1144,6 @@ function ReportTab({
   onView: (row: ReportEntryRow, entityType: EntryEntityType) => void
   onVoid: (row: ReportEntryRow, entityType: EntryEntityType) => void
   onDuplicate: (row: ReportEntryRow) => void
-  onReview: () => void
-  onAddEntry?: () => void
-  addEntryLabel?: string
   selectedHistoryId?: string
   onSelectHistory: (record: InstallmentHistoryRecord) => void
   onVoidSelected: (rows: ReportRow[]) => boolean | Promise<boolean>
@@ -1046,20 +1178,6 @@ function ReportTab({
       createdByName: expenseAddedByOptions
     }),
     [expenseAddedByOptions, expenseTypes]
-  )
-  const reportActions = (
-    <>
-      <Button type="button" variant="outline" size="sm" onClick={onReview}>
-        <FileDown aria-hidden="true" />
-        Review Report
-      </Button>
-      {onAddEntry && (
-        <Button type="button" size="sm" onClick={onAddEntry}>
-          <Plus data-icon="inline-start" aria-hidden="true" />
-          {addEntryLabel ?? 'Add Entry'}
-        </Button>
-      )}
-    </>
   )
   const getExpenseActions = React.useCallback(
     (row: ExpenseRow) => expenseRowActions(row, onView, onVoid, onEdit, onDuplicate),
@@ -1145,7 +1263,6 @@ function ReportTab({
           filterOptions={expenseFilterOptions}
           toolbarContent={
             <>
-              {reportActions}
               {isAdmin && (
                 <Button
                   type="button"
@@ -1186,7 +1303,6 @@ function ReportTab({
           }}
           toolbarContent={
             <>
-              {reportActions}
               {isAdmin && (
                 <Button
                   type="button"
@@ -1228,7 +1344,6 @@ function ReportTab({
           }}
           toolbarContent={
             <>
-              {reportActions}
               {isAdmin && (
                 <Button
                   type="button"
@@ -1473,7 +1588,11 @@ export function CashierReportsContent({
   onExportReportsOpened,
   onOpenCollection,
   onOpenHistoryPayment,
-  onOpenFinance
+  onOpenFinance,
+  installmentAttention,
+  onViewOverdueInstallments,
+  onViewInstallmentAccounts,
+  onOpenInstallmentAccount
 }: {
   selectedBranch?: LoginBranch
   cashierName?: string
@@ -1485,6 +1604,10 @@ export function CashierReportsContent({
   onOpenCollection?: (accountId: string) => void
   onOpenHistoryPayment?: (accountId: string, paymentId: string) => void
   onOpenFinance?: (accountId: string, returnToHistory?: boolean) => void
+  installmentAttention?: InstallmentAttentionSummary
+  onViewOverdueInstallments?: () => void
+  onViewInstallmentAccounts?: () => void
+  onOpenInstallmentAccount?: (accountId: string) => void
 }): React.JSX.Element {
   const { notify } = useNotifications()
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(initialTab)
@@ -1583,7 +1706,6 @@ export function CashierReportsContent({
   const [incomes, setIncomes] = React.useState<IncomeRow[]>([])
   const [payments, setPayments] = React.useState<PaymentRow[]>([])
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
-  const [overdueInstallmentCount, setOverdueInstallmentCount] = React.useState(0)
   const [historyRecords, setHistoryRecords] = React.useState<InstallmentHistoryRecord[]>([])
   const [visibleHistoryCount, setVisibleHistoryCount] = React.useState(0)
   const [historyLoadState, setHistoryLoadState] = React.useState<EntryLoadState>({
@@ -1653,24 +1775,6 @@ export function CashierReportsContent({
       .then(({ rows }) => setCatalogOptions(rows))
       .catch(() => undefined)
   }, [])
-  React.useEffect(() => {
-    let cancelled = false
-    setOverdueInstallmentCount(0)
-    void window.api.installments
-      .list({
-        view: 'active',
-        search: '',
-        ...(selectedBranch === 'All Branch' ? {} : { branch: selectedBranch })
-      })
-      .then(({ rows }) => {
-        if (cancelled) return
-        setOverdueInstallmentCount(rows.filter((row) => row.meta.status === 'overdue').length)
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
-    }
-  }, [selectedBranch])
   React.useEffect(() => {
     const requestVersion = ++historyRequestVersionRef.current
     setHistoryLoadState({ isLoading: true })
@@ -2508,20 +2612,48 @@ export function CashierReportsContent({
                             {tabRowCounts[tab]}
                           </Badge>
                         )}
-                        {tab === 'Activity' && overdueInstallmentCount > 0 && (
-                          <Badge
-                            variant="destructive"
-                            className="min-w-5 justify-center rounded-full px-1.5 text-[11px] tabular-nums"
-                            aria-label={overdueInstallmentCount + ' overdue installments'}
-                          >
-                            {overdueInstallmentCount}
-                          </Badge>
-                        )}
                       </TabsTrigger>
                     ))}
                   </TabsList>
                 </div>
-                <CashierReportHeader error={dateError ?? exportError} />
+                <CashierReportHeader
+                  error={dateError ?? exportError}
+                  actions={
+                    <div className="flex shrink-0 items-center gap-2">
+                      <InstallmentAttentionPopover
+                        summary={installmentAttention}
+                        onViewOverdue={onViewOverdueInstallments}
+                        onViewAll={onViewInstallmentAccounts}
+                        onOpenAccount={onOpenInstallmentAccount}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          void reviewPdf(undefined, {
+                            branch: selectedBranch,
+                            dateFrom: selectedReport.businessDate,
+                            dateTo: selectedReport.businessDate
+                          })
+                        }
+                      >
+                        <FileDown data-icon="inline-start" aria-hidden="true" />
+                        <span className="hidden sm:inline">Review Report</span>
+                        <span className="sm:hidden">Review</span>
+                      </Button>
+                      {!isAdmin && (
+                        <Button type="button" size="sm" onClick={toggleEntryForm}>
+                          <Plus data-icon="inline-start" aria-hidden="true" />
+                          <span className="hidden sm:inline">
+                            {isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
+                          </span>
+                          <span className="sm:hidden">{isEntryFormVisible ? 'Hide' : 'Add'}</span>
+                        </Button>
+                      )}
+                    </div>
+                  }
+                />
               </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 {reportTabs.map((tab) => (
@@ -2557,15 +2689,6 @@ export function CashierReportsContent({
                       isAdmin={isAdmin}
                       showVoided={showVoided}
                       onShowVoidedChange={setShowVoided}
-                      onReview={() =>
-                        void reviewPdf(undefined, {
-                          branch: selectedBranch,
-                          dateFrom: selectedReport.businessDate,
-                          dateTo: selectedReport.businessDate
-                        })
-                      }
-                      onAddEntry={isAdmin ? undefined : toggleEntryForm}
-                      addEntryLabel={isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
                       selectedHistoryId={selectedHistory?.id}
                       onSelectHistory={openHistoryRecord}
                       onVoidSelected={deleteSelectedEntries}

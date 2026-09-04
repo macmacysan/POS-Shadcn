@@ -51,7 +51,7 @@ export function SidebarLeft({
   onBlacklistedAccounts,
   onFinanceAccounts,
   onCalendar,
-  dueCount,
+  overdueCount,
   unpaidFinanceCount,
   onToggleTheme,
   hidePesoSign,
@@ -77,7 +77,7 @@ export function SidebarLeft({
   onBlacklistedAccounts?: () => void
   onFinanceAccounts?: () => void
   onCalendar?: () => void
-  dueCount?: number
+  overdueCount?: number
   unpaidFinanceCount?: number
   onToggleTheme: () => void
   hidePesoSign: boolean
@@ -143,7 +143,7 @@ export function SidebarLeft({
             onBlacklistedAccounts={onBlacklistedAccounts}
             onFinanceAccounts={onFinanceAccounts}
             onCalendar={onCalendar}
-            dueCount={dueCount}
+            overdueCount={overdueCount}
             unpaidFinanceCount={unpaidFinanceCount}
           />
         )}

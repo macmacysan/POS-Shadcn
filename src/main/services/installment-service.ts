@@ -1,5 +1,6 @@
 import type {
   InstallmentAdjustPaymentRequest,
+  InstallmentAttentionSummary,
   InstallmentBootstrapRequest,
   InstallmentCreatePaymentRequest,
   InstallmentUnvoidRequest,
@@ -22,6 +23,7 @@ type InstallmentRepositoryLike = {
   branchIdForContract(contractId: string): string | null
   branchIdForPayment(paymentId: string): string | null
   list(request: InstallmentListRequest): Promise<InstallmentListResult> | InstallmentListResult
+  getAttentionSummary(branch?: string): Promise<InstallmentAttentionSummary> | InstallmentAttentionSummary
   bootstrap(request: InstallmentBootstrapRequest): Promise<void> | void
   updateLoan(request: InstallmentLoanUpdateRequest): Promise<void> | void
   restructureLoan(request: InstallmentLoanRestructureRequest & { actorUserId: string }): Promise<void> | void
@@ -53,6 +55,11 @@ export class InstallmentService {
       ...request,
       includeVoided: request.includeVoided
     })
+  }
+
+  async getAttentionSummary(branch?: string): Promise<InstallmentAttentionSummary> {
+    const user = this.auth.requireCashierWorkspace()
+    return await this.repository.getAttentionSummary(user.role === 'ADMIN' ? branch : user.branch)
   }
 
   async bootstrap(request: InstallmentBootstrapRequest): Promise<void> {

@@ -140,6 +140,8 @@ const api: ExpensesApi &
   },
   installments: {
     list: (request) => ipcRenderer.invoke(installmentIpcChannels.list, request),
+    getAttentionSummary: (request) =>
+      ipcRenderer.invoke(installmentIpcChannels.attentionSummary, request),
     bootstrap: (request) => ipcRenderer.invoke(installmentIpcChannels.bootstrap, request),
     updateLoan: (request) => ipcRenderer.invoke(installmentIpcChannels.updateLoan, request),
     restructureLoan: (request) =>
