@@ -1,5 +1,5 @@
 appId: com.electron.app
-productName: cashiers-report
+productName: NCS Cashiers Report
 directories:
   buildResources: build
 files:
@@ -19,7 +19,8 @@ extraResources:
   - from: credentials/cashiers-backup-key.txt
     to: credentials/cashiers-backup-key.txt
 win:
-  executableName: cashiers-report
+  executableName: NCS Cashiers Report
+  icon: build/1_multi.ico
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
