@@ -20,6 +20,28 @@ export function UpdateNotifications(): null {
   React.useEffect(() => {
     if (!state) return
 
+    if (state.type === 'checking') {
+      notify({
+        id: UPDATE_NOTIFICATION_ID,
+        type: 'info',
+        title: 'Checking for updates',
+        description: 'Looking for a newer version.',
+        duration: 3_000
+      })
+      return
+    }
+
+    if (state.type === 'update-not-available') {
+      notify({
+        id: UPDATE_NOTIFICATION_ID,
+        type: 'success',
+        title: 'You’re up to date',
+        description: `Cashiers Report ${state.currentVersion} is the latest version.`,
+        duration: 3_000
+      })
+      return
+    }
+
     if (state.type === 'update-available') {
       notify({
         id: UPDATE_NOTIFICATION_ID,
