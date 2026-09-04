@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { CircleAlert, CircleCheck, Eye, EyeOff, LoaderCircle, RefreshCw } from 'lucide-react'
 import appIcon from '@/assets/app-icon.png'
 import type { AuthenticatedUser, FinanceBranch, GoogleSyncProgress } from '@/../../shared/contracts'
+import packageJson from '../../../../../../package.json'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -190,12 +191,21 @@ export function LoginForm({
     <div className={className} {...props}>
       <Card className="w-88 max-w-full rounded-2xl" size="sm">
         <section className="flex flex-col gap-5 px-(--card-spacing)">
-          <div className="flex items-center gap-2 py-1">
-            <img src={appIcon} alt="" className="size-10 shrink-0 rounded-2xl object-contain" />
-            <div className="min-w-0">
-              <p className="font-heading text-base font-medium">Cashiers Report</p>
-              <p className="text-xs text-muted-foreground">Nueva Camsur Home Furnishing</p>
+          <div className="flex items-center justify-between gap-3 py-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <img src={appIcon} alt="" className="size-10 shrink-0 rounded-2xl object-contain" />
+              <div className="min-w-0">
+                <p className="font-heading text-base font-medium">Cashiers Report</p>
+                <p className="text-xs text-muted-foreground">Nueva Camsur Home Furnishing</p>
+              </div>
             </div>
+            <Badge
+              variant="outline"
+              className="shrink-0"
+              aria-label={`App version ${packageJson.version}`}
+            >
+              v{packageJson.version}
+            </Badge>
           </div>
 
           <Separator />
