@@ -327,14 +327,6 @@ code {
     --sidebar-ring: var(--ring);
   }
 
-  .brand-mark {
-    @apply relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-brand text-[10px] font-bold tracking-[-0.08em] text-primary-foreground;
-  }
-
-  .brand-mark::after {
-    content: '';
-    @apply absolute inset-y-1.5 left-1/2 w-px bg-primary-foreground/45;
-  }
 
   .window-drag-region {
     -webkit-app-region: drag;

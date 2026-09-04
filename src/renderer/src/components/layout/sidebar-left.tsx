@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { StorefrontIcon } from '@phosphor-icons/react'
+import appIcon from '@/assets/app-icon.png'
 import {
   MonitorCogIcon,
   Settings2Icon,
@@ -36,7 +36,12 @@ import { InstallmentRulesSettings } from '@/components/layout/installment-rules-
 import { CashierLoginBranchSettings } from '@/components/layout/cashier-login-branch-settings'
 import type { LoginBranch } from '@/../../shared/contracts'
 
-const teams = [{ name: 'NCHF', logo: <StorefrontIcon /> }]
+const teams = [
+  {
+    name: <>Nueva Camsur<br />Home Furnishing</>,
+    logo: <img src={appIcon} alt="" className="size-10 rounded-2xl object-contain" />
+  }
+]
 
 export function SidebarLeft({
   isDark,

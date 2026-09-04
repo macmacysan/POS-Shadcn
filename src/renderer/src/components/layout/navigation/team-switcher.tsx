@@ -11,7 +11,7 @@ export function TeamSwitcher({
   branch
 }: {
   teams: {
-    name: string
+    name: React.ReactNode
     logo: React.ReactNode
   }[]
   branch: 'All Branch' | 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
@@ -23,12 +23,12 @@ export function TeamSwitcher({
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div className="flex w-full items-center gap-2.5 px-2.5 py-1 group-data-[collapsible=icon]:hidden">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground [&>svg]:size-4">
+        <div className="flex w-full flex-col items-start gap-2 px-2.5 py-2 group-data-[collapsible=icon]:hidden">
+          <div className="flex size-10 shrink-0 items-center justify-center">
             {team.logo}
           </div>
-          <div className="min-w-0 space-y-1">
-            <span className="block text-left text-sm font-semibold leading-tight text-sidebar-foreground">
+          <div className="min-w-0 space-y-1.5">
+            <span className="block text-left text-[11px] leading-4 font-semibold uppercase tracking-[0.08em] text-sidebar-foreground">
               {team.name}
             </span>
             {branch === 'All Branch' ? (

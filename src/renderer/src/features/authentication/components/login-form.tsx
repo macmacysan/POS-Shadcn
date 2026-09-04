@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { CircleAlert, CircleCheck, Eye, EyeOff, LoaderCircle, RefreshCw } from 'lucide-react'
+import appIcon from '@/assets/app-icon.png'
 import type { AuthenticatedUser, FinanceBranch, GoogleSyncProgress } from '@/../../shared/contracts'
 
 import { Badge } from '@/components/ui/badge'
@@ -187,12 +188,10 @@ export function LoginForm({
 
   return (
     <div className={className} {...props}>
-      <Card className="w-full max-w-md rounded-2xl" size="sm">
+      <Card className="w-[22rem] max-w-full rounded-2xl" size="sm">
         <section className="flex flex-col gap-5 px-(--card-spacing)">
-          <div className="flex items-center gap-2">
-            <span className="brand-mark" aria-hidden="true">
-              NC
-            </span>
+          <div className="flex items-center gap-2 py-1">
+            <img src={appIcon} alt="" className="size-10 shrink-0 rounded-2xl object-contain" />
             <div className="min-w-0">
               <p className="font-heading text-base font-medium">Cashiers Report</p>
               <p className="text-xs text-muted-foreground">Nueva Camsur Home Furnishing</p>
@@ -201,15 +200,14 @@ export function LoginForm({
 
           <Separator />
 
-          <header className="flex flex-col gap-1.5">
-            <h1 className="font-heading text-base font-medium">Sign in</h1>
-            <p className="text-sm text-muted-foreground">
-              Use the username and password provided by your administrator.
-            </p>
-            <div className="flex items-center gap-2 pt-1 text-xs">
-              <span className="text-muted-foreground">Cashier branch</span>
-              <Badge variant="blue">{cashierLoginBranch ?? 'Loading…'}</Badge>
-            </div>
+          <header className="flex flex-col gap-3">
+            <Badge
+              variant="blue"
+              className="h-9 w-full justify-start px-3 text-[13px]"
+              aria-label="Cashier branch"
+            >
+              {cashierLoginBranch ?? 'Loading…'}
+            </Badge>
           </header>
 
           <form className="flex flex-col gap-5" onSubmit={(event) => void submit(event)} noValidate>
