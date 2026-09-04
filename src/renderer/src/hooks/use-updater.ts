@@ -52,12 +52,16 @@ export function useUpdater(): {
     [isRequesting]
   )
 
+  const checkForUpdates = React.useCallback(() => invoke('check'), [invoke])
+  const downloadUpdate = React.useCallback(() => invoke('download'), [invoke])
+  const installUpdate = React.useCallback(() => invoke('install'), [invoke])
+
   return {
     state,
     activeAction,
     isRequesting,
-    checkForUpdates: () => invoke('check'),
-    downloadUpdate: () => invoke('download'),
-    installUpdate: () => invoke('install')
+    checkForUpdates,
+    downloadUpdate,
+    installUpdate
   }
 }

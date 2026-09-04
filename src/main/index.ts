@@ -143,6 +143,14 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
+  if (is.dev) {
+    mainWindow.webContents.on('console-message', (event) => {
+      const output = `[Renderer] ${event.sourceId}:${event.lineNumber} ${event.message}`
+      if (event.level === 'error') console.error(output)
+      else console.info(output)
+    })
+  }
+
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
