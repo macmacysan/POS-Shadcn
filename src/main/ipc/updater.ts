@@ -66,8 +66,8 @@ function installUpdate(): void {
 }
 
 export function registerUpdaterIpc(): void {
-  autoUpdater.autoDownload = false
-  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
   console.info('[Updater] Initialized.')
 
   autoUpdater.on('checking-for-update', () => {
@@ -120,6 +120,8 @@ export function registerUpdaterIpc(): void {
       currentVersion: currentVersion(),
       availableVersion: info.version
     })
+    console.info('[Updater] Installing update silently.')
+    autoUpdater.quitAndInstall(true, true)
   })
   autoUpdater.on('error', reportError)
 
