@@ -13,6 +13,7 @@ import { InstallmentOverviewContent } from '@/features/installment-overview'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { NotificationCenter } from '@/components/layout/notification-center'
 import { UpdateNotifications } from '@/components/layout/update-notifications'
+import { InstallmentAttentionAlertDialog } from '@/components/shared/installment-attention-alert-dialog'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import {
   Breadcrumb,
@@ -623,6 +624,7 @@ function App(): React.JSX.Element {
                   cashierName={authenticatedUser.displayName}
                   initialSyncFailures={syncFailures}
                 />
+                <InstallmentAttentionAlertDialog branch={selectedBranch} />
               </div>
             </ActiveReportProvider>
           ) : (
