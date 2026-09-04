@@ -128,5 +128,5 @@ export function registerUpdaterIpc(): void {
   ipcMain.handle(updaterIpcChannels.installUpdate, installUpdate)
   ipcMain.handle(updaterIpcChannels.getState, () => state)
 
-  setTimeout(() => void checkForUpdates(), 1_000)
+  if (app.isPackaged) setTimeout(() => void checkForUpdates(), 1_000)
 }

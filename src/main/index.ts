@@ -315,7 +315,7 @@ app.whenReady().then(async () => {
 
   const accountSyncCount = await accountSpreadsheet?.sync()
   const mainWindow = createWindow()
-  if (app.isPackaged) registerUpdaterIpc()
+  registerUpdaterIpc()
   mainWindow.webContents.once('did-finish-load', () => {
     mainWindow.webContents.send(authIpcChannels.accountSyncCompleted, accountSyncCount ?? -1)
   })
