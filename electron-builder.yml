@@ -3,6 +3,8 @@ productName: cashiers-report
 directories:
   buildResources: build
 files:
+  - '!dist{,/**}'
+  - '!dist-*{,/**}'
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'

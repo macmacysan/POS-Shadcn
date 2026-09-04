@@ -16,8 +16,8 @@ import {
 import {
   AlertCircle,
   CalendarIcon,
-  Cloud,
   CircleAlert,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -302,23 +302,13 @@ export function ReportDateDialog({
                 </p>
               </div>
             )}
-            {selectedStatus &&
-              selectedHasReportData &&
-              (!selectedStatus.googleDriveSubmittedAt || !selectedStatus.telegramSubmittedAt) && (
+            {selectedStatus && selectedHasReportData && !selectedStatus.telegramSubmittedAt && (
                 <div className="space-y-1.5">
                   <p className="text-xs text-muted-foreground">Not sent</p>
-                  {!selectedStatus.googleDriveSubmittedAt && (
-                    <p className="flex items-center gap-2 text-xs text-destructive">
-                      <Cloud className="size-3" />
-                      Google Drive
-                    </p>
-                  )}
-                  {!selectedStatus.telegramSubmittedAt && (
-                    <p className="flex items-center gap-2 text-xs text-destructive">
-                      <Send className="size-3" />
-                      Telegram
-                    </p>
-                  )}
+                  <p className="flex items-center gap-2 text-xs text-destructive">
+                    <Send className="size-3" />
+                    Telegram
+                  </p>
                 </div>
               )}
             {selectedHasReportData && selectedStatus && (
@@ -384,16 +374,34 @@ export function ReportDateDialog({
               <Separator />
               <div className="space-y-2 text-[11px] text-muted-foreground">
                 <p className="flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-destructive" />
-                  Cash variance
+                  {selectedHasReportData && selectedCashVariance === 0 ? (
+                    <Check className="size-3 text-emerald-600" />
+                  ) : (
+                    <span className="size-2 rounded-full bg-destructive" />
+                  )}
+                  <span
+                    className={cn(
+                      selectedHasReportData && selectedCashVariance === 0 && 'text-emerald-600'
+                    )}
+                  >
+                    {selectedHasReportData && selectedCashVariance === 0 ? 'Balanced' : 'Cash variance'}
+                  </span>
                 </p>
                 <p className="flex items-center gap-2">
-                  <Cloud className="size-3 text-destructive" />
-                  Google Drive not sent
-                </p>
-                <p className="flex items-center gap-2">
-                  <Send className="size-3 text-destructive" />
-                  Telegram not sent
+                  {selectedHasReportData && selectedStatus?.telegramSubmittedAt ? (
+                    <Check className="size-3 text-emerald-600" />
+                  ) : (
+                    <Send className="size-3 text-destructive" />
+                  )}
+                  <span
+                    className={cn(
+                      selectedHasReportData && selectedStatus?.telegramSubmittedAt && 'text-emerald-600'
+                    )}
+                  >
+                    {selectedHasReportData && selectedStatus?.telegramSubmittedAt
+                      ? 'Report Sent'
+                      : 'Telegram not sent'}
+                  </span>
                 </p>
               </div>
               <Button
@@ -470,10 +478,9 @@ export function ReportDateDialog({
                     const selected = isSameDay(day, selectedDate)
                     const hasVariance = Boolean(status && cashVarianceFor(status) !== 0)
                     const hasReportData = Boolean(status?.hasData)
-                    const googleDriveSubmitted = Boolean(status?.googleDriveSubmittedAt)
                     const telegramSubmitted = Boolean(status?.telegramSubmittedAt)
                     const deliveryLabel = hasReportData
-                      ? `, Google Drive ${googleDriveSubmitted ? 'sent' : 'not sent'}, Telegram ${telegramSubmitted ? 'sent' : 'not sent'}`
+                      ? `, Telegram ${telegramSubmitted ? 'sent' : 'not sent'}`
                       : ''
                     return (
                       <button
@@ -494,9 +501,6 @@ export function ReportDateDialog({
                         <span className="font-medium tabular-nums">{format(day, 'd')}</span>
                         <span className="flex min-h-3 items-center gap-1" aria-hidden="true">
                           {hasVariance && <span className="size-2 rounded-full bg-destructive" />}
-                          {hasReportData && !googleDriveSubmitted && (
-                            <Cloud className="size-3 text-destructive" />
-                          )}
                           {hasReportData && !telegramSubmitted && (
                             <Send className="size-3 text-destructive" />
                           )}

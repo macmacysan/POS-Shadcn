@@ -86,17 +86,10 @@ try {
     },
     cashier.id
   )
-  const googleDriveDelivery = dailyReportService.markDelivery({
-    dailyReportId: report.id,
-    channel: 'GOOGLE_DRIVE'
-  })
   const telegramDelivery = dailyReportService.markDelivery({
     dailyReportId: report.id,
     channel: 'TELEGRAM'
   })
-  assert.ok(googleDriveDelivery.googleDriveSubmittedAt)
-  assert.equal(googleDriveDelivery.telegramSubmittedAt, null)
-  assert.ok(telegramDelivery.googleDriveSubmittedAt)
   assert.ok(telegramDelivery.telegramSubmittedAt)
   assert.deepEqual(
     dailyReportService
@@ -105,11 +98,9 @@ try {
         cashierUserId: cashier.id,
         month: '2026-08'
       })
-      .rows.map(({ googleDriveSubmittedAt, telegramSubmittedAt }) => ({
-        googleDriveSubmittedAt: Boolean(googleDriveSubmittedAt),
+      .rows.map(({ telegramSubmittedAt }) => ({
         telegramSubmittedAt: Boolean(telegramSubmittedAt)
       })),
-    [{ googleDriveSubmittedAt: true, telegramSubmittedAt: true }]
   )
   users.createAccount({
     username: 'branch-cashier',

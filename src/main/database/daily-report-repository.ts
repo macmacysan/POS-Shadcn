@@ -6,7 +6,6 @@ import type {
   DailyReportCalendarDay,
   DailyReportCalendarRequest,
   DailyReportCashCountRecord,
-  DailyReportDeliveryChannel,
   DailyReportDeductionRecord,
   DailyReportPaymentCreateRequest,
   DailyReportPaymentEntryRecord,
@@ -179,7 +178,6 @@ function reportRecord(row: DailyReportRow): DailyReportRecord {
     openingCashCentavos: row.opening_cash_centavos,
     cashRemittedCentavos: row.cash_remitted_centavos,
     status: row.status,
-    googleDriveSubmittedAt: row.google_drive_submitted_at,
     telegramSubmittedAt: row.telegram_submitted_at,
     submittedAt: row.submitted_at,
     approvedAt: row.approved_at,
@@ -601,7 +599,6 @@ export class DailyReportRepository {
         businessDate: report.businessDate,
         reportId: report.id,
         status: report.status,
-        googleDriveSubmittedAt: report.googleDriveSubmittedAt,
         telegramSubmittedAt: report.telegramSubmittedAt,
         hasData,
         cashVarianceCentavos: snapshot.cashVarianceCentavos,
@@ -634,16 +631,13 @@ export class DailyReportRepository {
 
   markDelivery(
     dailyReportId: string,
-    channel: DailyReportDeliveryChannel,
     updatedByUserId: string
   ): DailyReportRecord {
-    const submittedColumn =
-      channel === 'GOOGLE_DRIVE' ? 'google_drive_submitted_at' : 'telegram_submitted_at'
     const now = new Date().toISOString()
     const row = this.db
       .prepare(
         `UPDATE daily_reports
-            SET ${submittedColumn} = ?, updated_at = ?, updated_by_user_id = ?
+            SET telegram_submitted_at = ?, updated_at = ?, updated_by_user_id = ?
           WHERE id = ?
         RETURNING *`
       )

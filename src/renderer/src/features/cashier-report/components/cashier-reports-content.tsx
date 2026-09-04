@@ -1488,6 +1488,7 @@ export function CashierReportsContent({
 }): React.JSX.Element {
   const { notify } = useNotifications()
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(initialTab)
+  const [hoveredTab, setHoveredTab] = React.useState<(typeof reportTabs)[number]>()
   const activeReportValue = useActiveReport()
   const hasActiveReport = activeReportValue !== null
   const activeReport = activeReportValue ?? {
@@ -1582,6 +1583,7 @@ export function CashierReportsContent({
   const [incomes, setIncomes] = React.useState<IncomeRow[]>([])
   const [payments, setPayments] = React.useState<PaymentRow[]>([])
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
+  const [overdueInstallmentCount, setOverdueInstallmentCount] = React.useState(0)
   const [historyRecords, setHistoryRecords] = React.useState<InstallmentHistoryRecord[]>([])
   const [visibleHistoryCount, setVisibleHistoryCount] = React.useState(0)
   const [historyLoadState, setHistoryLoadState] = React.useState<EntryLoadState>({
@@ -1651,6 +1653,24 @@ export function CashierReportsContent({
       .then(({ rows }) => setCatalogOptions(rows))
       .catch(() => undefined)
   }, [])
+  React.useEffect(() => {
+    let cancelled = false
+    setOverdueInstallmentCount(0)
+    void window.api.installments
+      .list({
+        view: 'active',
+        search: '',
+        ...(selectedBranch === 'All Branch' ? {} : { branch: selectedBranch })
+      })
+      .then(({ rows }) => {
+        if (cancelled) return
+        setOverdueInstallmentCount(rows.filter((row) => row.meta.status === 'overdue').length)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [selectedBranch])
   React.useEffect(() => {
     const requestVersion = ++historyRequestVersionRef.current
     setHistoryLoadState({ isLoading: true })
@@ -1986,10 +2006,10 @@ export function CashierReportsContent({
         updatePdfStep(id, { status: 'processing', attempts: attempt, error: undefined })
         try {
           await operation()
-          if (id === 'sheets' || id === 'telegram') {
+          if (id === 'telegram') {
             await window.api.dailyReports.markDelivery({
               dailyReportId: reportId,
-              channel: id === 'sheets' ? 'GOOGLE_DRIVE' : 'TELEGRAM'
+              channel: 'TELEGRAM'
             })
             window.dispatchEvent(new Event('daily-report-delivery-updated'))
           }
@@ -2090,15 +2110,11 @@ export function CashierReportsContent({
     setPaymentLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
     const [incomeResult, paymentResult] = await Promise.allSettled([
       window.api.dailyReports.listIncome({
-        branch: selectedBranch,
-        dateFrom,
-        dateTo,
+        dailyReportId: reportId,
         status: showVoided ? undefined : 'POSTED'
       }),
       window.api.dailyReports.listPayments({
-        branch: selectedBranch,
-        dateFrom,
-        dateTo,
+        dailyReportId: reportId,
         status: showVoided ? undefined : 'POSTED'
       })
     ])
@@ -2115,7 +2131,7 @@ export function CashierReportsContent({
     } else {
       setPaymentLoadState({ isLoading: false, error: 'Payment entries could not be loaded.' })
     }
-  }, [dateFrom, dateTo, selectedBranch, showVoided])
+  }, [reportId, showVoided])
 
   React.useEffect(() => {
     void refreshEntries()
@@ -2407,6 +2423,28 @@ export function CashierReportsContent({
     )
   }
 
+  const selectTab = (nextTab: (typeof reportTabs)[number]): void => {
+    setHoveredTab(undefined)
+    if (nextTab !== activeTab && isEntryFormVisible && isEntryFormDirty) {
+      setConfirmation({
+        title: 'Discard unsaved entry changes?',
+        description: 'Your entered report details will be lost.',
+        confirmLabel: 'Discard changes',
+        destructive: true,
+        onConfirm: () => {
+          setConfirmation(undefined)
+          setIsEntryFormDirty(false)
+          setActiveTab(nextTab)
+          if (nextTab === 'Activity') setIsEntryFormVisible(false)
+        }
+      })
+      return
+    }
+    setIsEntryFormDirty(false)
+    setActiveTab(nextTab)
+    if (nextTab === 'Activity') setIsEntryFormVisible(false)
+  }
+
   return (
     <div
       className={
@@ -2441,28 +2479,8 @@ export function CashierReportsContent({
         <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Tabs
-              value={activeTab}
-              onValueChange={(value) => {
-                const nextTab = value as (typeof reportTabs)[number]
-                if (nextTab !== activeTab && isEntryFormVisible && isEntryFormDirty) {
-                  setConfirmation({
-                    title: 'Discard unsaved entry changes?',
-                    description: 'Your entered report details will be lost.',
-                    confirmLabel: 'Discard changes',
-                    destructive: true,
-                    onConfirm: () => {
-                      setConfirmation(undefined)
-                      setIsEntryFormDirty(false)
-                      setActiveTab(nextTab)
-                      if (nextTab === 'Activity') setIsEntryFormVisible(false)
-                    }
-                  })
-                  return
-                }
-                setIsEntryFormDirty(false)
-                setActiveTab(nextTab)
-                if (nextTab === 'Activity') setIsEntryFormVisible(false)
-              }}
+              value={hoveredTab ?? activeTab}
+              onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
               <div className="mx-4 flex shrink-0 items-center">
@@ -2470,21 +2488,35 @@ export function CashierReportsContent({
                   <TabsList
                     aria-label="Cashier report sections"
                     variant="line"
+                    onMouseLeave={() => setHoveredTab(undefined)}
                     className="mb-3.5 w-fit justify-start rounded-none bg-transparent pb-0"
                   >
                     {reportTabs.map((tab) => (
                       <TabsTrigger
                         key={tab}
                         value={tab}
+                        onMouseEnter={() => setHoveredTab(tab)}
+                        onClick={() => selectTab(tab)}
                         className="h-10 flex-none gap-2 rounded-none px-3.5 text-xs data-active:font-semibold data-active:text-foreground group-data-[variant=line]/tabs-list:data-active:after:bg-muted-foreground/60"
                       >
                         <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
-                        <Badge
-                          variant="secondary"
-                          className="min-w-5 justify-center rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
-                        >
-                          {tabRowCounts[tab]}
-                        </Badge>
+                        {tabRowCounts[tab] > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="min-w-5 justify-center rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
+                          >
+                            {tabRowCounts[tab]}
+                          </Badge>
+                        )}
+                        {tab === 'Activity' && overdueInstallmentCount > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="min-w-5 justify-center rounded-full px-1.5 text-[11px] tabular-nums"
+                            aria-label={overdueInstallmentCount + ' overdue installments'}
+                          >
+                            {overdueInstallmentCount}
+                          </Badge>
+                        )}
                       </TabsTrigger>
                     ))}
                   </TabsList>

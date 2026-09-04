@@ -21,7 +21,7 @@ export const postedVoidStatusValues = ['POSTED', 'VOIDED'] as const
 export const incomeSummaryGroupValues = ['COLLECTION', 'OTHER_INCOME', 'FINANCE'] as const
 
 export const dailyReportStatusSchema = z.enum(dailyReportStatusValues)
-export const dailyReportDeliveryChannelSchema = z.enum(['GOOGLE_DRIVE', 'TELEGRAM'])
+export const dailyReportDeliveryChannelSchema = z.enum(['TELEGRAM'])
 export const postedVoidStatusSchema = z.enum(postedVoidStatusValues)
 export const incomeSummaryGroupSchema = z.enum(incomeSummaryGroupValues)
 
@@ -46,7 +46,6 @@ export const dailyReportRecordSchema = z.object({
   openingCashCentavos: centavosSchema.nonnegative(),
   cashRemittedCentavos: centavosSchema.nonnegative().nullable(),
   status: dailyReportStatusSchema,
-  googleDriveSubmittedAt: isoTimestampSchema.nullable(),
   telegramSubmittedAt: isoTimestampSchema.nullable(),
   submittedAt: isoTimestampSchema.nullable(),
   approvedAt: isoTimestampSchema.nullable(),
@@ -62,7 +61,6 @@ export const dailyReportCalendarDaySchema = z.object({
   businessDate: businessDateSchema,
   reportId: uuidSchema,
   status: dailyReportStatusSchema,
-  googleDriveSubmittedAt: isoTimestampSchema.nullable(),
   telegramSubmittedAt: isoTimestampSchema.nullable(),
   hasData: z.boolean(),
   cashVarianceCentavos: centavosSchema,

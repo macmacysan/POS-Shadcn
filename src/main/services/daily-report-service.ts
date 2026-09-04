@@ -75,7 +75,7 @@ export class DailyReportService {
     const user = this.auth.requireCashierWorkspace()
     this.requireReportAccess(request.dailyReportId, user)
     this.requireOwnReport(request.dailyReportId, user)
-    return this.repository.markDelivery(request.dailyReportId, request.channel, user.id)
+    return this.repository.markDelivery(request.dailyReportId, user.id)
   }
 
   listIncome(request: IncomeListRequest) {
