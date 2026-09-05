@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 const addressPartSchema = z.string().trim().min(1).max(200)
 

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 import { calculateFinanceAmounts } from '../finance-calculations'
 

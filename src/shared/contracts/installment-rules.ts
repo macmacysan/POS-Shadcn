@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 export const installmentFrequencyValues = ['Daily', 'Weekly', 'Semi', 'Monthly'] as const
 export const installmentFrequencySchema = z.enum(installmentFrequencyValues)

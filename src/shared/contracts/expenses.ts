@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 import type { ReportsApi } from './reports'
 
 export const expenseTypeValues = [

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 import type { InstallmentListResult } from './installments'
 
 export const googleSyncBranchValues = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const

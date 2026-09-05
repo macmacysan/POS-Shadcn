@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 export const installmentViewValues = ['records', 'active', 'closed', 'blacklisted'] as const
 export const installmentViewSchema = z.enum(installmentViewValues)

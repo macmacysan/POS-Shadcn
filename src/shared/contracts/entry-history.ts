@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 export const entryEntityTypeSchema = z.enum(['EXPENSE', 'INCOME', 'PAYMENT'])
 export const entryHistoryActionSchema = z.enum([

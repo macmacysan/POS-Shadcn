@@ -1,22 +1,10 @@
 import * as React from 'react'
-import { addDays, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as ChartTooltip,
-  XAxis,
-  YAxis
-} from 'recharts'
+import { format } from 'date-fns'
 import { ArrowUpRight, CircleAlert, FileDown, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -38,10 +26,6 @@ type Props = {
   onOpenPaymentWorkspace: (accountId: string) => void
 }
 
-type TrendPoint = DashboardOverview['collectionTrend'][number]
-type ReportCalendar = NonNullable<DashboardOverview['reportCalendar']>
-type ReportCalendarDay = ReportCalendar['days'][number]
-
 const money = formatCentavos
 const today = (): string => format(new Date(), 'yyyy-MM-dd')
 
@@ -51,74 +35,6 @@ function errorMessage(error: unknown): string {
     if (typeof message === 'string') return message
   }
   return 'Dashboard data could not be loaded.'
-}
-
-function compactMoney(value: number): string {
-  return new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    notation: 'compact',
-    maximumFractionDigits: 1
-  }).format(value / 100)
-}
-
-function shortDate(value: string): string {
-  return format(new Date(`${value}T00:00:00`), 'MMM d')
-}
-
-function TrendTooltip({
-  active,
-  payload,
-  label
-}: {
-  active?: boolean
-  payload?: Array<{ payload: TrendPoint }>
-  label?: string
-}): React.JSX.Element | null {
-  if (!active || !payload?.length || !label) return null
-  const point = payload[0].payload
-  return (
-    <div className="min-w-48 rounded-md border bg-popover p-3 text-popover-foreground shadow-lg">
-      <p className="mb-2 text-xs font-medium text-muted-foreground">
-        {format(new Date(`${label}T00:00:00`), 'EEEE, MMM d')}
-      </p>
-      <div className="space-y-1.5 text-xs">
-        <p className="flex justify-between gap-4">
-          Cashier sales <strong className="font-mono">{money(point.salesCentavos)}</strong>
-        </p>
-        <p className="flex justify-between gap-4">
-          In-house <strong className="font-mono">{money(point.inHouseCollectionsCentavos)}</strong>
-        </p>
-        <p className="flex justify-between gap-4">
-          Finance <strong className="font-mono">{money(point.financeCollectionsCentavos)}</strong>
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function CashTooltip({
-  active,
-  payload,
-  label
-}: {
-  active?: boolean
-  payload?: Array<{ payload: { expected: number; physical: number } }>
-  label?: string
-}): React.JSX.Element | null {
-  if (!active || !payload?.length || !label) return null
-  const point = payload[0].payload
-  return (
-    <div className="rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-lg">
-      <p className="mb-2 font-medium text-muted-foreground">{label}</p>
-      <p className="flex justify-between gap-4">
-        Expected <strong className="font-mono">{money(point.expected)}</strong>
-      </p>
-      <p className="mt-1 flex justify-between gap-4">
-        Physical <strong className="font-mono">{money(point.physical)}</strong>
-      </p>
-    </div>
-  )
 }
 
 function Metric({
@@ -180,96 +96,6 @@ function Metric({
   )
 }
 
-function ReportCalendar({ calendar }: { calendar: ReportCalendar | null }): React.JSX.Element {
-  if (!calendar)
-    return (
-      <Card className="flex min-h-0 flex-col">
-        <CardHeader className="shrink-0 border-b px-4 py-3">
-          <CardDescription>Cashier report health</CardDescription>
-          <CardTitle className="text-base">Choose a branch</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-1 items-center p-4 text-sm leading-relaxed text-muted-foreground">
-          Select one branch to view its monthly cashier report coverage, cash counts, and variances.
-        </CardContent>
-      </Card>
-    )
-  const month = new Date(`${calendar.month}-01T00:00:00`)
-  const first = startOfWeek(startOfMonth(month))
-  const last = endOfWeek(endOfMonth(month))
-  const days = Array.from(
-    { length: Math.round((last.getTime() - first.getTime()) / 86400000) + 1 },
-    (_, index) => addDays(first, index)
-  )
-  const byDate = new Map(calendar.days.map((day) => [day.businessDate, day]))
-  const dayClass = (day: ReportCalendarDay | undefined): string => {
-    if (!day) return 'bg-muted/50 text-muted-foreground'
-    if (day.cashVarianceCentavos !== 0) return 'bg-destructive/15 text-destructive'
-    if (!day.hasCashCount) return 'bg-warning/15 text-warning-foreground'
-    return 'bg-success/15 text-success-foreground'
-  }
-  return (
-    <Card className="flex min-h-0 flex-col">
-      <CardHeader className="shrink-0 border-b px-4 py-3">
-        <CardDescription>Cashier report health</CardDescription>
-        <CardTitle className="text-base">{format(month, 'MMMM yyyy')}</CardTitle>
-        <CardAction>
-          <span className="text-[10px] text-muted-foreground">
-            green counted · amber pending · red variance
-          </span>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="min-h-0 flex-1 p-3">
-        <div className="mb-2 grid grid-cols-7 gap-1 text-center text-[10px] font-medium uppercase text-muted-foreground">
-          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, index) => (
-            <span key={`${label}-${index}`}>{label}</span>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {days.map((date) => {
-            const key = format(date, 'yyyy-MM-dd')
-            const report = byDate.get(key)
-            const inMonth = date.getMonth() === month.getMonth()
-            return (
-              <TooltipProvider key={key}>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span
-                        tabIndex={report ? 0 : undefined}
-                        className={cn(
-                          'flex aspect-square items-center justify-center rounded-sm text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                          inMonth ? dayClass(report) : 'bg-transparent text-muted-foreground/35'
-                        )}
-                      >
-                        {format(date, 'd')}
-                      </span>
-                    }
-                  />
-                  <TooltipContent>
-                    {report ? (
-                      <span className="space-y-1">
-                        <span className="block font-medium">{format(date, 'MMMM d')}</span>
-                        <span className="block">
-                          {report.hasCashCount ? 'Cash count recorded' : 'Cash count pending'}
-                        </span>
-                        <span className="block">
-                          Variance: {money(report.cashVarianceCentavos)}
-                        </span>
-                      </span>
-                    ) : (
-                      'No cashier report'
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 function DashboardLoading(): React.JSX.Element {
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
@@ -280,11 +106,6 @@ function DashboardLoading(): React.JSX.Element {
       <div className="grid gap-4 lg:grid-cols-[minmax(19rem,.9fr)_minmax(0,1.4fr)]">
         <Skeleton className="h-38" />
         <Skeleton className="h-38" />
-      </div>
-      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(14rem,.85fr)_minmax(16rem,.9fr)]">
-        <Skeleton className="h-full" />
-        <Skeleton className="h-full" />
-        <Skeleton className="h-full" />
       </div>
     </main>
   )
@@ -298,7 +119,6 @@ export function DashboardContent({
   onOpenFinance
 }: Props): React.JSX.Element {
   const [businessDate, setBusinessDate] = React.useState(today)
-  const [rangeDays, setRangeDays] = React.useState<7 | 14 | 30>(14)
   const [overview, setOverview] = React.useState<DashboardOverview>()
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string>()
@@ -313,7 +133,6 @@ export function DashboardContent({
         const next = await window.api.dashboard.get({
           businessDate,
           branch: selectedBranch === 'All Branch' ? undefined : selectedBranch,
-          rangeDays
         })
         if (requestVersion === requestVersionRef.current) setOverview(next)
       } catch (caught) {
@@ -322,7 +141,7 @@ export function DashboardContent({
         if (requestVersion === requestVersionRef.current) setIsLoading(false)
       }
     },
-    [businessDate, rangeDays, selectedBranch]
+    [businessDate, selectedBranch]
   )
   React.useEffect(() => {
     void Promise.resolve().then(() => load())
@@ -352,12 +171,6 @@ export function DashboardContent({
     0,
     (overview?.cashierReportCount ?? 0) - (overview?.reconciledReportCount ?? 0)
   )
-  const calendarCashData = (overview?.reportCalendar?.days ?? []).map((day) => ({
-    label: shortDate(day.businessDate),
-    expected: day.expectedCashCentavos,
-    physical: day.physicalCashCentavos
-  }))
-
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
@@ -486,7 +299,7 @@ export function DashboardContent({
           />
         </div>
       </section>
-      <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(14rem,.85fr)_minmax(16rem,.9fr)]">
+      {/* Charts, cash controls, and report calendar intentionally removed from the dashboard.
         <Card className="flex min-h-0 min-w-0 flex-col">
           <CardHeader className="shrink-0 border-b px-4 py-3">
             <CardDescription>Sales performance</CardDescription>
@@ -506,7 +319,7 @@ export function DashboardContent({
             </CardAction>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 p-3 pt-2">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={224}>
               <AreaChart
                 data={overview?.collectionTrend ?? []}
                 margin={{ top: 8, left: 0, right: 4, bottom: 0 }}
@@ -570,7 +383,7 @@ export function DashboardContent({
           </CardHeader>
           <CardContent className="min-h-0 flex-1 p-3 pt-2">
             {calendarCashData.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={224}>
                 <BarChart
                   data={calendarCashData}
                   margin={{ top: 8, left: 0, right: 0, bottom: 0 }}
@@ -607,7 +420,7 @@ export function DashboardContent({
           </CardContent>
         </Card>
         <ReportCalendar calendar={overview?.reportCalendar ?? null} />
-      </section>
+      */}
     </main>
   )
 }

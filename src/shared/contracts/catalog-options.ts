@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 export const catalogOptionKinds = [
   'CASHIER_EXPENSE_TYPE',

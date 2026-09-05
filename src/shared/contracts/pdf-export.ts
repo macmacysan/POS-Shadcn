@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 const pdfHtmlMaxLength = 10_000_000
 const pdfBase64MaxLength = 50_000_000

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 import { financeBranchValues } from './finance-accounts'
 import type { DailyReportStatus } from './daily-reports'

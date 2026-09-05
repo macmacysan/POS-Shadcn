@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 // Existing production and development records use opaque TEXT identifiers. New writes use
 // UUIDs, but the transition boundary must continue to resolve legacy identifiers safely.

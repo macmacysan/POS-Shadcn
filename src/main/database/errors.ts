@@ -1,5 +1,5 @@
 import type { IpcErrorPayload } from '../../shared/contracts'
-import { z } from 'zod'
+import { z } from '../../shared/zod'
 
 export class AppError extends Error {
   constructor(

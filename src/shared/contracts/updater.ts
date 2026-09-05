@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '../zod'
 
 export const updateStateSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('checking'), currentVersion: z.string() }),

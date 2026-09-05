@@ -878,7 +878,12 @@ function ClientPortfolioModal({
                       <div className="flex min-h-0 flex-1 flex-col">
                         <p className="mb-3 text-xs text-muted-foreground">Days late by payment</p>
                         <div className="min-h-56 flex-1">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer
+                            width="100%"
+                            height="100%"
+                            minWidth={0}
+                            minHeight={224}
+                          >
                             <BarChart
                               data={tardiness}
                               margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
@@ -903,7 +908,12 @@ function ClientPortfolioModal({
                           Payment activity by month
                         </p>
                         <div className="min-h-56 flex-1">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer
+                            width="100%"
+                            height="100%"
+                            minWidth={0}
+                            minHeight={224}
+                          >
                             <AreaChart
                               data={paymentActivity}
                               margin={{ top: 8, right: 16, bottom: 4, left: 8 }}
@@ -1598,7 +1608,7 @@ export function AccountRecordsWorkspace({
                 Show columns
               </PopoverTitle>
               {visibleColumnOptions.map(({ id, label }) => {
-                const column = table.getColumn(id)
+                const column = table.getAllLeafColumns().find((column) => column.id === id)
                 if (!column?.getCanHide()) return null
                 return (
                   <label
