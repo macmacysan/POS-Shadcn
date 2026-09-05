@@ -50,7 +50,7 @@ import {
   type ShadcnFilterField
 } from '@/components/shared/data-table/shadcn-table-filters'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
-import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
+import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import { AccountBranchBadge } from '@/features/in-house-accounts/components/account-badges'
 import { ProductCombobox } from '@/components/shared/product-combobox'
 import { suffixOptions } from '@/lib/in-house-accounts'
@@ -316,7 +316,7 @@ export function FinanceAccountsContent({
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set())
   const openedInitialEditRef = React.useRef<string | undefined>(undefined)
-  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = React.useState(false)
+  const [isVoidConfirmationOpen, setIsVoidConfirmationOpen] = React.useState(false)
   const [includeVoided, setIncludeVoided] = React.useState(false)
   const filters = [
     ...(branch ? [{ field: 'branch', value: branch }] : []),
@@ -440,7 +440,17 @@ export function FinanceAccountsContent({
             ]
           : []
         : selectedBranch !== 'All Branch' && row.branch === selectedBranch
-          ? [{ id: 'edit', label: 'Edit finance account', onSelect: () => setEditing(row) }]
+          ? [
+              { id: 'edit', label: 'Edit finance account', onSelect: () => setEditing(row) },
+              {
+                id: 'void',
+                label: 'Void finance account',
+                onSelect: () => {
+                  setRowSelection({ [row.id]: true })
+                  setIsVoidConfirmationOpen(true)
+                }
+              }
+            ]
           : [],
     [notify, reload, selectedBranch]
   )
@@ -531,7 +541,7 @@ export function FinanceAccountsContent({
                 type="button"
                 size="sm"
                 variant="destructive"
-                onClick={() => setIsDeleteConfirmationOpen(true)}
+                onClick={() => setIsVoidConfirmationOpen(true)}
               >
                 <Trash2 data-icon="inline-start" />
                 Void {selectedAccountIds.length} selected
@@ -629,21 +639,19 @@ export function FinanceAccountsContent({
           void reload()
         }}
       />
-      <AdminPasswordConfirmationDialog
-        open={isDeleteConfirmationOpen}
-        title={`Void ${selectedAccountIds.length} selected finance account${selectedAccountIds.length === 1 ? '' : 's'}?`}
-        description="This preserves the selected finance accounts and removes them from normal views."
-        requireReason
-        onOpenChange={setIsDeleteConfirmationOpen}
-        onConfirm={async (password, reason) => {
-          await window.api.financeAccounts.void({
-            ids: selectedAccountIds,
-            password,
-            reason: reason ?? ''
-          })
-          setRowSelection({})
-          await reload()
-          notify({ type: 'success', title: 'Selected finance accounts voided.' })
+      <VoidEntryDialog
+        open={isVoidConfirmationOpen}
+        label={`${selectedAccountIds.length} selected finance account${selectedAccountIds.length === 1 ? '' : 's'}`}
+        onOpenChange={setIsVoidConfirmationOpen}
+        onConfirm={(reason) => {
+          void window.api.financeAccounts
+            .void({ ids: selectedAccountIds, reason })
+            .then(async () => {
+              setRowSelection({})
+              await reload()
+              notify({ type: 'success', title: 'Selected finance accounts voided.' })
+            })
+            .catch((caught) => notify({ type: 'error', title: errorMessage(caught) }))
         }}
       />
     </div>

@@ -46,7 +46,6 @@ export const financeAccountUpdateRequestSchema = financeAccountInputSchema.exten
 })
 export const financeAccountVoidRequestSchema = z.object({
   ids: z.array(z.string().trim().min(1).max(200)).min(1).max(100),
-  password: z.string().min(1).max(200),
   reason: z.string().trim().min(1).max(1000)
 })
 export const financeAccountUnvoidRequestSchema = z.object({

@@ -55,7 +55,7 @@ export class FinanceAccountService {
   }
 
   async update(request: FinanceAccountUpdateRequest): Promise<FinanceAccountRecord> {
-    const current = await this.repository.list({ search: request.id, branch: undefined })
+    const current = await this.repository.list({ search: '', branch: undefined })
     const record = current.rows.find((item) => item.id === request.id)
     if (!record) throw new AppError('NOT_FOUND', 'Finance account was not found.')
     this.auth.requireBranchName(record.branch, 'You cannot edit another branch finance account.')

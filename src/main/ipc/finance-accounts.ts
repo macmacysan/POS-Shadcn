@@ -49,7 +49,7 @@ export function registerFinanceAccountIpc(
   ipcMain.handle(financeAccountIpcChannels.void, async (_event, input: unknown) => {
     try {
       const request = financeAccountVoidRequestSchema.parse(input)
-      const user = authService.confirmAdminPassword(request.password)
+      const user = authService.requireSession()
       await service.void(request, user.id); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
