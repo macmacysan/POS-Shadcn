@@ -133,6 +133,7 @@ export function DashboardContent({
         const next = await window.api.dashboard.get({
           businessDate,
           branch: selectedBranch === 'All Branch' ? undefined : selectedBranch,
+          rangeDays: 14,
         })
         if (requestVersion === requestVersionRef.current) setOverview(next)
       } catch (caught) {
