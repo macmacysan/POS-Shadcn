@@ -1,7 +1,5 @@
 import * as React from 'react'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Progress } from '@/components/ui/progress'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useUpdater } from '@/hooks/use-updater'
 
@@ -18,9 +16,11 @@ export function UpdateNotifications(): React.JSX.Element | null {
   const { notify } = useNotifications()
   const { state, activeAction, isRequesting, checkForUpdates, downloadUpdate, installUpdate } =
     useUpdater()
+  const displayedErrorState = React.useRef<typeof state>(null)
 
   React.useEffect(() => {
     if (!state) return
+    if (state.type !== 'error') displayedErrorState.current = null
 
     if (state.type === 'checking') {
       notify({
@@ -95,62 +95,30 @@ export function UpdateNotifications(): React.JSX.Element | null {
       return
     }
 
-    if (state.type === 'error' && activeAction) {
+    if (state.type === 'error') {
+      if (displayedErrorState.current === state) return
+      displayedErrorState.current = state
       const checking = activeAction === 'check'
       const downloading = activeAction === 'download'
+      const retry = checking
+        ? checkForUpdates
+        : downloading
+          ? downloadUpdate
+          : activeAction === 'install'
+            ? installUpdate
+            : checkForUpdates
       notify({
         id: UPDATE_NOTIFICATION_ID,
         type: 'error',
-        title: checking
-          ? 'Unable to check for updates.'
-          : downloading
-            ? 'Unable to download update.'
-            : 'Unable to install update.',
-        description: 'Check your internet connection and try again.',
+        title: 'Update failed',
+        description: state.message,
         action: {
-          label: 'Retry',
-          onClick: () =>
-            void (checking ? checkForUpdates() : downloading ? downloadUpdate() : installUpdate())
+          label: 'Try again',
+          onClick: () => void retry()
         }
       })
     }
   }, [activeAction, checkForUpdates, downloadUpdate, installUpdate, isRequesting, notify, state])
 
-  const status = state?.type === 'checking'
-    ? { title: 'Checking for updates', description: 'Looking for a newer version.' }
-    : state?.type === 'update-available'
-      ? {
-          title: 'Update found',
-          description: `Downloading Cashiers Report ${state.availableVersion} automatically.`
-        }
-      : state?.type === 'download-progress'
-        ? {
-            title: 'Downloading update',
-            description: `Cashiers Report ${state.availableVersion}`
-          }
-        : state?.type === 'update-downloaded'
-          ? {
-              title: 'Installing update',
-              description: 'The app will restart automatically.'
-            }
-          : state?.type === 'error'
-            ? { title: 'Update failed', description: state.message }
-            : undefined
-
-  if (!status) return null
-
-  return (
-    <div className="pointer-events-none fixed inset-x-0 top-10 z-50 flex justify-center px-4">
-      <Alert
-        className="pointer-events-auto w-full max-w-md bg-popover shadow-lg"
-        role={state?.type === 'error' ? 'alert' : 'status'}
-      >
-        <AlertTitle>{status.title}</AlertTitle>
-        <AlertDescription>{status.description}</AlertDescription>
-        {state?.type === 'download-progress' ? (
-          <Progress className="mt-3" value={state.percent} aria-label="Update download progress" />
-        ) : null}
-      </Alert>
-    </div>
-  )
+  return null
 }

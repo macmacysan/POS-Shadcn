@@ -1,4 +1,4 @@
-import { CircleAlert, Copy, LoaderCircle, Minus, RefreshCw, Square, X } from 'lucide-react'
+import { Copy, Minus, Square, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { LoginForm } from '@/features/authentication'
@@ -26,8 +26,6 @@ import { ActiveReportProvider } from '@/contexts/active-report-context'
 import { NotificationProvider } from '@/contexts/notification-context'
 import { useNotifications } from '@/hooks/use-notifications'
 import { Toaster } from '@/components/ui/sonner'
-import { Alert, AlertAction, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import type {
   AuthenticatedUser,
   GoogleSyncProgress,
@@ -37,6 +35,7 @@ import type {
 import { PESO_SIGN_HIDDEN_STORAGE_KEY, setPesoSignHidden } from '@/lib/currency'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
+const BRANCH_DOWNLOAD_NOTIFICATION_ID = 'branch-download-failures'
 type ActiveView =
   | 'dashboard'
   | 'installment-overview'
@@ -184,26 +183,54 @@ function Workspace({
     []
   )
 
-  const retryDownload = async (branch: GoogleSyncProgress['branch']): Promise<void> => {
-    setRetryingBranch(branch)
-    try {
-      await window.api.googleSync.sync({ branch })
-    } catch {
-      setSyncFailures((current) => [
-        ...current.filter((item) => item.branch !== branch),
-        {
-          branch,
-          sheet: 'Branch download',
-          phase: 'failed',
-          completed: 0,
-          total: 1,
-          message: 'Could not retry this branch download.'
+  const retryDownload = useCallback(
+    async (branch: GoogleSyncProgress['branch']): Promise<void> => {
+      if (retryingBranch) return
+      setRetryingBranch(branch)
+      try {
+        await window.api.googleSync.sync({ branch })
+        setSyncFailures((current) => current.filter((item) => item.branch !== branch))
+        notify({
+          id: BRANCH_DOWNLOAD_NOTIFICATION_ID,
+          type: 'success',
+          title: 'Branch data downloaded.',
+          description: `${branch} data is up to date.`
+        })
+      } catch {
+        setSyncFailures((current) => [
+          ...current.filter((item) => item.branch !== branch),
+          {
+            branch,
+            sheet: 'Branch download',
+            phase: 'failed',
+            completed: 0,
+            total: 1,
+            message: 'Could not retry this branch download.'
+          }
+        ])
+      } finally {
+        setRetryingBranch(undefined)
+      }
+    },
+    [notify, retryingBranch]
+  )
+
+  useEffect(() => {
+    if (!syncFailures.length) return
+    notify({
+      id: BRANCH_DOWNLOAD_NOTIFICATION_ID,
+      type: 'error',
+      title: 'Some branch data could not be downloaded.',
+      description: `${syncFailures.map((failure) => `${failure.branch}: ${failure.sheet}`).join(', ')}. Cached data remains available.`,
+      action: {
+        label: retryingBranch ? 'Retrying…' : 'Retry download',
+        onClick: () => {
+          if (!retryingBranch) void retryDownload(syncFailures[0].branch)
         }
-      ])
-    } finally {
-      setRetryingBranch(undefined)
-    }
-  }
+      },
+      duration: retryingBranch ? Infinity : undefined
+    })
+  }, [notify, retryDownload, retryingBranch, syncFailures])
 
   useEffect(() => {
     const refreshAttention = (): void => setAttentionRefreshKey((value) => value + 1)
@@ -345,31 +372,6 @@ function Workspace({
             <NotificationCenter />
           </div>
         </div>
-        {!isAdmin && syncFailures.length ? (
-          <Alert variant="destructive" className="m-3 shrink-0">
-            <CircleAlert aria-hidden="true" />
-            <AlertTitle>Some branch data could not be downloaded.</AlertTitle>
-            <AlertDescription>
-              {syncFailures.map((failure) => `${failure.branch}: ${failure.sheet}`).join(', ')}. Cached data remains available.
-            </AlertDescription>
-            <AlertAction>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={Boolean(retryingBranch)}
-                onClick={() => void retryDownload(syncFailures[0].branch)}
-              >
-                {retryingBranch ? (
-                  <LoaderCircle data-icon="inline-start" className="animate-spin" />
-                ) : (
-                  <RefreshCw data-icon="inline-start" />
-                )}
-                Retry download
-              </Button>
-            </AlertAction>
-          </Alert>
-        ) : null}
         {isAdmin ? (
           <main className="flex flex-1 items-center justify-center bg-background p-6">
             <div className="max-w-md text-center">
