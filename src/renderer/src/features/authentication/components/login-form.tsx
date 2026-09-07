@@ -229,6 +229,7 @@ export function LoginForm({
                   <FieldLabel htmlFor="username">Username</FieldLabel>
                   <Input
                     id="username"
+                    className="normal-case"
                     autoComplete="username"
                     aria-invalid={Boolean(error)}
                     placeholder="Enter username"
@@ -241,6 +242,7 @@ export function LoginForm({
                   <InputGroup>
                     <InputGroupInput
                       id="password"
+                      className="normal-case"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       aria-invalid={Boolean(error)}
