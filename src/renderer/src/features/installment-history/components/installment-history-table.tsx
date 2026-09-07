@@ -22,7 +22,7 @@ import {
   ShadcnTableFilters,
   type ShadcnFilterField
 } from '@/components/shared/data-table/shadcn-table-filters'
-import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
+import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import {
@@ -46,7 +46,7 @@ type InstallmentHistoryTableProps = {
   globalSearch?: string
   onGlobalSearchChange?: (value: string) => void
   onVisibleRecordCountChange?: (count: number) => void
-  onVoidSelected: (records: InstallmentHistoryRecord[], password: string) => Promise<void>
+  onVoidSelected: (records: InstallmentHistoryRecord[], reason: string) => Promise<void>
 }
 
 const sourceOptions: Array<InstallmentHistorySource | 'all'> = [
@@ -431,16 +431,14 @@ export function InstallmentHistoryTable({
           paginationClassName="px-4"
         />
       </div>
-      <AdminPasswordConfirmationDialog
+      <VoidEntryDialog
         open={isVoidDialogOpen}
-        title={`Void ${Object.keys(rowSelection).length} selected payment${Object.keys(rowSelection).length === 1 ? '' : 's'}?`}
-        description="This voids the selected payment records and recalculates the affected installments."
-        confirmLabel="Void selected"
+        label={`${Object.keys(rowSelection).length} selected payment${Object.keys(rowSelection).length === 1 ? '' : 's'}`}
         onOpenChange={setIsVoidDialogOpen}
-        onConfirm={async (password) => {
+        onConfirm={async (reason) => {
           await onVoidSelected(
             records.filter((record) => rowSelection[record.id]),
-            password
+            reason
           )
           setRowSelection({})
         }}

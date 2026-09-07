@@ -101,7 +101,7 @@ export function registerInstallmentIpc(
   ipcMain.handle(installmentIpcChannels.void, async (_event, input: unknown) => {
     try {
       const request = installmentVoidRequestSchema.parse(input)
-      const user = authService.confirmAdminPassword(request.password)
+      const user = authService.requireSession()
       await service.void(request, user.id); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
@@ -119,8 +119,8 @@ export function registerInstallmentIpc(
   ipcMain.handle(installmentIpcChannels.voidPayments, async (_event, input: unknown) => {
     try {
       const request = installmentVoidPaymentsRequestSchema.parse(input)
-      const user = authService.confirmAdminPassword(request.password)
-      await service.voidPayments(request.paymentIds, user.id); onCommitted?.()
+      const user = authService.requireSession()
+      await service.voidPayments(request.paymentIds, user.id, request.reason); onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }

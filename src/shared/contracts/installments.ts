@@ -53,7 +53,6 @@ export const installmentRestoreStatusRequestSchema = installmentTransitionReques
 
 export const installmentVoidRequestSchema = z.object({
   contractIds: z.array(z.string().trim().min(1).max(100)).min(1).max(100),
-  password: z.string().min(1).max(200),
   reason: z.string().trim().min(1).max(1000)
 })
 export const installmentUnvoidRequestSchema = z.object({
@@ -62,7 +61,7 @@ export const installmentUnvoidRequestSchema = z.object({
 
 export const installmentVoidPaymentsRequestSchema = z.object({
   paymentIds: z.array(z.string().trim().min(1).max(100)).min(1).max(100),
-  password: z.string().min(1).max(200)
+  reason: z.string().trim().min(1).max(1000)
 })
 
 export const installmentPaymentWorkspaceRequestSchema = z.object({

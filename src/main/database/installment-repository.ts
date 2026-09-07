@@ -915,7 +915,7 @@ export class InstallmentRepository {
         if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
         if (contract.status === 'VOIDED')
           throw new AppError('CONFLICT', 'Installment contract was already deleted.')
-        voidContract.run(reason, now, actorUserId, now, contractId)
+        voidContract.run(now, actorUserId, reason, now, contractId)
         this.writeAudit(
           actorUserId,
           'installment_contract',
@@ -959,7 +959,7 @@ export class InstallmentRepository {
     restore()
   }
 
-  voidPayments(paymentIds: readonly string[], actorUserId: string): void {
+  voidPayments(paymentIds: readonly string[], actorUserId: string, reason: string): void {
     const now = new Date().toISOString()
     this.db.transaction(() => {
       const placeholders = paymentIds.map(() => '?').join(', ')
@@ -991,10 +991,10 @@ export class InstallmentRepository {
         .prepare(
           `UPDATE in_house_payments
               SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?,
-                  void_reason = 'Voided by administrator', updated_at = ?
+                  void_reason = ?, updated_at = ?
             WHERE id IN (${placeholders}) AND status = 'POSTED'`
         )
-        .run(now, actorUserId, now, ...paymentIds)
+        .run(now, actorUserId, reason, now, ...paymentIds)
       const updateSchedule = this.db.prepare(
         `UPDATE in_house_schedules SET status = ?, updated_at = ? WHERE id = ?`
       )

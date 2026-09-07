@@ -38,7 +38,7 @@ import {
   paymentReliability,
   tardinessSeries
 } from '@/features/in-house-accounts/client-portfolio-analytics'
-import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
+import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import {
   createRowActionsColumn,
   type RowActionItem
@@ -2125,19 +2125,15 @@ export function AccountRecordsWorkspace({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <AdminPasswordConfirmationDialog
+      <VoidEntryDialog
         open={Boolean(voidRow)}
-        title="Void account?"
-        description="This removes the account contract from the workspace while preserving its financial history."
-        confirmLabel="Void Account"
-        requireReason
+        label="account"
         onOpenChange={(open) => !open && setVoidRow(undefined)}
-        onConfirm={async (password, reason) => {
+        onConfirm={async (reason) => {
           if (!voidRow) return
           await window.api.installments.void({
             contractIds: [voidRow.contractId],
-            password,
-            reason: reason ?? ''
+            reason
           })
           setSelected(undefined)
           reload()

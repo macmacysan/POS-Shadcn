@@ -32,7 +32,7 @@ type InstallmentRepositoryLike = {
   restoreStatus(request: InstallmentRestoreStatusRequest): Promise<void> | void
   voidContracts(ids: readonly string[], actorUserId: string, reason: string): Promise<void> | void
   unvoidContracts(ids: readonly string[], actorUserId: string): Promise<void> | void
-  voidPayments(ids: readonly string[], actorUserId: string): Promise<void> | void
+  voidPayments(ids: readonly string[], actorUserId: string, reason: string): Promise<void> | void
   getPaymentWorkspace(
     request: InstallmentPaymentWorkspaceRequest
   ): Promise<InstallmentPaymentWorkspace> | InstallmentPaymentWorkspace
@@ -143,13 +143,13 @@ export class InstallmentService {
     throw new AppError('FORBIDDEN', 'Restoring installment contracts is unavailable in this app.')
   }
 
-  async voidPayments(paymentIds: readonly string[], actorUserId: string): Promise<void> {
+  async voidPayments(paymentIds: readonly string[], actorUserId: string, reason: string): Promise<void> {
     for (const id of paymentIds)
       this.auth.requireOwnBranch(
         this.repository.branchIdForPayment(id),
         'You cannot void another branch payment.'
       )
-    await this.repository.voidPayments(paymentIds, actorUserId)
+    await this.repository.voidPayments(paymentIds, actorUserId, reason)
   }
 
   async getPaymentWorkspace(

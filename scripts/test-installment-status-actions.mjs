@@ -205,6 +205,20 @@ try {
       .count,
     2
   )
+  for (const transition of [
+    { label: 'records and active', prepare: () => undefined },
+    { label: 'closed', prepare: () => repository.closeContract(request) },
+    { label: 'blacklisted', prepare: () => repository.blacklistAccount(request) }
+  ]) {
+    transition.prepare()
+    repository.voidContracts(['status-contract'], 'status-user', `Void from ${transition.label}`)
+    assert.equal(
+      db.prepare('SELECT status FROM installment_contracts WHERE id = ?').get('status-contract').status,
+      'VOIDED',
+      `voiding from ${transition.label} should void the contract`
+    )
+    repository.unvoidContracts(['status-contract'], 'status-user')
+  }
   db.close()
   console.log('installment status action tests passed')
 } finally {

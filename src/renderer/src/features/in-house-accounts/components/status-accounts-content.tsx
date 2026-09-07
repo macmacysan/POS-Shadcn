@@ -32,7 +32,7 @@ import {
   type ShadcnFilterField
 } from '@/components/shared/data-table/shadcn-table-filters'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
-import { AdminPasswordConfirmationDialog } from '@/components/shared/admin-password-confirmation-dialog'
+import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import { ConfirmationAlertDialog } from '@/components/shared/confirmation-alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -763,17 +763,15 @@ export function StatusAccountsContent({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <AdminPasswordConfirmationDialog
+      <VoidEntryDialog
         open={isDeleteConfirmationOpen}
-        title={`Void ${Object.keys(rowSelection).length} selected account${Object.keys(rowSelection).length === 1 ? '' : 's'}?`}
-        description="This voids the selected accounts from the workspace. Their financial history is preserved."
+        label={`${Object.keys(rowSelection).length} selected account${Object.keys(rowSelection).length === 1 ? '' : 's'}`}
         onOpenChange={setIsDeleteConfirmationOpen}
-        onConfirm={async (password) => {
+        onConfirm={async (reason) => {
           const contractIds = Object.keys(rowSelection)
           await window.api.installments.void({
             contractIds,
-            password,
-            reason: 'Voided by administrator.'
+            reason
           })
           setRowSelection({})
           setSelectedId(undefined)

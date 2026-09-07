@@ -1147,7 +1147,7 @@ function ReportTab({
   selectedHistoryId?: string
   onSelectHistory: (record: InstallmentHistoryRecord) => void
   onVoidSelected: (rows: ReportRow[]) => boolean | Promise<boolean>
-  onVoidSelectedHistory: (rows: InstallmentHistoryRecord[], password: string) => Promise<void>
+  onVoidSelectedHistory: (rows: InstallmentHistoryRecord[], reason: string) => Promise<void>
   onEdit: (row: ExpenseRow | IncomeRow | PaymentRow) => void
   incomeLoadState: EntryLoadState
   paymentLoadState: EntryLoadState
@@ -2692,7 +2692,7 @@ export function CashierReportsContent({
                       selectedHistoryId={selectedHistory?.id}
                       onSelectHistory={openHistoryRecord}
                       onVoidSelected={deleteSelectedEntries}
-                      onVoidSelectedHistory={async (rows, password) => {
+                      onVoidSelectedHistory={async (rows, reason) => {
                         const payments = rows.filter((row) =>
                           row.activity.toLowerCase().includes('payment')
                         )
@@ -2702,14 +2702,13 @@ export function CashierReportsContent({
                         if (payments.length) {
                           await window.api.installments.voidPayments({
                             paymentIds: payments.map((row) => row.id),
-                            password
+                            reason
                           })
                         }
                         if (contracts.length) {
                           await window.api.installments.void({
                             contractIds: contracts,
-                            password,
-                            reason: 'Voided by administrator'
+                            reason
                           })
                         }
                         setHistoryRefreshKey((key) => key + 1)
