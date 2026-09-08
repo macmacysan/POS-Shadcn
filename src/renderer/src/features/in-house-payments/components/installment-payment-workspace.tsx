@@ -205,6 +205,13 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
 function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
   return [
     {
+      id: 'paymentNumber',
+      header: 'Payment no.',
+      size: 104,
+      meta: { cellClassName: 'text-muted-foreground tabular-nums' },
+      cell: ({ row }) => row.index + 1
+    },
+    {
       id: 'paymentDate',
       accessorKey: 'paymentDate',
       header: 'Payment date',
@@ -226,14 +233,6 @@ function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
       size: 170,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right font-light tabular-nums' },
       cell: ({ row }) => formatPhilippinePeso(row.original.amountCentavos / 100)
-    },
-    {
-      id: 'allocated',
-      accessorKey: 'allocatedAmountCentavos',
-      header: 'Allocated',
-      size: 140,
-      meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
-      cell: ({ row }) => formatPhilippinePeso(row.original.allocatedAmountCentavos / 100)
     },
     {
       id: 'updatedBy',
