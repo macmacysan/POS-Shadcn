@@ -1525,9 +1525,6 @@ export function InHouseAccountForm({
                           setLoan('downPayment', Number(value.replace(/,/g, '')) || 0)
                         }
                       />
-                      <FieldDescription>
-                        Must be at least {money(calculatedLoan.fees)} Downpayment.
-                      </FieldDescription>
                       <FieldError>{loanErrors.downPayment}</FieldError>
                     </Field>
                   </FieldGroup>

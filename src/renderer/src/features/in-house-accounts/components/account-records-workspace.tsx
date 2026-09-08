@@ -1141,6 +1141,10 @@ export function AccountRecordsWorkspace({
     if (payload.mode === 'existing' && !existing) throw new Error('Selected client was not found.')
     const account = existing ?? {
       ...payload.accountDraft,
+      contacts: payload.accountDraft.contacts.map((contact) => ({
+        ...contact,
+        id: crypto.randomUUID()
+      })),
       id: `account-${crypto.randomUUID()}`,
       createdAt: now,
       updatedAt: now
@@ -1151,6 +1155,7 @@ export function AccountRecordsWorkspace({
         ? [
             {
               ...payload.loanDraft,
+              items: payload.loanDraft.items.map((item) => ({ ...item, id: crypto.randomUUID() })),
               id: `loan-${crypto.randomUUID()}`,
               customerId: account.id,
               createdAt: now,

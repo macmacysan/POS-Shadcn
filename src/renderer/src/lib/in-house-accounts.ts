@@ -312,9 +312,7 @@ export function validateLoanDraft(draft: LoanDraft): LoanValidationErrors {
   if (draft.installmentAmount <= 0)
     errors.installmentAmount = 'Installment Amount must be greater than zero.'
   if (draft.grandTotal <= 0) errors.grandTotal = 'Grand Total must be greater than zero.'
-  if (draft.downPayment <= 0) errors.downPayment = 'Down Payment must be greater than zero.'
-  else if (draft.downPayment < draft.fees)
-    errors.downPayment = 'Down Payment must be equal to or greater than the Downpayment.'
+  if (draft.downPayment < 0) errors.downPayment = 'Down Payment cannot be negative.'
   if (!draft.items.some((item) => item.name.trim() && item.quantity > 0 && item.price > 0))
     errors.items = 'Add at least one complete item.'
   return errors
