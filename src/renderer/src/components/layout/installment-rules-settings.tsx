@@ -107,7 +107,7 @@ export function InstallmentRulesSettings(): React.JSX.Element {
         headers={['Payments', 'Interest Rate']}
         rows={draft.monthlyPlans.map((plan, index) => [
           <Input
-            key="terms"
+            key={`monthly-${index}-terms`}
             type="number"
             min="1"
             value={plan.terms}
@@ -120,7 +120,7 @@ export function InstallmentRulesSettings(): React.JSX.Element {
             }
           />,
           <Input
-            key="rate"
+            key={`monthly-${index}-rate`}
             type="number"
             min="0"
             step="0.01"
@@ -140,7 +140,7 @@ export function InstallmentRulesSettings(): React.JSX.Element {
         headers={['Payments', 'Downpayment Payments']}
         rows={draft.dailyPlans.map((plan, index) => [
           <Input
-            key="terms"
+            key={`daily-${index}-terms`}
             type="number"
             min="1"
             value={plan.terms}
@@ -153,7 +153,7 @@ export function InstallmentRulesSettings(): React.JSX.Element {
             }
           />,
           <Input
-            key="fee"
+            key={`daily-${index}-fee`}
             type="number"
             min="1"
             value={plan.requiredFeePayments}

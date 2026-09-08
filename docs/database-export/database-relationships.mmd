@@ -1,0 +1,619 @@
+erDiagram
+  account_contacts {
+    TEXT id PK
+    TEXT account_id
+    TEXT contact_type
+    TEXT contact_kind
+    TEXT contact_value
+    INTEGER is_primary
+    TEXT created_at
+    TEXT updated_at
+  }
+  accounts {
+    TEXT id PK
+    TEXT account_number
+    TEXT display_name
+    TEXT account_type
+    TEXT last_name
+    TEXT first_name
+    TEXT middle_name
+    TEXT suffix
+    TEXT street_subdivision
+    TEXT barangay
+    TEXT city_municipality
+    TEXT province
+    TEXT occupation
+    TEXT agent
+    TEXT referred_by
+    TEXT status
+    TEXT blacklisted_at
+    TEXT blacklisted_by_user_id
+    TEXT blacklist_reason
+    INTEGER is_active
+    TEXT created_at
+    TEXT updated_at
+    TEXT civil_status
+    REAL latitude
+    REAL longitude
+    TEXT landmark_remarks
+    TEXT branch_id
+  }
+  app_settings {
+    TEXT key PK
+    TEXT value
+    TEXT updated_at
+  }
+  audit_log_changes {
+    TEXT id PK
+    TEXT audit_log_id
+    TEXT column_name
+    TEXT old_value
+    TEXT new_value
+  }
+  audit_logs {
+    TEXT id PK
+    TEXT actor_user_id
+    TEXT action
+    TEXT entity_type
+    TEXT entity_id
+    TEXT reason
+    TEXT created_at
+  }
+  backup_records {
+    TEXT id PK
+    TEXT file_name
+    TEXT local_path
+    TEXT sha256
+    INTEGER size_bytes
+    INTEGER encrypted
+    TEXT remote_path
+    TEXT created_at
+  }
+  branches {
+    TEXT id PK
+    TEXT code
+    TEXT name
+    INTEGER is_active
+    TEXT created_at
+    TEXT updated_at
+  }
+  cash_denominations {
+    TEXT id PK
+    INTEGER value_centavos
+    INTEGER is_active
+    INTEGER sort_order
+  }
+  cash_out_entries {
+    TEXT id PK
+    TEXT daily_report_id
+    TEXT transaction_date
+    TEXT description
+    INTEGER amount_centavos
+    TEXT status
+    TEXT voided_at
+    TEXT voided_by_user_id
+    TEXT void_reason
+    TEXT created_by_user_id
+    TEXT created_at
+    TEXT updated_at
+  }
+  catalog_options {
+    TEXT id PK
+    TEXT kind
+    TEXT value
+    TEXT reference_id
+    INTEGER is_active
+    TEXT created_at
+    TEXT updated_at
+  }
+  daily_receipt_totals {
+    TEXT id PK
+    TEXT daily_report_id
+    TEXT receipt_type_id
+    INTEGER quantity
+    INTEGER amount_centavos
+    TEXT created_at
+    TEXT updated_at
+    TEXT receipt_name
+    TEXT receipt_short_name
+  }
+  daily_report_cash_counts {
+    TEXT id PK
+    TEXT daily_report_id
+    TEXT denomination_id
+    INTEGER quantity
+    TEXT created_at
+    TEXT updated_at
+  }
+  daily_report_deductions {
+    TEXT id PK
+    TEXT daily_report_id
+    TEXT deduction_type_id
+    INTEGER amount_centavos
+    TEXT created_at
+    TEXT updated_at
+  }
+  daily_report_payment_entries {
+    TEXT id PK
+    TEXT daily_report_id
+    TEXT payment_method_id
+    TEXT transaction_date
+    INTEGER amount_centavos
+    TEXT reference_number
+    TEXT bank_name
+    TEXT payer_name
+    TEXT remarks
+    TEXT status
+    TEXT voided_at
+    TEXT voided_by_user_id
+    TEXT void_reason
+    TEXT created_by_user_id
+    TEXT created_at
+    TEXT updated_at
+    TEXT payment_method_name
+  }
+  daily_reports {
+    TEXT id PK
+    TEXT branch_id
+    TEXT cashier_user_id
+    TEXT business_date
+    INTEGER opening_cash_centavos
+    INTEGER cash_remitted_centavos
+    TEXT status
+    TEXT submitted_at
+    TEXT approved_at
+    TEXT approved_by_user_id
+    TEXT created_at
+    TEXT updated_at
+    TEXT updated_by_user_id
+    TEXT note
+    TEXT google_drive_submitted_at
+    TEXT telegram_submitted_at
+  }
+  deduction_types {
+    TEXT id PK
+    TEXT code
+    TEXT name
+    TEXT contribution_code
+    INTEGER is_active
+    TEXT created_at
+    TEXT updated_at
+  }
+  expense_categories {
+    TEXT id PK
+    TEXT code
+    TEXT name
+    INTEGER is_system
+    INTEGER is_active
+    INTEGER sort_order
+    TEXT created_by_user_id
+    TEXT created_at
+    TEXT updated_at
+  }
+  expense_entries {
+    TEXT id PK
+    TEXT daily_report_id
+    TEXT category_id
+    TEXT transaction_date
+    TEXT description
+    TEXT receipt_number
+    TEXT vat_type
+    INTEGER vat_amount_centavos
+    INTEGER gross_amount_centavos
+    TEXT payment_method_code
+    TEXT reference_number
+    TEXT remarks
+    TEXT status
+    TEXT voided_at
+    TEXT voided_by_user_id
+    TEXT void_reason
+    TEXT created_by_user_id
+    TEXT created_at
+    TEXT updated_at
+  }
+  expenses {
+    TEXT id PK
+    TEXT report_id
+    TEXT type
+    TEXT description
+    TEXT category
+    TEXT receipt_no
+    TEXT vat
+    INTEGER amount_centavos
+    TEXT created_at
+    TEXT updated_at
+    TEXT status
+    TEXT voided_at
+    TEXT voided_by_user_id
+    TEXT void_reason
+    TEXT created_by_user_id
+  }
+  finance_account_items {
+    TEXT id PK
+    TEXT finance_account_id
+    INTEGER sort_order
+    TEXT item
+    TEXT serial_no
+    INTEGER quantity
+    INTEGER item_price_centavos
+    INTEGER total_centavos
+    TEXT created_at
+    TEXT updated_at
+  }
+  finance_accounts {
+    TEXT id PK
+    TEXT branch
+    TEXT provider
+    TEXT date_released
+    INTEGER terms_months
+    TEXT last_name
+    TEXT first_name
+    TEXT middle_name
+    TEXT suffix
+    INTEGER quantity
+    TEXT item
+    TEXT serial_no
+    INTEGER item_price_centavos
+    INTEGER grand_total_centavos
+    INTEGER downpayment_centavos
+    INTEGER balance_centavos
+    TEXT or_number
+    TEXT or_date
+    TEXT paid_date
+    TEXT remarks
+    TEXT created_at
+    TEXT updated_at
+    TEXT status
+    TEXT voided_at
+    TEXT voided_by_user_id
+    TEXT void_reason
+  }
+  google_drive_snapshots {
+    TEXT branch PK
+    TEXT remote_file_id
+    TEXT remote_revision
+    TEXT sha256
+    TEXT uploaded_at
+    TEXT downloaded_at
+    TEXT last_error
+  }
+  google_sheet_branch_cache {
+    TEXT spreadsheet_id PK
+    TEXT sheet_name PK
+    TEXT source_record_id PK
+    INTEGER source_row
+    TEXT payload_json
+    TEXT downloaded_at
+    TEXT source_branch
+  }
+  google_sheet_conflicts {
+    TEXT id PK
+    TEXT spreadsheet_id
+    TEXT sheet_name
+    INTEGER source_row
+    TEXT source_record_id
+    TEXT local_updated_at
+    TEXT source_updated_at
+    TEXT payload_json
+    TEXT status
+    TEXT created_at
+    TEXT resolved_at
+  }
+  google_sheet_imports {
+    TEXT id PK
+    TEXT spreadsheet_id
+    TEXT sheet_name
+    INTEGER source_row
+    TEXT source_record_id
+    TEXT source_updated_at
+    TEXT status
+    TEXT detail
+    TEXT imported_at
+  }
+  google_sheet_sources {
+    TEXT key PK
+    TEXT spreadsheet_id
+    TEXT branch
+    TEXT updated_at
+  }
+  in_house_payments {
+    TEXT id PK
+    TEXT contract_id
+    TEXT payment_date
+    INTEGER amount_centavos
+    TEXT reference_number
+    TEXT status
+    TEXT voided_at
+    TEXT voided_by_user_id
+    TEXT void_reason
+    TEXT received_by_user_id
+    TEXT created_at
+    TEXT updated_at
+    TEXT submission_id
+    TEXT replaces_payment_id
+    INTEGER penalty_centavos
+  }
+  in_house_schedules {
+    TEXT id PK
+    TEXT contract_id
+    INTEGER installment_number
+    TEXT due_date
+    INTEGER due_amount_centavos
+    TEXT status
+    TEXT created_at
+    TEXT updated_at
+    INTEGER is_restructured
+    TEXT restructure_id
+  }
+  income_categories {
+    TEXT id PK
+    TEXT code
+    TEXT name
+    TEXT summary_group
+    INTEGER is_system
+    INTEGER is_active
+    INTEGER sort_order
+    TEXT created_at
+    TEXT updated_at
+  }
+  income_entries {
+    TEXT id PK
+    TEXT daily_report_id
+    TEXT category_id
+    TEXT transaction_date
+    TEXT particular
+    TEXT receipt_number
+    TEXT remarks
+    INTEGER amount_centavos
+    TEXT status
+    TEXT voided_at
+    TEXT voided_by_user_id
+    TEXT void_reason
+    TEXT created_by_user_id
+    TEXT created_at
+    TEXT updated_at
+  }
+  installment_activity_history {
+    TEXT id PK
+    TEXT contract_id
+    TEXT actor_user_id
+    TEXT action
+    TEXT activity
+    INTEGER amount_centavos
+    TEXT created_at
+  }
+  installment_contracts {
+    TEXT id PK
+    TEXT account_id
+    TEXT branch_id
+    TEXT installment_type_id
+    TEXT contract_number
+    TEXT contract_date
+    TEXT date_released
+    TEXT start_date
+    TEXT first_due_date
+    TEXT payment_frequency
+    TEXT terms
+    INTEGER principal_centavos
+    INTEGER interest_centavos
+    INTEGER down_payment_centavos
+    INTEGER fees_centavos
+    INTEGER installment_amount_centavos
+    INTEGER financed_amount_centavos
+    INTEGER total_payable_centavos
+    TEXT status
+    TEXT closed_at
+    TEXT closed_by_user_id
+    TEXT close_reason
+    TEXT remarks
+    TEXT created_by_user_id
+    TEXT created_at
+    TEXT updated_at
+    TEXT schedule_frequency
+    TEXT configuration_version_id
+    TEXT end_date
+    INTEGER interest_rate_bps
+    INTEGER required_down_payment_rate_bps
+    INTEGER daily_required_fee_factor
+    INTEGER payment_amount_centavos
+    INTEGER required_fee_centavos
+    TEXT previous_status
+    INTEGER down_payment_applied_centavos
+  }
+  installment_import_issues {
+    TEXT source_sha256 PK
+    TEXT sheet_name PK
+    INTEGER row_number PK
+    TEXT code PK
+    TEXT detail
+  }
+  installment_import_runs {
+    TEXT source_sha256 PK
+    TEXT source_path
+    TEXT imported_at
+    TEXT report_json
+  }
+  installment_items {
+    TEXT id PK
+    TEXT contract_id
+    TEXT description
+    INTEGER quantity
+    INTEGER unit_price_centavos
+    INTEGER item_total_centavos
+    TEXT created_at
+    TEXT updated_at
+  }
+  installment_payment_allocations {
+    TEXT id PK
+    TEXT payment_id
+    TEXT schedule_id
+    INTEGER allocated_amount_centavos
+    TEXT created_at
+    INTEGER penalty_centavos
+  }
+  installment_restructures {
+    TEXT id PK
+    TEXT contract_id
+    TEXT first_due_date
+    TEXT payment_frequency
+    INTEGER terms
+    INTEGER outstanding_balance_centavos
+    TEXT reason
+    TEXT created_by_user_id
+    TEXT created_at
+  }
+  installment_rule_terms {
+    TEXT version_id PK
+    TEXT frequency PK
+    INTEGER terms PK
+    INTEGER interest_rate_bps
+    INTEGER required_fee_payments
+  }
+  installment_rule_versions {
+    TEXT id PK
+    INTEGER version
+    INTEGER is_active
+    INTEGER standard_interest_rate_bps
+    INTEGER required_down_payment_rate_bps
+    TEXT created_by_user_id
+    TEXT created_at
+  }
+  installment_types {
+    TEXT id PK
+    TEXT code
+    TEXT name
+    TEXT provider_kind
+    INTEGER is_system
+    INTEGER is_active
+    TEXT created_by_user_id
+    TEXT created_at
+    TEXT updated_at
+  }
+  product_catalog_items {
+    TEXT description PK
+    INTEGER retail_price_centavos
+    TEXT imported_at
+    INTEGER cost_price_centavos
+  }
+  receipt_types {
+    TEXT id PK
+    TEXT code
+    TEXT name
+    INTEGER is_system
+    INTEGER is_default_visible
+    INTEGER is_active
+    INTEGER sort_order
+    TEXT created_by_user_id
+    TEXT created_at
+    TEXT updated_at
+    TEXT short_name
+  }
+  report_payment_methods {
+    TEXT id PK
+    TEXT code
+    TEXT name
+    INTEGER is_active
+    TEXT created_at
+    TEXT updated_at
+  }
+  report_reconciliations {
+    TEXT report_id PK
+    INTEGER physical_cash_centavos
+    INTEGER cash_remitted_centavos
+    INTEGER cash_variance_centavos
+    TEXT updated_at
+  }
+  reports {
+    TEXT id PK
+    TEXT branch_id
+    TEXT cashier_id
+    TEXT business_date
+    TEXT status
+    TEXT created_at
+    TEXT updated_at
+  }
+  schema_migrations {
+    INTEGER version PK
+    TEXT applied_at
+  }
+  user_branch_assignments {
+    TEXT user_id PK
+    TEXT branch_id PK
+  }
+  users {
+    TEXT id PK
+    TEXT branch_id
+    TEXT username
+    TEXT password_hash
+    TEXT display_name
+    TEXT role
+    INTEGER is_active
+    TEXT last_login_at
+    TEXT created_at
+    TEXT updated_at
+    INTEGER must_change_password
+    TEXT first_name
+    TEXT last_name
+  }
+  accounts ||--o{ account_contacts : "account_id → id"
+  users ||--o{ accounts : "blacklisted_by_user_id → id"
+  branches ||--o{ accounts : "branch_id → id"
+  audit_logs ||--o{ audit_log_changes : "audit_log_id → id"
+  users ||--o{ audit_logs : "actor_user_id → id"
+  users ||--o{ cash_out_entries : "created_by_user_id → id"
+  users ||--o{ cash_out_entries : "voided_by_user_id → id"
+  daily_reports ||--o{ cash_out_entries : "daily_report_id → id"
+  receipt_types ||--o{ daily_receipt_totals : "receipt_type_id → id"
+  daily_reports ||--o{ daily_receipt_totals : "daily_report_id → id"
+  cash_denominations ||--o{ daily_report_cash_counts : "denomination_id → id"
+  daily_reports ||--o{ daily_report_cash_counts : "daily_report_id → id"
+  deduction_types ||--o{ daily_report_deductions : "deduction_type_id → id"
+  daily_reports ||--o{ daily_report_deductions : "daily_report_id → id"
+  users ||--o{ daily_report_payment_entries : "created_by_user_id → id"
+  users ||--o{ daily_report_payment_entries : "voided_by_user_id → id"
+  report_payment_methods ||--o{ daily_report_payment_entries : "payment_method_id → id"
+  daily_reports ||--o{ daily_report_payment_entries : "daily_report_id → id"
+  users ||--o{ daily_reports : "updated_by_user_id → id"
+  users ||--o{ daily_reports : "approved_by_user_id → id"
+  users ||--o{ daily_reports : "cashier_user_id → id"
+  branches ||--o{ daily_reports : "branch_id → id"
+  users ||--o{ expense_categories : "created_by_user_id → id"
+  users ||--o{ expense_entries : "created_by_user_id → id"
+  users ||--o{ expense_entries : "voided_by_user_id → id"
+  expense_categories ||--o{ expense_entries : "category_id → id"
+  daily_reports ||--o{ expense_entries : "daily_report_id → id"
+  users ||--o{ expenses : "created_by_user_id → id"
+  users ||--o{ expenses : "voided_by_user_id → id"
+  reports ||--o{ expenses : "report_id → id"
+  finance_accounts ||--o{ finance_account_items : "finance_account_id → id"
+  users ||--o{ finance_accounts : "voided_by_user_id → id"
+  users ||--o{ in_house_payments : "received_by_user_id → id"
+  users ||--o{ in_house_payments : "voided_by_user_id → id"
+  installment_contracts ||--o{ in_house_payments : "contract_id → id"
+  installment_contracts ||--o{ in_house_schedules : "contract_id → id"
+  users ||--o{ income_entries : "created_by_user_id → id"
+  users ||--o{ income_entries : "voided_by_user_id → id"
+  income_categories ||--o{ income_entries : "category_id → id"
+  daily_reports ||--o{ income_entries : "daily_report_id → id"
+  users ||--o{ installment_activity_history : "actor_user_id → id"
+  installment_contracts ||--o{ installment_activity_history : "contract_id → id"
+  users ||--o{ installment_contracts : "created_by_user_id → id"
+  users ||--o{ installment_contracts : "closed_by_user_id → id"
+  installment_types ||--o{ installment_contracts : "installment_type_id → id"
+  branches ||--o{ installment_contracts : "branch_id → id"
+  accounts ||--o{ installment_contracts : "account_id → id"
+  installment_import_runs ||--o{ installment_import_issues : "source_sha256 → source_sha256"
+  installment_contracts ||--o{ installment_items : "contract_id → id"
+  in_house_schedules ||--o{ installment_payment_allocations : "schedule_id → id"
+  in_house_payments ||--o{ installment_payment_allocations : "payment_id → id"
+  users ||--o{ installment_restructures : "created_by_user_id → id"
+  installment_contracts ||--o{ installment_restructures : "contract_id → id"
+  installment_rule_versions ||--o{ installment_rule_terms : "version_id → id"
+  users ||--o{ installment_rule_versions : "created_by_user_id → id"
+  users ||--o{ installment_types : "created_by_user_id → id"
+  users ||--o{ receipt_types : "created_by_user_id → id"
+  reports ||--o{ report_reconciliations : "report_id → id"
+  branches ||--o{ user_branch_assignments : "branch_id → id"
+  users ||--o{ user_branch_assignments : "user_id → id"
+  branches ||--o{ users : "branch_id → id"
+

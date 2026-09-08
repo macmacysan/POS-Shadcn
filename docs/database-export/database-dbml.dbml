@@ -1,0 +1,723 @@
+// Read-only DBML projection of the actual SQLite schema.
+// SQLite CHECK constraints, partial indexes, and ON UPDATE/DELETE actions are retained as notes where DBML cannot express them exactly.
+
+Table account_contacts {
+  id TEXT [pk, unique]
+  account_id TEXT [not null]
+  contact_type TEXT [not null, note: 'CHECK (contact_type IN ('PHONE', 'EMAIL', 'ADDRESS', 'OTHER'))']
+  contact_kind TEXT
+  contact_value TEXT [not null]
+  is_primary INTEGER [not null, default: 0, note: 'CHECK (is_primary IN (0, 1))']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (account_id, contact_type, contact_value) [unique, name: 'sqlite_autoindex_account_contacts_2'] }
+}
+
+Table accounts {
+  id TEXT [pk, unique]
+  account_number TEXT [not null, unique]
+  display_name TEXT [not null]
+  account_type TEXT [not null, default: 'CUSTOMER', note: 'CHECK (account_type IN ('CUSTOMER', 'BUSINESS', 'OTHER'))']
+  last_name TEXT [not null, default: '']
+  first_name TEXT [not null, default: '']
+  middle_name TEXT
+  suffix TEXT
+  street_subdivision TEXT
+  barangay TEXT [not null, default: '']
+  city_municipality TEXT [not null, default: '']
+  province TEXT [not null, default: '']
+  occupation TEXT
+  agent TEXT
+  referred_by TEXT
+  status TEXT [not null, default: 'ACTIVE', note: 'CHECK (status IN ('ACTIVE', 'BLACKLISTED'))']
+  blacklisted_at TEXT
+  blacklisted_by_user_id TEXT
+  blacklist_reason TEXT
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  civil_status TEXT
+  latitude REAL
+  longitude REAL
+  landmark_remarks TEXT
+  branch_id TEXT
+  indexes { (branch_id) [name: 'accounts_branch_idx'] }
+  indexes { (status) [name: 'idx_accounts_status'] }
+}
+
+Table app_settings {
+  key TEXT [pk, not null, unique]
+  value TEXT [not null]
+  updated_at TEXT [not null]
+}
+
+Table audit_log_changes {
+  id TEXT [pk, unique]
+  audit_log_id TEXT [not null]
+  column_name TEXT [not null]
+  old_value TEXT
+  new_value TEXT
+  indexes { (audit_log_id, column_name) [unique, name: 'sqlite_autoindex_audit_log_changes_2'] }
+}
+
+Table audit_logs {
+  id TEXT [pk, unique]
+  actor_user_id TEXT
+  action TEXT [not null]
+  entity_type TEXT [not null]
+  entity_id TEXT [not null]
+  reason TEXT
+  created_at TEXT [not null]
+}
+
+Table backup_records {
+  id TEXT [pk, not null, unique]
+  file_name TEXT [not null]
+  local_path TEXT [not null]
+  sha256 TEXT [not null]
+  size_bytes INTEGER [not null]
+  encrypted INTEGER [not null, note: 'CHECK (encrypted IN (0, 1))']
+  remote_path TEXT
+  created_at TEXT [not null]
+  indexes { (created_at) [name: 'backup_records_created_idx'] }
+}
+
+Table branches {
+  id TEXT [pk, unique]
+  code TEXT [not null, unique]
+  name TEXT [not null, unique]
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+}
+
+Table cash_denominations {
+  id TEXT [pk, not null, unique]
+  value_centavos INTEGER [not null, unique, note: 'CHECK (value_centavos > 0)']
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  sort_order INTEGER [not null, default: 0]
+}
+
+Table cash_out_entries {
+  id TEXT [pk, not null, unique]
+  daily_report_id TEXT [not null]
+  transaction_date TEXT [not null, note: 'CHECK (length(transaction_date) = 10)']
+  description TEXT [not null]
+  amount_centavos INTEGER [not null, note: 'CHECK (amount_centavos > 0)']
+  status TEXT [not null, default: 'POSTED', note: 'CHECK (status IN ('POSTED', 'VOIDED'))']
+  voided_at TEXT
+  voided_by_user_id TEXT
+  void_reason TEXT
+  created_by_user_id TEXT [not null]
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (daily_report_id) [name: 'idx_cash_out_entries_report'] }
+}
+
+Table catalog_options {
+  id TEXT [pk, unique]
+  kind TEXT [not null, note: 'CHECK (kind IN ('CASHIER_EXPENSE_TYPE', 'CASHIER_PAYMENT_TYPE', 'IN_HOUSE_AGENT', 'IN_HOUSE_LOAN_TERM', 'FINANCE_TYPE', 'FINANCE_TERM'))']
+  value TEXT [not null]
+  reference_id TEXT
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (kind, value) [unique, name: 'sqlite_autoindex_catalog_options_2'] }
+  indexes { (kind, is_active, value) [name: 'catalog_options_kind_active_idx'] }
+}
+
+Table daily_receipt_totals {
+  id TEXT [pk, not null, unique]
+  daily_report_id TEXT [not null]
+  receipt_type_id TEXT [not null]
+  quantity INTEGER [not null, default: 0, note: 'CHECK (quantity >= 0)']
+  amount_centavos INTEGER [not null, default: 0, note: 'CHECK (amount_centavos >= 0)']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  receipt_name TEXT [not null, default: '']
+  receipt_short_name TEXT [not null, default: '']
+  indexes { (daily_report_id, receipt_type_id) [unique, name: 'sqlite_autoindex_daily_receipt_totals_2'] }
+  indexes { (daily_report_id) [name: 'idx_daily_receipt_totals_report'] }
+}
+
+Table daily_report_cash_counts {
+  id TEXT [pk, not null, unique]
+  daily_report_id TEXT [not null]
+  denomination_id TEXT [not null]
+  quantity INTEGER [not null, note: 'CHECK (quantity >= 0)']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (daily_report_id, denomination_id) [unique, name: 'sqlite_autoindex_daily_report_cash_counts_2'] }
+  indexes { (daily_report_id) [name: 'idx_daily_report_cash_counts_report'] }
+}
+
+Table daily_report_deductions {
+  id TEXT [pk, not null, unique]
+  daily_report_id TEXT [not null]
+  deduction_type_id TEXT [not null]
+  amount_centavos INTEGER [not null, note: 'CHECK (amount_centavos >= 0)']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (daily_report_id, deduction_type_id) [unique, name: 'sqlite_autoindex_daily_report_deductions_2'] }
+  indexes { (daily_report_id) [name: 'idx_daily_report_deductions_report'] }
+}
+
+Table daily_report_payment_entries {
+  id TEXT [pk, not null, unique]
+  daily_report_id TEXT [not null]
+  payment_method_id TEXT [not null]
+  transaction_date TEXT [not null, note: 'CHECK (length(transaction_date) = 10)']
+  amount_centavos INTEGER [not null, note: 'CHECK (amount_centavos > 0)']
+  reference_number TEXT
+  bank_name TEXT
+  payer_name TEXT
+  remarks TEXT
+  status TEXT [not null, default: 'POSTED', note: 'CHECK (status IN ('POSTED', 'VOIDED'))']
+  voided_at TEXT
+  voided_by_user_id TEXT
+  void_reason TEXT
+  created_by_user_id TEXT [not null]
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  payment_method_name TEXT [not null, default: '']
+  indexes { (payment_method_id, transaction_date) [name: 'idx_daily_report_payments_method_date'] }
+  indexes { (daily_report_id) [name: 'idx_daily_report_payments_report'] }
+}
+
+Table daily_reports {
+  id TEXT [pk, not null, unique]
+  branch_id TEXT [not null]
+  cashier_user_id TEXT [not null]
+  business_date TEXT [not null, note: 'CHECK (length(business_date) = 10)']
+  opening_cash_centavos INTEGER [not null, default: 0, note: 'CHECK (opening_cash_centavos >= 0)']
+  cash_remitted_centavos INTEGER [note: 'CHECK (cash_remitted_centavos IS NULL OR cash_remitted_centavos >= 0)']
+  status TEXT [not null, default: 'DRAFT', note: 'CHECK (status IN ('DRAFT', 'SUBMITTED', 'APPROVED', 'REOPENED', 'VOIDED'))']
+  submitted_at TEXT
+  approved_at TEXT
+  approved_by_user_id TEXT
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  updated_by_user_id TEXT
+  note TEXT
+  google_drive_submitted_at TEXT
+  telegram_submitted_at TEXT
+  indexes { (branch_id, business_date) [unique, name: 'idx_daily_reports_branch_business_date'] }
+  indexes { (branch_id, cashier_user_id, business_date) [unique, name: 'sqlite_autoindex_daily_reports_2'] }
+  indexes { (branch_id, business_date) [name: 'idx_daily_reports_business_date'] }
+}
+
+Table deduction_types {
+  id TEXT [pk, not null, unique]
+  code TEXT [not null, unique]
+  name TEXT [not null, unique]
+  contribution_code TEXT [not null, note: 'CHECK (contribution_code IN ('ER', 'EE', 'EE_LOAN'))']
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+}
+
+Table expense_categories {
+  id TEXT [pk, not null, unique]
+  code TEXT [not null, unique]
+  name TEXT [not null, unique]
+  is_system INTEGER [not null, default: 0, note: 'CHECK (is_system IN (0, 1))']
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  sort_order INTEGER [not null, default: 0]
+  created_by_user_id TEXT
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+}
+
+Table expense_entries {
+  id TEXT [pk, not null, unique]
+  daily_report_id TEXT [not null]
+  category_id TEXT [not null]
+  transaction_date TEXT [not null, note: 'CHECK (length(transaction_date) = 10)']
+  description TEXT [not null]
+  receipt_number TEXT
+  vat_type TEXT [not null, default: 'NON_VAT', note: 'CHECK (vat_type IN ('VATABLE', 'VAT_EXEMPT', 'ZERO_RATED', 'NON_VAT'))']
+  vat_amount_centavos INTEGER [not null, default: 0, note: 'CHECK (vat_amount_centavos >= 0; vat_amount_centavos <= gross_amount_centavos)']
+  gross_amount_centavos INTEGER [not null, note: 'CHECK (gross_amount_centavos > 0; vat_amount_centavos <= gross_amount_centavos)']
+  payment_method_code TEXT [not null, default: 'CASH', note: 'CHECK (payment_method_code IN ('CASH', 'CHECK', 'BANK_TRANSFER', 'GCASH', 'MAYA', 'OTHER_EWALLET', 'OTHER'))']
+  reference_number TEXT
+  remarks TEXT
+  status TEXT [not null, default: 'POSTED', note: 'CHECK (status IN ('POSTED', 'VOIDED'))']
+  voided_at TEXT
+  voided_by_user_id TEXT
+  void_reason TEXT
+  created_by_user_id TEXT [not null]
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (category_id) [name: 'idx_expense_entries_category'] }
+  indexes { (daily_report_id) [name: 'idx_expense_entries_report'] }
+}
+
+Table expenses {
+  id TEXT [pk, not null, unique]
+  report_id TEXT [not null]
+  type TEXT [not null]
+  description TEXT [not null]
+  category TEXT [not null]
+  receipt_no TEXT [not null]
+  vat TEXT [not null, default: '']
+  amount_centavos INTEGER [not null, note: 'CHECK (amount_centavos >= 0)']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  status TEXT [not null, default: 'POSTED', note: 'CHECK (status IN ('POSTED', 'VOIDED'))']
+  voided_at TEXT
+  voided_by_user_id TEXT
+  void_reason TEXT
+  created_by_user_id TEXT
+  indexes { (report_id, status) [name: 'expenses_report_status_idx'] }
+  indexes { (report_id, receipt_no) [name: 'expenses_report_receipt_no_idx'] }
+  indexes { (report_id, vat) [name: 'expenses_report_vat_idx'] }
+  indexes { (report_id, category) [name: 'expenses_report_category_idx'] }
+  indexes { (report_id, type) [name: 'expenses_report_type_idx'] }
+  indexes { (report_id, created_at, id) [name: 'expenses_report_created_idx'] }
+}
+
+Table finance_account_items {
+  id TEXT [pk, not null, unique]
+  finance_account_id TEXT [not null]
+  sort_order INTEGER [not null, note: 'CHECK (sort_order >= 0)']
+  item TEXT [not null]
+  serial_no TEXT
+  quantity INTEGER [not null, note: 'CHECK (quantity > 0)']
+  item_price_centavos INTEGER [not null, note: 'CHECK (item_price_centavos >= 0)']
+  total_centavos INTEGER [not null, note: 'CHECK (total_centavos >= 0)']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (finance_account_id, sort_order) [unique, name: 'sqlite_autoindex_finance_account_items_2'] }
+  indexes { (finance_account_id, sort_order) [name: 'finance_account_items_account_sort_idx'] }
+}
+
+Table finance_accounts {
+  id TEXT [pk, not null, unique]
+  branch TEXT [not null, note: 'CHECK (branch IN ('Goa', 'Tinambac', 'Tigaon', 'Lagonoy'))']
+  provider TEXT [not null, note: 'CHECK (provider IN ('Home Credit', 'Salmon', 'Skyro'))']
+  date_released TEXT [not null]
+  terms_months INTEGER [not null, note: 'CHECK (terms_months BETWEEN 1 AND 12)']
+  last_name TEXT [not null]
+  first_name TEXT [not null]
+  middle_name TEXT
+  suffix TEXT
+  quantity INTEGER [not null, note: 'CHECK (quantity > 0)']
+  item TEXT [not null]
+  serial_no TEXT
+  item_price_centavos INTEGER [not null, note: 'CHECK (item_price_centavos >= 0)']
+  grand_total_centavos INTEGER [not null, note: 'CHECK (grand_total_centavos >= 0)']
+  downpayment_centavos INTEGER [not null, note: 'CHECK (downpayment_centavos >= 0)']
+  balance_centavos INTEGER [not null, note: 'CHECK (balance_centavos >= 0)']
+  or_number TEXT
+  or_date TEXT
+  paid_date TEXT
+  remarks TEXT
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  status TEXT [not null, default: 'POSTED', note: 'CHECK (status IN ('POSTED', 'VOIDED'))']
+  voided_at TEXT
+  voided_by_user_id TEXT
+  void_reason TEXT
+  indexes { (status) [name: 'finance_accounts_status_idx'] }
+  indexes { (branch, date_released, created_at) [name: 'finance_accounts_branch_date_idx'] }
+}
+
+Table google_drive_snapshots {
+  branch TEXT [pk, unique]
+  remote_file_id TEXT
+  remote_revision TEXT
+  sha256 TEXT
+  uploaded_at TEXT
+  downloaded_at TEXT
+  last_error TEXT
+}
+
+Table google_sheet_branch_cache {
+  spreadsheet_id TEXT [pk, not null]
+  sheet_name TEXT [pk, not null]
+  source_record_id TEXT [pk, not null]
+  source_row INTEGER [not null]
+  payload_json TEXT [not null]
+  downloaded_at TEXT [not null]
+  source_branch TEXT [not null, default: '']
+  indexes { (spreadsheet_id, sheet_name, source_record_id) [unique, name: 'sqlite_autoindex_google_sheet_branch_cache_1'] }
+  indexes { (source_branch, sheet_name, source_row) [name: 'google_sheet_branch_cache_branch_sheet_idx'] }
+  indexes { (spreadsheet_id, sheet_name, source_row) [name: 'google_sheet_branch_cache_sheet_idx'] }
+}
+
+Table google_sheet_conflicts {
+  id TEXT [pk, not null, unique]
+  spreadsheet_id TEXT [not null]
+  sheet_name TEXT [not null]
+  source_row INTEGER [not null]
+  source_record_id TEXT [not null]
+  local_updated_at TEXT [not null]
+  source_updated_at TEXT [not null]
+  payload_json TEXT [not null]
+  status TEXT [not null, default: 'OPEN', note: 'CHECK (status IN ('OPEN', 'RESOLVED', 'REJECTED'))']
+  created_at TEXT [not null]
+  resolved_at TEXT
+}
+
+Table google_sheet_imports {
+  id TEXT [pk, not null, unique]
+  spreadsheet_id TEXT [not null]
+  sheet_name TEXT [not null]
+  source_row INTEGER [not null]
+  source_record_id TEXT [not null]
+  source_updated_at TEXT [not null]
+  status TEXT [not null, note: 'CHECK (status IN ('IMPORTED', 'DUPLICATE', 'CONFLICT', 'INVALID', 'FAILED'))']
+  detail TEXT
+  imported_at TEXT [not null]
+  indexes { (spreadsheet_id, sheet_name, source_row, source_record_id, source_updated_at) [unique, name: 'sqlite_autoindex_google_sheet_imports_2'] }
+  indexes { (source_record_id, source_updated_at) [name: 'google_sheet_imports_record_idx'] }
+}
+
+Table google_sheet_sources {
+  key TEXT [pk, not null, unique]
+  spreadsheet_id TEXT [not null]
+  branch TEXT
+  updated_at TEXT [not null]
+}
+
+Table in_house_payments {
+  id TEXT [pk, unique]
+  contract_id TEXT [not null]
+  payment_date TEXT [not null]
+  amount_centavos INTEGER [not null, note: 'CHECK (amount_centavos > 0)']
+  reference_number TEXT
+  status TEXT [not null, default: 'POSTED', note: 'CHECK (status IN ('POSTED', 'VOIDED'))']
+  voided_at TEXT
+  voided_by_user_id TEXT
+  void_reason TEXT
+  received_by_user_id TEXT
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  submission_id TEXT
+  replaces_payment_id TEXT
+  penalty_centavos INTEGER [not null, default: 0, note: 'CHECK (penalty_centavos >= 0)']
+  indexes { (contract_id, submission_id) [unique, name: 'in_house_payments_submission_idx'] }
+  indexes { (contract_id) [name: 'in_house_payments_contract_idx'] }
+  indexes { (replaces_payment_id) [name: 'in_house_payments_replaces_payment_idx'] }
+}
+
+Table in_house_schedules {
+  id TEXT [pk, unique]
+  contract_id TEXT [not null]
+  installment_number INTEGER [not null, note: 'CHECK (installment_number > 0)']
+  due_date TEXT [not null]
+  due_amount_centavos INTEGER [not null, note: 'CHECK (due_amount_centavos > 0)']
+  status TEXT [not null, default: 'DUE', note: 'CHECK (status IN ('DUE', 'PARTIALLY_PAID', 'PAID', 'WAIVED'))']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  is_restructured INTEGER [not null, default: 0, note: 'CHECK (is_restructured IN (0, 1))']
+  restructure_id TEXT
+  indexes { (contract_id, installment_number) [unique, name: 'sqlite_autoindex_in_house_schedules_2'] }
+}
+
+Table income_categories {
+  id TEXT [pk, not null, unique]
+  code TEXT [not null, unique]
+  name TEXT [not null, unique]
+  summary_group TEXT [not null, note: 'CHECK (summary_group IN ('COLLECTION', 'OTHER_INCOME', 'FINANCE'))']
+  is_system INTEGER [not null, default: 0, note: 'CHECK (is_system IN (0, 1))']
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  sort_order INTEGER [not null, default: 0]
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+}
+
+Table income_entries {
+  id TEXT [pk, not null, unique]
+  daily_report_id TEXT [not null]
+  category_id TEXT [not null]
+  transaction_date TEXT [not null, note: 'CHECK (length(transaction_date) = 10)']
+  particular TEXT [not null]
+  receipt_number TEXT
+  remarks TEXT
+  amount_centavos INTEGER [not null, note: 'CHECK (amount_centavos > 0)']
+  status TEXT [not null, default: 'POSTED', note: 'CHECK (status IN ('POSTED', 'VOIDED'))']
+  voided_at TEXT
+  voided_by_user_id TEXT
+  void_reason TEXT
+  created_by_user_id TEXT [not null]
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (category_id) [name: 'idx_income_entries_category'] }
+  indexes { (daily_report_id) [name: 'idx_income_entries_report'] }
+}
+
+Table installment_activity_history {
+  id TEXT [pk, unique]
+  contract_id TEXT [not null]
+  actor_user_id TEXT
+  action TEXT [not null]
+  activity TEXT [not null]
+  amount_centavos INTEGER [note: 'CHECK (amount_centavos IS NULL OR amount_centavos >= 0)']
+  created_at TEXT [not null]
+}
+
+Table installment_contracts {
+  id TEXT [pk, unique]
+  account_id TEXT [not null]
+  branch_id TEXT [not null]
+  installment_type_id TEXT [not null]
+  contract_number TEXT [not null, unique]
+  contract_date TEXT [not null]
+  date_released TEXT [not null]
+  start_date TEXT [not null]
+  first_due_date TEXT [not null]
+  payment_frequency TEXT [not null, note: 'CHECK (payment_frequency IN ('Weekly', 'Bi-weekly', 'Monthly'))']
+  terms TEXT [not null]
+  principal_centavos INTEGER [not null, default: 0, note: 'CHECK (principal_centavos >= 0)']
+  interest_centavos INTEGER [not null, default: 0, note: 'CHECK (interest_centavos >= 0)']
+  down_payment_centavos INTEGER [not null, default: 0, note: 'CHECK (down_payment_centavos >= 0)']
+  fees_centavos INTEGER [not null, default: 0, note: 'CHECK (fees_centavos >= 0)']
+  installment_amount_centavos INTEGER [not null, default: 0, note: 'CHECK (installment_amount_centavos >= 0)']
+  financed_amount_centavos INTEGER [not null, default: 0, note: 'CHECK (financed_amount_centavos >= 0)']
+  total_payable_centavos INTEGER [not null, default: 0, note: 'CHECK (total_payable_centavos >= 0)']
+  status TEXT [not null, default: 'ACTIVE', note: 'CHECK (status IN ('DRAFT', 'ACTIVE', 'CLOSED', 'VOIDED', 'DEFAULTED'))']
+  closed_at TEXT
+  closed_by_user_id TEXT
+  close_reason TEXT
+  remarks TEXT
+  created_by_user_id TEXT
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  schedule_frequency TEXT [not null, default: '']
+  configuration_version_id TEXT
+  end_date TEXT
+  interest_rate_bps INTEGER
+  required_down_payment_rate_bps INTEGER
+  daily_required_fee_factor INTEGER
+  payment_amount_centavos INTEGER
+  required_fee_centavos INTEGER
+  previous_status TEXT
+  down_payment_applied_centavos INTEGER [not null, default: 0]
+  indexes { (first_due_date) [name: 'idx_contracts_due_date'] }
+  indexes { (branch_id) [name: 'idx_contracts_branch'] }
+  indexes { (account_id) [name: 'idx_contracts_account'] }
+  indexes { (status) [name: 'idx_contracts_status'] }
+}
+
+Table installment_import_issues {
+  source_sha256 TEXT [pk, not null]
+  sheet_name TEXT [pk, not null]
+  row_number INTEGER [pk, not null]
+  code TEXT [pk, not null]
+  detail TEXT [not null]
+  indexes { (source_sha256, sheet_name, row_number, code) [unique, name: 'sqlite_autoindex_installment_import_issues_1'] }
+  indexes { (source_sha256, code) [name: 'installment_import_issues_code_idx'] }
+}
+
+Table installment_import_runs {
+  source_sha256 TEXT [pk, unique]
+  source_path TEXT [not null]
+  imported_at TEXT [not null]
+  report_json TEXT [not null]
+}
+
+Table installment_items {
+  id TEXT [pk, unique]
+  contract_id TEXT [not null]
+  description TEXT [not null]
+  quantity INTEGER [not null, default: 1, note: 'CHECK (quantity > 0)']
+  unit_price_centavos INTEGER [not null, note: 'CHECK (unit_price_centavos >= 0)']
+  item_total_centavos INTEGER [not null, note: 'CHECK (item_total_centavos >= 0)']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  indexes { (contract_id) [name: 'installment_items_contract_idx'] }
+}
+
+Table installment_payment_allocations {
+  id TEXT [pk, unique]
+  payment_id TEXT [not null]
+  schedule_id TEXT [not null]
+  allocated_amount_centavos INTEGER [not null, note: 'CHECK (allocated_amount_centavos > 0)']
+  created_at TEXT [not null]
+  penalty_centavos INTEGER [not null, default: 0, note: 'CHECK (penalty_centavos >= 0)']
+  indexes { (payment_id, schedule_id) [unique, name: 'sqlite_autoindex_installment_payment_allocations_2'] }
+}
+
+Table installment_restructures {
+  id TEXT [pk, unique]
+  contract_id TEXT [not null]
+  first_due_date TEXT [not null]
+  payment_frequency TEXT [not null]
+  terms INTEGER [not null, note: 'CHECK (terms > 0)']
+  outstanding_balance_centavos INTEGER [not null, note: 'CHECK (outstanding_balance_centavos > 0)']
+  reason TEXT [not null]
+  created_by_user_id TEXT
+  created_at TEXT [not null]
+  indexes { (contract_id, created_at) [name: 'installment_restructures_contract_idx'] }
+}
+
+Table installment_rule_terms {
+  version_id TEXT [pk, not null]
+  frequency TEXT [pk, not null, note: 'CHECK (frequency IN ('Daily', 'Weekly', 'Semi', 'Monthly'))']
+  terms INTEGER [pk, not null, note: 'CHECK (terms > 0)']
+  interest_rate_bps INTEGER
+  required_fee_payments INTEGER
+  indexes { (version_id, frequency, terms) [unique, name: 'sqlite_autoindex_installment_rule_terms_1'] }
+}
+
+Table installment_rule_versions {
+  id TEXT [pk, unique]
+  version INTEGER [not null, unique]
+  is_active INTEGER [not null, unique, note: 'CHECK (is_active IN (0, 1))']
+  standard_interest_rate_bps INTEGER [not null, note: 'CHECK (standard_interest_rate_bps >= 0)']
+  required_down_payment_rate_bps INTEGER [not null, note: 'CHECK (required_down_payment_rate_bps BETWEEN 0 AND 10000)']
+  created_by_user_id TEXT
+  created_at TEXT [not null]
+}
+
+Table installment_types {
+  id TEXT [pk, unique]
+  code TEXT [not null, unique]
+  name TEXT [not null, unique]
+  provider_kind TEXT [not null, note: 'CHECK (provider_kind IN ('IN_HOUSE', 'EXTERNAL'))']
+  is_system INTEGER [not null, default: 0, note: 'CHECK (is_system IN (0, 1))']
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  created_by_user_id TEXT
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+}
+
+Table product_catalog_items {
+  description TEXT [pk, unique]
+  retail_price_centavos INTEGER [not null, note: 'CHECK (retail_price_centavos >= 0)']
+  imported_at TEXT [not null]
+  cost_price_centavos INTEGER [note: 'CHECK (cost_price_centavos >= 0)']
+}
+
+Table receipt_types {
+  id TEXT [pk, not null, unique]
+  code TEXT [not null, unique]
+  name TEXT [not null, unique]
+  is_system INTEGER [not null, default: 0, note: 'CHECK (is_system IN (0, 1))']
+  is_default_visible INTEGER [not null, default: 0, note: 'CHECK (is_default_visible IN (0, 1))']
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  sort_order INTEGER [not null, default: 0]
+  created_by_user_id TEXT
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  short_name TEXT [not null, default: '']
+}
+
+Table report_payment_methods {
+  id TEXT [pk, not null, unique]
+  code TEXT [not null, unique]
+  name TEXT [not null, unique]
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+}
+
+Table report_reconciliations {
+  report_id TEXT [pk, not null, unique]
+  physical_cash_centavos INTEGER [not null]
+  cash_remitted_centavos INTEGER [not null, note: 'CHECK (cash_remitted_centavos >= 0)']
+  cash_variance_centavos INTEGER [not null]
+  updated_at TEXT [not null]
+  indexes { (updated_at) [name: 'report_reconciliations_updated_idx'] }
+}
+
+Table reports {
+  id TEXT [pk, not null, unique]
+  branch_id TEXT [not null]
+  cashier_id TEXT [not null]
+  business_date TEXT [not null]
+  status TEXT [not null, note: 'CHECK (status IN ('Draft', 'Submitted', 'Locked'))']
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+}
+
+Table schema_migrations {
+  version INTEGER [pk]
+  applied_at TEXT [not null]
+}
+
+Table user_branch_assignments {
+  user_id TEXT [pk, not null]
+  branch_id TEXT [pk, not null]
+  indexes { (user_id, branch_id) [unique, name: 'sqlite_autoindex_user_branch_assignments_1'] }
+}
+
+Table users {
+  id TEXT [pk, unique]
+  branch_id TEXT
+  username TEXT [not null, unique]
+  password_hash TEXT [not null]
+  display_name TEXT [not null]
+  role TEXT [not null, note: 'CHECK (role IN ('CASHIER', 'ADMIN', 'SUPERVISOR', 'AUDITOR'))']
+  is_active INTEGER [not null, default: 1, note: 'CHECK (is_active IN (0, 1))']
+  last_login_at TEXT
+  created_at TEXT [not null]
+  updated_at TEXT [not null]
+  must_change_password INTEGER [not null, default: 0, note: 'CHECK (must_change_password IN (0, 1))']
+  first_name TEXT [not null, default: '']
+  last_name TEXT [not null, default: '']
+}
+
+Ref: account_contacts.account_id > accounts.id [delete: restrict, update: no action]
+Ref: accounts.blacklisted_by_user_id > users.id [delete: set null, update: no action]
+Ref: accounts.branch_id > branches.id [delete: set null, update: no action]
+Ref: audit_log_changes.audit_log_id > audit_logs.id [delete: restrict, update: no action]
+Ref: audit_logs.actor_user_id > users.id [delete: set null, update: no action]
+Ref: cash_out_entries.created_by_user_id > users.id [delete: restrict, update: no action]
+Ref: cash_out_entries.voided_by_user_id > users.id [delete: set null, update: no action]
+Ref: cash_out_entries.daily_report_id > daily_reports.id [delete: restrict, update: no action]
+Ref: daily_receipt_totals.receipt_type_id > receipt_types.id [delete: restrict, update: no action]
+Ref: daily_receipt_totals.daily_report_id > daily_reports.id [delete: restrict, update: no action]
+Ref: daily_report_cash_counts.denomination_id > cash_denominations.id [delete: restrict, update: no action]
+Ref: daily_report_cash_counts.daily_report_id > daily_reports.id [delete: restrict, update: no action]
+Ref: daily_report_deductions.deduction_type_id > deduction_types.id [delete: restrict, update: no action]
+Ref: daily_report_deductions.daily_report_id > daily_reports.id [delete: restrict, update: no action]
+Ref: daily_report_payment_entries.created_by_user_id > users.id [delete: restrict, update: no action]
+Ref: daily_report_payment_entries.voided_by_user_id > users.id [delete: set null, update: no action]
+Ref: daily_report_payment_entries.payment_method_id > report_payment_methods.id [delete: restrict, update: no action]
+Ref: daily_report_payment_entries.daily_report_id > daily_reports.id [delete: restrict, update: no action]
+Ref: daily_reports.updated_by_user_id > users.id [delete: set null, update: no action]
+Ref: daily_reports.approved_by_user_id > users.id [delete: set null, update: no action]
+Ref: daily_reports.cashier_user_id > users.id [delete: restrict, update: no action]
+Ref: daily_reports.branch_id > branches.id [delete: restrict, update: no action]
+Ref: expense_categories.created_by_user_id > users.id [delete: set null, update: no action]
+Ref: expense_entries.created_by_user_id > users.id [delete: restrict, update: no action]
+Ref: expense_entries.voided_by_user_id > users.id [delete: set null, update: no action]
+Ref: expense_entries.category_id > expense_categories.id [delete: restrict, update: no action]
+Ref: expense_entries.daily_report_id > daily_reports.id [delete: restrict, update: no action]
+Ref: expenses.created_by_user_id > users.id [delete: no action, update: no action]
+Ref: expenses.voided_by_user_id > users.id [delete: set null, update: no action]
+Ref: expenses.report_id > reports.id [delete: cascade, update: no action]
+Ref: finance_account_items.finance_account_id > finance_accounts.id [delete: restrict, update: no action]
+Ref: finance_accounts.voided_by_user_id > users.id [delete: set null, update: no action]
+Ref: in_house_payments.received_by_user_id > users.id [delete: set null, update: no action]
+Ref: in_house_payments.voided_by_user_id > users.id [delete: set null, update: no action]
+Ref: in_house_payments.contract_id > installment_contracts.id [delete: restrict, update: no action]
+Ref: in_house_schedules.contract_id > installment_contracts.id [delete: restrict, update: no action]
+Ref: income_entries.created_by_user_id > users.id [delete: restrict, update: no action]
+Ref: income_entries.voided_by_user_id > users.id [delete: set null, update: no action]
+Ref: income_entries.category_id > income_categories.id [delete: restrict, update: no action]
+Ref: income_entries.daily_report_id > daily_reports.id [delete: restrict, update: no action]
+Ref: installment_activity_history.actor_user_id > users.id [delete: set null, update: no action]
+Ref: installment_activity_history.contract_id > installment_contracts.id [delete: restrict, update: no action]
+Ref: installment_contracts.created_by_user_id > users.id [delete: set null, update: no action]
+Ref: installment_contracts.closed_by_user_id > users.id [delete: set null, update: no action]
+Ref: installment_contracts.installment_type_id > installment_types.id [delete: restrict, update: no action]
+Ref: installment_contracts.branch_id > branches.id [delete: restrict, update: no action]
+Ref: installment_contracts.account_id > accounts.id [delete: restrict, update: no action]
+Ref: installment_import_issues.source_sha256 > installment_import_runs.source_sha256 [delete: cascade, update: no action]
+Ref: installment_items.contract_id > installment_contracts.id [delete: restrict, update: no action]
+Ref: installment_payment_allocations.schedule_id > in_house_schedules.id [delete: restrict, update: no action]
+Ref: installment_payment_allocations.payment_id > in_house_payments.id [delete: restrict, update: no action]
+Ref: installment_restructures.created_by_user_id > users.id [delete: set null, update: no action]
+Ref: installment_restructures.contract_id > installment_contracts.id [delete: restrict, update: no action]
+Ref: installment_rule_terms.version_id > installment_rule_versions.id [delete: restrict, update: no action]
+Ref: installment_rule_versions.created_by_user_id > users.id [delete: set null, update: no action]
+Ref: installment_types.created_by_user_id > users.id [delete: set null, update: no action]
+Ref: receipt_types.created_by_user_id > users.id [delete: set null, update: no action]
+Ref: report_reconciliations.report_id > reports.id [delete: cascade, update: no action]
+Ref: user_branch_assignments.branch_id > branches.id [delete: cascade, update: no action]
+Ref: user_branch_assignments.user_id > users.id [delete: cascade, update: no action]
+Ref: users.branch_id > branches.id [delete: set null, update: no action]
+
