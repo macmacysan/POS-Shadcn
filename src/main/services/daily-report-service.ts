@@ -2,6 +2,8 @@ import type {
   AuthenticatedUser,
   DailyReportCalendarRequest,
   DailyReportCalendarResponse,
+  DailyReportAttentionRequest,
+  DailyReportAttentionResponse,
   DailyReportDeliveryUpdateRequest,
   DailyReportPaymentCreateRequest,
   DailyReportPaymentListRequest,
@@ -50,6 +52,13 @@ export class DailyReportService {
         branchId
       })
     }
+  }
+
+  getAttention(request: DailyReportAttentionRequest): DailyReportAttentionResponse {
+    const user = this.auth.requireCashierWorkspace()
+    const branchId = this.readBranchId(request.branch, user)
+    if (!branchId) throw new AppError('FORBIDDEN', 'Your account is not assigned to a branch.')
+    return { rows: this.repository.listAttention(branchId) }
   }
 
   getSnapshot(request: DailyReportSnapshotRequest) {

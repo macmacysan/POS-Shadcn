@@ -14,6 +14,7 @@ import { SidebarLeft } from '@/components/layout/sidebar-left'
 import { NotificationCenter } from '@/components/layout/notification-center'
 import { UpdateNotifications } from '@/components/layout/update-notifications'
 import { InstallmentAttentionAlertDialog } from '@/components/shared/installment-attention-alert-dialog'
+import { ReportAttentionAlertDialog } from '@/components/shared/report-attention-alert-dialog'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import {
   Breadcrumb,
@@ -155,6 +156,13 @@ function Workspace({
   >(initialPaymentRoute?.origin === 'cashier-history' ? 'Activity' : undefined)
   const [isCashierReportExportRequested, setIsCashierReportExportRequested] = useState(false)
   const [cashierReportExportDate, setCashierReportExportDate] = useState<string>()
+  const [reportAttentionBranch, setReportAttentionBranch] = useState<LoginBranch>()
+  const [attentionReportId, setAttentionReportId] = useState<string>()
+  const enableReportAttention = useCallback(
+    () => setReportAttentionBranch(selectedBranch),
+    [selectedBranch]
+  )
+  const clearAttentionReport = useCallback(() => setAttentionReportId(undefined), [])
   const [navigationCounts, setNavigationCounts] = useState<{
     overdue?: number
     installmentAttention?: InstallmentAttentionSummary
@@ -389,6 +397,8 @@ function Workspace({
             initialTab={cashierReportInitialTab}
             openExportReports={isCashierReportExportRequested}
             exportDate={cashierReportExportDate}
+            attentionReportId={attentionReportId}
+            onAttentionReportOpened={clearAttentionReport}
             onExportReportsOpened={() => setIsCashierReportExportRequested(false)}
             onOpenCollection={(accountId) => openPaymentWorkspace(accountId, 'ledger', 'active')}
             onOpenHistoryPayment={(accountId, paymentId) =>
@@ -500,6 +510,15 @@ function Workspace({
           />
         )}
       </SidebarInset>
+      <InstallmentAttentionAlertDialog branch={selectedBranch} onSettled={enableReportAttention} />
+      <ReportAttentionAlertDialog
+        branch={selectedBranch}
+        enabled={reportAttentionBranch === selectedBranch}
+        onNext={(reportId) => {
+          setAttentionReportId(reportId)
+          setActiveView('cashier-reports')
+        }}
+      />
     </SidebarProvider>
   )
 }
@@ -626,7 +645,6 @@ function App(): React.JSX.Element {
                   cashierName={authenticatedUser.displayName}
                   initialSyncFailures={syncFailures}
                 />
-                <InstallmentAttentionAlertDialog branch={selectedBranch} />
               </div>
             </ActiveReportProvider>
           ) : (

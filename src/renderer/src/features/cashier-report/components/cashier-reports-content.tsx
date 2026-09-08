@@ -543,7 +543,9 @@ function InstallmentAttentionPopover({
             <Button type="button" variant="ghost" size="xs" onClick={() => closeAnd(onViewOverdue)}>
               View overdue accounts
             </Button>
-          ) : <span />}
+          ) : (
+            <span />
+          )}
           <Button type="button" variant="outline" size="xs" onClick={() => closeAnd(onViewAll)}>
             View all
           </Button>
@@ -1192,15 +1194,24 @@ function ReportTab({
     [onDuplicate, onEdit, onView, onVoid]
   )
   const getAdminExpenseActions = React.useCallback(
-    (row: ExpenseRow) => (row.source === 'google-cache' ? expenseRowActions(row, onView, onVoid, onEdit, onDuplicate) : []),
+    (row: ExpenseRow) =>
+      row.source === 'google-cache'
+        ? expenseRowActions(row, onView, onVoid, onEdit, onDuplicate)
+        : [],
     [onDuplicate, onEdit, onView, onVoid]
   )
   const getAdminIncomeActions = React.useCallback(
-    (row: IncomeRow) => (row.source === 'google-cache' ? incomeRowActions(row, onView, onVoid, onEdit, onDuplicate) : []),
+    (row: IncomeRow) =>
+      row.source === 'google-cache'
+        ? incomeRowActions(row, onView, onVoid, onEdit, onDuplicate)
+        : [],
     [onDuplicate, onEdit, onView, onVoid]
   )
   const getAdminPaymentActions = React.useCallback(
-    (row: PaymentRow) => (row.source === 'google-cache' ? paymentRowActions(row, onView, onVoid, onEdit, onDuplicate) : []),
+    (row: PaymentRow) =>
+      row.source === 'google-cache'
+        ? paymentRowActions(row, onView, onVoid, onEdit, onDuplicate)
+        : [],
     [onDuplicate, onEdit, onView, onVoid]
   )
   const onExpenseDefaultAction = React.useCallback(
@@ -1585,6 +1596,8 @@ export function CashierReportsContent({
   initialTab = 'Expenses',
   openExportReports = false,
   exportDate,
+  attentionReportId,
+  onAttentionReportOpened,
   onExportReportsOpened,
   onOpenCollection,
   onOpenHistoryPayment,
@@ -1600,6 +1613,8 @@ export function CashierReportsContent({
   initialTab?: (typeof reportTabs)[number]
   openExportReports?: boolean
   exportDate?: string
+  attentionReportId?: string
+  onAttentionReportOpened?: () => void
   onExportReportsOpened?: () => void
   onOpenCollection?: (accountId: string) => void
   onOpenHistoryPayment?: (accountId: string, paymentId: string) => void
@@ -1821,6 +1836,29 @@ export function CashierReportsContent({
     },
     [activeReport.branchId, activeReport.cashierUserId, selectedReport.businessDate]
   )
+  React.useEffect(() => {
+    if (!attentionReportId) return
+    let active = true
+    void window.api.dailyReports
+      .getSnapshot({ dailyReportId: attentionReportId })
+      .then((snapshot) => {
+        if (!active) return
+        setSelectedReport({ ...snapshot.report, reportId: snapshot.report.id })
+        setSelectedReportMissing(false)
+        const date = parseISO(snapshot.report.businessDate)
+        setDateRange({ period: 'day', operator: 'is', startDate: date, endDate: date })
+      })
+      .catch(() => {
+        if (active) setDateError('That report date could not be loaded.')
+      })
+      .finally(() => {
+        if (active) onAttentionReportOpened?.()
+      })
+    return () => {
+      active = false
+    }
+  }, [attentionReportId, onAttentionReportOpened])
+
   const changeDateRange = React.useCallback(
     (value: DateSelectorValue): void => {
       if (!value.startDate) return

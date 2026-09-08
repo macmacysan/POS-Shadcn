@@ -37,6 +37,9 @@ export const dailyReportCalendarRequestSchema = z.object({
   cashierUserId: uuidSchema,
   month: calendarMonthSchema
 })
+export const dailyReportAttentionRequestSchema = z.object({
+  branch: z.string().trim().min(1).max(100)
+})
 
 export const dailyReportRecordSchema = z.object({
   id: uuidSchema,
@@ -80,6 +83,14 @@ export const dailyReportDeliveryUpdateRequestSchema = z.object({
 })
 export const dailyReportCalendarResponseSchema = z.object({
   rows: z.array(dailyReportCalendarDaySchema)
+})
+export const dailyReportAttentionItemSchema = z.object({
+  reportId: uuidSchema,
+  businessDate: businessDateSchema,
+  cashVarianceCentavos: centavosSchema
+})
+export const dailyReportAttentionResponseSchema = z.object({
+  rows: z.array(dailyReportAttentionItemSchema)
 })
 
 export const incomeCategoryRecordSchema = z.object({
@@ -339,6 +350,9 @@ export type DailyReportResolveActiveResponse = z.infer<
 export type DailyReportCalendarRequest = z.infer<typeof dailyReportCalendarRequestSchema>
 export type DailyReportCalendarDay = z.infer<typeof dailyReportCalendarDaySchema>
 export type DailyReportCalendarResponse = z.infer<typeof dailyReportCalendarResponseSchema>
+export type DailyReportAttentionRequest = z.infer<typeof dailyReportAttentionRequestSchema>
+export type DailyReportAttentionItem = z.infer<typeof dailyReportAttentionItemSchema>
+export type DailyReportAttentionResponse = z.infer<typeof dailyReportAttentionResponseSchema>
 export type IncomeCategoryRecord = z.infer<typeof incomeCategoryRecordSchema>
 export type IncomeEntryRecord = z.infer<typeof incomeEntryRecordSchema>
 export type IncomeListRequest = Omit<z.infer<typeof incomeListRequestSchema>, 'includeVoided'> & {
@@ -405,6 +419,7 @@ export type DailyReportSummaryUpdateResponse = z.infer<
 export const dailyReportIpcChannels = {
   resolveActive: 'daily-reports:resolve-active',
   listCalendar: 'daily-reports:calendar:list',
+  attention: 'daily-reports:attention',
   getSnapshot: 'daily-reports:get-snapshot',
   updateNote: 'daily-reports:note:update',
   markDelivery: 'daily-reports:delivery:mark',
@@ -429,6 +444,7 @@ export type DailyReportsApi = {
       request: DailyReportResolveActiveRequest
     ): Promise<DailyReportResolveActiveResponse>
     listCalendar(request: DailyReportCalendarRequest): Promise<DailyReportCalendarResponse>
+    getAttention(request: DailyReportAttentionRequest): Promise<DailyReportAttentionResponse>
     getSnapshot(request: DailyReportSnapshotRequest): Promise<DailyReportSnapshotResponse>
     updateSummary(
       request: DailyReportSummaryUpdateRequest

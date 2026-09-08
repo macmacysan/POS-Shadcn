@@ -3,6 +3,7 @@ import { ipcMain } from 'electron'
 import {
   dailyReportIpcChannels,
   dailyReportCalendarRequestSchema,
+  dailyReportAttentionRequestSchema,
   dailyReportPaymentCreateRequestSchema,
   dailyReportPaymentListRequestSchema,
   dailyReportPaymentUpdateRequestSchema,
@@ -23,7 +24,10 @@ import {
 import { toIpcError } from '../database/errors'
 import { DailyReportService } from '../services/daily-report-service'
 
-export function registerDailyReportIpc(service: DailyReportService, onCommitted?: () => void): void {
+export function registerDailyReportIpc(
+  service: DailyReportService,
+  onCommitted?: () => void
+): void {
   const handle = <T>(
     channel: string,
     parse: (input: unknown) => T,
@@ -32,14 +36,18 @@ export function registerDailyReportIpc(service: DailyReportService, onCommitted?
     ipcMain.handle(channel, (_event, input: unknown) => {
       try {
         const result = run(parse(input))
-        if (![
-          dailyReportIpcChannels.resolveActive,
-          dailyReportIpcChannels.listCalendar,
-          dailyReportIpcChannels.getSnapshot,
-          dailyReportIpcChannels.listIncome,
-          dailyReportIpcChannels.listPayments,
-          dailyReportIpcChannels.listReceiptTypes
-        ].includes(channel as never)) onCommitted?.()
+        if (
+          ![
+            dailyReportIpcChannels.resolveActive,
+            dailyReportIpcChannels.listCalendar,
+            dailyReportIpcChannels.attention,
+            dailyReportIpcChannels.getSnapshot,
+            dailyReportIpcChannels.listIncome,
+            dailyReportIpcChannels.listPayments,
+            dailyReportIpcChannels.listReceiptTypes
+          ].includes(channel as never)
+        )
+          onCommitted?.()
         return result
       } catch (error) {
         throw toIpcError(error)
@@ -54,6 +62,9 @@ export function registerDailyReportIpc(service: DailyReportService, onCommitted?
   )
   handle(dailyReportIpcChannels.listCalendar, dailyReportCalendarRequestSchema.parse, (input) =>
     service.listCalendar(input)
+  )
+  handle(dailyReportIpcChannels.attention, dailyReportAttentionRequestSchema.parse, (input) =>
+    service.getAttention(input)
   )
   handle(dailyReportIpcChannels.getSnapshot, dailyReportSnapshotRequestSchema.parse, (input) =>
     service.getSnapshot(input)

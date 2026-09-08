@@ -36,27 +36,42 @@ function attentionLabel(item: InstallmentAttentionItem): string {
 }
 
 export function InstallmentAttentionAlertDialog({
-  branch
+  branch,
+  onSettled
 }: {
   branch: LoginBranch
+  onSettled?: () => void
 }): React.JSX.Element | null {
   const [summary, setSummary] = React.useState<InstallmentAttentionSummary>()
   const [open, setOpen] = React.useState(false)
+  const settledRef = React.useRef(false)
+  const settle = React.useCallback(() => {
+    if (settledRef.current) return
+    settledRef.current = true
+    onSettled?.()
+  }, [onSettled])
 
   React.useEffect(() => {
+    settledRef.current = false
     let cancelled = false
     void window.api.installments
       .getAttentionSummary({ ...(branch === 'All Branch' ? {} : { branch }) })
       .then((nextSummary) => {
-        if (cancelled || (nextSummary.overdueCount === 0 && nextSummary.nearDueCount === 0)) return
+        if (cancelled) return
+        if (nextSummary.overdueCount === 0 && nextSummary.nearDueCount === 0) {
+          settle()
+          return
+        }
         setSummary(nextSummary)
         setOpen(true)
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!cancelled) settle()
+      })
     return () => {
       cancelled = true
     }
-  }, [branch])
+  }, [branch, settle])
 
   if (!summary) return null
 
@@ -66,12 +81,17 @@ export function InstallmentAttentionAlertDialog({
   ].slice(0, 5)
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (!nextOpen) settle()
+      }}
+    >
       <AlertDialogContent className="gap-6 p-8 sm:max-w-2xl">
         <div className="flex flex-col items-center gap-2 text-center">
           <div className="flex size-16 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-            <TriangleAlert aria-hidden="true" />
-            {' '}
+            <TriangleAlert aria-hidden="true" />{' '}
           </div>
           <AlertDialogTitle>Installment accounts need attention</AlertDialogTitle>
           <AlertDialogDescription className="max-w-md">

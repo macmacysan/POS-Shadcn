@@ -5,6 +5,7 @@ import type {
   DailyReceiptTotalRecord,
   DailyReportCalendarDay,
   DailyReportCalendarRequest,
+  DailyReportAttentionItem,
   DailyReportCashCountRecord,
   DailyReportDeductionRecord,
   DailyReportPaymentCreateRequest,
@@ -541,6 +542,23 @@ export class DailyReportRepository {
     return row ? reportRecord(row) : null
   }
 
+  listAttention(branchId: string): DailyReportAttentionItem[] {
+    const reports = this.db
+      .prepare(
+        `SELECT id, business_date FROM daily_reports
+          WHERE branch_id = ? AND telegram_submitted_at IS NULL
+          ORDER BY business_date, id`
+      )
+      .all(branchId) as { id: string; business_date: string }[]
+
+    return reports.flatMap((report) => {
+      const { cashVarianceCentavos } = this.snapshot(report.id)
+      return cashVarianceCentavos < 0
+        ? [{ reportId: report.id, businessDate: report.business_date, cashVarianceCentavos }]
+        : []
+    })
+  }
+
   branchIdForReport(reportId: string): string | null {
     const row = this.db
       .prepare('SELECT branch_id FROM daily_reports WHERE id = ?')
@@ -629,10 +647,7 @@ export class DailyReportRepository {
     return reportRecord(row)
   }
 
-  markDelivery(
-    dailyReportId: string,
-    updatedByUserId: string
-  ): DailyReportRecord {
+  markDelivery(dailyReportId: string, updatedByUserId: string): DailyReportRecord {
     const now = new Date().toISOString()
     const row = this.db
       .prepare(
@@ -1126,8 +1141,12 @@ export class DailyReportRepository {
   snapshot(dailyReportId: string): DailyReportSnapshotResponse {
     const report = this.findById(dailyReportId)
     if (!report) throw new AppError('NOT_FOUND', 'Daily report was not found.')
-    const incomeEntries = this.listIncome({ dailyReportId }).filter((entry) => entry.source === 'local')
-    const paymentEntries = this.listPayments({ dailyReportId }).filter((entry) => entry.source === 'local')
+    const incomeEntries = this.listIncome({ dailyReportId }).filter(
+      (entry) => entry.source === 'local'
+    )
+    const paymentEntries = this.listPayments({ dailyReportId }).filter(
+      (entry) => entry.source === 'local'
+    )
     const receiptTotals = (
       this.db
         .prepare(
