@@ -213,7 +213,11 @@ const api: ExpensesApi &
     create: () => ipcRenderer.invoke(backupIpcChannels.create),
     restore: (request) => ipcRenderer.invoke(backupIpcChannels.restore, request),
     exportPortable: () => ipcRenderer.invoke(backupIpcChannels.exportPortable),
-    importPortable: (request) => ipcRenderer.invoke(backupIpcChannels.importPortable, request),
+    selectPortableImport: () => ipcRenderer.invoke(backupIpcChannels.selectPortableImport),
+    cancelPortableImport: (request) =>
+      ipcRenderer.invoke(backupIpcChannels.cancelPortableImport, request),
+    confirmPortableImport: (request) =>
+      ipcRenderer.invoke(backupIpcChannels.confirmPortableImport, request),
     listOnlineRevisions: (request) =>
       ipcRenderer.invoke(backupIpcChannels.listOnlineRevisions, request),
     restoreOnlineRevision: (request) =>

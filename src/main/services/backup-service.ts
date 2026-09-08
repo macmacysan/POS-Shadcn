@@ -1,6 +1,14 @@
 import Database from 'better-sqlite3'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { join } from 'node:path'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import type { AppDatabase } from '../database/database'
@@ -26,25 +34,40 @@ const portableRequiredTables = [
 export type PortableDatabaseValidation = { schemaVersion: number }
 
 export class BackupService {
-  constructor(private readonly database: AppDatabase, private readonly sourcePath: string, private readonly google?: GoogleSheetsClient) {}
+  constructor(
+    private readonly database: AppDatabase,
+    private readonly sourcePath: string,
+    private readonly google?: GoogleSheetsClient
+  ) {}
 
   async createManaged(destinationDirectory: string): Promise<{ filePath: string; sha256: string }> {
     const result = await this.create(this.sourcePath, destinationDirectory)
     const folderId = process.env.GOOGLE_SHARED_DRIVE_FOLDER_ID
     if (folderId && this.google) {
-      const remotePath = await this.google.uploadFile(result.filePath.split(/[\\/]/).pop() ?? 'backup.db.gz.enc', readFileSync(result.filePath), folderId)
-      this.database.prepare('UPDATE backup_records SET remote_path = ? WHERE local_path = ?').run(remotePath, result.filePath)
+      const remotePath = await this.google.uploadFile(
+        result.filePath.split(/[\\/]/).pop() ?? 'backup.db.gz.enc',
+        readFileSync(result.filePath),
+        folderId
+      )
+      this.database
+        .prepare('UPDATE backup_records SET remote_path = ? WHERE local_path = ?')
+        .run(remotePath, result.filePath)
     }
     return result
   }
 
   restoreManaged(id: string): string {
-    const record = this.database.prepare('SELECT local_path FROM backup_records WHERE id = ?').get(id) as { local_path: string } | undefined
+    const record = this.database
+      .prepare('SELECT local_path FROM backup_records WHERE id = ?')
+      .get(id) as { local_path: string } | undefined
     if (!record) throw new Error('Backup was not found.')
     return this.restoreValidated(record.local_path, this.sourcePath)
   }
 
-  async create(sourcePath: string, destinationDirectory: string): Promise<{ filePath: string; sha256: string }> {
+  async create(
+    sourcePath: string,
+    destinationDirectory: string
+  ): Promise<{ filePath: string; sha256: string }> {
     mkdirSync(destinationDirectory, { recursive: true })
     const temporaryPath = join(destinationDirectory, `.backup-${randomBytes(8).toString('hex')}.db`)
     try {
@@ -56,19 +79,36 @@ export class BackupService {
       const filePath = join(destinationDirectory, fileName)
       writeFileSync(filePath, encrypted)
       const sha256 = createHash('sha256').update(encrypted).digest('hex')
-      this.database.prepare(`INSERT INTO backup_records (id, file_name, local_path, sha256, size_bytes, encrypted, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)`).run(randomBytes(16).toString('hex'), fileName, filePath, sha256, encrypted.length, new Date().toISOString())
+      this.database
+        .prepare(
+          `INSERT INTO backup_records (id, file_name, local_path, sha256, size_bytes, encrypted, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)`
+        )
+        .run(
+          randomBytes(16).toString('hex'),
+          fileName,
+          filePath,
+          sha256,
+          encrypted.length,
+          new Date().toISOString()
+        )
       return { filePath, sha256 }
     } finally {
       if (existsSync(temporaryPath)) unlinkSync(temporaryPath)
     }
   }
 
-  async exportPortable(destinationDirectory: string): Promise<{ filePath: string; schemaVersion: number }> {
+  async exportPortable(
+    destinationDirectory: string
+  ): Promise<{ filePath: string; schemaVersion: number }> {
     mkdirSync(destinationDirectory, { recursive: true })
     const filePath = join(
       destinationDirectory,
       `cashiers-report-portable-${new Date().toISOString().replace(/[:.]/g, '-')}.db`
     )
+    return this.exportPortableFile(filePath)
+  }
+
+  async exportPortableFile(filePath: string): Promise<{ filePath: string; schemaVersion: number }> {
     await this.snapshot(this.sourcePath, filePath)
     const validation = this.validatePortable(filePath)
     this.removeWalSidecars(filePath)
@@ -76,13 +116,19 @@ export class BackupService {
   }
 
   /** Copies an external portable DB to a local staging path and validates it without opening the live DB. */
-  preparePortableImport(sourcePath: string, stagingDirectory: string): {
+  preparePortableImport(
+    sourcePath: string,
+    stagingDirectory: string
+  ): {
     stagedPath: string
     schemaVersion: number
   } {
     if (!existsSync(sourcePath)) throw new Error('Portable database file was not found.')
     mkdirSync(stagingDirectory, { recursive: true })
-    const stagedPath = join(stagingDirectory, `.portable-import-${randomBytes(8).toString('hex')}.db`)
+    const stagedPath = join(
+      stagingDirectory,
+      `.portable-import-${randomBytes(8).toString('hex')}.db`
+    )
     try {
       copyFileSync(sourcePath, stagedPath)
       const validation = this.validatePortable(stagedPath)
@@ -103,14 +149,17 @@ export class BackupService {
       const foreignKeyErrors = database.pragma('foreign_key_check') as unknown[]
       if (foreignKeyErrors.length) throw new Error('Portable database has foreign-key violations.')
       const found = new Set(
-        (database
-          .prepare(
-            `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${portableRequiredTables.map(() => '?').join(', ')})`
-          )
-          .all(...portableRequiredTables) as Array<{ name: string }>).map((row) => row.name)
+        (
+          database
+            .prepare(
+              `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${portableRequiredTables.map(() => '?').join(', ')})`
+            )
+            .all(...portableRequiredTables) as Array<{ name: string }>
+        ).map((row) => row.name)
       )
       const missing = portableRequiredTables.filter((table) => !found.has(table))
-      if (missing.length) throw new Error(`Portable database is missing required tables: ${missing.join(', ')}.`)
+      if (missing.length)
+        throw new Error(`Portable database is missing required tables: ${missing.join(', ')}.`)
       const row = database
         .prepare('SELECT MAX(version) AS version FROM schema_migrations')
         .get() as { version: number | null }
@@ -156,7 +205,10 @@ export class BackupService {
     const stagedPath = `${targetPath}.restore-${randomBytes(8).toString('hex')}.db`
     this.restoreToValidated(backupPath, stagedPath)
     if (existsSync(targetPath)) {
-      copyFileSync(targetPath, `${targetPath}.damaged-${new Date().toISOString().replace(/[:.]/g, '-')}`)
+      copyFileSync(
+        targetPath,
+        `${targetPath}.damaged-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      )
       unlinkSync(targetPath)
     }
     renameSync(stagedPath, targetPath)
@@ -186,10 +238,11 @@ export class BackupService {
       'resourcesPath' in process && typeof process.resourcesPath === 'string'
         ? join(process.resourcesPath, 'credentials', 'cashiers-backup-key.txt')
         : undefined
-    const localKeyPath = [developmentKeyPath, packagedKeyPath].find(
-      (path): path is string => Boolean(path && existsSync(path))
+    const localKeyPath = [developmentKeyPath, packagedKeyPath].find((path): path is string =>
+      Boolean(path && existsSync(path))
     )
-    const value = process.env.CASHIERS_BACKUP_KEY ||
+    const value =
+      process.env.CASHIERS_BACKUP_KEY ||
       (localKeyPath ? readFileSync(localKeyPath, 'utf8').trim() : undefined)
     if (!value) throw new Error('CASHIERS_BACKUP_KEY is required for encrypted backups.')
     return createHash('sha256').update(value).digest()
@@ -222,7 +275,11 @@ export class BackupService {
     const iv = randomBytes(12)
     const cipher = createCipheriv('aes-256-gcm', this.key(), iv)
     const encrypted = Buffer.concat([cipher.update(data), cipher.final()])
-    const envelope: BackupEnvelope = { iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: encrypted.toString('base64') }
+    const envelope: BackupEnvelope = {
+      iv: iv.toString('base64'),
+      tag: cipher.getAuthTag().toString('base64'),
+      data: encrypted.toString('base64')
+    }
     return Buffer.from(JSON.stringify(envelope))
   }
 

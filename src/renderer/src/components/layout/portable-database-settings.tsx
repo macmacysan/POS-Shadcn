@@ -1,0 +1,149 @@
+import * as React from 'react'
+import { CircleAlertIcon, DownloadIcon, UploadIcon } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
+import { useNotifications } from '@/hooks/use-notifications'
+
+type PortableImport = { token: string; fileName: string; schemaVersion: number }
+
+export function PortableDatabaseSettings(): React.JSX.Element {
+  const [isBusy, setIsBusy] = React.useState(false)
+  const [isImporting, setIsImporting] = React.useState(false)
+  const [pendingImport, setPendingImport] = React.useState<PortableImport>()
+  const confirming = React.useRef(false)
+  const { notify } = useNotifications()
+
+  const exportDatabase = async (): Promise<void> => {
+    setIsBusy(true)
+    try {
+      const exported = await window.api.backups.exportPortable()
+      if (exported)
+        notify({
+          type: 'success',
+          title: 'Whole database exported.',
+          description: `${exported.fileName} is a standalone file with no WAL or SHM sidecars.`
+        })
+    } catch {
+      notify({ type: 'error', title: 'Whole database could not be exported.' })
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  const selectImport = async (): Promise<void> => {
+    setIsBusy(true)
+    try {
+      const selected = await window.api.backups.selectPortableImport()
+      if (selected) setPendingImport(selected)
+    } catch {
+      notify({ type: 'error', title: 'Database file could not be imported.' })
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  const cancelImport = async (): Promise<void> => {
+    const pending = pendingImport
+    setPendingImport(undefined)
+    if (!pending || confirming.current) return
+    try {
+      await window.api.backups.cancelPortableImport({ token: pending.token })
+    } catch {
+      // The staged file may already have expired; it is safe to leave the confirmation closed.
+    }
+  }
+
+  const confirmImport = async (): Promise<void> => {
+    if (!pendingImport) return
+    confirming.current = true
+    setIsImporting(true)
+    try {
+      await window.api.backups.confirmPortableImport({ token: pendingImport.token })
+    } catch {
+      confirming.current = false
+      setIsImporting(false)
+      setPendingImport(undefined)
+      notify({ type: 'error', title: 'Database could not be replaced.' })
+    }
+  }
+
+  const disabled = isBusy || isImporting || Boolean(pendingImport)
+
+  return (
+    <section className="flex max-w-2xl flex-col gap-3">
+      <div>
+        <h3 className="text-sm font-medium">Database</h3>
+        <p className="text-sm text-muted-foreground">
+          Export or replace the complete local Cashiers Report database.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void exportDatabase()}
+          disabled={disabled}
+        >
+          <DownloadIcon data-icon="inline-start" />
+          Export Whole Database
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => void selectImport()}
+          disabled={disabled}
+        >
+          <UploadIcon data-icon="inline-start" />
+          Import Whole Database
+        </Button>
+      </div>
+      {isImporting && (
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          Importing database and restartingâ€¦
+        </p>
+      )}
+      <AlertDialog
+        open={Boolean(pendingImport)}
+        onOpenChange={(open) => {
+          if (!open) void cancelImport()
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-[28.8rem]">
+          <div className="flex items-start gap-3 py-1">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+              <CircleAlertIcon className="size-5 text-destructive" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <AlertDialogTitle className="text-sm font-semibold">
+                Replace the whole database?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingImport?.fileName} will replace the current database. The current database is
+                kept as a recovery copy, then the app restarts.
+              </AlertDialogDescription>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isImporting}>Keep current database</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={isImporting}
+              onClick={() => void confirmImport()}
+            >
+              Replace and restart
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
+  )
+}

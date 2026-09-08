@@ -34,6 +34,7 @@ import { ReceiptNamesSettings } from '@/components/layout/receipt-names-settings
 import { CatalogOptionsSettings } from '@/components/layout/catalog-options-settings'
 import { InstallmentRulesSettings } from '@/components/layout/installment-rules-settings'
 import { CashierLoginBranchSettings } from '@/components/layout/cashier-login-branch-settings'
+import { PortableDatabaseSettings } from '@/components/layout/portable-database-settings'
 import type { LoginBranch } from '@/../../shared/contracts'
 
 const teams = [
@@ -248,6 +249,7 @@ export function SidebarLeft({
                     <CatalogOptionsSettings />
                     <InstallmentRulesSettings />
                     <CashierLoginBranchSettings />
+                    <PortableDatabaseSettings />
                   </div>
                 )}
               </TabsContent>

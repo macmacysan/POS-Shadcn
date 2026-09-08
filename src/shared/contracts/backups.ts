@@ -1,8 +1,8 @@
 import { z } from '../zod'
 
 export const backupRestoreRequestSchema = z.object({ id: z.string().trim().min(1).max(100) })
-export const portableDatabaseImportRequestSchema = z.object({
-  filePath: z.string().trim().min(1).max(32767)
+export const portableDatabaseConfirmationRequestSchema = z.object({
+  token: z.string().regex(/^[a-f0-9]{32}$/)
 })
 export const backupRecordSchema = z.object({
   filePath: z.string().min(1),
@@ -25,20 +25,28 @@ export const backupIpcChannels = {
   create: 'backups:create',
   restore: 'backups:restore',
   exportPortable: 'backups:portable:export',
-  importPortable: 'backups:portable:import',
+  selectPortableImport: 'backups:portable:select',
+  cancelPortableImport: 'backups:portable:cancel',
+  confirmPortableImport: 'backups:portable:confirm',
   listOnlineRevisions: 'backups:list-online-revisions',
   restoreOnlineRevision: 'backups:restore-online-revision'
 } as const
 export type BackupRestoreRequest = z.infer<typeof backupRestoreRequestSchema>
-export type PortableDatabaseImportRequest = z.infer<typeof portableDatabaseImportRequestSchema>
+export type PortableDatabaseConfirmationRequest = z.infer<
+  typeof portableDatabaseConfirmationRequestSchema
+>
 export type BackupRecord = z.infer<typeof backupRecordSchema>
 export type OnlineBackupRevision = z.infer<typeof onlineBackupRevisionSchema>
 export type BackupsApi = {
   backups: {
     create(): Promise<BackupRecord>
     restore(request: BackupRestoreRequest): Promise<string>
-    exportPortable(): Promise<{ filePath: string; schemaVersion: number }>
-    importPortable(request: PortableDatabaseImportRequest): Promise<void>
+    exportPortable(): Promise<{ fileName: string; schemaVersion: number } | undefined>
+    selectPortableImport(): Promise<
+      { token: string; fileName: string; schemaVersion: number } | undefined
+    >
+    cancelPortableImport(request: PortableDatabaseConfirmationRequest): Promise<void>
+    confirmPortableImport(request: PortableDatabaseConfirmationRequest): Promise<void>
     listOnlineRevisions(
       request: z.infer<typeof onlineBackupRevisionRequestSchema>
     ): Promise<OnlineBackupRevision[]>
