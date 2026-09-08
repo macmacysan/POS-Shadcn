@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 45
+export const currentSchemaVersion = 46
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -1925,6 +1925,22 @@ export function runMigrations(db: Database.Database): void {
         'ALTER TABLE product_catalog_items ADD COLUMN cost_price_centavos INTEGER CHECK (cost_price_centavos >= 0)'
       )
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(45, now)
+    })
+    migrate()
+  }
+  if (applied.version < 46) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_branch_assignments (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          branch_id TEXT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+          PRIMARY KEY (user_id, branch_id)
+        );
+        INSERT OR IGNORE INTO user_branch_assignments (user_id, branch_id)
+          SELECT id, branch_id FROM users WHERE branch_id IS NOT NULL;
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(46, now)
     })
     migrate()
   }

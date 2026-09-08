@@ -91,6 +91,14 @@ try {
     /Invalid username or password/
   )
 
+  db.exec('DROP TABLE user_branch_assignments')
+  db.prepare('DELETE FROM schema_migrations WHERE version = ?').run(46)
+  runMigrations(db)
+  assert.equal(
+    (await auth.login({ username: 'local-cashier', password: 'cashier123' })).branch,
+    'Goa'
+  )
+
   db.close()
   console.log('local auth tests passed')
 } finally {

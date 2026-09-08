@@ -211,6 +211,17 @@ try {
     ['Sample Goa expense', 'Second Goa expense', 'Third Goa expense']
   )
   assert.equal(expenses.rows.every((expense) => expense.source === 'google-cache'), true)
+  const branchId = db.prepare("SELECT id FROM branches WHERE name = 'Goa'").get().id
+  const cashierId = db.prepare("SELECT id FROM users WHERE username = 'goa-cashier'").get().id
+  const report = new DailyReportRepository(db).resolveActive(
+    { branchId, cashierUserId: cashierId, businessDate: '2026-08-30' },
+    cashierId
+  )
+  assert.equal(
+    new ExpenseService(new ExpenseRepository(db), auth).summaryTotals(report.id)
+      .companyExpensesCentavos,
+    18000
+  )
   assert.equal(
     db.prepare("SELECT source_branch FROM google_sheet_branch_cache WHERE sheet_name = 'Income'").get()
       .source_branch,

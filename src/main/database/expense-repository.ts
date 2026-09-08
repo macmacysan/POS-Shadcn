@@ -389,7 +389,30 @@ export class ExpenseRepository {
   findSummaryTotals(reportId: string): ExpenseSummaryTotals {
     const row = this.db
       .prepare(
-        `SELECT
+        `WITH report_context AS (
+           SELECT b.name AS branch, dr.business_date
+             FROM daily_reports dr
+             JOIN branches b ON b.id = dr.branch_id
+            WHERE dr.id = @reportId
+         ), report_expenses AS (
+           SELECT type, amount_centavos
+             FROM expenses
+            WHERE report_id = @reportId AND status = 'POSTED'
+           UNION ALL
+           SELECT json_extract(c.payload_json, '$.type'),
+                  CAST(COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) AS INTEGER)
+             FROM google_sheet_branch_cache c
+             JOIN report_context rc
+               ON rc.branch = c.source_branch
+              AND rc.business_date = COALESCE(json_extract(c.payload_json, '$.businessDate'), json_extract(c.payload_json, '$.business_date'))
+            WHERE c.sheet_name = 'Expenses'
+              AND json_extract(c.payload_json, '$.status') = 'POSTED'
+              AND COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM expenses e WHERE e.id = json_extract(c.payload_json, '$.id')
+              )
+         )
+         SELECT
            COALESCE(SUM(CASE WHEN type IN ('Company Expenses', 'Operating')
              THEN amount_centavos ELSE 0 END), 0) AS company_expenses_centavos,
            COALESCE(SUM(CASE WHEN type = 'Drawings'
@@ -398,10 +421,9 @@ export class ExpenseRepository {
              THEN amount_centavos ELSE 0 END), 0) AS purchases_centavos,
            COALESCE(SUM(CASE WHEN type = 'Receivables'
              THEN amount_centavos ELSE 0 END), 0) AS receivables_centavos
-         FROM expenses
-         WHERE report_id = ? AND status = 'POSTED'`
+         FROM report_expenses`
       )
-      .get(reportId) as {
+      .get({ reportId }) as {
       company_expenses_centavos: number
       drawings_centavos: number
       purchases_centavos: number
