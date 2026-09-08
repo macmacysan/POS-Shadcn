@@ -202,6 +202,7 @@ app.whenReady().then(async () => {
     const authService = new AuthService(userRepository)
     googleSheets = new GoogleSheetsClient()
     accountSpreadsheet = new AccountSpreadsheetService(userRepository, googleSheets)
+    const backupService = new BackupService(database, databasePath, googleSheets)
     const legacyGoogleSync = new GoogleSheetSyncService(
       database,
       googleSheets,
@@ -227,11 +228,18 @@ app.whenReady().then(async () => {
     )
     registerGoogleSyncIpc(googleSync)
     registerBackupIpc(
-      new BackupService(database, databasePath, googleSheets),
+      backupService,
       onlineBackupRevisions,
       authService,
       (stagedPath) => {
         installInitialDatabase(stagedPath, databasePath, true)
+        app.relaunch()
+        app.quit()
+      },
+      (stagedPath) => {
+        database?.close()
+        database = undefined
+        backupService.installPortable(stagedPath, databasePath)
         app.relaunch()
         app.quit()
       }

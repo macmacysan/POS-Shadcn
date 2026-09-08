@@ -4,7 +4,8 @@ import {
   backupIpcChannels,
   backupRestoreRequestSchema,
   onlineBackupRestoreRequestSchema,
-  onlineBackupRevisionRequestSchema
+  onlineBackupRevisionRequestSchema,
+  portableDatabaseImportRequestSchema
 } from '../../shared/contracts'
 import { toIpcError } from '../database/errors'
 import { AuthService } from '../services/auth-service'
@@ -15,7 +16,8 @@ export function registerBackupIpc(
   service: BackupService,
   revisions: OnlineBackupRevisionService,
   auth: AuthService,
-  installRevision: (stagedPath: string) => void
+  installRevision: (stagedPath: string) => void,
+  installPortable: (stagedPath: string) => void
 ): void {
   ipcMain.handle(backupIpcChannels.create, async () => {
     try {
@@ -29,6 +31,26 @@ export function registerBackupIpc(
     try {
       auth.requireAdmin()
       return service.restoreManaged(backupRestoreRequestSchema.parse(input).id)
+    } catch (error) {
+      throw toIpcError(error)
+    }
+  })
+  ipcMain.handle(backupIpcChannels.exportPortable, async () => {
+    try {
+      auth.requireAdmin()
+      return await service.exportPortable(join(app.getPath('userData'), 'portable-exports'))
+    } catch (error) {
+      throw toIpcError(error)
+    }
+  })
+  ipcMain.handle(backupIpcChannels.importPortable, async (_event, input: unknown) => {
+    try {
+      auth.requireAdmin()
+      const prepared = service.preparePortableImport(
+        portableDatabaseImportRequestSchema.parse(input).filePath,
+        join(app.getPath('userData'), 'portable-imports')
+      )
+      installPortable(prepared.stagedPath)
     } catch (error) {
       throw toIpcError(error)
     }

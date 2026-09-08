@@ -4,9 +4,26 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSy
 import { join } from 'node:path'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import type { AppDatabase } from '../database/database'
+import { currentSchemaVersion } from '../database/migrations'
 import { GoogleSheetsClient } from './google-sheets-client'
 
 type BackupEnvelope = { iv: string; tag: string; data: string }
+
+const portableRequiredTables = [
+  'schema_migrations',
+  'branches',
+  'users',
+  'daily_reports',
+  'expenses',
+  'accounts',
+  'installment_contracts',
+  'in_house_payments',
+  'installment_payment_allocations',
+  'finance_accounts',
+  'audit_logs'
+] as const
+
+export type PortableDatabaseValidation = { schemaVersion: number }
 
 export class BackupService {
   constructor(private readonly database: AppDatabase, private readonly sourcePath: string, private readonly google?: GoogleSheetsClient) {}
@@ -43,6 +60,95 @@ export class BackupService {
       return { filePath, sha256 }
     } finally {
       if (existsSync(temporaryPath)) unlinkSync(temporaryPath)
+    }
+  }
+
+  async exportPortable(destinationDirectory: string): Promise<{ filePath: string; schemaVersion: number }> {
+    mkdirSync(destinationDirectory, { recursive: true })
+    const filePath = join(
+      destinationDirectory,
+      `cashiers-report-portable-${new Date().toISOString().replace(/[:.]/g, '-')}.db`
+    )
+    await this.snapshot(this.sourcePath, filePath)
+    const validation = this.validatePortable(filePath)
+    this.removeWalSidecars(filePath)
+    return { filePath, schemaVersion: validation.schemaVersion }
+  }
+
+  /** Copies an external portable DB to a local staging path and validates it without opening the live DB. */
+  preparePortableImport(sourcePath: string, stagingDirectory: string): {
+    stagedPath: string
+    schemaVersion: number
+  } {
+    if (!existsSync(sourcePath)) throw new Error('Portable database file was not found.')
+    mkdirSync(stagingDirectory, { recursive: true })
+    const stagedPath = join(stagingDirectory, `.portable-import-${randomBytes(8).toString('hex')}.db`)
+    try {
+      copyFileSync(sourcePath, stagedPath)
+      const validation = this.validatePortable(stagedPath)
+      this.removeWalSidecars(stagedPath)
+      return { stagedPath, schemaVersion: validation.schemaVersion }
+    } catch (error) {
+      if (existsSync(stagedPath)) unlinkSync(stagedPath)
+      throw error
+    }
+  }
+
+  validatePortable(filePath: string): PortableDatabaseValidation {
+    let database: Database.Database | undefined
+    try {
+      database = new Database(filePath, { readonly: true, fileMustExist: true })
+      if (database.pragma('integrity_check', { simple: true }) !== 'ok')
+        throw new Error('Portable database integrity check failed.')
+      const foreignKeyErrors = database.pragma('foreign_key_check') as unknown[]
+      if (foreignKeyErrors.length) throw new Error('Portable database has foreign-key violations.')
+      const found = new Set(
+        (database
+          .prepare(
+            `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (${portableRequiredTables.map(() => '?').join(', ')})`
+          )
+          .all(...portableRequiredTables) as Array<{ name: string }>).map((row) => row.name)
+      )
+      const missing = portableRequiredTables.filter((table) => !found.has(table))
+      if (missing.length) throw new Error(`Portable database is missing required tables: ${missing.join(', ')}.`)
+      const row = database
+        .prepare('SELECT MAX(version) AS version FROM schema_migrations')
+        .get() as { version: number | null }
+      if (!Number.isInteger(row.version) || !row.version || row.version > currentSchemaVersion)
+        throw new Error('Portable database has an unsupported schema version.')
+      return { schemaVersion: row.version }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Portable database')) throw error
+      throw new Error('Portable database is not a valid Cashiers Report database.')
+    } finally {
+      database?.close()
+    }
+  }
+
+  installPortable(stagedPath: string, targetPath: string): string {
+    this.validatePortable(stagedPath)
+    const recoveryPath = `${targetPath}.recovery-${new Date().toISOString().replace(/[:.]/g, '-')}`
+    const moved = new Set<string>()
+    try {
+      if (existsSync(targetPath)) {
+        renameSync(targetPath, recoveryPath)
+        moved.add('')
+      }
+      for (const suffix of ['-wal', '-shm']) {
+        const current = `${targetPath}${suffix}`
+        if (!existsSync(current)) continue
+        renameSync(current, `${recoveryPath}${suffix}`)
+        moved.add(suffix)
+      }
+      renameSync(stagedPath, targetPath)
+      return recoveryPath
+    } catch (error) {
+      if (!existsSync(targetPath) && moved.has('')) renameSync(recoveryPath, targetPath)
+      for (const suffix of ['-wal', '-shm']) {
+        if (moved.has(suffix) && !existsSync(`${targetPath}${suffix}`))
+          renameSync(`${recoveryPath}${suffix}`, `${targetPath}${suffix}`)
+      }
+      throw error
     }
   }
 
@@ -87,6 +193,29 @@ export class BackupService {
       (localKeyPath ? readFileSync(localKeyPath, 'utf8').trim() : undefined)
     if (!value) throw new Error('CASHIERS_BACKUP_KEY is required for encrypted backups.')
     return createHash('sha256').update(value).digest()
+  }
+
+  private async snapshot(sourcePath: string, targetPath: string): Promise<void> {
+    const source = new Database(sourcePath, { readonly: true })
+    try {
+      await source.backup(targetPath)
+    } finally {
+      source.close()
+    }
+    const target = new Database(targetPath)
+    try {
+      target.pragma('wal_checkpoint(TRUNCATE)')
+    } finally {
+      target.close()
+    }
+    this.removeWalSidecars(targetPath)
+  }
+
+  private removeWalSidecars(filePath: string): void {
+    for (const suffix of ['-wal', '-shm']) {
+      const sidecar = `${filePath}${suffix}`
+      if (existsSync(sidecar)) unlinkSync(sidecar)
+    }
   }
 
   private encrypt(data: Buffer): Buffer {

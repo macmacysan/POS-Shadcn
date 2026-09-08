@@ -1,6 +1,6 @@
 {
   "name": "NCS-Cashiers-Report",
-  "version": "5.0.11",
+  "version": "5.0.12",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
   "author": "example.com",
@@ -17,6 +17,7 @@
     "test:auth": "node scripts/run-electron-test.mjs scripts/test-local-auth.mjs",
     "test:report-voids": "node scripts/run-electron-test.mjs scripts/test-report-voids.mjs",
     "test:backup": "node scripts/run-electron-test.mjs scripts/test-backup.mjs",
+    "test:portable-database": "node scripts/run-electron-test.mjs scripts/test-portable-database.mjs",
     "test:online-backups": "node scripts/run-electron-test.mjs scripts/test-online-backup-revisions.mjs",
     "test:initial-recovery": "node scripts/run-electron-test.mjs scripts/test-initial-recovery.mjs",
     "test:active-report-admin": "node scripts/test-active-report-admin.mjs",
