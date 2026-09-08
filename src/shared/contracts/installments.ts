@@ -231,6 +231,7 @@ export type InHouseScheduleRecord = {
   id: string
   installmentNumber: number
   dueDate: string
+  paymentDate?: string
   dueAmountCentavos: number
   paidAmountCentavos: number
   balanceCentavos: number

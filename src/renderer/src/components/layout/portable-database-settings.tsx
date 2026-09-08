@@ -15,6 +15,10 @@ import { useNotifications } from '@/hooks/use-notifications'
 
 type PortableImport = { token: string; fileName: string; schemaVersion: number }
 
+function errorMessage(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined
+}
+
 export function PortableDatabaseSettings(): React.JSX.Element {
   const [isBusy, setIsBusy] = React.useState(false)
   const [isImporting, setIsImporting] = React.useState(false)
@@ -44,8 +48,12 @@ export function PortableDatabaseSettings(): React.JSX.Element {
     try {
       const selected = await window.api.backups.selectPortableImport()
       if (selected) setPendingImport(selected)
-    } catch {
-      notify({ type: 'error', title: 'Database file could not be imported.' })
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: 'Database file could not be imported.',
+        description: errorMessage(error)
+      })
     } finally {
       setIsBusy(false)
     }
@@ -83,7 +91,8 @@ export function PortableDatabaseSettings(): React.JSX.Element {
       <div>
         <h3 className="text-sm font-medium">Database</h3>
         <p className="text-sm text-muted-foreground">
-          Export or replace the complete local Cashiers Report database.
+          Export or replace the complete local Cashiers Report database. Import only a standalone
+          .db created with Export Whole Database; do not select a live database with a WAL file.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -108,7 +117,7 @@ export function PortableDatabaseSettings(): React.JSX.Element {
       </div>
       {isImporting && (
         <p className="text-sm text-muted-foreground" aria-live="polite">
-          Importing database and restartingâ€¦
+          Importing database and restarting…
         </p>
       )}
       <AlertDialog
@@ -127,8 +136,9 @@ export function PortableDatabaseSettings(): React.JSX.Element {
                 Replace the whole database?
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {pendingImport?.fileName} will replace the current database. The current database is
-                kept as a recovery copy, then the app restarts.
+                {pendingImport?.fileName} will replace the entire local database, including users,
+                reports, installments, finance records, settings, and other local business data. The
+                current database is kept as a recovery copy, then the app restarts.
               </AlertDialogDescription>
             </div>
           </div>

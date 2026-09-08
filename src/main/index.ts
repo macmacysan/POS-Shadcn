@@ -53,6 +53,7 @@ import { GoogleSheetSyncService } from './services/google-sheet-sync-service'
 import { GoogleDriveSnapshotService } from './services/google-drive-snapshot-service'
 import { ProductCatalogService } from './services/product-catalog-service'
 import { BackupService } from './services/backup-service'
+import { installPortableDatabase } from './services/portable-database-install'
 import { OnlineBackupRevisionService } from './services/online-backup-revision-service'
 import { InstallmentRepository } from './database/installment-repository'
 import {
@@ -237,11 +238,17 @@ app.whenReady().then(async () => {
         app.quit()
       },
       (stagedPath) => {
-        database?.close()
-        database = undefined
-        backupService.installPortable(stagedPath, databasePath)
-        app.relaunch()
-        app.quit()
+        installPortableDatabase(
+          backupService,
+          stagedPath,
+          databasePath,
+          () => {
+            database?.close()
+            database = undefined
+          },
+          () => app.relaunch(),
+          () => app.quit()
+        )
       }
     )
     registerCatalogOptionIpc(

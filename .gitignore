@@ -3,6 +3,7 @@ dist
 out
 .DS_Store
 .eslintcache
+/.tmp-*.cjs
 *.log*
 *.service-account.json
 /credentials/appcashierreport-d2e89141daa9.json

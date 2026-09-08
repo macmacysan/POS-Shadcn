@@ -78,6 +78,7 @@ type ScheduleRow = {
   id: string
   installment_number: number
   due_date: string
+  payment_date?: string
   due_amount_centavos: number
   paid_amount_centavos: number
   penalty_centavos: number
@@ -1083,6 +1084,7 @@ export class InstallmentRepository {
     const schedules = this.db
       .prepare(
         `SELECT s.id, s.installment_number, s.due_date, s.due_amount_centavos, s.status, s.is_restructured,
+                MAX(CASE WHEN p.status = 'POSTED' THEN p.payment_date END) AS payment_date,
                 COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0)
                   AS paid_amount_centavos,
                 COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.penalty_centavos ELSE 0 END), 0)
@@ -1146,6 +1148,7 @@ export class InstallmentRepository {
         id: item.id,
         installmentNumber: item.installment_number,
         dueDate: item.due_date,
+        paymentDate: item.payment_date,
         dueAmountCentavos: item.due_amount_centavos,
         paidAmountCentavos: item.paid_amount_centavos,
         balanceCentavos: runningBalanceCentavos,
@@ -1183,6 +1186,7 @@ export class InstallmentRepository {
         id: schedule.id,
         installmentNumber: schedule.installmentNumber,
         dueDate: schedule.dueDate,
+        paymentDate: schedule.paymentDate,
         dueAmountCentavos: schedule.dueAmountCentavos,
         paidAmountCentavos: schedule.paidAmountCentavos,
         balanceCentavos: schedule.balanceCentavos,

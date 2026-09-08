@@ -9,7 +9,7 @@ import {
   unlinkSync,
   writeFileSync
 } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { gzipSync, gunzipSync } from 'node:zlib'
 import type { AppDatabase } from '../database/database'
 import { currentSchemaVersion } from '../database/migrations'
@@ -109,10 +109,25 @@ export class BackupService {
   }
 
   async exportPortableFile(filePath: string): Promise<{ filePath: string; schemaVersion: number }> {
-    await this.snapshot(this.sourcePath, filePath)
-    const validation = this.validatePortable(filePath)
-    this.removeWalSidecars(filePath)
-    return { filePath, schemaVersion: validation.schemaVersion }
+    const temporaryPath = join(
+      dirname(filePath),
+      `.portable-export-${randomBytes(8).toString('hex')}.db`
+    )
+    let replacingDestination = false
+    try {
+      await this.snapshot(this.sourcePath, temporaryPath)
+      const validation = this.validatePortable(temporaryPath)
+      this.removeWalSidecars(temporaryPath)
+      if (existsSync(filePath)) unlinkSync(filePath)
+      this.removeWalSidecars(filePath)
+      replacingDestination = true
+      renameSync(temporaryPath, filePath)
+      return { filePath, schemaVersion: validation.schemaVersion }
+    } catch (error) {
+      this.removePortableArtifacts(temporaryPath)
+      if (replacingDestination) this.removePortableArtifacts(filePath)
+      throw error
+    }
   }
 
   /** Copies an external portable DB to a local staging path and validates it without opening the live DB. */
@@ -124,6 +139,10 @@ export class BackupService {
     schemaVersion: number
   } {
     if (!existsSync(sourcePath)) throw new Error('Portable database file was not found.')
+    if (existsSync(`${sourcePath}-wal`))
+      throw new Error(
+        'Portable database has a WAL sidecar. Export Whole Database on the source PC first.'
+      )
     mkdirSync(stagingDirectory, { recursive: true })
     const stagedPath = join(
       stagingDirectory,
@@ -135,7 +154,7 @@ export class BackupService {
       this.removeWalSidecars(stagedPath)
       return { stagedPath, schemaVersion: validation.schemaVersion }
     } catch (error) {
-      if (existsSync(stagedPath)) unlinkSync(stagedPath)
+      this.removePortableArtifacts(stagedPath)
       throw error
     }
   }
@@ -269,6 +288,11 @@ export class BackupService {
       const sidecar = `${filePath}${suffix}`
       if (existsSync(sidecar)) unlinkSync(sidecar)
     }
+  }
+
+  private removePortableArtifacts(filePath: string): void {
+    if (existsSync(filePath)) unlinkSync(filePath)
+    this.removeWalSidecars(filePath)
   }
 
   private encrypt(data: Buffer): Buffer {

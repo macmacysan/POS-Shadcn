@@ -9,13 +9,22 @@ import {
   onlineBackupRevisionRequestSchema,
   portableDatabaseConfirmationRequestSchema
 } from '../../shared/contracts'
-import { toIpcError } from '../database/errors'
+import { AppError, toIpcError } from '../database/errors'
 import { AuthService } from '../services/auth-service'
 import { BackupService } from '../services/backup-service'
 import { OnlineBackupRevisionService } from '../services/online-backup-revision-service'
 
 const portableImportLifetimeMs = 15 * 60 * 1000
 const portableStageName = /^\.portable-import-[a-f0-9]{16}\.db$/
+const portableValidationMessages = [
+  'Portable database integrity check failed.',
+  'Portable database has foreign-key violations.',
+  'Portable database is missing required tables:',
+  'Portable database has an unsupported schema version.',
+  'Portable database is not a valid Cashiers Report database.',
+  'Portable database has a WAL sidecar.',
+  'Portable database file was not found.'
+]
 
 type PortableImport = {
   stagedPath: string
@@ -24,6 +33,15 @@ type PortableImport = {
   expiresAt: number
 }
 type DialogApi = Pick<typeof dialog, 'showSaveDialog' | 'showOpenDialog'>
+
+function toPortableIpcError(error: unknown): unknown {
+  if (
+    error instanceof Error &&
+    portableValidationMessages.some((message) => error.message.startsWith(message))
+  )
+    return new AppError('VALIDATION_ERROR', error.message)
+  return error
+}
 
 export class PortableDatabaseController {
   private readonly imports = new Map<string, PortableImport>()
@@ -88,7 +106,7 @@ export class PortableDatabaseController {
     try {
       this.install(prepared.stagedPath)
     } finally {
-      if (existsSync(prepared.stagedPath)) unlinkSync(prepared.stagedPath)
+      this.removeStaged(prepared.stagedPath)
     }
   }
 
@@ -97,14 +115,14 @@ export class PortableDatabaseController {
     for (const [token, prepared] of this.imports) {
       if (prepared.expiresAt <= now) {
         this.imports.delete(token)
-        if (existsSync(prepared.stagedPath)) unlinkSync(prepared.stagedPath)
+        this.removeStaged(prepared.stagedPath)
       }
     }
     if (!existsSync(this.stagingDirectory)) return
     for (const name of readdirSync(this.stagingDirectory)) {
       const path = join(this.stagingDirectory, name)
       if (portableStageName.test(name) && statSync(path).mtimeMs + portableImportLifetimeMs <= now)
-        unlinkSync(path)
+        this.removeStaged(path)
     }
   }
 
@@ -114,10 +132,17 @@ export class PortableDatabaseController {
     this.imports.delete(token)
     const expired = prepared.expiresAt <= this.now()
     if (removeStaged || expired) {
-      if (existsSync(prepared.stagedPath)) unlinkSync(prepared.stagedPath)
+      this.removeStaged(prepared.stagedPath)
     }
     if (expired) throw new Error('Portable database confirmation has expired.')
     return prepared
+  }
+
+  private removeStaged(path: string): void {
+    for (const suffix of ['', '-wal', '-shm']) {
+      const artifact = `${path}${suffix}`
+      if (existsSync(artifact)) unlinkSync(artifact)
+    }
   }
 }
 
@@ -161,7 +186,7 @@ export function registerBackupIpc(
     try {
       return await portable.select()
     } catch (error) {
-      throw toIpcError(error)
+      throw toIpcError(toPortableIpcError(error))
     }
   })
   ipcMain.handle(backupIpcChannels.cancelPortableImport, (_event, input: unknown) => {

@@ -124,6 +124,17 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
       )
     },
     {
+      id: 'paymentDate',
+      accessorKey: 'paymentDate',
+      header: 'Payment date',
+      size: 112,
+      cell: ({ row }) => (
+        <span className={scheduleValueClass(row.original)}>
+          {row.original.paymentDate ? formatDate(row.original.paymentDate) : '—'}
+        </span>
+      )
+    },
+    {
       id: 'dueAmount',
       accessorKey: 'dueAmountCentavos',
       header: 'Due amount',

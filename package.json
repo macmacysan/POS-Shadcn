@@ -19,6 +19,8 @@
     "test:backup": "node scripts/run-electron-test.mjs scripts/test-backup.mjs",
     "test:portable-database": "node scripts/run-electron-test.mjs scripts/test-portable-database.mjs",
     "test:portable-database-ipc": "node scripts/run-electron-test.mjs scripts/test-portable-database-ipc.mjs",
+    "test:portable-database-roundtrip": "node scripts/run-electron-test.mjs scripts/test-portable-database-roundtrip.mjs",
+    "test:finance-provider-migration": "node scripts/run-electron-test.mjs scripts/test-finance-provider-migration.mjs",
     "test:online-backups": "node scripts/run-electron-test.mjs scripts/test-online-backup-revisions.mjs",
     "test:initial-recovery": "node scripts/run-electron-test.mjs scripts/test-initial-recovery.mjs",
     "test:active-report-admin": "node scripts/test-active-report-admin.mjs",

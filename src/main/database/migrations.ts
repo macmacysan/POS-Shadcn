@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 46
+export const currentSchemaVersion = 47
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -1941,6 +1941,70 @@ export function runMigrations(db: Database.Database): void {
           SELECT id, branch_id FROM users WHERE branch_id IS NOT NULL;
       `)
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(46, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 47) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE finance_accounts_part_1 (
+          id TEXT PRIMARY KEY NOT NULL,
+          branch TEXT NOT NULL CHECK (branch IN ('Goa', 'Tinambac', 'Tigaon', 'Lagonoy')),
+          provider TEXT NOT NULL,
+          date_released TEXT NOT NULL,
+          terms_months INTEGER NOT NULL CHECK (terms_months BETWEEN 1 AND 12),
+          last_name TEXT NOT NULL,
+          first_name TEXT NOT NULL,
+          middle_name TEXT,
+          suffix TEXT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          item TEXT NOT NULL,
+          serial_no TEXT,
+          item_price_centavos INTEGER NOT NULL CHECK (item_price_centavos >= 0),
+          grand_total_centavos INTEGER NOT NULL CHECK (grand_total_centavos >= 0),
+          downpayment_centavos INTEGER NOT NULL CHECK (downpayment_centavos >= 0),
+          balance_centavos INTEGER NOT NULL CHECK (balance_centavos >= 0),
+          or_number TEXT,
+          or_date TEXT,
+          paid_date TEXT,
+          remarks TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED', 'VOIDED')),
+          voided_at TEXT,
+          voided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          void_reason TEXT
+        );
+        CREATE TABLE finance_account_items_part_1 (
+          id TEXT PRIMARY KEY NOT NULL,
+          finance_account_id TEXT NOT NULL REFERENCES finance_accounts_part_1(id) ON DELETE RESTRICT,
+          sort_order INTEGER NOT NULL CHECK (sort_order >= 0),
+          item TEXT NOT NULL,
+          serial_no TEXT,
+          quantity INTEGER NOT NULL CHECK (quantity > 0),
+          item_price_centavos INTEGER NOT NULL CHECK (item_price_centavos >= 0),
+          total_centavos INTEGER NOT NULL CHECK (total_centavos >= 0),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (finance_account_id, sort_order)
+        );
+        INSERT INTO finance_accounts_part_1
+          SELECT * FROM finance_accounts;
+        INSERT INTO finance_account_items_part_1
+          SELECT * FROM finance_account_items;
+        DROP TABLE finance_account_items;
+        DROP TABLE finance_accounts;
+        ALTER TABLE finance_accounts_part_1 RENAME TO finance_accounts;
+        ALTER TABLE finance_account_items_part_1 RENAME TO finance_account_items;
+        CREATE INDEX finance_accounts_branch_date_idx
+          ON finance_accounts (branch, date_released DESC, created_at DESC);
+        CREATE INDEX finance_accounts_status_idx ON finance_accounts (status);
+        CREATE INDEX finance_account_items_account_sort_idx
+          ON finance_account_items (finance_account_id, sort_order);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(47, now)
     })
     migrate()
   }
