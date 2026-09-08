@@ -109,7 +109,7 @@ export function ReportAttentionAlertDialog({
               onNext(first.reportId)
             }}
           >
-            Next
+            Okay
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>

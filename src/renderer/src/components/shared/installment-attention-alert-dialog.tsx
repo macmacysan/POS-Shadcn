@@ -3,12 +3,12 @@ import { TriangleAlert } from 'lucide-react'
 
 import {
   AlertDialog,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Table,
@@ -142,7 +142,15 @@ export function InstallmentAttentionAlertDialog({
         </ScrollArea>
 
         <AlertDialogFooter className="-mx-8 -mb-8 px-8">
-          <AlertDialogCancel className="w-full sm:w-full">Okay</AlertDialogCancel>
+          <Button
+            className="w-full sm:w-full"
+            onClick={() => {
+              setOpen(false)
+              settle()
+            }}
+          >
+            Next
+          </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
