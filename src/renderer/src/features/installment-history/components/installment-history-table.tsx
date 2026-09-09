@@ -94,6 +94,10 @@ function historyRowActions(
   record: InstallmentHistoryRecord,
   viewDetails: () => void
 ): readonly RowActionItem[] {
+  if (record.source === 'in-house' && record.activity.toLowerCase().includes('payment')) {
+    return [{ id: 'view', label: 'Open payment in ledger', onSelect: viewDetails }]
+  }
+
   if (record.action === 'deleted') {
     return [{ id: 'view', label: 'View Details', onSelect: viewDetails }]
   }
@@ -226,7 +230,7 @@ export function InstallmentHistoryTable({
       .filter(
         (record) =>
           !query ||
-          `${record.accountName} ${record.activity} ${record.reference ?? ''} ${sourceLabels[record.source]} ${historyActionLabel(record)} ${record.amount} ${record.balance} ${record.occurredAt}`
+          `${record.accountName} ${record.activity} ${record.reference ?? ''} ${sourceLabels[record.source]} ${historyActionLabel(record)} ${record.amount} ${record.balance} ${record.penaltyCentavos} ${record.occurredAt}`
             .toLowerCase()
             .includes(query)
       )
@@ -284,11 +288,6 @@ export function InstallmentHistoryTable({
         cell: ({ row }) => (
           <div className="min-w-0">
             <TruncatedText value={row.original.accountName} className="text-xs font-light" />
-            {row.original.reference && (
-              <span className="block truncate text-[11px] text-muted-foreground">
-                {row.original.reference}
-              </span>
-            )}
           </div>
         )
       },
@@ -338,6 +337,31 @@ export function InstallmentHistoryTable({
                 ? undefined
                 : row.original.balanceCentavos / 100)
           )
+      },
+      {
+        id: 'penalty',
+        accessorKey: 'penaltyCentavos',
+        header: 'Penalty',
+        enableSorting: true,
+        size: 100,
+        meta: {
+          headerTitle: 'Penalty',
+          headerClassName: 'text-right text-xs text-foreground',
+          cellClassName: 'text-right text-xs font-light tabular-nums text-foreground'
+        },
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              row.original.penaltyCentavos === 0 ? 'text-muted-foreground' : 'text-warning'
+            )}
+          >
+            {formatHistoryMoney(
+              row.original.penaltyCentavos === undefined
+                ? undefined
+                : row.original.penaltyCentavos / 100
+            )}
+          </span>
+        )
       },
       {
         id: 'occurredAt',

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowLeft, CalendarDays, ReceiptText } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Lock, ReceiptText } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -9,12 +9,15 @@ import {
 import { format } from 'date-fns'
 
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { RowActions } from '@/components/shared/data-table/row-actions'
+import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { KpiCard } from '@/components/shared/kpi-card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { AmountInputGroup } from '@/components/ui/amount-input-group'
 import { Badge, type BadgeProps } from '@/components/ui/reui/badge'
@@ -22,13 +25,9 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatPhilippinePeso } from '@/lib/currency'
 import { formatAccountName } from '@/lib/in-house-accounts'
-import {
-  groupSchedulePaymentRelations,
-  type SchedulePaymentRelation
-} from '@/lib/installment-payment-relations'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import type {
@@ -65,79 +64,39 @@ function formatDate(value: string): string {
 }
 
 function statusVariant(
-  status: InHouseScheduleRecord['status'] | InHousePaymentRecord['status'] | 'UPCOMING'
+  status: InHouseScheduleRecord['status'] | InHousePaymentRecord['status'] | 'UPCOMING' | 'OVERDUE'
 ): NonNullable<BadgeProps['variant']> {
   if (status === 'PAID' || status === 'POSTED') return 'success-light' as const
-  if (status === 'PARTIALLY_PAID') return 'warning-light' as const
-  if (status === 'DUE' || status === 'VOIDED') return 'destructive-light' as const
+  if (status === 'PARTIALLY_PAID' || status === 'DUE') return 'warning-light' as const
+  if (status === 'OVERDUE' || status === 'VOIDED') return 'destructive-light' as const
   if (status === 'WAIVED') return 'secondary' as const
   return 'outline' as const
 }
 
 function scheduleStatusLabel(
   row: InHouseScheduleRecord
-): InHouseScheduleRecord['status'] | 'UPCOMING' {
-  if (row.status !== 'DUE' || row.dueDate <= format(new Date(), 'yyyy-MM-dd')) return row.status
-  return 'UPCOMING'
+): InHouseScheduleRecord['status'] | 'UPCOMING' | 'OVERDUE' {
+  if (row.status !== 'DUE') return row.status
+  const today = format(new Date(), 'yyyy-MM-dd')
+  if (row.dueDate < today) return 'OVERDUE'
+  return row.dueDate === today ? 'DUE' : 'UPCOMING'
+}
+
+function scheduleStatusText(status: ReturnType<typeof scheduleStatusLabel>): string {
+  return {
+    PAID: 'Paid',
+    PARTIALLY_PAID: 'Partial',
+    UPCOMING: 'Upcoming',
+    DUE: 'Due',
+    OVERDUE: 'Overdue',
+    WAIVED: 'Waived'
+  }[status]
 }
 
 function scheduleValueClass(row: InHouseScheduleRecord, className?: string): string {
   return cn(row.paidAmountCentavos === 0 && 'text-muted-foreground', className)
 }
 
-function ReceivedPaymentCell({
-  relations
-}: {
-  readonly relations: SchedulePaymentRelation[]
-}): React.JSX.Element {
-  if (!relations.length || (relations.length === 1 && !relations[0].isFirstSchedule))
-    return <span className="text-muted-foreground">—</span>
-
-  const multiplePayments = relations.length > 1
-  const primary = relations.find((relation) => relation.isFirstSchedule) ?? relations[0]
-  const label = multiplePayments
-    ? `${relations.length} payments`
-    : formatPhilippinePeso(primary.payment.amountCentavos / 100)
-
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <span
-              className="inline-flex cursor-help flex-col items-end text-right tabular-nums"
-              tabIndex={0}
-              aria-label="Received payment details"
-            />
-          }
-        >
-          <span>{label}</span>
-          {!multiplePayments && primary.scheduleNumbers.length > 1 && (
-            <span className="text-[11px] text-muted-foreground">
-              covers {primary.scheduleNumbers.length} dues
-            </span>
-          )}
-        </TooltipTrigger>
-        <TooltipContent className="max-w-72">
-          <div className="flex flex-col gap-2 text-xs">
-            {relations.map(({ payment, scheduleNumbers }) => (
-              <div key={payment.id} className="flex flex-col gap-0.5">
-                <span className="font-medium tabular-nums">
-                  {formatPhilippinePeso(payment.amountCentavos / 100)} · {formatDate(payment.paymentDate)}
-                </span>
-                <span className="text-muted-foreground">
-                  {payment.referenceNumber ? `OR / reference: ${payment.referenceNumber} · ` : ''}
-                  covers {scheduleNumbers.length} {scheduleNumbers.length === 1 ? 'due' : 'dues'} ·{' '}
-                  {scheduleNumbers.map((number) => `#${number}`).join(', ')}
-                </span>
-              </div>
-            ))}
-          </div>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
 function PaymentDateField({
   value,
   onChange
@@ -158,7 +117,10 @@ function PaymentDateField({
   )
 }
 
-function scheduleColumns(paymentRelations: Map<string, SchedulePaymentRelation[]>): ColumnDef<InHouseScheduleRecord>[] {
+function scheduleColumns(
+  schedules: readonly InHouseScheduleRecord[],
+  firstUpcomingScheduleId: string | undefined
+): ColumnDef<InHouseScheduleRecord>[] {
   return [
     {
       id: 'installment',
@@ -172,6 +134,36 @@ function scheduleColumns(paymentRelations: Map<string, SchedulePaymentRelation[]
       )
     },
     {
+      id: 'status',
+      accessorKey: 'status',
+      header: 'Status',
+      size: 128,
+      cell: ({ row }) => {
+        const isLocked =
+          scheduleStatusLabel(row.original) === 'UPCOMING' &&
+          row.original.id !== firstUpcomingScheduleId
+        return (
+          <div className="flex items-center gap-1">
+            <Badge variant={statusVariant(scheduleStatusLabel(row.original))}>
+              {scheduleStatusText(scheduleStatusLabel(row.original))}
+            </Badge>
+            {isLocked && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="inline-flex text-muted-foreground" aria-label="Payment locked" />
+                  }
+                >
+                  <Lock className="size-3" aria-hidden="true" />
+                </TooltipTrigger>
+                <TooltipContent>Pay the preceding installment first.</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        )
+      }
+    },
+    {
       id: 'dueDate',
       accessorKey: 'dueDate',
       header: 'Due date',
@@ -181,34 +173,35 @@ function scheduleColumns(paymentRelations: Map<string, SchedulePaymentRelation[]
       )
     },
     {
-      id: 'paymentDate',
-      accessorKey: 'paymentDate',
+      id: 'lastApplied',
+      accessorKey: 'lastAppliedDate',
       header: 'Payment date',
-      size: 112,
-      cell: ({ row }) => (
-        <span className={scheduleValueClass(row.original)}>
-          {row.original.paymentDate ? formatDate(row.original.paymentDate) : '—'}
-        </span>
-      )
-    },
-    {
-      id: 'dueAmount',
-      accessorKey: 'dueAmountCentavos',
-      header: 'Due amount',
-      size: 150,
-      meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
-      cell: ({ row }) => (
-        <span className={scheduleValueClass(row.original)}>
-          {formatPhilippinePeso(row.original.dueAmountCentavos / 100)}
-        </span>
-      )
-    },
-    {
-      id: 'received',
-      header: 'Received',
-      size: 144,
-      meta: { headerClassName: 'text-right', cellClassName: 'text-right' },
-      cell: ({ row }) => <ReceivedPaymentCell relations={paymentRelations.get(row.original.id) ?? []} />
+      size: 132,
+      meta: { headerClassName: 'text-left', cellClassName: 'text-left' },
+      cell: ({ row }) => {
+        const paymentDate = row.original.lastAppliedDate
+        if (!paymentDate) return <span className="text-muted-foreground">—</span>
+
+        const previous = schedules[row.index - 1]
+        const next = schedules[row.index + 1]
+        const isContinuation = previous?.lastAppliedDate === paymentDate
+        const isAdvance =
+          paymentDate < row.original.dueDate ||
+          (!isContinuation &&
+            next?.lastAppliedDate === paymentDate &&
+            paymentDate < next.dueDate)
+
+        return (
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <span>{isContinuation ? `↳ ${formatDate(paymentDate)}` : formatDate(paymentDate)}</span>
+            {!isContinuation && isAdvance && (
+              <Badge variant="warning-light" size="sm">
+                ADVANCE
+              </Badge>
+            )}
+          </div>
+        )
+      }
     },
     {
       id: 'paid',
@@ -217,18 +210,32 @@ function scheduleColumns(paymentRelations: Map<string, SchedulePaymentRelation[]
       size: 130,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
       cell: ({ row }) =>
-        row.original.paidAmountCentavos === 0 ? null : (
+        row.original.paidAmountCentavos === 0 ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
           <span>{formatPhilippinePeso(row.original.paidAmountCentavos / 100)}</span>
         )
     },
     {
+      id: 'remaining',
+      accessorKey: 'remainingDueCentavos',
+      header: 'Remaining',
+      size: 130,
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
+      cell: ({ row }) => (
+        <span className={cn(row.original.remainingDueCentavos === 0 && 'text-muted-foreground')}>
+          {formatPhilippinePeso(row.original.remainingDueCentavos / 100)}
+        </span>
+      )
+    },
+    {
       id: 'balance',
       accessorKey: 'balanceCentavos',
-      header: 'Balance',
+      header: 'Loan balance',
       size: 140,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right font-light tabular-nums' },
       cell: ({ row }) => (
-        <span className={scheduleValueClass(row.original)}>
+        <span className="text-muted-foreground">
           {formatPhilippinePeso(row.original.balanceCentavos / 100)}
         </span>
       )
@@ -240,38 +247,54 @@ function scheduleColumns(paymentRelations: Map<string, SchedulePaymentRelation[]
       size: 130,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
       cell: ({ row }) => (
-        <span className={scheduleValueClass(row.original)}>
+        <span
+          className={cn(
+            row.original.penaltyCentavos === 0 ? 'text-muted-foreground' : 'text-warning'
+          )}
+        >
           {formatPhilippinePeso(row.original.penaltyCentavos / 100)}
         </span>
       )
     },
-    {
-      id: 'status',
-      accessorKey: 'status',
-      header: 'Status',
-      size: 190,
-      cell: ({ row }) => (
-        <div className="flex flex-wrap items-center gap-1">
-          <Badge variant={statusVariant(scheduleStatusLabel(row.original))}>
-            {scheduleStatusLabel(row.original)}
-          </Badge>
-          {row.original.isAdjusted && (
-            <Badge variant="secondary" size="sm">
-              ADJUSTED
-            </Badge>
-          )}
-        </div>
-      )
-    }
   ]
 }
 
-function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
+function formatScheduleCoverage(
+  scheduleIds: readonly string[],
+  scheduleNumbers: ReadonlyMap<string, number>
+): string {
+  const numbers = scheduleIds
+    .map((id) => scheduleNumbers.get(id))
+    .filter((number): number is number => number !== undefined)
+    .sort((left, right) => left - right)
+  const [first, ...remaining] = [...new Set(numbers)]
+  if (first === undefined) return '—'
+
+  const ranges: string[] = []
+  let start = first
+  let end = start
+  for (const number of remaining) {
+    if (number === end + 1) end = number
+    else {
+      ranges.push(start === end ? `#${start}` : `#${start}–#${end}`)
+      start = number
+      end = number
+    }
+  }
+  ranges.push(start === end ? `#${start}` : `#${start}–#${end}`)
+  return ranges.join(', ')
+}
+
+function paymentColumns(
+  schedules: readonly InHouseScheduleRecord[],
+  onVoid: ((payment: InHousePaymentRecord) => void) | undefined
+): ColumnDef<InHousePaymentRecord>[] {
+  const scheduleNumbers = new Map(schedules.map((schedule) => [schedule.id, schedule.installmentNumber]))
   return [
     {
       id: 'paymentNumber',
       header: 'Payment no.',
-      size: 104,
+      size: 90,
       meta: { cellClassName: 'text-muted-foreground tabular-nums' },
       cell: ({ row }) => row.index + 1
     },
@@ -279,14 +302,21 @@ function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
       id: 'paymentDate',
       accessorKey: 'paymentDate',
       header: 'Payment date',
-      size: 150,
+      size: 110,
       cell: ({ row }) => formatDate(row.original.paymentDate)
+    },
+    {
+      id: 'covers',
+      header: 'Covers',
+      size: 65,
+      meta: { cellClassName: 'text-muted-foreground tabular-nums' },
+      cell: ({ row }) => formatScheduleCoverage(row.original.scheduleIds, scheduleNumbers)
     },
     {
       id: 'reference',
       accessorKey: 'referenceNumber',
-      header: 'OR / reference',
-      size: 220,
+      header: 'OR',
+      size: 80,
       meta: { cellClassName: 'truncate text-muted-foreground' },
       cell: ({ row }) => row.original.referenceNumber || '—'
     },
@@ -299,10 +329,34 @@ function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
       cell: ({ row }) => formatPhilippinePeso(row.original.amountCentavos / 100)
     },
     {
+      id: 'penalty',
+      accessorKey: 'penaltyCentavos',
+      header: 'Penalty',
+      size: 100,
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
+      cell: ({ row }) => (
+        <span
+          className={cn(
+            row.original.penaltyCentavos === 0 ? 'text-muted-foreground' : 'text-warning'
+          )}
+        >
+          {formatPhilippinePeso(row.original.penaltyCentavos / 100)}
+        </span>
+      )
+    },
+    {
+      id: 'remarks',
+      accessorKey: 'remarks',
+      header: 'Remarks',
+      size: 160,
+      meta: { cellClassName: 'truncate text-muted-foreground' },
+      cell: ({ row }) => row.original.remarks || '—'
+    },
+    {
       id: 'updatedBy',
       accessorKey: 'updatedByName',
       header: 'Updated by',
-      size: 150,
+      size: 160,
       meta: { cellClassName: 'text-muted-foreground' },
       cell: ({ row }) => row.original.updatedByName || '—'
     },
@@ -310,17 +364,28 @@ function paymentColumns(): ColumnDef<InHousePaymentRecord>[] {
       id: 'status',
       accessorKey: 'status',
       header: 'Status',
-      size: 190,
-      cell: ({ row }) => (
-        <div className="flex flex-wrap items-center gap-1">
-          <Badge variant={statusVariant(row.original.status)}>{row.original.status}</Badge>
-          {row.original.isAdjustment && (
-            <Badge variant="secondary" size="sm">
-              ADJUSTED
-            </Badge>
-          )}
-        </div>
-      )
+      size: 128,
+      cell: ({ row }) => <Badge variant={statusVariant(row.original.status)}>{row.original.status}</Badge>
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      size: 56,
+      cell: ({ row }) =>
+        onVoid && (
+          <RowActions
+            label="Payment actions"
+            className="size-5"
+            actions={[
+              {
+                id: 'void',
+                label: 'Void entry',
+                destructive: true,
+                onSelect: () => onVoid(row.original)
+              }
+            ]}
+          />
+        )
     }
   ]
 }
@@ -342,13 +407,15 @@ export function InstallmentPaymentWorkspace({
   const [isPaymentOpen, setIsPaymentOpen] = React.useState(false)
   const [paymentMode, setPaymentMode] = React.useState<'record' | 'adjust'>('record')
   const [selectedSchedule, setSelectedSchedule] = React.useState<InHouseScheduleRecord>()
+  const [selectedScheduleId, setSelectedScheduleId] = React.useState<string>()
   const [selectedPaymentId, setSelectedPaymentId] = React.useState<string>()
+  const [paymentToVoid, setPaymentToVoid] = React.useState<InHousePaymentRecord>()
   const [activeTab, setActiveTab] = React.useState(initialTab)
   const [amount, setAmount] = React.useState('')
   const [penalty, setPenalty] = React.useState('0.00')
   const [paymentDate, setPaymentDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [referenceNumber, setReferenceNumber] = React.useState('')
-  const [adjustmentReason, setAdjustmentReason] = React.useState('')
+  const [remarks, setRemarks] = React.useState('')
   const [formError, setFormError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
   const { notify } = useNotifications()
@@ -357,6 +424,20 @@ export function InstallmentPaymentWorkspace({
   const submissionIdRef = React.useRef<string | undefined>(undefined)
   const openedInitialPaymentRef = React.useRef<string | undefined>(undefined)
   const openedRecordPaymentRef = React.useRef<string | undefined>(undefined)
+  const canRecordPayment =
+    workspace?.account.branch === ownBranch &&
+    workspace?.contractStatus === 'ACTIVE' &&
+    workspace.accountStatus === 'ACTIVE' &&
+    workspace.outstandingBalanceCentavos > 0
+  const canAdjustPayment =
+    workspace?.account.branch === ownBranch &&
+    workspace?.contractStatus === 'ACTIVE' &&
+    workspace.accountStatus === 'ACTIVE'
+  const firstUpcomingScheduleId = React.useMemo(
+    () =>
+      workspace?.schedules.find((schedule) => scheduleStatusLabel(schedule) === 'UPCOMING')?.id,
+    [workspace?.schedules]
+  )
 
   const load = React.useCallback(async (): Promise<void> => {
     const requestId = ++loadRequestId.current
@@ -399,11 +480,8 @@ export function InstallmentPaymentWorkspace({
   const scheduleTable = useReactTable({
     data: workspace?.schedules ?? [],
     columns: React.useMemo(
-      () =>
-        scheduleColumns(
-          groupSchedulePaymentRelations(workspace?.schedules ?? [], workspace?.payments ?? [])
-        ),
-      [workspace?.payments, workspace?.schedules]
+      () => scheduleColumns(workspace?.schedules ?? [], firstUpcomingScheduleId),
+      [firstUpcomingScheduleId, workspace?.schedules]
     ),
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -412,7 +490,10 @@ export function InstallmentPaymentWorkspace({
   })
   const paymentTable = useReactTable({
     data: workspace?.payments ?? [],
-    columns: React.useMemo(paymentColumns, []),
+    columns: React.useMemo(
+      () => paymentColumns(workspace?.schedules ?? [], canAdjustPayment ? setPaymentToVoid : undefined),
+      [canAdjustPayment, workspace?.schedules]
+    ),
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 25 } },
@@ -434,7 +515,7 @@ export function InstallmentPaymentWorkspace({
       setPenalty('0.00')
       setPaymentDate(format(new Date(), 'yyyy-MM-dd'))
       setReferenceNumber('')
-      setAdjustmentReason('')
+      setRemarks('')
       setFormError(undefined)
       submissionIdRef.current = crypto.randomUUID()
       setIsPaymentOpen(true)
@@ -452,9 +533,9 @@ export function InstallmentPaymentWorkspace({
     setSelectedPaymentId(payment?.id)
     setAmount(centsInput(payment?.amountCentavos ?? schedule.paidAmountCentavos))
     setPenalty(centsInput(payment?.penaltyCentavos ?? schedule.penaltyCentavos))
-    setPaymentDate(format(new Date(), 'yyyy-MM-dd'))
-    setReferenceNumber('')
-    setAdjustmentReason('')
+    setPaymentDate(payment?.paymentDate ?? format(new Date(), 'yyyy-MM-dd'))
+    setReferenceNumber(payment?.referenceNumber ?? '')
+    setRemarks('')
     setFormError(undefined)
     submissionIdRef.current = crypto.randomUUID()
     setIsPaymentOpen(true)
@@ -472,16 +553,6 @@ export function InstallmentPaymentWorkspace({
     setActiveTab('ledger')
     openAdjustment(schedule, payment)
   }, [initialPaymentId, workspace])
-
-  const canRecordPayment =
-    workspace?.account.branch === ownBranch &&
-    workspace?.contractStatus === 'ACTIVE' &&
-    workspace.accountStatus === 'ACTIVE' &&
-    workspace.outstandingBalanceCentavos > 0
-  const canAdjustPayment =
-    workspace?.account.branch === ownBranch &&
-    workspace?.contractStatus === 'ACTIVE' &&
-    workspace.accountStatus === 'ACTIVE'
 
   React.useEffect(() => {
     if (!openRecordPayment || !canRecordPayment || openedRecordPaymentRef.current === accountId)
@@ -512,8 +583,8 @@ export function InstallmentPaymentWorkspace({
     try {
       if (paymentMode === 'adjust') {
         if (!selectedSchedule) throw new Error('Select an installment to adjust.')
-        if (!adjustmentReason.trim()) {
-          setFormError('Enter the reason for this adjustment.')
+        if (!remarks.trim()) {
+          setFormError('Enter adjustment remarks.')
           return
         }
         await window.api.installments.adjustPayment({
@@ -526,7 +597,8 @@ export function InstallmentPaymentWorkspace({
           amountCentavos,
           penaltyCentavos,
           referenceNumber: referenceNumber.trim() || undefined,
-          reason: adjustmentReason.trim(),
+          remarks: remarks.trim() || undefined,
+          reason: remarks.trim(),
           actorUserId: userId
         })
       } else {
@@ -539,6 +611,7 @@ export function InstallmentPaymentWorkspace({
           amountCentavos,
           penaltyCentavos,
           referenceNumber: referenceNumber.trim() || undefined,
+          remarks: remarks.trim() || undefined,
           actorUserId: userId
         })
       }
@@ -560,6 +633,23 @@ export function InstallmentPaymentWorkspace({
       isSubmittingRef.current = false
       setIsSaving(false)
     }
+  }
+
+  const voidPayment = (reason: string): void => {
+    const payment = paymentToVoid
+    if (!payment) return
+    setPaymentToVoid(undefined)
+    void (async () => {
+      try {
+        await window.api.installments.voidPayments({ paymentIds: payment.paymentIds, reason })
+        setSelectedPaymentId(undefined)
+        await load()
+        window.dispatchEvent(new Event('installments:changed'))
+        notify({ type: 'success', title: 'Payment voided.' })
+      } catch {
+        notify({ type: 'error', title: 'Payment could not be voided.' })
+      }
+    })()
   }
 
   if (error) {
@@ -633,14 +723,6 @@ export function InstallmentPaymentWorkspace({
                   )}
                 </div>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => openPayment()}
-                disabled={!canRecordPayment}
-              >
-                Record payment
-              </Button>
             </header>
 
             {workspace && (
@@ -703,11 +785,35 @@ export function InstallmentPaymentWorkspace({
                       isLoading={isLoading}
                       emptyMessage="No payment schedule is available for this contract."
                       showPagination={false}
+                      selectedRowId={selectedScheduleId}
                       onRowClick={(schedule) => {
-                        if (schedule.status === 'WAIVED' || schedule.balanceCentavos <= 0) return
+                        if (schedule.status === 'WAIVED') return
+                        setSelectedScheduleId(schedule.id)
+                        const payment = workspace?.payments.find((item) =>
+                          item.scheduleIds.includes(schedule.id)
+                        )
+                        if (payment && schedule.status === 'PAID') {
+                          setActiveTab('ledger')
+                          setSelectedPaymentId(payment.id)
+                          return
+                        }
+                        if (
+                          scheduleStatusLabel(schedule) === 'UPCOMING' &&
+                          schedule.id !== firstUpcomingScheduleId
+                        )
+                          return
+                        if (schedule.balanceCentavos <= 0) return
                         if (!canRecordPayment) return
                         openPayment(schedule)
                       }}
+                      getRowClassName={(schedule) =>
+                        cn(
+                          schedule.id === firstUpcomingScheduleId && 'bg-primary/5 font-medium',
+                          scheduleStatusLabel(schedule) === 'UPCOMING' &&
+                            schedule.id !== firstUpcomingScheduleId &&
+                            'opacity-50 !cursor-not-allowed'
+                        )
+                      }
                       tableLayout={{ columnsResizable: true }}
                     />
                   </CardContent>
@@ -722,6 +828,7 @@ export function InstallmentPaymentWorkspace({
                       isLoading={isLoading}
                       emptyMessage="No payments have been recorded for this contract."
                       showPagination={false}
+                      selectedRowId={selectedPaymentId}
                       onRowClick={(payment) => {
                         if (payment.status !== 'POSTED' || !canAdjustPayment) return
                         const schedule = payment.scheduleIds
@@ -744,7 +851,7 @@ export function InstallmentPaymentWorkspace({
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   {paymentMode === 'adjust' ? 'Payment adjustment' : 'Record payment'}
                 </p>
-                <div className="mt-3 grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-end gap-4">
+                <div className="mt-3">
                   <div className="min-w-0">
                     <h2 className="text-5xl font-semibold leading-none tracking-tighter text-primary tabular-nums">
                       #
@@ -753,30 +860,6 @@ export function InstallmentPaymentWorkspace({
                         'â€”'}
                     </h2>
                     <p className="mt-1 text-xs text-muted-foreground">Installment</p>
-                  </div>
-                  <div className="min-w-0 border-l border-primary/40 pl-3">
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Balance
-                    </p>
-                    <p className="mt-1 truncate text-sm font-semibold text-primary tabular-nums">
-                      {selectedSchedule
-                        ? formatPhilippinePeso(selectedSchedule.balanceCentavos / 100)
-                        : workspace?.nextDue
-                          ? formatPhilippinePeso(workspace.nextDue.amountCentavos / 100)
-                          : 'Paid'}
-                    </p>
-                  </div>
-                  <div className="min-w-0 border-l border-primary/40 pl-3">
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                      Due date
-                    </p>
-                    <p className="mt-1 truncate text-sm font-semibold text-primary tabular-nums">
-                      {selectedSchedule
-                        ? formatDate(selectedSchedule.dueDate)
-                        : workspace?.nextDue
-                          ? formatDate(workspace.nextDue.dueDate)
-                          : 'â€”'}
-                    </p>
                   </div>
                 </div>
               </header>
@@ -832,24 +915,22 @@ export function InstallmentPaymentWorkspace({
                         maxLength={100}
                       />
                     </Field>
-                    {paymentMode === 'adjust' && (
-                      <Field data-invalid={Boolean(formError && !adjustmentReason.trim())}>
-                        <FieldLabel htmlFor="payment-adjustment-reason">
-                          Adjustment reason
-                        </FieldLabel>
-                        <Input
-                          id="payment-adjustment-reason"
-                          value={adjustmentReason}
-                          onChange={(event) => setAdjustmentReason(event.target.value)}
-                          placeholder="Required"
-                          maxLength={1000}
-                          aria-invalid={Boolean(formError && !adjustmentReason.trim())}
-                        />
+                    <Field data-invalid={paymentMode === 'adjust' && Boolean(formError && !remarks.trim())}>
+                      <FieldLabel htmlFor="payment-remarks">Remarks</FieldLabel>
+                      <Textarea
+                        id="payment-remarks"
+                        value={remarks}
+                        onChange={(event) => setRemarks(event.target.value)}
+                        placeholder={paymentMode === 'adjust' ? 'Required' : 'Optional'}
+                        maxLength={1000}
+                        aria-invalid={paymentMode === 'adjust' && Boolean(formError && !remarks.trim())}
+                      />
+                      {paymentMode === 'adjust' && (
                         <FieldDescription>
                           The original payment remains in the ledger as voided.
                         </FieldDescription>
-                      </Field>
-                    )}
+                      )}
+                    </Field>
                     {formError && <FieldError>{formError}</FieldError>}
                   </FieldGroup>
                 </div>
@@ -876,6 +957,12 @@ export function InstallmentPaymentWorkspace({
             </aside>
           )}
         </div>
+        <VoidEntryDialog
+          open={Boolean(paymentToVoid)}
+          label="payment"
+          onOpenChange={(open) => !open && setPaymentToVoid(undefined)}
+          onConfirm={voidPayment}
+        />
       </DialogContent>
     </Dialog>
   )

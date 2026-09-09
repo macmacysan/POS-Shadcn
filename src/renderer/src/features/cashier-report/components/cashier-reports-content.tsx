@@ -135,7 +135,6 @@ import {
 } from '@/features/cashier-report/lib/cashier-report-pdf'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
-const noopHistorySelect = (): void => undefined
 type ExcelCell = string | number | null
 type ExcelSheetRows = Record<string, ExcelCell>[]
 
@@ -422,6 +421,7 @@ function installmentHistoryRow(
       record.amountCentavos === undefined ? undefined : amountFromCentavos(record.amountCentavos),
     balance: balanceCentavos === undefined ? undefined : amountFromCentavos(balanceCentavos),
     balanceCentavos,
+    penaltyCentavos: record.penaltyCentavos,
     details
   }
 }
@@ -1391,7 +1391,7 @@ function ReportTab({
             onGlobalSearchChange={onGlobalFilterChange}
             onVisibleRecordCountChange={onVisibleHistoryCountChange}
             selectedId={selectedHistoryId}
-            onSelect={noopHistorySelect}
+            onSelect={onSelectHistory}
             onDoubleClick={onSelectHistory}
             onVoidSelected={onVoidSelectedHistory}
           />

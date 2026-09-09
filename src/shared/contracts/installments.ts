@@ -78,6 +78,7 @@ export const installmentCreatePaymentRequestSchema = z.object({
   amountCentavos: z.number().int().positive(),
   penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
+  remarks: z.string().trim().max(1000).optional(),
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
 })
 
@@ -91,6 +92,7 @@ export const installmentAdjustPaymentRequestSchema = z.object({
   amountCentavos: z.number().int().nonnegative(),
   penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
+  remarks: z.string().trim().max(1000).optional(),
   reason: z.string().trim().min(1).max(1000),
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
 })
@@ -113,7 +115,9 @@ export type InstallmentListRequest = Omit<
 export type InstallmentAttentionRequest = z.infer<typeof installmentAttentionRequestSchema>
 export type InstallmentBootstrapRequest = z.infer<typeof installmentBootstrapRequestSchema>
 export type InstallmentLoanUpdateRequest = z.infer<typeof installmentLoanUpdateRequestSchema>
-export type InstallmentLoanRestructureRequest = z.infer<typeof installmentLoanRestructureRequestSchema>
+export type InstallmentLoanRestructureRequest = z.infer<
+  typeof installmentLoanRestructureRequestSchema
+>
 export type InstallmentTransitionRequest = z.infer<typeof installmentTransitionRequestSchema>
 export type InstallmentRestoreStatusRequest = z.infer<typeof installmentRestoreStatusRequestSchema>
 export type InstallmentVoidRequest = z.infer<typeof installmentVoidRequestSchema>
@@ -231,7 +235,8 @@ export type InHouseScheduleRecord = {
   id: string
   installmentNumber: number
   dueDate: string
-  paymentDate?: string
+  remainingDueCentavos: number
+  lastAppliedDate?: string
   dueAmountCentavos: number
   paidAmountCentavos: number
   balanceCentavos: number
@@ -247,10 +252,13 @@ export type InHousePaymentRecord = {
   penaltyCentavos: number
   allocatedAmountCentavos: number
   referenceNumber?: string
+  remarks?: string
   status: 'POSTED' | 'VOIDED'
   isAdjustment: boolean
   createdAt: string
   updatedByName?: string
+  adjustReason?: string
+  paymentIds: string[]
   scheduleIds: string[]
 }
 
@@ -262,6 +270,7 @@ export type InstallmentHistoryRecord = {
   activity: string
   amountCentavos?: number
   balanceCentavos?: number
+  penaltyCentavos?: number
   referenceNumber?: string
   accountId: string
   accountNumber: string

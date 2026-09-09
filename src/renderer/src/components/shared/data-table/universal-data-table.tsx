@@ -37,9 +37,11 @@ type UniversalDataTableProps<TData extends object> = {
   error?: ReactNode | string
   onRetry?: () => void
   emptyMessage?: ReactNode | string
+  selectedRowId?: string
   onRowClick?: (row: TData) => void
   onRowDoubleClick?: (row: TData) => void
   onRowContextMenu?: (row: TData, event: MouseEvent<HTMLTableRowElement>) => void
+  getRowClassName?: (row: TData) => string | undefined
   renderExpandedRow?: (row: TData) => ReactNode
   paginationSizes?: number[]
   paginationInfo?: string
@@ -121,9 +123,11 @@ export function UniversalDataTable<TData extends object>({
   error,
   onRetry,
   emptyMessage,
+  selectedRowId,
   onRowClick,
   onRowDoubleClick,
   onRowContextMenu,
+  getRowClassName,
   renderExpandedRow,
   paginationSizes = [25, 50, 100],
   paginationInfo = 'Showing {from}-{to} of {count}',
@@ -216,17 +220,19 @@ export function UniversalDataTable<TData extends object>({
               rows.map((row) => (
                 <React.Fragment key={row.id}>
                 <TableRow
-                  data-state={row.getIsSelected() && 'selected'}
+                  data-state={(row.getIsSelected() || row.id === selectedRowId) && 'selected'}
                   className={cn(
                     'group/row h-7 border-b border-border last:border-b-0',
                     (row.original as { status?: string }).status === 'VOIDED' && 'text-destructive',
+                    getRowClassName?.(row.original),
+                    row.id === selectedRowId && 'bg-primary/10',
                     (onRowClick || onRowDoubleClick) && 'cursor-pointer'
                   )}
                   onClick={() => onRowClick?.(row.original)}
                   onDoubleClick={() => onRowDoubleClick?.(row.original)}
                   onContextMenu={(event) => onRowContextMenu?.(row.original, event)}
                 >
-                  {row.getVisibleCells().map((cell) => {
+                  {row.getVisibleCells().map((cell, index) => {
                     const meta = getColumnMeta(cell.column)
                     return (
                       <TableCell
@@ -234,6 +240,7 @@ export function UniversalDataTable<TData extends object>({
                         className={cn(
                           'h-7 max-w-72 px-3 py-1',
                           getNarrowColumnClassName(cell.column.id),
+                          row.id === selectedRowId && index === 0 && 'border-l-2 border-l-primary',
                           meta.cellClassName
                         )}
                         style={meta.autoSize ? undefined : { width: cell.column.getSize() }}

@@ -2008,4 +2008,13 @@ export function runMigrations(db: Database.Database): void {
     })
     migrate()
   }
+
+  if (applied.version < 48) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec('ALTER TABLE in_house_payments ADD COLUMN remarks TEXT')
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(48, now)
+    })
+    migrate()
+  }
 }

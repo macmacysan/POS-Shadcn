@@ -78,10 +78,10 @@ type ScheduleRow = {
   id: string
   installment_number: number
   due_date: string
-  payment_date?: string
   due_amount_centavos: number
   paid_amount_centavos: number
   penalty_centavos: number
+  last_applied_date?: string
   status: 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'WAIVED'
   is_restructured: number
   is_adjusted: number
@@ -125,9 +125,7 @@ function branchCode(branch: string): string {
 
 function toMeta(row: ContractRow): InstallmentAccountRecord['meta'] {
   const nextDue = row.next_due_date ?? row.first_due_date
-  const totalPaid =
-    row.total_paid_centavos / 100 +
-    row.down_payment_applied_centavos / 100
+  const totalPaid = row.total_paid_centavos / 100 + row.down_payment_applied_centavos / 100
   const totalPayable = row.total_payable_centavos / 100
   const outstanding = Math.max(0, totalPayable - totalPaid)
   let status: InstallmentAccountRecord['meta']['status'] = 'active'
@@ -541,7 +539,9 @@ export class InstallmentRepository {
             now
           )
           this.db
-            .prepare('UPDATE installment_contracts SET down_payment_applied_centavos = ? WHERE id = ?')
+            .prepare(
+              'UPDATE installment_contracts SET down_payment_applied_centavos = ? WHERE id = ?'
+            )
             .run(frequency === 'Monthly' ? downPayment : 0, loanId)
           for (const item of items) {
             const itemRecord = item as Record<string, unknown>
@@ -682,7 +682,13 @@ export class InstallmentRepository {
             GROUP BY c.id`
         )
         .get(request.contractId, request.accountId) as
-        | { id: string; status: string; total_payable_centavos: number; down_payment_applied_centavos: number; paid_centavos: number }
+        | {
+            id: string
+            status: string
+            total_payable_centavos: number
+            down_payment_applied_centavos: number
+            paid_centavos: number
+          }
         | undefined
       if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
       if (contract.status !== 'ACTIVE')
@@ -693,10 +699,16 @@ export class InstallmentRepository {
         throw new AppError('VALIDATION_ERROR', 'The new first due date cannot be in the past.')
       const outstanding = Math.max(
         0,
-        contract.total_payable_centavos - contract.down_payment_applied_centavos - contract.paid_centavos
+        contract.total_payable_centavos -
+          contract.down_payment_applied_centavos -
+          contract.paid_centavos
       )
       if (!outstanding) throw new AppError('CONFLICT', 'A fully paid loan cannot be restructured.')
-      const endDate = calculateEndDate(request.firstDueDate, request.paymentFrequency, request.terms)
+      const endDate = calculateEndDate(
+        request.firstDueDate,
+        request.paymentFrequency,
+        request.terms
+      )
       if (!endDate) throw new AppError('VALIDATION_ERROR', 'The new schedule is invalid.')
       const restructureId = randomUUID()
       this.db
@@ -705,14 +717,27 @@ export class InstallmentRepository {
             (id, contract_id, first_due_date, payment_frequency, terms, outstanding_balance_centavos, reason, created_by_user_id, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .run(restructureId, contract.id, request.firstDueDate, request.paymentFrequency, request.terms, outstanding, request.reason, request.actorUserId, now)
+        .run(
+          restructureId,
+          contract.id,
+          request.firstDueDate,
+          request.paymentFrequency,
+          request.terms,
+          outstanding,
+          request.reason,
+          request.actorUserId,
+          now
+        )
       this.db
         .prepare(
           `UPDATE in_house_schedules SET is_restructured = 1, restructure_id = ?, updated_at = ?
             WHERE contract_id = ? AND is_restructured = 0 AND status NOT IN ('PAID', 'WAIVED')`
         )
         .run(restructureId, now, contract.id)
-      const legacyFrequency = request.paymentFrequency === 'Daily' || request.paymentFrequency === 'Semi' ? 'Monthly' : request.paymentFrequency
+      const legacyFrequency =
+        request.paymentFrequency === 'Daily' || request.paymentFrequency === 'Semi'
+          ? 'Monthly'
+          : request.paymentFrequency
       const paymentAmount = Math.round(outstanding / request.terms)
       this.db
         .prepare(
@@ -721,18 +746,45 @@ export class InstallmentRepository {
                   terms = ?, installment_amount_centavos = ?, payment_amount_centavos = ?, updated_at = ?
             WHERE id = ?`
         )
-        .run(request.firstDueDate, request.firstDueDate, endDate, legacyFrequency, request.paymentFrequency, String(request.terms), paymentAmount, paymentAmount, now, contract.id)
+        .run(
+          request.firstDueDate,
+          request.firstDueDate,
+          endDate,
+          legacyFrequency,
+          request.paymentFrequency,
+          String(request.terms),
+          paymentAmount,
+          paymentAmount,
+          now,
+          contract.id
+        )
       const maxNumber = this.db
-        .prepare('SELECT COALESCE(MAX(installment_number), 0) AS value FROM in_house_schedules WHERE contract_id = ?')
+        .prepare(
+          'SELECT COALESCE(MAX(installment_number), 0) AS value FROM in_house_schedules WHERE contract_id = ?'
+        )
         .get(contract.id) as { value: number }
-      const schedules = buildInHouseSchedule(request.firstDueDate, request.paymentFrequency === 'Semi' ? 'Semi-monthly' : request.paymentFrequency, String(request.terms), outstanding)
+      const schedules = buildInHouseSchedule(
+        request.firstDueDate,
+        request.paymentFrequency === 'Semi' ? 'Semi-monthly' : request.paymentFrequency,
+        String(request.terms),
+        outstanding
+      )
       const insert = this.db.prepare(
         `INSERT INTO in_house_schedules
           (id, contract_id, installment_number, due_date, due_amount_centavos, restructure_id, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
       for (const [index, schedule] of schedules.entries())
-        insert.run(randomUUID(), contract.id, maxNumber.value + index + 1, schedule.dueDate, schedule.dueAmountCentavos, restructureId, now, now)
+        insert.run(
+          randomUUID(),
+          contract.id,
+          maxNumber.value + index + 1,
+          schedule.dueDate,
+          schedule.dueAmountCentavos,
+          restructureId,
+          now,
+          now
+        )
       this.db
         .prepare(
           `INSERT INTO installment_activity_history
@@ -1084,11 +1136,11 @@ export class InstallmentRepository {
     const schedules = this.db
       .prepare(
         `SELECT s.id, s.installment_number, s.due_date, s.due_amount_centavos, s.status, s.is_restructured,
-                MAX(CASE WHEN p.status = 'POSTED' THEN p.payment_date END) AS payment_date,
                 COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0)
                   AS paid_amount_centavos,
                 COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.penalty_centavos ELSE 0 END), 0)
                   AS penalty_centavos,
+                MAX(CASE WHEN p.status = 'POSTED' THEN p.payment_date END) AS last_applied_date,
                 MAX(CASE
                       WHEN p.replaces_payment_id IS NOT NULL
                         OR (p.status = 'VOIDED' AND p.void_reason IS NOT NULL)
@@ -1105,17 +1157,52 @@ export class InstallmentRepository {
       .all(record.contractId) as ScheduleRow[]
     const payments = this.db
       .prepare(
-        `SELECT p.id, p.payment_date, p.amount_centavos, p.penalty_centavos, p.reference_number, p.status, p.created_at,
-                 updated_user.display_name AS updated_by_name,
-                 p.replaces_payment_id IS NOT NULL AS is_adjustment,
-                COALESCE(SUM(pa.allocated_amount_centavos), 0) AS allocated_amount_centavos,
-                GROUP_CONCAT(DISTINCT pa.schedule_id) AS schedule_ids
-           FROM in_house_payments p
-           LEFT JOIN installment_payment_allocations pa ON pa.payment_id = p.id
-           LEFT JOIN users updated_user ON updated_user.id = COALESCE(p.voided_by_user_id, p.received_by_user_id)
-          WHERE p.contract_id = ?
-          GROUP BY p.id
-          ORDER BY p.payment_date DESC, p.created_at DESC`
+        `WITH RECURSIVE payment_ancestors AS (
+           SELECT p.id AS payment_id, p.id AS ancestor_id, p.replaces_payment_id
+             FROM in_house_payments p
+            WHERE p.contract_id = ? AND p.status = 'POSTED'
+           UNION ALL
+           SELECT ancestors.payment_id, parent.id, parent.replaces_payment_id
+             FROM payment_ancestors ancestors
+             JOIN in_house_payments parent ON parent.id = ancestors.replaces_payment_id
+         ), payment_roots AS (
+           SELECT payment_id, ancestor_id AS root_id
+             FROM payment_ancestors
+            WHERE replaces_payment_id IS NULL
+         ), payment_rows AS (
+           SELECT p.*, roots.root_id,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY roots.root_id
+                    ORDER BY p.payment_date DESC, p.created_at DESC, p.id DESC
+                  ) AS row_number
+             FROM in_house_payments p
+             JOIN payment_roots roots ON roots.payment_id = p.id
+         )
+          SELECT latest.id, latest.payment_date,
+                (SELECT SUM(family.amount_centavos)
+                   FROM payment_rows family WHERE family.root_id = latest.root_id) AS amount_centavos,
+                (SELECT SUM(family.penalty_centavos)
+                   FROM payment_rows family WHERE family.root_id = latest.root_id) AS penalty_centavos,
+                 latest.reference_number, latest.remarks, latest.status, latest.created_at,
+                updated_user.display_name AS updated_by_name,
+                replaced_payment.void_reason AS adjustment_reason,
+                latest.replaces_payment_id IS NOT NULL AS is_adjustment,
+                COALESCE((SELECT SUM(pa.allocated_amount_centavos)
+                   FROM installment_payment_allocations pa
+                   JOIN payment_rows family ON family.id = pa.payment_id
+                  WHERE family.root_id = latest.root_id), 0) AS allocated_amount_centavos,
+                (SELECT GROUP_CONCAT(family.id)
+                   FROM payment_rows family WHERE family.root_id = latest.root_id) AS payment_ids,
+                (SELECT GROUP_CONCAT(DISTINCT pa.schedule_id)
+                   FROM installment_payment_allocations pa
+                   JOIN payment_rows family ON family.id = pa.payment_id
+                  WHERE family.root_id = latest.root_id) AS schedule_ids
+           FROM payment_rows latest
+           LEFT JOIN users updated_user
+             ON updated_user.id = COALESCE(latest.voided_by_user_id, latest.received_by_user_id)
+           LEFT JOIN in_house_payments replaced_payment ON replaced_payment.id = latest.replaces_payment_id
+          WHERE latest.row_number = 1
+          ORDER BY latest.payment_date ASC, latest.created_at ASC`
       )
       .all(record.contractId) as Array<{
       id: string
@@ -1124,10 +1211,13 @@ export class InstallmentRepository {
       penalty_centavos: number
       allocated_amount_centavos: number
       reference_number?: string
+      remarks?: string
       status: 'POSTED' | 'VOIDED'
       is_adjustment: number
       created_at: string
       updated_by_name?: string
+      adjustment_reason?: string
+      payment_ids?: string
       schedule_ids?: string
     }>
     const recordedPaidCentavos = schedules.reduce(
@@ -1148,7 +1238,8 @@ export class InstallmentRepository {
         id: item.id,
         installmentNumber: item.installment_number,
         dueDate: item.due_date,
-        paymentDate: item.payment_date,
+        remainingDueCentavos: scheduleRemainingCentavos,
+        lastAppliedDate: item.last_applied_date || undefined,
         dueAmountCentavos: item.due_amount_centavos,
         paidAmountCentavos: item.paid_amount_centavos,
         balanceCentavos: runningBalanceCentavos,
@@ -1161,7 +1252,10 @@ export class InstallmentRepository {
     })
     const next = workspaceSchedules.find(
       (item) =>
-        item.status !== 'PAID' && item.status !== 'WAIVED' && !item.isRestructured && item.scheduleRemainingCentavos > 0
+        item.status !== 'PAID' &&
+        item.status !== 'WAIVED' &&
+        !item.isRestructured &&
+        item.scheduleRemainingCentavos > 0
     )
 
     return {
@@ -1186,7 +1280,8 @@ export class InstallmentRepository {
         id: schedule.id,
         installmentNumber: schedule.installmentNumber,
         dueDate: schedule.dueDate,
-        paymentDate: schedule.paymentDate,
+        remainingDueCentavos: schedule.scheduleRemainingCentavos,
+        lastAppliedDate: schedule.lastAppliedDate,
         dueAmountCentavos: schedule.dueAmountCentavos,
         paidAmountCentavos: schedule.paidAmountCentavos,
         balanceCentavos: schedule.balanceCentavos,
@@ -1201,10 +1296,13 @@ export class InstallmentRepository {
         penaltyCentavos: payment.penalty_centavos,
         allocatedAmountCentavos: payment.allocated_amount_centavos,
         referenceNumber: payment.reference_number || undefined,
+        remarks: payment.remarks || undefined,
         status: payment.status,
         isAdjustment: Boolean(payment.is_adjustment),
         createdAt: payment.created_at,
         updatedByName: payment.updated_by_name,
+        adjustReason: payment.adjustment_reason || undefined,
+        paymentIds: payment.payment_ids ? payment.payment_ids.split(',') : [payment.id],
         scheduleIds: payment.schedule_ids ? payment.schedule_ids.split(',') : []
       }))
     }
@@ -1232,7 +1330,7 @@ export class InstallmentRepository {
            SELECT c.id || ':created' AS id, c.created_at AS occurred_at, 'new' AS action,
                   'in-house' AS source, 'Installment record added' AS activity,
                   c.total_payable_centavos AS amount_centavos, c.contract_number AS reference_number,
-                  cb.balance_centavos, a.id AS account_id, a.account_number,
+                  cb.balance_centavos, NULL AS penalty_centavos, a.id AS account_id, a.account_number,
                   a.display_name AS account_name, b.name AS branch
              FROM installment_contracts c
              JOIN contract_balances cb ON cb.contract_id = c.id
@@ -1246,7 +1344,7 @@ export class InstallmentRepository {
                   CASE WHEN p.status = 'VOIDED' THEN 'Active payment deleted'
                        WHEN p.replaces_payment_id IS NOT NULL THEN 'Active payment edited'
                        ELSE 'Active payment added' END,
-                  p.amount_centavos, p.reference_number, cb.balance_centavos, a.id, a.account_number,
+                  p.amount_centavos, p.reference_number, cb.balance_centavos, p.penalty_centavos, a.id, a.account_number,
                   a.display_name, b.name
              FROM in_house_payments p
              JOIN installment_contracts c ON c.id = p.contract_id
@@ -1255,7 +1353,7 @@ export class InstallmentRepository {
              JOIN branches b ON b.id = c.branch_id
            UNION ALL
            SELECT c.id || ':closed', c.closed_at, 'edited', 'in-house',
-                  'Installment record closed', c.total_payable_centavos, c.contract_number, cb.balance_centavos,
+                  'Installment record closed', c.total_payable_centavos, c.contract_number, cb.balance_centavos, NULL,
                   a.id, a.account_number, a.display_name, b.name
              FROM installment_contracts c
              JOIN contract_balances cb ON cb.contract_id = c.id
@@ -1264,7 +1362,7 @@ export class InstallmentRepository {
             WHERE c.closed_at IS NOT NULL
            UNION ALL
            SELECT a.id || ':blacklisted', a.blacklisted_at, 'edited', 'in-house',
-                  'Installment record blacklisted', NULL, a.account_number, cb.balance_centavos,
+                  'Installment record blacklisted', NULL, a.account_number, cb.balance_centavos, NULL,
                   a.id, a.account_number, a.display_name, b.name
              FROM accounts a
              JOIN installment_contracts c ON c.account_id = a.id
@@ -1274,7 +1372,7 @@ export class InstallmentRepository {
            UNION ALL
            SELECT r.id, r.created_at, 'edited', 'in-house',
                   'Loan repayment schedule restructured', r.outstanding_balance_centavos,
-                  c.contract_number, cb.balance_centavos, a.id, a.account_number, a.display_name, b.name
+                  c.contract_number, cb.balance_centavos, NULL, a.id, a.account_number, a.display_name, b.name
              FROM installment_restructures r
              JOIN installment_contracts c ON c.id = r.contract_id
              JOIN contract_balances cb ON cb.contract_id = c.id
@@ -1282,12 +1380,12 @@ export class InstallmentRepository {
              JOIN branches b ON b.id = c.branch_id
            UNION ALL
            SELECT f.id || ':created', f.created_at, 'new', 'finance',
-                  'Finance account added', f.grand_total_centavos, COALESCE(f.or_number, f.provider), f.balance_centavos,
+                  'Finance account added', f.grand_total_centavos, COALESCE(f.or_number, f.provider), f.balance_centavos, NULL,
                   f.id, f.id, trim(f.first_name || ' ' || f.last_name), f.branch
              FROM finance_accounts f
            UNION ALL
            SELECT f.id || ':updated', f.updated_at, 'edited', 'finance',
-                  'Finance account edited', f.grand_total_centavos, COALESCE(f.or_number, f.provider), f.balance_centavos,
+                  'Finance account edited', f.grand_total_centavos, COALESCE(f.or_number, f.provider), f.balance_centavos, NULL,
                   f.id, f.id, trim(f.first_name || ' ' || f.last_name), f.branch
              FROM finance_accounts f
             WHERE f.updated_at <> f.created_at
@@ -1295,6 +1393,7 @@ export class InstallmentRepository {
          SELECT events.id, events.occurred_at AS occurredAt, events.action, events.source,
                  events.activity, events.amount_centavos AS amountCentavos,
                  events.balance_centavos AS balanceCentavos,
+                 events.penalty_centavos AS penaltyCentavos,
                 events.reference_number AS referenceNumber, events.account_id AS accountId,
                 events.account_number AS accountNumber, events.account_name AS accountName,
                 events.branch
@@ -1367,8 +1466,8 @@ export class InstallmentRepository {
       this.db
         .prepare(
           `INSERT INTO in_house_payments
-            (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, reference_number, received_by_user_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, reference_number, remarks, received_by_user_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           paymentId,
@@ -1378,6 +1477,7 @@ export class InstallmentRepository {
           request.amountCentavos,
           request.penaltyCentavos,
           request.referenceNumber || null,
+          request.remarks || null,
           request.actorUserId,
           now,
           now
@@ -1465,15 +1565,38 @@ export class InstallmentRepository {
       if (!selectedSchedule)
         throw new AppError('NOT_FOUND', 'The selected installment is not available for adjustment.')
 
-      const sourcePayments = request.paymentId
+      const paymentFamilyRoot = request.paymentId
         ? (this.db
             .prepare(
-              `SELECT id FROM in_house_payments
-                WHERE id = ? AND contract_id = ? AND status = 'POSTED'`
+              `WITH RECURSIVE ancestors AS (
+                 SELECT id, replaces_payment_id
+                   FROM in_house_payments
+                  WHERE id = ? AND contract_id = ?
+                 UNION ALL
+                 SELECT p.id, p.replaces_payment_id
+                   FROM in_house_payments p
+                   JOIN ancestors a ON a.replaces_payment_id = p.id
+               )
+               SELECT id FROM ancestors WHERE replaces_payment_id IS NULL LIMIT 1`
             )
             .get(request.paymentId, contract.id) as { id: string } | undefined)
-          ? [{ id: request.paymentId }]
-          : []
+        : undefined
+      const sourcePayments = paymentFamilyRoot
+        ? (this.db
+            .prepare(
+              `WITH RECURSIVE payment_family AS (
+                 SELECT id FROM in_house_payments WHERE id = ?
+                 UNION ALL
+                 SELECT p.id
+                   FROM in_house_payments p
+                   JOIN payment_family family ON p.replaces_payment_id = family.id
+               )
+               SELECT p.id
+                 FROM in_house_payments p
+                 JOIN payment_family family ON family.id = p.id
+                WHERE p.status = 'POSTED'`
+            )
+            .all(paymentFamilyRoot.id) as Array<{ id: string }>)
         : (this.db
             .prepare(
               `SELECT DISTINCT p.id
@@ -1515,89 +1638,16 @@ export class InstallmentRepository {
 
       const insertPayment = this.db.prepare(
         `INSERT INTO in_house_payments
-          (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, reference_number,
-           received_by_user_id, replaces_payment_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, reference_number, remarks,
+            received_by_user_id, replaces_payment_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const insertAllocation = this.db.prepare(
         `INSERT INTO installment_payment_allocations
           (id, payment_id, schedule_id, allocated_amount_centavos, penalty_centavos, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`
       )
-      let replacementIndex = 0
-      const repost = (
-        replacesPaymentId: string,
-        scheduleId: string,
-        amountCentavos: number,
-        penaltyCentavos: number,
-        paymentDate: string,
-        referenceNumber?: string
-      ): void => {
-        if (amountCentavos <= 0) return
-        const paymentId = randomUUID()
-        replacementIndex += 1
-        insertPayment.run(
-          paymentId,
-          contract.id,
-          `${request.submissionId}:${replacementIndex}`,
-          paymentDate,
-          amountCentavos,
-          penaltyCentavos,
-          referenceNumber || null,
-          request.actorUserId,
-          replacesPaymentId,
-          now,
-          now
-        )
-        insertAllocation.run(
-          randomUUID(),
-          paymentId,
-          scheduleId,
-          amountCentavos,
-          penaltyCentavos,
-          now
-        )
-      }
-
-      let adjustedRemaining = request.amountCentavos
-      for (const allocation of sourceAllocations) {
-        if (allocation.schedule_id !== selectedSchedule.id) {
-          repost(
-            allocation.payment_id,
-            allocation.schedule_id,
-            allocation.allocated_amount_centavos,
-            allocation.penalty_centavos,
-            allocation.payment_date,
-            allocation.reference_number
-          )
-          continue
-        }
-        const replacementAmount = Math.min(allocation.allocated_amount_centavos, adjustedRemaining)
-        repost(
-          allocation.payment_id,
-          allocation.schedule_id,
-          replacementAmount,
-          adjustedRemaining === request.amountCentavos ? request.penaltyCentavos : 0,
-          request.paymentDate,
-          request.referenceNumber || allocation.reference_number
-        )
-        adjustedRemaining -= replacementAmount
-      }
-      if (adjustedRemaining > 0) {
-        repost(
-          sourcePaymentIds[0],
-          selectedSchedule.id,
-          adjustedRemaining,
-          request.penaltyCentavos,
-          request.paymentDate,
-          request.referenceNumber
-        )
-      }
-
-      const affectedScheduleIds = [...new Set(sourceAllocations.map((item) => item.schedule_id))]
-      const updateSchedule = this.db.prepare(
-        `UPDATE in_house_schedules SET status = ?, updated_at = ? WHERE id = ?`
-      )
+      const affectedScheduleIds = new Set(sourceAllocations.map((item) => item.schedule_id))
       const paidForSchedule = this.db.prepare(
         `SELECT COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN pa.allocated_amount_centavos ELSE 0 END), 0) AS paid_amount_centavos,
                 s.due_amount_centavos
@@ -1606,6 +1656,68 @@ export class InstallmentRepository {
            LEFT JOIN in_house_payments p ON p.id = pa.payment_id AND p.status = 'POSTED'
           WHERE s.id = ?
           GROUP BY s.id`
+      )
+
+      const schedules = this.db
+        .prepare(
+          `SELECT s.id, s.due_amount_centavos,
+                  COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0)
+                    AS paid_amount_centavos
+             FROM in_house_schedules s
+             LEFT JOIN installment_payment_allocations pa ON pa.schedule_id = s.id
+             LEFT JOIN in_house_payments p ON p.id = pa.payment_id
+            WHERE s.contract_id = ? AND s.status != 'WAIVED' AND s.is_restructured = 0
+            GROUP BY s.id
+            ORDER BY s.due_date, s.installment_number`
+        )
+        .all(contract.id) as Array<{
+        id: string
+        due_amount_centavos: number
+        paid_amount_centavos: number
+      }>
+      const targetIndex = schedules.findIndex((schedule) => schedule.id === selectedSchedule.id)
+      if (request.amountCentavos > 0) {
+        const paymentId = randomUUID()
+        insertPayment.run(
+          paymentId,
+          contract.id,
+          request.submissionId,
+          request.paymentDate,
+          request.amountCentavos,
+          request.penaltyCentavos,
+          request.referenceNumber || null,
+          request.remarks || null,
+          request.actorUserId,
+          request.paymentId || sourcePaymentIds[0],
+          now,
+          now
+        )
+
+        let remaining = request.amountCentavos
+        let penaltyAssigned = false
+        for (const schedule of schedules.slice(targetIndex)) {
+          if (remaining <= 0) break
+          const allocation = Math.min(
+            remaining,
+            Math.max(0, schedule.due_amount_centavos - schedule.paid_amount_centavos)
+          )
+          if (allocation <= 0) continue
+          insertAllocation.run(
+            randomUUID(),
+            paymentId,
+            schedule.id,
+            allocation,
+            penaltyAssigned ? 0 : request.penaltyCentavos,
+            now
+          )
+          affectedScheduleIds.add(schedule.id)
+          penaltyAssigned = true
+          remaining -= allocation
+        }
+      }
+
+      const updateSchedule = this.db.prepare(
+        `UPDATE in_house_schedules SET status = ?, updated_at = ? WHERE id = ?`
       )
       for (const scheduleId of affectedScheduleIds) {
         const paymentState = paidForSchedule.get(scheduleId) as {
