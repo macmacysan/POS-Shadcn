@@ -22,9 +22,13 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatPhilippinePeso } from '@/lib/currency'
 import { formatAccountName } from '@/lib/in-house-accounts'
+import {
+  groupSchedulePaymentRelations,
+  type SchedulePaymentRelation
+} from '@/lib/installment-payment-relations'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import type {
@@ -81,6 +85,59 @@ function scheduleValueClass(row: InHouseScheduleRecord, className?: string): str
   return cn(row.paidAmountCentavos === 0 && 'text-muted-foreground', className)
 }
 
+function ReceivedPaymentCell({
+  relations
+}: {
+  readonly relations: SchedulePaymentRelation[]
+}): React.JSX.Element {
+  if (!relations.length || (relations.length === 1 && !relations[0].isFirstSchedule))
+    return <span className="text-muted-foreground">—</span>
+
+  const multiplePayments = relations.length > 1
+  const primary = relations.find((relation) => relation.isFirstSchedule) ?? relations[0]
+  const label = multiplePayments
+    ? `${relations.length} payments`
+    : formatPhilippinePeso(primary.payment.amountCentavos / 100)
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              className="inline-flex cursor-help flex-col items-end text-right tabular-nums"
+              tabIndex={0}
+              aria-label="Received payment details"
+            />
+          }
+        >
+          <span>{label}</span>
+          {!multiplePayments && primary.scheduleNumbers.length > 1 && (
+            <span className="text-[11px] text-muted-foreground">
+              covers {primary.scheduleNumbers.length} dues
+            </span>
+          )}
+        </TooltipTrigger>
+        <TooltipContent className="max-w-72">
+          <div className="flex flex-col gap-2 text-xs">
+            {relations.map(({ payment, scheduleNumbers }) => (
+              <div key={payment.id} className="flex flex-col gap-0.5">
+                <span className="font-medium tabular-nums">
+                  {formatPhilippinePeso(payment.amountCentavos / 100)} · {formatDate(payment.paymentDate)}
+                </span>
+                <span className="text-muted-foreground">
+                  {payment.referenceNumber ? `OR / reference: ${payment.referenceNumber} · ` : ''}
+                  covers {scheduleNumbers.length} {scheduleNumbers.length === 1 ? 'due' : 'dues'} ·{' '}
+                  {scheduleNumbers.map((number) => `#${number}`).join(', ')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 function PaymentDateField({
   value,
   onChange
@@ -101,7 +158,7 @@ function PaymentDateField({
   )
 }
 
-function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
+function scheduleColumns(paymentRelations: Map<string, SchedulePaymentRelation[]>): ColumnDef<InHouseScheduleRecord>[] {
   return [
     {
       id: 'installment',
@@ -147,9 +204,16 @@ function scheduleColumns(): ColumnDef<InHouseScheduleRecord>[] {
       )
     },
     {
+      id: 'received',
+      header: 'Received',
+      size: 144,
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right' },
+      cell: ({ row }) => <ReceivedPaymentCell relations={paymentRelations.get(row.original.id) ?? []} />
+    },
+    {
       id: 'paid',
       accessorKey: 'paidAmountCentavos',
-      header: 'Paid',
+      header: 'Allocated',
       size: 130,
       meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
       cell: ({ row }) =>
@@ -334,7 +398,13 @@ export function InstallmentPaymentWorkspace({
 
   const scheduleTable = useReactTable({
     data: workspace?.schedules ?? [],
-    columns: React.useMemo(scheduleColumns, []),
+    columns: React.useMemo(
+      () =>
+        scheduleColumns(
+          groupSchedulePaymentRelations(workspace?.schedules ?? [], workspace?.payments ?? [])
+        ),
+      [workspace?.payments, workspace?.schedules]
+    ),
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize: 25 } },
