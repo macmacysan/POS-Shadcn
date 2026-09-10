@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowLeft, CalendarDays, Lock, ReceiptText } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Lock, ReceiptText, Wrench } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -21,7 +21,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { AmountInputGroup } from '@/components/ui/amount-input-group'
 import { Badge, type BadgeProps } from '@/components/ui/reui/badge'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -64,18 +71,25 @@ function formatDate(value: string): string {
 }
 
 function statusVariant(
-  status: InHouseScheduleRecord['status'] | InHousePaymentRecord['status'] | 'UPCOMING' | 'OVERDUE'
+  status:
+    | InHouseScheduleRecord['status']
+    | InHousePaymentRecord['status']
+    | 'UPCOMING'
+    | 'OVERDUE'
+    | 'SERVICE'
 ): NonNullable<BadgeProps['variant']> {
   if (status === 'PAID' || status === 'POSTED') return 'success-light' as const
   if (status === 'PARTIALLY_PAID' || status === 'DUE') return 'warning-light' as const
   if (status === 'OVERDUE' || status === 'VOIDED') return 'destructive-light' as const
+  if (status === 'SERVICE') return 'info-light' as const
   if (status === 'WAIVED') return 'secondary' as const
   return 'outline' as const
 }
 
 function scheduleStatusLabel(
   row: InHouseScheduleRecord
-): InHouseScheduleRecord['status'] | 'UPCOMING' | 'OVERDUE' {
+): InHouseScheduleRecord['status'] | 'UPCOMING' | 'OVERDUE' | 'SERVICE' {
+  if (row.isService) return 'SERVICE'
   if (row.status !== 'DUE') return row.status
   const today = format(new Date(), 'yyyy-MM-dd')
   if (row.dueDate < today) return 'OVERDUE'
@@ -89,12 +103,13 @@ function scheduleStatusText(status: ReturnType<typeof scheduleStatusLabel>): str
     UPCOMING: 'Upcoming',
     DUE: 'Due',
     OVERDUE: 'Overdue',
+    SERVICE: 'Service',
     WAIVED: 'Waived'
   }[status]
 }
 
 function scheduleValueClass(row: InHouseScheduleRecord, className?: string): string {
-  return cn(row.paidAmountCentavos === 0 && 'text-muted-foreground', className)
+  return cn((row.paidAmountCentavos === 0 || row.isService) && 'text-muted-foreground', className)
 }
 
 function PaymentDateField({
@@ -151,7 +166,10 @@ function scheduleColumns(
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <span className="inline-flex text-muted-foreground" aria-label="Payment locked" />
+                    <span
+                      className="inline-flex text-muted-foreground"
+                      aria-label="Payment locked"
+                    />
                   }
                 >
                   <Lock className="size-3" aria-hidden="true" />
@@ -187,9 +205,7 @@ function scheduleColumns(
         const isContinuation = previous?.lastAppliedDate === paymentDate
         const isAdvance =
           paymentDate < row.original.dueDate ||
-          (!isContinuation &&
-            next?.lastAppliedDate === paymentDate &&
-            paymentDate < next.dueDate)
+          (!isContinuation && next?.lastAppliedDate === paymentDate && paymentDate < next.dueDate)
 
         return (
           <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -255,7 +271,7 @@ function scheduleColumns(
           {formatPhilippinePeso(row.original.penaltyCentavos / 100)}
         </span>
       )
-    },
+    }
   ]
 }
 
@@ -289,7 +305,9 @@ function paymentColumns(
   schedules: readonly InHouseScheduleRecord[],
   onVoid: ((payment: InHousePaymentRecord) => void) | undefined
 ): ColumnDef<InHousePaymentRecord>[] {
-  const scheduleNumbers = new Map(schedules.map((schedule) => [schedule.id, schedule.installmentNumber]))
+  const scheduleNumbers = new Map(
+    schedules.map((schedule) => [schedule.id, schedule.installmentNumber])
+  )
   return [
     {
       id: 'paymentNumber',
@@ -365,7 +383,9 @@ function paymentColumns(
       accessorKey: 'status',
       header: 'Status',
       size: 128,
-      cell: ({ row }) => <Badge variant={statusVariant(row.original.status)}>{row.original.status}</Badge>
+      cell: ({ row }) => (
+        <Badge variant={statusVariant(row.original.status)}>{row.original.status}</Badge>
+      )
     },
     {
       id: 'actions',
@@ -410,6 +430,8 @@ export function InstallmentPaymentWorkspace({
   const [selectedScheduleId, setSelectedScheduleId] = React.useState<string>()
   const [selectedPaymentId, setSelectedPaymentId] = React.useState<string>()
   const [paymentToVoid, setPaymentToVoid] = React.useState<InHousePaymentRecord>()
+  const [isWarrantyServiceOpen, setIsWarrantyServiceOpen] = React.useState(false)
+  const [isWarrantyServiceSaving, setIsWarrantyServiceSaving] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState(initialTab)
   const [amount, setAmount] = React.useState('')
   const [penalty, setPenalty] = React.useState('0.00')
@@ -433,9 +455,20 @@ export function InstallmentPaymentWorkspace({
     workspace?.account.branch === ownBranch &&
     workspace?.contractStatus === 'ACTIVE' &&
     workspace.accountStatus === 'ACTIVE'
-  const firstUpcomingScheduleId = React.useMemo(
+  const warrantySchedule = React.useMemo(
     () =>
-      workspace?.schedules.find((schedule) => scheduleStatusLabel(schedule) === 'UPCOMING')?.id,
+      workspace?.schedules.find(
+        (schedule) =>
+          !schedule.isService &&
+          schedule.status !== 'PAID' &&
+          schedule.status !== 'WAIVED' &&
+          schedule.remainingDueCentavos > 0
+      ),
+    [workspace?.schedules]
+  )
+  const canUseWarrantyService = canAdjustPayment && Boolean(warrantySchedule)
+  const firstUpcomingScheduleId = React.useMemo(
+    () => workspace?.schedules.find((schedule) => scheduleStatusLabel(schedule) === 'UPCOMING')?.id,
     [workspace?.schedules]
   )
 
@@ -491,7 +524,8 @@ export function InstallmentPaymentWorkspace({
   const paymentTable = useReactTable({
     data: workspace?.payments ?? [],
     columns: React.useMemo(
-      () => paymentColumns(workspace?.schedules ?? [], canAdjustPayment ? setPaymentToVoid : undefined),
+      () =>
+        paymentColumns(workspace?.schedules ?? [], canAdjustPayment ? setPaymentToVoid : undefined),
       [canAdjustPayment, workspace?.schedules]
     ),
     getCoreRowModel: getCoreRowModel(),
@@ -652,6 +686,25 @@ export function InstallmentPaymentWorkspace({
     })()
   }
 
+  const applyWarrantyService = async (): Promise<void> => {
+    if (!workspace || !warrantySchedule || isWarrantyServiceSaving) return
+    setIsWarrantyServiceSaving(true)
+    try {
+      await window.api.installments.warrantyService({ accountId, contractId: workspace.contractId })
+      setIsWarrantyServiceOpen(false)
+      await load()
+      window.dispatchEvent(new Event('installments:changed'))
+      notify({ type: 'success', title: 'Installment deferred for warranty service.' })
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: error instanceof Error ? error.message : 'Warranty service could not be applied.'
+      })
+    } finally {
+      setIsWarrantyServiceSaving(false)
+    }
+  }
+
   if (error) {
     return (
       <Dialog open onOpenChange={(open) => !open && onBack()}>
@@ -770,11 +823,23 @@ export function InstallmentPaymentWorkspace({
                     Ledger
                   </TabsTrigger>
                 </TabsList>
-                {workspace && (
-                  <Badge variant="outline" size="sm">
-                    {workspace.paymentFrequency}
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!canUseWarrantyService || isWarrantyServiceSaving}
+                    onClick={() => setIsWarrantyServiceOpen(true)}
+                  >
+                    <Wrench data-icon="inline-start" />
+                    Warranty Service
+                  </Button>
+                  {workspace && (
+                    <Badge variant="outline" size="sm">
+                      {workspace.paymentFrequency}
+                    </Badge>
+                  )}
+                </div>
               </div>
               <TabsContent value="schedule" className="flex min-h-0 flex-1">
                 <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -787,7 +852,7 @@ export function InstallmentPaymentWorkspace({
                       showPagination={false}
                       selectedRowId={selectedScheduleId}
                       onRowClick={(schedule) => {
-                        if (schedule.status === 'WAIVED') return
+                        if (schedule.status === 'WAIVED' || schedule.isService) return
                         setSelectedScheduleId(schedule.id)
                         const payment = workspace?.payments.find((item) =>
                           item.scheduleIds.includes(schedule.id)
@@ -811,7 +876,8 @@ export function InstallmentPaymentWorkspace({
                           schedule.id === firstUpcomingScheduleId && 'bg-primary/5 font-medium',
                           scheduleStatusLabel(schedule) === 'UPCOMING' &&
                             schedule.id !== firstUpcomingScheduleId &&
-                            'opacity-50 !cursor-not-allowed'
+                            'opacity-50 !cursor-not-allowed',
+                          schedule.isService && 'opacity-50 !cursor-not-allowed'
                         )
                       }
                       tableLayout={{ columnsResizable: true }}
@@ -915,7 +981,11 @@ export function InstallmentPaymentWorkspace({
                         maxLength={100}
                       />
                     </Field>
-                    <Field data-invalid={paymentMode === 'adjust' && Boolean(formError && !remarks.trim())}>
+                    <Field
+                      data-invalid={
+                        paymentMode === 'adjust' && Boolean(formError && !remarks.trim())
+                      }
+                    >
                       <FieldLabel htmlFor="payment-remarks">Remarks</FieldLabel>
                       <Textarea
                         id="payment-remarks"
@@ -923,7 +993,9 @@ export function InstallmentPaymentWorkspace({
                         onChange={(event) => setRemarks(event.target.value)}
                         placeholder={paymentMode === 'adjust' ? 'Required' : 'Optional'}
                         maxLength={1000}
-                        aria-invalid={paymentMode === 'adjust' && Boolean(formError && !remarks.trim())}
+                        aria-invalid={
+                          paymentMode === 'adjust' && Boolean(formError && !remarks.trim())
+                        }
                       />
                       {paymentMode === 'adjust' && (
                         <FieldDescription>
@@ -963,6 +1035,40 @@ export function InstallmentPaymentWorkspace({
           onOpenChange={(open) => !open && setPaymentToVoid(undefined)}
           onConfirm={voidPayment}
         />
+        <Dialog
+          open={isWarrantyServiceOpen}
+          onOpenChange={(open) =>
+            !open && !isWarrantyServiceSaving && setIsWarrantyServiceOpen(false)
+          }
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Apply warranty service?</DialogTitle>
+              <DialogDescription>
+                {warrantySchedule
+                  ? `Installment #${warrantySchedule.installmentNumber} (${formatDate(warrantySchedule.dueDate)}) will be marked Service. Its remaining ${formatPhilippinePeso(warrantySchedule.remainingDueCentavos / 100)} will be added as a new final schedule date.`
+                  : 'No unpaid installment is available for warranty service.'}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsWarrantyServiceOpen(false)}
+                disabled={isWarrantyServiceSaving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void applyWarrantyService()}
+                disabled={isWarrantyServiceSaving}
+              >
+                {isWarrantyServiceSaving ? 'Applying…' : 'Yes, apply service'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   )

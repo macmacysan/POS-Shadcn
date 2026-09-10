@@ -14,6 +14,7 @@ import type {
   InstallmentHistoryRequest,
   InstallmentLoanUpdateRequest,
   InstallmentLoanRestructureRequest,
+  InstallmentWarrantyServiceRequest,
   InstallmentTransitionRequest
 } from '../../shared/contracts'
 import { AppError } from '../database/errors'
@@ -23,10 +24,17 @@ type InstallmentRepositoryLike = {
   branchIdForContract(contractId: string): string | null
   branchIdForPayment(paymentId: string): string | null
   list(request: InstallmentListRequest): Promise<InstallmentListResult> | InstallmentListResult
-  getAttentionSummary(branch?: string): Promise<InstallmentAttentionSummary> | InstallmentAttentionSummary
+  getAttentionSummary(
+    branch?: string
+  ): Promise<InstallmentAttentionSummary> | InstallmentAttentionSummary
   bootstrap(request: InstallmentBootstrapRequest): Promise<void> | void
   updateLoan(request: InstallmentLoanUpdateRequest): Promise<void> | void
-  restructureLoan(request: InstallmentLoanRestructureRequest & { actorUserId: string }): Promise<void> | void
+  restructureLoan(
+    request: InstallmentLoanRestructureRequest & { actorUserId: string }
+  ): Promise<void> | void
+  warrantyService(
+    request: InstallmentWarrantyServiceRequest & { actorUserId: string }
+  ): Promise<void> | void
   closeContract(request: InstallmentTransitionRequest): Promise<void> | void
   blacklistAccount(request: InstallmentTransitionRequest): Promise<void> | void
   restoreStatus(request: InstallmentRestoreStatusRequest): Promise<void> | void
@@ -100,6 +108,17 @@ export class InstallmentService {
     await this.repository.restructureLoan({ ...request, actorUserId: user.id })
   }
 
+  async warrantyService(request: InstallmentWarrantyServiceRequest): Promise<void> {
+    const user = this.auth.requireCashierWorkspace()
+    this.auth.requireOwnBranch(
+      this.repository.branchIdForAccount(request.accountId),
+      'You cannot modify another branch account.'
+    )
+    if (this.repository.branchIdForContract(request.contractId) !== user.branchId)
+      throw new AppError('NOT_FOUND', 'Installment contract was not found.')
+    await this.repository.warrantyService({ ...request, actorUserId: user.id })
+  }
+
   async closeContract(request: InstallmentTransitionRequest): Promise<void> {
     this.auth.requireOwnBranch(
       this.repository.branchIdForContract(request.contractId ?? ''),
@@ -143,7 +162,11 @@ export class InstallmentService {
     throw new AppError('FORBIDDEN', 'Restoring installment contracts is unavailable in this app.')
   }
 
-  async voidPayments(paymentIds: readonly string[], actorUserId: string, reason: string): Promise<void> {
+  async voidPayments(
+    paymentIds: readonly string[],
+    actorUserId: string,
+    reason: string
+  ): Promise<void> {
     for (const id of paymentIds)
       this.auth.requireOwnBranch(
         this.repository.branchIdForPayment(id),

@@ -16,6 +16,7 @@ import type {
   InstallmentHistoryRequest,
   InstallmentLoanUpdateRequest,
   InstallmentLoanRestructureRequest,
+  InstallmentWarrantyServiceRequest,
   InstallmentTransitionRequest
 } from '../../shared/contracts'
 import { AppError } from './errors'
@@ -84,6 +85,7 @@ type ScheduleRow = {
   last_applied_date?: string
   status: 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'WAIVED'
   is_restructured: number
+  is_service: number
   is_adjusted: number
 }
 
@@ -232,7 +234,7 @@ export class InstallmentRepository {
                  c.status AS contract_status, c.previous_status AS contract_previous_status, c.close_reason, c.contract_date, c.date_released,
                 c.start_date, c.end_date, c.first_due_date,
                 (SELECT MIN(s.due_date) FROM in_house_schedules s
-                  WHERE s.contract_id = c.id AND s.status NOT IN ('PAID', 'WAIVED') AND s.is_restructured = 0) AS next_due_date,
+                  WHERE s.contract_id = c.id AND s.status NOT IN ('PAID', 'WAIVED') AND s.is_restructured = 0 AND s.is_service = 0) AS next_due_date,
                 COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) AS payment_frequency, c.terms,
                 c.principal_centavos, c.interest_centavos, c.down_payment_centavos, c.down_payment_applied_centavos,
                 c.fees_centavos, c.installment_amount_centavos, c.total_payable_centavos,
@@ -270,7 +272,7 @@ export class InstallmentRepository {
          ), next_due AS (
            SELECT contract_id, MIN(due_date) AS next_due_date
              FROM in_house_schedules
-            WHERE status NOT IN ('PAID', 'WAIVED') AND is_restructured = 0
+            WHERE status NOT IN ('PAID', 'WAIVED') AND is_restructured = 0 AND is_service = 0
             GROUP BY contract_id
          ), active_attention AS (
            SELECT a.id AS account_id,
@@ -802,6 +804,107 @@ export class InstallmentRepository {
     restructure()
   }
 
+  warrantyService(request: InstallmentWarrantyServiceRequest & { actorUserId: string }): void {
+    const now = new Date().toISOString()
+    this.db.transaction(() => {
+      const contract = this.db
+        .prepare(
+          `SELECT c.id, c.status, a.status AS account_status,
+                  COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) AS payment_frequency
+             FROM installment_contracts c
+             JOIN accounts a ON a.id = c.account_id
+            WHERE c.id = ? AND c.account_id = ?`
+        )
+        .get(request.contractId, request.accountId) as
+        | {
+            id: string
+            status: string
+            account_status: string
+            payment_frequency: InstallmentFrequency
+          }
+        | undefined
+      if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
+      if (contract.status !== 'ACTIVE' || contract.account_status !== 'ACTIVE')
+        throw new AppError('CONFLICT', 'Warranty service is only available for active accounts.')
+
+      const schedule = this.db
+        .prepare(
+          `SELECT s.id, s.status, s.due_amount_centavos,
+                  COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0)
+                    AS paid_amount_centavos
+             FROM in_house_schedules s
+             LEFT JOIN installment_payment_allocations pa ON pa.schedule_id = s.id
+             LEFT JOIN in_house_payments p ON p.id = pa.payment_id
+            WHERE s.contract_id = ? AND s.status NOT IN ('PAID', 'WAIVED')
+              AND s.is_restructured = 0 AND s.is_service = 0
+            GROUP BY s.id
+           HAVING paid_amount_centavos < s.due_amount_centavos
+            ORDER BY s.due_date, s.installment_number
+            LIMIT 1`
+        )
+        .get(contract.id) as
+        | { id: string; status: string; due_amount_centavos: number; paid_amount_centavos: number }
+        | undefined
+      if (!schedule)
+        throw new AppError('CONFLICT', 'No unpaid installment is available for warranty service.')
+      const deferredAmount = schedule.due_amount_centavos - schedule.paid_amount_centavos
+      if (deferredAmount <= 0)
+        throw new AppError('CONFLICT', 'The selected installment has no remaining balance.')
+
+      const lastSchedule = this.db
+        .prepare(
+          `SELECT due_date, installment_number
+             FROM in_house_schedules
+            WHERE contract_id = ? AND is_restructured = 0
+            ORDER BY due_date DESC, installment_number DESC
+            LIMIT 1`
+        )
+        .get(contract.id) as { due_date: string; installment_number: number } | undefined
+      const nextDueDate =
+        lastSchedule && calculateEndDate(lastSchedule.due_date, contract.payment_frequency, 2)
+      if (!lastSchedule || !nextDueDate)
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'The replacement schedule date could not be calculated.'
+        )
+
+      this.db
+        .prepare('UPDATE in_house_schedules SET is_service = 1, updated_at = ? WHERE id = ?')
+        .run(now, schedule.id)
+      this.db
+        .prepare(
+          `INSERT INTO in_house_schedules
+            (id, contract_id, installment_number, due_date, due_amount_centavos, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          randomUUID(),
+          contract.id,
+          lastSchedule.installment_number + 1,
+          nextDueDate,
+          deferredAmount,
+          now,
+          now
+        )
+      this.writeAudit(
+        request.actorUserId,
+        'in_house_schedule',
+        schedule.id,
+        'Warranty service deferral',
+        schedule.status,
+        'SERVICE',
+        now
+      )
+      this.db
+        .prepare(
+          `INSERT INTO installment_activity_history
+            (id, contract_id, actor_user_id, action, activity, amount_centavos, created_at)
+           VALUES (?, ?, ?, 'WARRANTY_SERVICE', 'Installment deferred for warranty service', ?, ?)`
+        )
+        .run(randomUUID(), contract.id, request.actorUserId, deferredAmount, now)
+    })()
+  }
+
   closeContract(request: InstallmentTransitionRequest): void {
     const now = new Date().toISOString()
     const transition = this.db.transaction(() => {
@@ -1135,7 +1238,7 @@ export class InstallmentRepository {
 
     const schedules = this.db
       .prepare(
-        `SELECT s.id, s.installment_number, s.due_date, s.due_amount_centavos, s.status, s.is_restructured,
+        `SELECT s.id, s.installment_number, s.due_date, s.due_amount_centavos, s.status, s.is_restructured, s.is_service,
                 COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0)
                   AS paid_amount_centavos,
                 COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.penalty_centavos ELSE 0 END), 0)
@@ -1247,6 +1350,7 @@ export class InstallmentRepository {
         scheduleRemainingCentavos,
         status: item.status,
         isRestructured: Boolean(item.is_restructured),
+        isService: Boolean(item.is_service),
         isAdjusted: Boolean(item.is_adjusted)
       }
     })
@@ -1255,6 +1359,7 @@ export class InstallmentRepository {
         item.status !== 'PAID' &&
         item.status !== 'WAIVED' &&
         !item.isRestructured &&
+        !item.isService &&
         item.scheduleRemainingCentavos > 0
     )
 
@@ -1287,6 +1392,7 @@ export class InstallmentRepository {
         balanceCentavos: schedule.balanceCentavos,
         penaltyCentavos: schedule.penaltyCentavos,
         status: schedule.status,
+        isService: schedule.isService,
         isAdjusted: schedule.isAdjusted
       })),
       payments: payments.map((payment) => ({
@@ -1373,12 +1479,21 @@ export class InstallmentRepository {
            SELECT r.id, r.created_at, 'edited', 'in-house',
                   'Loan repayment schedule restructured', r.outstanding_balance_centavos,
                   c.contract_number, cb.balance_centavos, NULL, a.id, a.account_number, a.display_name, b.name
-             FROM installment_restructures r
-             JOIN installment_contracts c ON c.id = r.contract_id
+           FROM installment_restructures r
+            JOIN installment_contracts c ON c.id = r.contract_id
+            JOIN contract_balances cb ON cb.contract_id = c.id
+            JOIN accounts a ON a.id = c.account_id
+            JOIN branches b ON b.id = c.branch_id
+          UNION ALL
+           SELECT h.id, h.created_at, 'edited', 'in-house', h.activity, h.amount_centavos,
+                  c.contract_number, cb.balance_centavos, NULL, a.id, a.account_number, a.display_name, b.name
+             FROM installment_activity_history h
+             JOIN installment_contracts c ON c.id = h.contract_id
              JOIN contract_balances cb ON cb.contract_id = c.id
              JOIN accounts a ON a.id = c.account_id
              JOIN branches b ON b.id = c.branch_id
-           UNION ALL
+            WHERE h.action = 'WARRANTY_SERVICE'
+          UNION ALL
            SELECT f.id || ':created', f.created_at, 'new', 'finance',
                   'Finance account added', f.grand_total_centavos, COALESCE(f.or_number, f.provider), f.balance_centavos, NULL,
                   f.id, f.id, trim(f.first_name || ' ' || f.last_name), f.branch
@@ -1444,7 +1559,7 @@ export class InstallmentRepository {
              FROM in_house_schedules s
              LEFT JOIN installment_payment_allocations pa ON pa.schedule_id = s.id
              LEFT JOIN in_house_payments p ON p.id = pa.payment_id
-            WHERE s.contract_id = ? AND s.status != 'WAIVED' AND s.is_restructured = 0
+            WHERE s.contract_id = ? AND s.status != 'WAIVED' AND s.is_restructured = 0 AND s.is_service = 0
             GROUP BY s.id
             ORDER BY s.due_date, s.installment_number`
         )
@@ -1558,7 +1673,7 @@ export class InstallmentRepository {
         .prepare(
           `SELECT id, due_amount_centavos
              FROM in_house_schedules
-            WHERE id = ? AND contract_id = ? AND status != 'WAIVED' AND is_restructured = 0`
+            WHERE id = ? AND contract_id = ? AND status != 'WAIVED' AND is_restructured = 0 AND is_service = 0`
         )
         .get(request.scheduleId, contract.id) as
         { id: string; due_amount_centavos: number } | undefined
@@ -1666,7 +1781,7 @@ export class InstallmentRepository {
              FROM in_house_schedules s
              LEFT JOIN installment_payment_allocations pa ON pa.schedule_id = s.id
              LEFT JOIN in_house_payments p ON p.id = pa.payment_id
-            WHERE s.contract_id = ? AND s.status != 'WAIVED' AND s.is_restructured = 0
+            WHERE s.contract_id = ? AND s.status != 'WAIVED' AND s.is_restructured = 0 AND s.is_service = 0
             GROUP BY s.id
             ORDER BY s.due_date, s.installment_number`
         )

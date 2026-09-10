@@ -4,6 +4,7 @@ import {
   installmentBootstrapRequestSchema,
   installmentLoanUpdateRequestSchema,
   installmentLoanRestructureRequestSchema,
+  installmentWarrantyServiceRequestSchema,
   installmentAdjustPaymentRequestSchema,
   installmentCreatePaymentRequestSchema,
   installmentUnvoidRequestSchema,
@@ -52,7 +53,8 @@ export function registerInstallmentIpc(
 
   ipcMain.handle(installmentIpcChannels.bootstrap, async (_event, input: unknown) => {
     try {
-      await service.bootstrap(installmentBootstrapRequestSchema.parse(input)); onCommitted?.()
+      await service.bootstrap(installmentBootstrapRequestSchema.parse(input))
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -60,14 +62,24 @@ export function registerInstallmentIpc(
 
   ipcMain.handle(installmentIpcChannels.updateLoan, async (_event, input: unknown) => {
     try {
-      await service.updateLoan(installmentLoanUpdateRequestSchema.parse(input)); onCommitted?.()
+      await service.updateLoan(installmentLoanUpdateRequestSchema.parse(input))
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
   })
   ipcMain.handle(installmentIpcChannels.restructureLoan, async (_event, input: unknown) => {
     try {
-      await service.restructureLoan(installmentLoanRestructureRequestSchema.parse(input)); onCommitted?.()
+      await service.restructureLoan(installmentLoanRestructureRequestSchema.parse(input))
+      onCommitted?.()
+    } catch (error) {
+      return rethrowIpcError(error)
+    }
+  })
+  ipcMain.handle(installmentIpcChannels.warrantyService, async (_event, input: unknown) => {
+    try {
+      await service.warrantyService(installmentWarrantyServiceRequestSchema.parse(input))
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -76,7 +88,8 @@ export function registerInstallmentIpc(
   ipcMain.handle(installmentIpcChannels.closeContract, async (_event, input: unknown) => {
     try {
       const request = installmentTransitionRequestSchema.parse(input)
-      await service.closeContract({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
+      await service.closeContract({ ...request, actorUserId: authService.requireSession().id })
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -85,7 +98,8 @@ export function registerInstallmentIpc(
   ipcMain.handle(installmentIpcChannels.blacklistAccount, async (_event, input: unknown) => {
     try {
       const request = installmentTransitionRequestSchema.parse(input)
-      await service.blacklistAccount({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
+      await service.blacklistAccount({ ...request, actorUserId: authService.requireSession().id })
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -93,7 +107,8 @@ export function registerInstallmentIpc(
   ipcMain.handle(installmentIpcChannels.restoreStatus, async (_event, input: unknown) => {
     try {
       const request = installmentRestoreStatusRequestSchema.parse(input)
-      await service.restoreStatus({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
+      await service.restoreStatus({ ...request, actorUserId: authService.requireSession().id })
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -102,7 +117,8 @@ export function registerInstallmentIpc(
     try {
       const request = installmentVoidRequestSchema.parse(input)
       const user = authService.requireSession()
-      await service.void(request, user.id); onCommitted?.()
+      await service.void(request, user.id)
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -111,7 +127,8 @@ export function registerInstallmentIpc(
     try {
       const request = installmentUnvoidRequestSchema.parse(input)
       const user = authService.requireAdmin()
-      await service.unvoid(request, user.id); onCommitted?.()
+      await service.unvoid(request, user.id)
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -120,7 +137,8 @@ export function registerInstallmentIpc(
     try {
       const request = installmentVoidPaymentsRequestSchema.parse(input)
       const user = authService.requireSession()
-      await service.voidPayments(request.paymentIds, user.id, request.reason); onCommitted?.()
+      await service.voidPayments(request.paymentIds, user.id, request.reason)
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -147,7 +165,8 @@ export function registerInstallmentIpc(
   ipcMain.handle(installmentIpcChannels.createPayment, async (_event, input: unknown) => {
     try {
       const request = installmentCreatePaymentRequestSchema.parse(input)
-      await service.createPayment({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
+      await service.createPayment({ ...request, actorUserId: authService.requireSession().id })
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }
@@ -156,7 +175,8 @@ export function registerInstallmentIpc(
   ipcMain.handle(installmentIpcChannels.adjustPayment, async (_event, input: unknown) => {
     try {
       const request = installmentAdjustPaymentRequestSchema.parse(input)
-      await service.adjustPayment({ ...request, actorUserId: authService.requireSession().id }); onCommitted?.()
+      await service.adjustPayment({ ...request, actorUserId: authService.requireSession().id })
+      onCommitted?.()
     } catch (error) {
       return rethrowIpcError(error)
     }

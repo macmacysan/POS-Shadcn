@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 48
+export const currentSchemaVersion = 49
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -2014,6 +2014,17 @@ export function runMigrations(db: Database.Database): void {
       const now = new Date().toISOString()
       db.exec('ALTER TABLE in_house_payments ADD COLUMN remarks TEXT')
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(48, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 49) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(
+        'ALTER TABLE in_house_schedules ADD COLUMN is_service INTEGER NOT NULL DEFAULT 0 CHECK (is_service IN (0, 1))'
+      )
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(49, now)
     })
     migrate()
   }

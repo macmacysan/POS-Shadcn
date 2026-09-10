@@ -40,6 +40,11 @@ export const installmentLoanRestructureRequestSchema = z.object({
   reason: z.string().trim().min(1).max(1000)
 })
 
+export const installmentWarrantyServiceRequestSchema = z.object({
+  accountId: z.string().trim().min(1).max(100),
+  contractId: z.string().trim().min(1).max(100)
+})
+
 export const installmentTransitionRequestSchema = z.object({
   accountId: z.string().trim().min(1).max(100),
   contractId: z.string().trim().min(1).max(100).optional(),
@@ -117,6 +122,9 @@ export type InstallmentBootstrapRequest = z.infer<typeof installmentBootstrapReq
 export type InstallmentLoanUpdateRequest = z.infer<typeof installmentLoanUpdateRequestSchema>
 export type InstallmentLoanRestructureRequest = z.infer<
   typeof installmentLoanRestructureRequestSchema
+>
+export type InstallmentWarrantyServiceRequest = z.infer<
+  typeof installmentWarrantyServiceRequestSchema
 >
 export type InstallmentTransitionRequest = z.infer<typeof installmentTransitionRequestSchema>
 export type InstallmentRestoreStatusRequest = z.infer<typeof installmentRestoreStatusRequestSchema>
@@ -242,6 +250,7 @@ export type InHouseScheduleRecord = {
   balanceCentavos: number
   penaltyCentavos: number
   status: 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'WAIVED'
+  isService: boolean
   isAdjusted: boolean
 }
 
@@ -300,6 +309,7 @@ export const installmentIpcChannels = {
   bootstrap: 'installments:bootstrap',
   updateLoan: 'installments:update-loan',
   restructureLoan: 'installments:restructure-loan',
+  warrantyService: 'installments:warranty-service',
   closeContract: 'installments:close-contract',
   blacklistAccount: 'installments:blacklist-account',
   restoreStatus: 'installments:restore-status',
@@ -319,6 +329,7 @@ export type InstallmentsApi = {
     bootstrap(request: InstallmentBootstrapRequest): Promise<void>
     updateLoan(request: InstallmentLoanUpdateRequest): Promise<void>
     restructureLoan(request: InstallmentLoanRestructureRequest): Promise<void>
+    warrantyService(request: InstallmentWarrantyServiceRequest): Promise<void>
     closeContract(request: InstallmentTransitionRequest): Promise<void>
     blacklistAccount(request: InstallmentTransitionRequest): Promise<void>
     restoreStatus(request: InstallmentRestoreStatusRequest): Promise<void>

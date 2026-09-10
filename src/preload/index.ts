@@ -148,6 +148,8 @@ const api: ExpensesApi &
     updateLoan: (request) => ipcRenderer.invoke(installmentIpcChannels.updateLoan, request),
     restructureLoan: (request) =>
       ipcRenderer.invoke(installmentIpcChannels.restructureLoan, request),
+    warrantyService: (request) =>
+      ipcRenderer.invoke(installmentIpcChannels.warrantyService, request),
     closeContract: (request) => ipcRenderer.invoke(installmentIpcChannels.closeContract, request),
     blacklistAccount: (request) =>
       ipcRenderer.invoke(installmentIpcChannels.blacklistAccount, request),

@@ -154,8 +154,9 @@ try {
           WHERE contract_id = ? AND is_restructured = 0`
       )
       .get('status-contract').total,
-    db.prepare('SELECT total_payable_centavos FROM installment_contracts WHERE id = ?').get('status-contract')
-      .total_payable_centavos - 100
+    db
+      .prepare('SELECT total_payable_centavos FROM installment_contracts WHERE id = ?')
+      .get('status-contract').total_payable_centavos - 100
   )
   assert.equal(
     db
@@ -167,6 +168,52 @@ try {
     repository
       .listHistory({})
       .some((record) => record.activity === 'Loan repayment schedule restructured'),
+    true
+  )
+  const beforeWarrantyCount = db
+    .prepare(
+      `SELECT count(*) AS count FROM in_house_schedules
+        WHERE contract_id = ? AND is_restructured = 0`
+    )
+    .get('status-contract').count
+  repository.warrantyService({
+    accountId: 'status-account',
+    contractId: 'status-contract',
+    actorUserId: 'status-user'
+  })
+  assert.equal(
+    db
+      .prepare(
+        `SELECT count(*) AS count FROM in_house_schedules
+          WHERE contract_id = ? AND is_restructured = 0 AND is_service = 1`
+      )
+      .get('status-contract').count,
+    1
+  )
+  assert.equal(
+    db
+      .prepare(
+        `SELECT count(*) AS count FROM in_house_schedules
+          WHERE contract_id = ? AND is_restructured = 0`
+      )
+      .get('status-contract').count,
+    beforeWarrantyCount + 1
+  )
+  assert.equal(
+    db
+      .prepare(
+        `SELECT sum(due_amount_centavos) AS total FROM in_house_schedules
+          WHERE contract_id = ? AND is_restructured = 0 AND is_service = 0`
+      )
+      .get('status-contract').total,
+    db
+      .prepare('SELECT total_payable_centavos FROM installment_contracts WHERE id = ?')
+      .get('status-contract').total_payable_centavos - 100
+  )
+  assert.equal(
+    repository
+      .listHistory({})
+      .some((record) => record.activity === 'Installment deferred for warranty service'),
     true
   )
   db.prepare("UPDATE in_house_payments SET status = 'VOIDED' WHERE id = 'status-payment'").run()
@@ -213,7 +260,8 @@ try {
     transition.prepare()
     repository.voidContracts(['status-contract'], 'status-user', `Void from ${transition.label}`)
     assert.equal(
-      db.prepare('SELECT status FROM installment_contracts WHERE id = ?').get('status-contract').status,
+      db.prepare('SELECT status FROM installment_contracts WHERE id = ?').get('status-contract')
+        .status,
       'VOIDED',
       `voiding from ${transition.label} should void the contract`
     )
