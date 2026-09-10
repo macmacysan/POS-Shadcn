@@ -367,6 +367,8 @@ export const ReportSummary = React.memo(function ReportSummary({
   branchId,
   cashierUserId,
   dateRange,
+  dateDialogOpen,
+  onDateDialogOpenChange,
   isDateLoading = false,
   onDateRangeChange,
   expenseTotals,
@@ -381,6 +383,8 @@ export const ReportSummary = React.memo(function ReportSummary({
   branchId: string
   cashierUserId: string
   dateRange: DateSelectorValue
+  dateDialogOpen?: boolean
+  onDateDialogOpenChange?: (open: boolean) => void
   isDateLoading?: boolean
   onDateRangeChange: (value: DateSelectorValue) => void
   expenseTotals: ExpenseSummaryTotals
@@ -690,6 +694,8 @@ export const ReportSummary = React.memo(function ReportSummary({
                 branchId={branchId}
                 cashierUserId={cashierUserId}
                 date={startDate}
+                open={dateDialogOpen}
+                onOpenChange={onDateDialogOpenChange}
                 disabled={isDateLoading}
                 onSelect={selectDate}
               />

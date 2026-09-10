@@ -1598,6 +1598,9 @@ export function CashierReportsContent({
   exportDate,
   attentionReportId,
   onAttentionReportOpened,
+  onAttentionReportLoaded,
+  openAttentionDateDialog,
+  onAttentionDateDialogOpenChange,
   onExportReportsOpened,
   onOpenCollection,
   onOpenHistoryPayment,
@@ -1615,6 +1618,9 @@ export function CashierReportsContent({
   exportDate?: string
   attentionReportId?: string
   onAttentionReportOpened?: () => void
+  onAttentionReportLoaded?: () => void
+  openAttentionDateDialog?: boolean
+  onAttentionDateDialogOpenChange?: (open: boolean) => void
   onExportReportsOpened?: () => void
   onOpenCollection?: (accountId: string) => void
   onOpenHistoryPayment?: (accountId: string, paymentId: string) => void
@@ -1847,6 +1853,7 @@ export function CashierReportsContent({
         setSelectedReportMissing(false)
         const date = parseISO(snapshot.report.businessDate)
         setDateRange({ period: 'day', operator: 'is', startDate: date, endDate: date })
+        onAttentionReportLoaded?.()
       })
       .catch(() => {
         if (active) setDateError('That report date could not be loaded.')
@@ -1857,7 +1864,7 @@ export function CashierReportsContent({
     return () => {
       active = false
     }
-  }, [attentionReportId, onAttentionReportOpened])
+  }, [attentionReportId, onAttentionReportLoaded, onAttentionReportOpened])
 
   const changeDateRange = React.useCallback(
     (value: DateSelectorValue): void => {
@@ -2605,6 +2612,8 @@ export function CashierReportsContent({
             branchId={selectedReport.branchId}
             cashierUserId={selectedReport.cashierUserId}
             dateRange={dateRange}
+            dateDialogOpen={openAttentionDateDialog}
+            onDateDialogOpenChange={onAttentionDateDialogOpenChange}
             isDateLoading={isDateLoading}
             onDateRangeChange={changeDateRange}
             expenseTotals={expenseQuery.expenseTotals}
@@ -2799,6 +2808,8 @@ export function CashierReportsContent({
                 branchId={selectedReport.branchId}
                 cashierUserId={selectedReport.cashierUserId}
                 dateRange={dateRange}
+                dateDialogOpen={openAttentionDateDialog}
+                onDateDialogOpenChange={onAttentionDateDialogOpenChange}
                 isDateLoading={isDateLoading}
                 onDateRangeChange={changeDateRange}
                 expenseTotals={expenseQuery.expenseTotals}

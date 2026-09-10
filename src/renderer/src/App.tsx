@@ -158,11 +158,13 @@ function Workspace({
   const [cashierReportExportDate, setCashierReportExportDate] = useState<string>()
   const [reportAttentionBranch, setReportAttentionBranch] = useState<LoginBranch>()
   const [attentionReportId, setAttentionReportId] = useState<string>()
+  const [openAttentionDateDialog, setOpenAttentionDateDialog] = useState(false)
   const enableReportAttention = useCallback(
     () => setReportAttentionBranch(selectedBranch),
     [selectedBranch]
   )
   const clearAttentionReport = useCallback(() => setAttentionReportId(undefined), [])
+  const showAttentionDateDialog = useCallback(() => setOpenAttentionDateDialog(true), [])
   const [navigationCounts, setNavigationCounts] = useState<{
     overdue?: number
     installmentAttention?: InstallmentAttentionSummary
@@ -399,6 +401,9 @@ function Workspace({
             exportDate={cashierReportExportDate}
             attentionReportId={attentionReportId}
             onAttentionReportOpened={clearAttentionReport}
+            onAttentionReportLoaded={showAttentionDateDialog}
+            openAttentionDateDialog={openAttentionDateDialog}
+            onAttentionDateDialogOpenChange={setOpenAttentionDateDialog}
             onExportReportsOpened={() => setIsCashierReportExportRequested(false)}
             onOpenCollection={(accountId) => openPaymentWorkspace(accountId, 'ledger', 'active')}
             onOpenHistoryPayment={(accountId, paymentId) =>

@@ -47,6 +47,8 @@ type ReportDateDialogProps = {
   branchId: string
   cashierUserId: string
   date: Date | undefined
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   disabled?: boolean
   readOnly?: boolean
   onSelect: (date: Date) => void
@@ -133,6 +135,8 @@ export function ReportDateDialog({
   branchId,
   cashierUserId,
   date,
+  open: openProp,
+  onOpenChange,
   disabled,
   readOnly = false,
   onSelect
@@ -140,6 +144,11 @@ export function ReportDateDialog({
   const initialDate = startOfDay(date ?? new Date())
   const today = startOfDay(new Date())
   const [open, setOpen] = React.useState(false)
+  const dialogOpen = openProp ?? open
+  const setDialogOpen = (nextOpen: boolean): void => {
+    if (openProp === undefined) setOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
   const [selectedDate, setSelectedDate] = React.useState(initialDate)
   const [month, setMonth] = React.useState(startOfMonth(initialDate))
   const [days, setDays] = React.useState<DailyReportCalendarDay[]>([])
@@ -151,7 +160,7 @@ export function ReportDateDialog({
   const monthKey = format(month, 'yyyy-MM')
   const initialDateKey = format(initialDate, 'yyyy-MM-dd')
   React.useEffect(() => {
-    if (!open) return
+    if (!dialogOpen) return
     let active = true
     void window.api.dailyReports
       .listCalendar({ branchId, cashierUserId, month: monthKey })
@@ -171,13 +180,13 @@ export function ReportDateDialog({
     return () => {
       active = false
     }
-  }, [branchId, cashierUserId, initialDateKey, monthKey, open, refreshKey])
+  }, [branchId, cashierUserId, dialogOpen, initialDateKey, monthKey, refreshKey])
   React.useEffect(() => {
-    if (!open) return
+    if (!dialogOpen) return
     const refresh = (): void => setRefreshKey((value) => value + 1)
     window.addEventListener('daily-report-delivery-updated', refresh)
     return () => window.removeEventListener('daily-report-delivery-updated', refresh)
-  }, [open])
+  }, [dialogOpen])
   const daysByDate = React.useMemo(
     () => new Map(days.map((day) => [day.businessDate, day])),
     [days]
@@ -231,9 +240,9 @@ export function ReportDateDialog({
 
   return (
     <Dialog
-      open={open}
+      open={dialogOpen}
       onOpenChange={(nextOpen) => {
-        setOpen(nextOpen)
+        setDialogOpen(nextOpen)
         if (nextOpen) {
           const nextDate = startOfDay(date ?? new Date())
           setSelectedDate(nextDate)
@@ -360,7 +369,7 @@ export function ReportDateDialog({
                 className="w-full"
                 onClick={() => {
                   onSelect(selectedDate)
-                  setOpen(false)
+                  setDialogOpen(false)
                 }}
               >
                 <FileText data-icon="inline-start" aria-hidden="true" />
@@ -427,7 +436,9 @@ export function ReportDateDialog({
                     const status = daysByDate.get(format(day, 'yyyy-MM-dd'))
                     const currentMonth = isSameMonth(day, month)
                     const selected = isSameDay(day, selectedDate)
-                    const hasVariance = Boolean(status && status.cashVarianceCentavos !== 0)
+                    const hasVariance = Boolean(
+                      status && Math.abs(status.cashVarianceCentavos) >= 100
+                    )
                     const hasReportData = Boolean(status?.hasData)
                     const telegramSubmitted = Boolean(status?.telegramSubmittedAt)
                     const deliveryLabel = hasReportData
