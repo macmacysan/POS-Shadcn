@@ -48,8 +48,6 @@ type ReportDateDialogProps = {
   branchId: string
   cashierUserId: string
   date: Date | undefined
-  reportId?: string
-  cashVarianceCentavos?: number
   disabled?: boolean
   readOnly?: boolean
   onSelect: (date: Date) => void
@@ -136,8 +134,6 @@ export function ReportDateDialog({
   branchId,
   cashierUserId,
   date,
-  reportId,
-  cashVarianceCentavos,
   disabled,
   readOnly = false,
   onSelect
@@ -187,12 +183,8 @@ export function ReportDateDialog({
     () => new Map(days.map((day) => [day.businessDate, day])),
     [days]
   )
-  const cashVarianceFor = (day: DailyReportCalendarDay): number =>
-    day.reportId === reportId && cashVarianceCentavos !== undefined
-      ? cashVarianceCentavos
-      : day.cashVarianceCentavos
   const selectedStatus = daysByDate.get(format(selectedDate, 'yyyy-MM-dd'))
-  const selectedCashVariance = selectedStatus ? cashVarianceFor(selectedStatus) : 0
+  const selectedCashVariance = selectedStatus?.cashVarianceCentavos ?? 0
   const selectedHasReportData = Boolean(selectedStatus?.hasData)
   const calendarDays = React.useMemo(() => {
     const first = startOfWeek(startOfMonth(month))
@@ -202,7 +194,7 @@ export function ReportDateDialog({
       (_, index) => addDays(first, index)
     )
   }, [month])
-  const varianceDays = days.filter((day) => cashVarianceFor(day) !== 0)
+  const varianceDays = days.filter((day) => day.cashVarianceCentavos !== 0)
   const unsubmittedDays = days.filter((day) => day.hasData && isUnsubmitted(day.status))
   const canGoNext = startOfMonth(month) < startOfMonth(today)
   const selectDate = (nextDate: Date): void => {
@@ -476,7 +468,7 @@ export function ReportDateDialog({
                     const status = daysByDate.get(format(day, 'yyyy-MM-dd'))
                     const currentMonth = isSameMonth(day, month)
                     const selected = isSameDay(day, selectedDate)
-                    const hasVariance = Boolean(status && cashVarianceFor(status) !== 0)
+                    const hasVariance = Boolean(status && status.cashVarianceCentavos !== 0)
                     const hasReportData = Boolean(status?.hasData)
                     const telegramSubmitted = Boolean(status?.telegramSubmittedAt)
                     const deliveryLabel = hasReportData
@@ -546,7 +538,7 @@ export function ReportDateDialog({
                         key={`variance-${day.businessDate}`}
                         day={day}
                         label="Variance"
-                        cashVarianceCentavos={cashVarianceFor(day)}
+                        cashVarianceCentavos={day.cashVarianceCentavos}
                         onSelect={() => selectDate(parseISO(day.businessDate))}
                       />
                     ))

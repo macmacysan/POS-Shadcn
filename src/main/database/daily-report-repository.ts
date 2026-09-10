@@ -1287,6 +1287,9 @@ export class DailyReportRepository {
                       JOIN branches finance_branch ON finance_branch.name = f.branch
                      WHERE COALESCE(f.paid_date, f.date_released) = ?
                        AND finance_branch.id = report.branch_id), 0) AS finance_balance_centavos,
+          COALESCE((SELECT SUM(amount_centavos)
+                      FROM daily_report_payment_entries
+                     WHERE daily_report_id = ? AND status = 'POSTED'), 0) AS payment_centavos,
           COALESCE((SELECT SUM(d.value_centavos * c.quantity) FROM daily_report_cash_counts c JOIN cash_denominations d ON d.id = c.denomination_id WHERE c.daily_report_id = ? AND d.value_centavos >= 25), 0) AS physical_cash_centavos
           FROM daily_reports report
          WHERE report.id = ?`
@@ -1301,6 +1304,7 @@ export class DailyReportRepository {
         report.businessDate,
         report.businessDate,
         dailyReportId,
+        dailyReportId,
         dailyReportId
       ) as {
       receipt_centavos: number
@@ -1312,15 +1316,18 @@ export class DailyReportRepository {
       other_income_centavos: number
       finance_down_centavos: number
       finance_balance_centavos: number
+      payment_centavos: number
       physical_cash_centavos: number
     }
     const expectedCashCentavos =
-      report.openingCashCentavos +
       totals.receipt_centavos +
-      totals.income_centavos -
+      totals.recorded_paid_amount_centavos +
+      totals.other_income_centavos +
+      totals.finance_down_centavos -
       totals.deduction_centavos -
       totals.cash_out_centavos -
-      totals.legacy_expense_cash_out_centavos
+      totals.legacy_expense_cash_out_centavos -
+      totals.payment_centavos
     return {
       report,
       receiptTotals,

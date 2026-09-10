@@ -690,8 +690,6 @@ export const ReportSummary = React.memo(function ReportSummary({
                 branchId={branchId}
                 cashierUserId={cashierUserId}
                 date={startDate}
-                reportId={snapshot.report.id}
-                cashVarianceCentavos={variance}
                 disabled={isDateLoading}
                 onSelect={selectDate}
               />
