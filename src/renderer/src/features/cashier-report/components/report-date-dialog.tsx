@@ -17,7 +17,6 @@ import {
   AlertCircle,
   CalendarIcon,
   CircleAlert,
-  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -275,17 +274,18 @@ export function ReportDateDialog({
                 {format(selectedDate, 'EEE, MMM d')}
               </p>
             </div>
-            <Badge
-              variant={
-                selectedHasReportData && selectedStatus && isUnsubmitted(selectedStatus.status)
-                  ? 'amber'
-                  : 'secondary'
-              }
-            >
-              {selectedHasReportData && selectedStatus
-                ? statusLabel(selectedStatus.status)
-                : 'No report data'}
-            </Badge>
+            {selectedHasReportData && selectedStatus ? (
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={selectedCashVariance === 0 ? 'emerald' : 'destructive'}>
+                  {selectedCashVariance === 0 ? 'Balanced' : 'Cash variance'}
+                </Badge>
+                <Badge variant={selectedStatus.telegramSubmittedAt ? 'emerald' : 'destructive'}>
+                  {selectedStatus.telegramSubmittedAt ? 'Report Sent' : 'Telegram not sent'}
+                </Badge>
+              </div>
+            ) : (
+              <Badge variant="secondary">No report data</Badge>
+            )}
             {selectedHasReportData && selectedStatus && selectedCashVariance !== 0 && (
               <div>
                 <p className="text-xs text-muted-foreground">Cash variance</p>
@@ -294,15 +294,6 @@ export function ReportDateDialog({
                 </p>
               </div>
             )}
-            {selectedStatus && selectedHasReportData && !selectedStatus.telegramSubmittedAt && (
-                <div className="space-y-1.5">
-                  <p className="text-xs text-muted-foreground">Not sent</p>
-                  <p className="flex items-center gap-2 text-xs text-destructive">
-                    <Send className="size-3" />
-                    Telegram
-                  </p>
-                </div>
-              )}
             {selectedHasReportData && selectedStatus && (
               <div className="space-y-3 text-xs">
                 <div className="space-y-1 text-foreground">
@@ -364,38 +355,6 @@ export function ReportDateDialog({
             )}
             <div className="mt-auto flex flex-col gap-3">
               <Separator />
-              <div className="space-y-2 text-[11px] text-muted-foreground">
-                <p className="flex items-center gap-2">
-                  {selectedHasReportData && selectedCashVariance === 0 ? (
-                    <Check className="size-3 text-emerald-600" />
-                  ) : (
-                    <span className="size-2 rounded-full bg-destructive" />
-                  )}
-                  <span
-                    className={cn(
-                      selectedHasReportData && selectedCashVariance === 0 && 'text-emerald-600'
-                    )}
-                  >
-                    {selectedHasReportData && selectedCashVariance === 0 ? 'Balanced' : 'Cash variance'}
-                  </span>
-                </p>
-                <p className="flex items-center gap-2">
-                  {selectedHasReportData && selectedStatus?.telegramSubmittedAt ? (
-                    <Check className="size-3 text-emerald-600" />
-                  ) : (
-                    <Send className="size-3 text-destructive" />
-                  )}
-                  <span
-                    className={cn(
-                      selectedHasReportData && selectedStatus?.telegramSubmittedAt && 'text-emerald-600'
-                    )}
-                  >
-                    {selectedHasReportData && selectedStatus?.telegramSubmittedAt
-                      ? 'Report Sent'
-                      : 'Telegram not sent'}
-                  </span>
-                </p>
-              </div>
               <Button
                 type="button"
                 className="w-full"
