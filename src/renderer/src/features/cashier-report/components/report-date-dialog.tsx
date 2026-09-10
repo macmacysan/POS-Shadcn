@@ -275,7 +275,7 @@ export function ReportDateDialog({
           <DialogTitle>Select business date</DialogTitle>
           <DialogDescription>Review report status and select a business date.</DialogDescription>
         </DialogHeader>
-        <div className="grid h-[40rem] min-h-0 min-w-0 max-h-[calc(100vh-2rem)] grid-cols-[17rem_minmax(0,1fr)_23rem]">
+        <div className="grid h-160 min-h-0 min-w-0 max-h-[calc(100vh-2rem)] grid-cols-[17rem_minmax(0,1fr)_23rem]">
           <aside className="flex min-w-0 flex-col gap-5 overflow-y-auto bg-muted/30 p-6">
             <div>
               <p className="text-xs text-muted-foreground">Selected day</p>
@@ -497,7 +497,7 @@ export function ReportDateDialog({
                     {varianceDays.length}
                   </ReuiBadge>
                   <ChevronDown
-                    className="size-3.5 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180"
+                    className="size-3.5 text-muted-foreground transition-transform group-data-panel-open:rotate-180"
                     aria-hidden="true"
                   />
                 </CollapsibleTrigger>
@@ -532,7 +532,7 @@ export function ReportDateDialog({
                     {unsubmittedDays.length}
                   </ReuiBadge>
                   <ChevronDown
-                    className="size-3.5 text-muted-foreground transition-transform group-data-[panel-open]:rotate-180"
+                    className="size-3.5 text-muted-foreground transition-transform group-data-panel-open:rotate-180"
                     aria-hidden="true"
                   />
                 </CollapsibleTrigger>

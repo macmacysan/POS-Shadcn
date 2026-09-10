@@ -35,6 +35,22 @@ export type AuthenticatedUser = {
   branchId: string
   branch: LoginBranch
 }
+export const loginPreviewDaySchema = z.object({
+  businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  hasData: z.boolean(),
+  hasCashVariance: z.boolean(),
+  telegramSubmitted: z.boolean()
+})
+export const loginPreviewSchema = z.object({
+  branch: cashierLoginBranchSchema,
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  activeInstallments: z.number().int().nonnegative(),
+  overdueInstallments: z.number().int().nonnegative(),
+  cashVarianceDays: z.number().int().nonnegative(),
+  reportsNotSent: z.number().int().nonnegative(),
+  days: z.array(loginPreviewDaySchema)
+})
+export type LoginPreview = z.infer<typeof loginPreviewSchema>
 
 export const authIpcChannels = {
   login: 'auth:login',
@@ -42,6 +58,7 @@ export const authIpcChannels = {
   getMode: 'auth:get-mode',
   switchBranch: 'auth:switch-branch',
   getCashierLoginBranch: 'auth:get-cashier-login-branch',
+  getLoginPreview: 'auth:get-login-preview',
   setCashierLoginBranch: 'auth:set-cashier-login-branch',
   getInitialRecoveryStatus: 'auth:get-initial-recovery-status',
   restoreInitialBranchSnapshot: 'auth:restore-initial-branch-snapshot',
@@ -56,6 +73,7 @@ export type AuthApi = {
     getMode(): Promise<AuthMode>
     switchBranch(request: z.infer<typeof switchBranchRequestSchema>): Promise<AuthenticatedUser>
     getCashierLoginBranch(): Promise<FinanceBranch | undefined>
+    getLoginPreview(): Promise<LoginPreview | null>
     setCashierLoginBranch(branch: FinanceBranch): Promise<FinanceBranch>
     getInitialRecoveryStatus(): Promise<{ required: boolean }>
     restoreInitialBranchSnapshot(branch: FinanceBranch): Promise<void>

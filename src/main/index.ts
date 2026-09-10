@@ -18,6 +18,7 @@ import { registerFinanceAccountIpc } from './ipc/finance-accounts'
 import { UserRepository } from './database/user-repository'
 import { AuthService } from './services/auth-service'
 import { registerAuthIpc } from './ipc/auth'
+import { LoginPreviewService } from './services/login-preview-service'
 import { DashboardRepository } from './database/dashboard-repository'
 import { DashboardService } from './services/dashboard-service'
 import { registerDashboardIpc } from './ipc/dashboard'
@@ -307,6 +308,11 @@ app.whenReady().then(async () => {
       async () => {
         await accountSpreadsheet?.sync()
       },
+      new LoginPreviewService(
+        userRepository,
+        new DailyReportRepository(database),
+        new InstallmentRepository(database)
+      ),
       {
         required: () => initialRecoveryRequired,
         restore: async (branch) => {

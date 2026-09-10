@@ -78,6 +78,7 @@ const api: ExpensesApi &
     getMode: () => ipcRenderer.invoke(authIpcChannels.getMode),
     switchBranch: (request) => ipcRenderer.invoke(authIpcChannels.switchBranch, request),
     getCashierLoginBranch: () => ipcRenderer.invoke(authIpcChannels.getCashierLoginBranch),
+    getLoginPreview: () => ipcRenderer.invoke(authIpcChannels.getLoginPreview),
     setCashierLoginBranch: (branch) =>
       ipcRenderer.invoke(authIpcChannels.setCashierLoginBranch, branch),
     getInitialRecoveryStatus: () => ipcRenderer.invoke(authIpcChannels.getInitialRecoveryStatus),

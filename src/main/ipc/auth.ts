@@ -10,6 +10,7 @@ import {
 } from '../../shared/contracts'
 import { toIpcError } from '../database/errors'
 import { AuthService } from '../services/auth-service'
+import { LoginPreviewService } from '../services/login-preview-service'
 
 function throwIpcError(error: unknown): never {
   const payload = toIpcError(error)
@@ -22,6 +23,7 @@ export function registerAuthIpc(
   service: AuthService,
   onAuthenticated?: (user: AuthenticatedUser) => Promise<void>,
   beforeLogin?: () => Promise<void>,
+  loginPreview?: LoginPreviewService,
   initialRecovery?: {
     required(): boolean
     restore(branch: ReturnType<typeof cashierLoginBranchSchema.parse>): Promise<void>
@@ -33,7 +35,9 @@ export function registerAuthIpc(
       const user = await service.login(loginRequestSchema.parse(input))
       if (initialRecovery?.required() && user.role !== 'ADMIN') {
         service.logout()
-        throw new Error('An administrator must restore the default branch data before cashiers can sign in.')
+        throw new Error(
+          'An administrator must restore the default branch data before cashiers can sign in.'
+        )
       }
       await onAuthenticated?.(user)
       return user
@@ -59,6 +63,13 @@ export function registerAuthIpc(
   ipcMain.handle(authIpcChannels.getCashierLoginBranch, () => {
     try {
       return service.cashierLoginBranch()
+    } catch (error) {
+      throwIpcError(error)
+    }
+  })
+  ipcMain.handle(authIpcChannels.getLoginPreview, () => {
+    try {
+      return loginPreview?.get() ?? null
     } catch (error) {
       throwIpcError(error)
     }
