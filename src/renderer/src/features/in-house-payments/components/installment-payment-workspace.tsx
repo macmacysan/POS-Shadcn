@@ -794,7 +794,7 @@ export function InstallmentPaymentWorkspace({
                         )
                         if (payment && schedule.status === 'PAID') {
                           setActiveTab('ledger')
-                          setSelectedPaymentId(payment.id)
+                          openAdjustment(schedule, payment)
                           return
                         }
                         if (

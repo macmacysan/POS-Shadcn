@@ -1,46 +1,18 @@
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
 import { createHash } from 'node:crypto'
 
-export const portableBusinessTables = [
-  'branches',
-  'users',
-  'user_branch_assignments',
-  'reports',
-  'daily_reports',
-  'daily_receipt_totals',
-  'daily_report_payment_entries',
-  'income_entries',
-  'expenses',
-  'cash_out_entries',
-  'daily_report_deductions',
-  'daily_report_cash_counts',
-  'accounts',
-  'account_contacts',
-  'installment_contracts',
-  'installment_items',
-  'in_house_schedules',
-  'in_house_payments',
-  'installment_payment_allocations',
-  'installment_restructures',
-  'finance_accounts',
-  'finance_account_items',
-  'audit_logs',
-  'audit_log_changes',
-  'catalog_options',
-  'receipt_types',
-  'report_payment_methods',
-  'deduction_types',
-  'cash_denominations',
-  'income_categories',
-  'installment_rule_versions',
-  'installment_rule_terms'
-]
-
-// Stable business/configuration rows; technical migration and recovery metadata are excluded.
 export function businessManifest(db) {
+  const tables = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    )
+    .all()
+    .map(({ name }) => name)
   return Object.fromEntries(
-    portableBusinessTables.map((table) => {
-      const rows = db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()
+    tables.map((table) => {
+      const rows = db
+        .prepare(`SELECT * FROM \"${table.replaceAll('\"', '\"\"')}\" ORDER BY rowid`)
+        .all()
       return [table, createHash('sha256').update(JSON.stringify(rows)).digest('hex')]
     })
   )
