@@ -2,15 +2,7 @@ import * as React from 'react'
 import { CircleAlertIcon, DownloadIcon, UploadIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogTitle
-} from '@/components/ui/alert-dialog'
+import { DestructiveAlertDialog } from '@/components/shared/destructive-alert-dialog'
 import { useNotifications } from '@/hooks/use-notifications'
 
 type PortableImport = { token: string; fileName: string; schemaVersion: number }
@@ -120,40 +112,25 @@ export function PortableDatabaseSettings(): React.JSX.Element {
           Importing database and restarting…
         </p>
       )}
-      <AlertDialog
+      <DestructiveAlertDialog
         open={Boolean(pendingImport)}
         onOpenChange={(open) => {
           if (!open) void cancelImport()
         }}
-      >
-        <AlertDialogContent className="sm:max-w-[28.8rem]">
-          <div className="flex items-start gap-3 py-1">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-              <CircleAlertIcon className="size-5 text-destructive" />
-            </div>
-            <div className="flex flex-col gap-1">
-              <AlertDialogTitle className="text-sm font-semibold">
-                Replace the whole database?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {pendingImport?.fileName} will replace the entire local database, including users,
-                reports, installments, finance records, settings, and other local business data. The
-                current database is kept as a recovery copy, then the app restarts.
-              </AlertDialogDescription>
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isImporting}>Keep current database</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={isImporting}
-              onClick={() => void confirmImport()}
-            >
-              Replace and restart
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Replace the whole database?"
+        description={
+          <>
+            {pendingImport?.fileName} will replace the entire local database, including users,
+            reports, installments, finance records, settings, and other local business data. The
+            current database is kept as a recovery copy, then the app restarts.
+          </>
+        }
+        actionLabel="Replace and restart"
+        cancelLabel="Keep current database"
+        actionDisabled={isImporting}
+        icon={<CircleAlertIcon />}
+        onConfirm={() => void confirmImport()}
+      />
     </section>
   )
 }

@@ -1,5 +1,7 @@
 import * as React from 'react'
 
+import { DestructiveAlertDialog } from '@/components/shared/destructive-alert-dialog'
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +32,18 @@ export function ConfirmationAlertDialog({
   onOpenChange,
   onConfirm
 }: Props): React.JSX.Element {
+  if (destructive)
+    return (
+      <DestructiveAlertDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        title={title}
+        description={description}
+        actionLabel={confirmLabel}
+        onConfirm={onConfirm}
+      />
+    )
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -39,7 +53,7 @@ export function ConfirmationAlertDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant={destructive ? 'destructive' : 'default'} onClick={onConfirm}>
+          <AlertDialogAction variant="default" onClick={onConfirm}>
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

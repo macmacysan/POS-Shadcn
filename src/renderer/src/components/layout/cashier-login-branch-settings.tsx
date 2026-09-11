@@ -7,15 +7,7 @@ import {
   type OnlineBackupRevision
 } from '@/../../shared/contracts'
 import { Button } from '@/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogTitle
-} from '@/components/ui/alert-dialog'
+import { DestructiveAlertDialog } from '@/components/shared/destructive-alert-dialog'
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field'
 import {
   Select,
@@ -151,30 +143,16 @@ export function CashierLoginBranchSettings(): React.JSX.Element {
           </Button>
         </div>
       </FieldGroup>
-      <AlertDialog open={isRestoreConfirmationOpen} onOpenChange={setIsRestoreConfirmationOpen}>
-        <AlertDialogContent className="sm:max-w-[28.8rem]">
-          <div className="flex items-start gap-3 py-1">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-              <CircleAlertIcon className="size-5 text-destructive" />
-            </div>
-            <div className="flex flex-col justify-center gap-1">
-              <AlertDialogTitle className="text-sm font-semibold">
-                Restore {branch} branch data?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                If a snapshot exists, this replaces the fresh local database with it. Otherwise, this
-                branch becomes the cashier default and the app restarts.
-              </AlertDialogDescription>
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep current setup</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => void restore()}>
-              Restore {branch} data
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DestructiveAlertDialog
+        open={isRestoreConfirmationOpen}
+        onOpenChange={setIsRestoreConfirmationOpen}
+        title={`Restore ${branch} branch data?`}
+        description="If a snapshot exists, this replaces the fresh local database with it. Otherwise, this branch becomes the cashier default and the app restarts."
+        actionLabel={`Restore ${branch} data`}
+        cancelLabel="Keep current setup"
+        icon={<CircleAlertIcon />}
+        onConfirm={() => void restore()}
+      />
       <section className="mt-8 flex max-w-3xl flex-col gap-3">
         <div>
           <h3 className="text-sm font-medium">Online backup revisions</h3>
@@ -223,34 +201,17 @@ export function CashierLoginBranchSettings(): React.JSX.Element {
           </p>
         )}
       </section>
-      <AlertDialog open={isRevisionRestoreOpen} onOpenChange={setIsRevisionRestoreOpen}>
-        <AlertDialogContent>
-          <div className="flex items-start gap-3 py-1">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-              <CircleAlertIcon className="size-5 text-destructive" />
-            </div>
-            <div className="flex flex-col justify-center gap-1">
-              <AlertDialogTitle className="text-sm font-semibold">
-                Restore this online backup revision?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                This replaces the local database with the selected verified revision, preserves the
-                current database as a dated recovery copy, and restarts the app.
-              </AlertDialogDescription>
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep current data</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={isSaving}
-              onClick={() => void restoreRevision()}
-            >
-              Restore revision
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DestructiveAlertDialog
+        open={isRevisionRestoreOpen}
+        onOpenChange={setIsRevisionRestoreOpen}
+        title="Restore this online backup revision?"
+        description="This replaces the local database with the selected verified revision, preserves the current database as a dated recovery copy, and restarts the app."
+        actionLabel="Restore revision"
+        cancelLabel="Keep current data"
+        actionDisabled={isSaving}
+        icon={<CircleAlertIcon />}
+        onConfirm={() => void restoreRevision()}
+      />
     </section>
   )
 }

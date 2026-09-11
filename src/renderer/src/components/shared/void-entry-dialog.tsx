@@ -1,15 +1,6 @@
 import * as React from 'react'
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@/components/ui/alert-dialog'
+import { DestructiveAlertDialog } from '@/components/shared/destructive-alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
 
 type Props = {
@@ -29,38 +20,25 @@ export function VoidEntryDialog({
   const valid = reason.trim().length > 0
 
   return (
-    <AlertDialog
+    <DestructiveAlertDialog
       open={open}
       onOpenChange={(nextOpen) => {
         if (!nextOpen) setReason('')
         onOpenChange(nextOpen)
       }}
+      title={`Void ${label}?`}
+      description="This entry will be voided and preserved in the report history."
+      actionLabel="Void entry"
+      actionDisabled={!valid}
+      onConfirm={() => onConfirm(reason.trim())}
     >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Void {label}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This entry will be voided and preserved in the report history.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <Textarea
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          placeholder="Reason for voiding"
-          aria-label="Void reason"
-          autoFocus
-        />
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive"
-            disabled={!valid}
-            onClick={() => onConfirm(reason.trim())}
-          >
-            Void entry
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      <Textarea
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        placeholder="Reason for voiding"
+        aria-label="Void reason"
+        autoFocus
+      />
+    </DestructiveAlertDialog>
   )
 }

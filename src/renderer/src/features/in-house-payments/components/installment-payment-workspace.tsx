@@ -10,6 +10,7 @@ import { format } from 'date-fns'
 
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
 import { RowActions } from '@/components/shared/data-table/row-actions'
+import { DestructiveAlertDialog } from '@/components/shared/destructive-alert-dialog'
 import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,14 +22,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { AmountInputGroup } from '@/components/ui/amount-input-group'
 import { Badge, type BadgeProps } from '@/components/ui/reui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -705,6 +699,10 @@ export function InstallmentPaymentWorkspace({
     }
   }
 
+  const openWarrantyService = (): void => {
+    setIsWarrantyServiceOpen(true)
+  }
+
   if (error) {
     return (
       <Dialog open onOpenChange={(open) => !open && onBack()}>
@@ -829,7 +827,7 @@ export function InstallmentPaymentWorkspace({
                     size="sm"
                     variant="outline"
                     disabled={!canUseWarrantyService || isWarrantyServiceSaving}
-                    onClick={() => setIsWarrantyServiceOpen(true)}
+                    onClick={openWarrantyService}
                   >
                     <Wrench data-icon="inline-start" />
                     Warranty Service
@@ -1035,40 +1033,23 @@ export function InstallmentPaymentWorkspace({
           onOpenChange={(open) => !open && setPaymentToVoid(undefined)}
           onConfirm={voidPayment}
         />
-        <Dialog
+        <DestructiveAlertDialog
           open={isWarrantyServiceOpen}
           onOpenChange={(open) =>
             !open && !isWarrantyServiceSaving && setIsWarrantyServiceOpen(false)
           }
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Apply warranty service?</DialogTitle>
-              <DialogDescription>
-                {warrantySchedule
-                  ? `Installment #${warrantySchedule.installmentNumber} (${formatDate(warrantySchedule.dueDate)}) will be marked Service. Its remaining ${formatPhilippinePeso(warrantySchedule.remainingDueCentavos / 100)} will be added as a new final schedule date.`
-                  : 'No unpaid installment is available for warranty service.'}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsWarrantyServiceOpen(false)}
-                disabled={isWarrantyServiceSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={() => void applyWarrantyService()}
-                disabled={isWarrantyServiceSaving}
-              >
-                {isWarrantyServiceSaving ? 'Applying…' : 'Yes, apply service'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          title="Apply warranty service?"
+          description={
+            warrantySchedule
+              ? `Installment #${warrantySchedule.installmentNumber} (${formatDate(warrantySchedule.dueDate)}) will be marked Service. Its remaining ${formatPhilippinePeso(warrantySchedule.remainingDueCentavos / 100)} will be added as a new final schedule date.`
+              : 'No unpaid installment is available for warranty service.'
+          }
+          actionLabel={isWarrantyServiceSaving ? 'Applying…' : 'Apply service'}
+          actionDisabled={isWarrantyServiceSaving}
+          confirmationWord="yes"
+          icon={<Wrench />}
+          onConfirm={() => void applyWarrantyService()}
+        />
       </DialogContent>
     </Dialog>
   )
