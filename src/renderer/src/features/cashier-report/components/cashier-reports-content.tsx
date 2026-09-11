@@ -1395,7 +1395,6 @@ function ReportTab({
             key={selectedBranch}
             records={historyRecords}
             isLoading={historyLoadState.isLoading}
-            selectedBranch={selectedBranch}
             dateFrom={dateFrom}
             dateTo={dateTo}
             afterFiltersContent={afterFiltersContent}

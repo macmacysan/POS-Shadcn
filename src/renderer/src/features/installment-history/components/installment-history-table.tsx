@@ -401,19 +401,21 @@ export function InstallmentHistoryTable({
           onChange={handleFiltersChange}
           className="shrink-0"
         />
-        {afterFiltersContent}
-        {trailingToolbarContent}
-        {Object.keys(rowSelection).length > 0 && (
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={() => setIsVoidDialogOpen(true)}
-          >
-            <Trash2 data-icon="inline-start" aria-hidden="true" />
-            Void ({Object.keys(rowSelection).length})
-          </Button>
-        )}
+        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+          {afterFiltersContent}
+          {trailingToolbarContent}
+          {Object.keys(rowSelection).length > 0 && (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => setIsVoidDialogOpen(true)}
+            >
+              <Trash2 data-icon="inline-start" aria-hidden="true" />
+              Void ({Object.keys(rowSelection).length})
+            </Button>
+          )}
+        </div>
       </TableToolbar>
       <div className="mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border/70 bg-background">
         <UniversalDataTable
