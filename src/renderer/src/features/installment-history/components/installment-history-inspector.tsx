@@ -131,7 +131,7 @@ function EventDetails({ record }: { record: InstallmentHistoryRecord }): React.J
         <>
           <SectionHeading>Changed fields</SectionHeading>
           <div className="overflow-hidden rounded-md border">
-            <div className="grid grid-cols-3 gap-2 bg-muted/50 px-3 py-2 text-[11px] font-light uppercase tracking-wide text-muted-foreground">
+            <div className="grid grid-cols-3 gap-2 bg-muted/50 px-3 py-2 text-xs font-light uppercase tracking-wide text-muted-foreground">
               <span>Field</span>
               <span>Previous value</span>
               <span>New value</span>

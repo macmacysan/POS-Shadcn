@@ -28,7 +28,7 @@ export function TeamSwitcher({
             {team.logo}
           </div>
           <div className="min-w-0 space-y-1.5">
-            <span className="block text-left text-[11px] leading-4 font-semibold uppercase tracking-[0.08em] text-sidebar-foreground">
+            <span className="block text-left text-xs leading-4 font-semibold uppercase tracking-widest text-sidebar-foreground">
               {team.name}
             </span>
             {branch === 'All Branch' ? (

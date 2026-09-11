@@ -63,6 +63,8 @@ type ReportDataTableProps<TData extends ReportRow> = {
   }
   filterOptions?: Record<string, readonly string[]>
   additionalFilterFields?: ShadcnFilterField[]
+  afterFiltersContent?: React.ReactNode
+  trailingToolbarContent?: React.ReactNode
   toolbarContent?: React.ReactNode
   emptyStateFooter?: React.ReactNode
 }
@@ -98,6 +100,8 @@ export function ReportDataTable<TData extends ReportRow>({
   serverState,
   filterOptions,
   additionalFilterFields,
+  afterFiltersContent,
+  trailingToolbarContent,
   toolbarContent,
   emptyStateFooter
 }: ReportDataTableProps<TData>): React.JSX.Element {
@@ -232,7 +236,7 @@ export function ReportDataTable<TData extends ReportRow>({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col">
-      <TableToolbar className="flex-wrap gap-3 border-b-0 bg-transparent px-4 py-3">
+      <TableToolbar className="-mt-14 ml-auto w-fit max-w-full flex-nowrap gap-3 border-b-0 bg-transparent px-4 py-3">
         <ShadcnTableFilters
           fields={shadcnFilterFields}
           filters={[
@@ -247,6 +251,8 @@ export function ReportDataTable<TData extends ReportRow>({
           className="shrink-0"
         />
         <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+          {afterFiltersContent}
+          {trailingToolbarContent}
           {toolbarContent}
           {onVoidSelected && selectedRows.length > 0 && (
             <Button
@@ -307,8 +313,8 @@ export function ReportDataTable<TData extends ReportRow>({
           <div className="h-9 w-9 rounded-full border border-border bg-muted flex items-center justify-center mb-2.5">
             <FileText size={15} className="text-muted-foreground" />
           </div>
-          <p className="text-[13px] font-medium text-muted-foreground">{emptyStateFooter}</p>
-          <p className="text-[12px] text-muted-foreground mt-0.5">
+          <p className="text-sm font-medium text-muted-foreground">{emptyStateFooter}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
             New entries you add will show up above this line.
           </p>
           </div>

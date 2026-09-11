@@ -304,7 +304,7 @@ export function NavMain({
                 key={item.title}
                 className="pt-4 group-data-[collapsible=icon]:hidden"
               >
-                <div className="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">
+                <div className="px-2.5 pb-1.5 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/45">
                   {item.title}
                 </div>
                 {item.children && (

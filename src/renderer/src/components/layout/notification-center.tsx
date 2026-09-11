@@ -31,7 +31,7 @@ export function NotificationCenter(): React.JSX.Element {
       >
         <Bell aria-hidden="true" className="size-4" />
         {unreadCount > 0 && (
-          <Badge className="absolute -right-1 -top-1 min-w-4 justify-center rounded-full px-1 py-0 text-[10px] leading-4">
+          <Badge className="absolute -right-1 -top-1 min-w-4 justify-center rounded-full px-1 py-0 text-xs leading-4">
             {unreadCount > 99 ? '99+' : unreadCount}
           </Badge>
         )}
@@ -58,10 +58,10 @@ export function NotificationCenter(): React.JSX.Element {
                       item.type === 'error'
                         ? 'bg-destructive'
                         : item.type === 'warning'
-                          ? 'bg-amber-500'
+                          ? 'bg-warning'
                           : item.type === 'success'
-                            ? 'bg-emerald-500'
-                            : 'bg-blue-500'
+                            ? 'bg-success'
+                            : 'bg-info'
                     }`}
                     aria-hidden="true"
                   />
@@ -99,7 +99,7 @@ export function NotificationCenter(): React.JSX.Element {
                         )}
                       </div>
                     )}
-                    <p className="mt-1 text-[11px] text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted-foreground">
                       {new Date(item.createdAt).toLocaleTimeString([], {
                         hour: 'numeric',
                         minute: '2-digit'

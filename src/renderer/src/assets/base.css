@@ -1,67 +1,115 @@
-:root {
-  --ev-c-white: #ffffff;
-  --ev-c-white-soft: #f8f8f8;
-  --ev-c-white-mute: #f2f2f2;
-
-  --ev-c-black: #1b1b1f;
-  --ev-c-black-soft: #222222;
-  --ev-c-black-mute: #282828;
-
-  --ev-c-gray-1: #515c67;
-  --ev-c-gray-2: #414853;
-  --ev-c-gray-3: #32363f;
-
-  --ev-c-text-1: rgba(255, 255, 245, 0.86);
-  --ev-c-text-2: rgba(235, 235, 245, 0.6);
-  --ev-c-text-3: rgba(235, 235, 245, 0.38);
-
-  --ev-button-alt-border: transparent;
-  --ev-button-alt-text: var(--ev-c-text-1);
-  --ev-button-alt-bg: var(--ev-c-gray-3);
-  --ev-button-alt-hover-border: transparent;
-  --ev-button-alt-hover-text: var(--ev-c-text-1);
-  --ev-button-alt-hover-bg: var(--ev-c-gray-2);
-}
-
-:root {
-  --color-background: var(--ev-c-black);
-  --color-background-soft: var(--ev-c-black-soft);
-  --color-background-mute: var(--ev-c-black-mute);
-
-  --color-text: var(--ev-c-text-1);
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  font-weight: normal;
-}
-
-ul {
-  list-style: none;
-}
-
-body {
-  min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
-  line-height: 1.6;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+{
+  "name": "NCS-Cashiers-Report",
+  "version": "5.0.12",
+  "description": "An Electron application with React and TypeScript",
+  "main": "./out/main/index.js",
+  "author": "example.com",
+  "homepage": "https://electron-vite.org",
+  "scripts": {
+    "format": "prettier --write .",
+    "lint": "eslint --cache .",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test:installments": "node scripts/test-installment-calculations.mjs",
+    "test:installment-rules": "node scripts/run-electron-test.mjs scripts/test-installment-rules.mjs",
+    "test:installment-status": "node scripts/run-electron-test.mjs scripts/test-installment-status-actions.mjs",
+    "test:auth": "node scripts/run-electron-test.mjs scripts/test-local-auth.mjs",
+    "test:report-voids": "node scripts/run-electron-test.mjs scripts/test-report-voids.mjs",
+    "test:backup": "node scripts/run-electron-test.mjs scripts/test-backup.mjs",
+    "test:portable-database": "node scripts/run-electron-test.mjs scripts/test-portable-database.mjs",
+    "test:portable-database-ipc": "node scripts/run-electron-test.mjs scripts/test-portable-database-ipc.mjs",
+    "test:portable-database-roundtrip": "node scripts/run-electron-test.mjs scripts/test-portable-database-roundtrip.mjs",
+    "test:finance-provider-migration": "node scripts/run-electron-test.mjs scripts/test-finance-provider-migration.mjs",
+    "test:online-backups": "node scripts/run-electron-test.mjs scripts/test-online-backup-revisions.mjs",
+    "test:initial-recovery": "node scripts/run-electron-test.mjs scripts/test-initial-recovery.mjs",
+    "test:active-report-admin": "node scripts/test-active-report-admin.mjs",
+    "test:google-publish": "node scripts/run-electron-test.mjs scripts/test-google-publish.mjs",
+    "test:google-sync": "node scripts/run-electron-test.mjs scripts/test-google-sync.mjs",
+    "test:telegram-config": "node scripts/run-electron-test.mjs scripts/test-telegram-sheet-config.mjs",
+    "start": "electron-vite preview",
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "postinstall": "electron-builder install-app-deps && electron-rebuild -f -w better-sqlite3",
+    "build:unpack": "npm run build && electron-builder --dir",
+    "build:win": "npm run build && electron-builder --win",
+    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.6.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "@fontsource-variable/geist": "^5.2.9",
+    "@fontsource-variable/ibm-plex-sans": "^5.2.8",
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "@fontsource-variable/lora": "^5.3.0",
+    "@fontsource-variable/merriweather": "^5.2.6",
+    "@fontsource-variable/noto-sans": "^5.2.10",
+    "@fontsource-variable/noto-serif": "^5.3.0",
+    "@fontsource-variable/nunito-sans": "^5.2.7",
+    "@fontsource-variable/oxanium": "^5.2.8",
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
+    "@fontsource-variable/roboto-mono": "^5.3.0",
+    "@hookform/resolvers": "^5.4.0",
+    "@hugeicons/core-free-icons": "^4.2.2",
+    "@hugeicons/react": "^1.1.9",
+    "@phosphor-icons/react": "^2.1.10",
+    "@remixicon/react": "^4.9.0",
+    "@tabler/icons-react": "^3.44.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.6",
+    "better-sqlite3": "^12.11.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "date-fns": "^4.4.0",
+    "electron-updater": "^6.3.9",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.24.0",
+    "react-day-picker": "^10.0.1",
+    "react-hook-form": "^7.81.0",
+    "react-leaflet": "^5.0.0",
+    "react-resizable-panels": "^4.12.2",
+    "recharts": "^3.8.0",
+    "shadcn": "^4.14.0",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.2",
+    "tw-animate-css": "^1.4.0",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@electron-toolkit/eslint-config-prettier": "^3.0.0",
+    "@electron-toolkit/eslint-config-ts": "^3.1.0",
+    "@electron-toolkit/tsconfig": "^2.0.0",
+    "@playwright/test": "^1.61.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron": "^43.6.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "prettier": "^3.7.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.6"
+  }
 }

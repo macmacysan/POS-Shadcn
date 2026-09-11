@@ -60,7 +60,7 @@ function Metric({
         : 'text-foreground'
   return (
     <div className="group relative min-w-0 border-l border-border pl-3">
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+      <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
         {label}
       </p>
       <p
@@ -176,7 +176,7 @@ export function DashboardContent({
     <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             {overview?.scopeLabel ?? `${selectedBranch} Branch`} · {businessDate}
           </p>
           <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">Cash position</h1>
@@ -218,7 +218,7 @@ export function DashboardContent({
         >
           <CardHeader className="gap-1 px-5 py-4">
             <CardDescription>Physical cash counted</CardDescription>
-            <CardTitle className="font-mono text-[clamp(2rem,4vw,3.5rem)] leading-none tracking-[-0.06em] tabular-nums">
+            <CardTitle className="font-mono text-3xl leading-none tracking-tight tabular-nums">
               {money(physicalCash)}
             </CardTitle>
             <div className="mt-3 grid grid-cols-3 gap-3 border-t pt-3 text-xs">

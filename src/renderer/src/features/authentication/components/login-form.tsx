@@ -117,7 +117,7 @@ function LoginPreviewCalendar({
       </div>
 
       <div className="mt-7 min-h-0 flex-1">
-        <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-medium text-muted-foreground">
+        <div className="grid grid-cols-7 gap-2 text-center text-xs font-medium text-muted-foreground">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
             <span key={day}>{day}</span>
           ))}
@@ -214,7 +214,7 @@ function DownloadProgress({
         const percent = Math.round((latest.completed / latest.total) * 100)
         return (
           <section key={latest.branch} className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-[13px] font-medium">
+            <div className="flex items-center justify-between text-sm font-medium">
               <span>Downloading {latest.branch} data</span>
               <span className="tabular-nums text-muted-foreground">{percent}%</span>
             </div>
@@ -364,7 +364,7 @@ export function LoginForm({
       {...props}
     >
       <LoginPreviewCalendar preview={loginPreview} />
-      <div className="flex min-h-0 items-center bg-card p-10 lg:p-15">
+      <div className="flex min-h-0 items-center p-10 lg:p-15">
         <section className="flex flex-col gap-5">
           <div className="flex items-center justify-between gap-3 py-1">
             <div className="flex min-w-0 items-center gap-2">
@@ -388,7 +388,7 @@ export function LoginForm({
           <header className="flex flex-col gap-3">
             <Badge
               variant="blue"
-              className="h-9 w-full justify-start px-3 text-[13px]"
+              className="h-9 w-full justify-start px-3 text-sm"
               aria-label="Cashier branch"
             >
               {cashierLoginBranch ?? 'Loading…'}

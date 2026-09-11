@@ -668,7 +668,7 @@ export function StatusAccountsContent({
       <Dialog open={isAccountModalOpen} onOpenChange={setIsAccountModalOpen}>
         <DialogContent className="flex h-[min(90vh,56rem)] max-h-[calc(100dvh-2rem)] w-[min(58rem,calc(100vw-2rem))] flex-col gap-0 overflow-hidden p-0">
           <DialogHeader className="shrink-0 border-b bg-muted/20 px-6 py-4 pr-12">
-            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
               Client record
             </p>
             <DialogTitle>All client information</DialogTitle>

@@ -328,7 +328,7 @@ function InstallmentTrendChart({
                   x={padding.left - 8}
                   y={yFor(tick) + 4}
                   textAnchor="end"
-                  className="fill-muted-foreground text-[11px]"
+                  className="fill-muted-foreground text-xs"
                 >
                   {tick}
                 </text>
@@ -380,7 +380,7 @@ function InstallmentTrendChart({
                 x={xFor(index)}
                 y={248}
                 textAnchor="middle"
-                className="fill-muted-foreground text-[11px]"
+                className="fill-muted-foreground text-xs"
               >
                 {points[index].label}
               </text>

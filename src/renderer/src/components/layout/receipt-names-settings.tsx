@@ -126,7 +126,7 @@ export function ReceiptNamesSettings(): React.JSX.Element {
         </p>
       )}
       <div className="overflow-hidden rounded-lg border">
-        <div className="grid grid-cols-[minmax(0,1fr)_5rem_auto] gap-3 border-b bg-muted/40 px-3 py-2 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="grid grid-cols-[minmax(0,1fr)_5rem_auto] gap-3 border-b bg-muted/40 px-3 py-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
           <span>Name</span>
           <span>Label</span>
           <span className="sr-only">Action</span>

@@ -96,13 +96,13 @@ function ExceptionRow({
         </span>
         <Badge
           variant={label === 'Variance' ? 'amber' : 'outline'}
-          className="px-1.5 py-0 text-[10px]"
+          className="px-1.5 py-0 text-xs"
         >
           {label}
         </Badge>
       </div>
       <div className="mt-0.5 flex items-center justify-between gap-2 border-t border-border/50 pt-1.5 text-xs">
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {label === 'Variance' ? 'Variance' : 'Status'}
         </span>
         <span
@@ -114,13 +114,13 @@ function ExceptionRow({
           {label === 'Variance' ? varianceLabel(cashVarianceCentavos) : statusLabel(day.status)}
         </span>
       </div>
-      <div className="space-y-0.5 border-t border-border/50 pt-1.5 text-[10px] leading-tight text-muted-foreground">
+      <div className="space-y-0.5 border-t border-border/50 pt-1.5 text-xs leading-tight text-muted-foreground">
         <span className="block">Updated</span>
         <span className="block truncate text-right">{updatedLabel(day.updatedAt)}</span>
         <span className="block pt-0.5">By</span>
         <span className="block truncate text-right">{day.updatedByName || 'Unknown'}</span>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t border-border/50 pt-1.5 text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 border-t border-border/50 pt-1.5 text-xs text-muted-foreground">
         <span>{day.note ? 'Note added' : 'No note'}</span>
         <span className="truncate text-right">
           {formatCentavos(day.expectedCashCentavos)} expected ·{' '}
@@ -426,7 +426,7 @@ export function ReportDateDialog({
               </div>
             ) : (
               <div className="min-w-0">
-                <div className="grid grid-cols-7 gap-2 text-center text-[11px] font-medium text-muted-foreground">
+                <div className="grid grid-cols-7 gap-2 text-center text-xs font-medium text-muted-foreground">
                   {weekDays.map((day) => (
                     <span key={day}>{day}</span>
                   ))}
@@ -486,7 +486,7 @@ export function ReportDateDialog({
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
               <Collapsible defaultOpen={Boolean(varianceDays.length)} className="space-y-1.5">
                 <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-sm border border-border/60 bg-background/70 px-2.5 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <span className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Variance
                   </span>
                   <ReuiBadge
@@ -521,7 +521,7 @@ export function ReportDateDialog({
               </Collapsible>
               <Collapsible defaultOpen={Boolean(unsubmittedDays.length)} className="space-y-1.5">
                 <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-sm border border-border/60 bg-background/70 px-2.5 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <span className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Not submitted
                   </span>
                   <ReuiBadge

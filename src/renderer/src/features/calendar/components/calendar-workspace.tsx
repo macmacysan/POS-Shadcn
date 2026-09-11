@@ -123,7 +123,7 @@ export function CalendarWorkspace({
     <main className="flex min-h-0 flex-1 overflow-hidden bg-background">
       <aside className="flex w-80 shrink-0 flex-col border-r bg-card">
         <div className="border-b px-5 py-4">
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             Tasks
           </p>
           <h1 className="mt-1 font-heading text-lg font-light">Calendar tasks</h1>
@@ -134,7 +134,7 @@ export function CalendarWorkspace({
             <CaretDownIcon className="ml-auto size-4 transition-transform group-data-[panel-open]/collapsible:rotate-180" />
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="grid grid-cols-[1.1fr_0.8fr_0.6fr_0.5fr] gap-2 border-b px-5 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <div className="grid grid-cols-[1.1fr_0.8fr_0.6fr_0.5fr] gap-2 border-b px-5 py-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               <span>Date</span>
               <span>Type</span>
               <span>Branch</span>
@@ -207,7 +207,7 @@ export function CalendarWorkspace({
             </Button>
           </div>
         </header>
-        <div className="grid grid-cols-7 border-b text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <div className="grid grid-cols-7 border-b text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
             <div key={day} className="py-2">
               {day}
@@ -242,7 +242,7 @@ export function CalendarWorkspace({
                         <Badge variant={typeVariants[task.type]} size="xs">
                           {task.type}
                         </Badge>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {branchCodeByName[task.branch]} · {initials(task.cashierName)}
                         </span>
                       </div>

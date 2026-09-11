@@ -1589,7 +1589,7 @@ export function AccountRecordsWorkspace({
                       variant={activeStatusBadgeVariant[value]}
                       size="sm"
                       radius="full"
-                      className="absolute -top-1.5 -right-2 px-1 text-white"
+                      className="absolute -top-1.5 -right-2 px-1"
                       aria-hidden="true"
                     >
                       {activeStatusCounts[value]}

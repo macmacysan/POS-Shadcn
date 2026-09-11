@@ -169,7 +169,7 @@ export function SidebarLeft({
       <Dialog open={isSettingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="h-[min(46rem,calc(100dvh-3rem))] max-h-[calc(100dvh-3rem)] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
           <DialogHeader className="shrink-0 px-8 py-7 pr-14">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
               <Settings2Icon aria-hidden="true" />
               Workspace controls
             </div>
@@ -189,7 +189,7 @@ export function SidebarLeft({
               variant="line"
               className="h-full w-52 shrink-0 items-stretch gap-1 rounded-none bg-muted/20 px-4 py-6"
             >
-              <p className="px-3 pb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="px-3 pb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
                 Settings
               </p>
               <TabsTrigger value="workspace" className="h-auto flex-none px-3 py-2.5 text-left">

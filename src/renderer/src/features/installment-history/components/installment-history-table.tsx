@@ -46,6 +46,8 @@ type InstallmentHistoryTableProps = {
   globalSearch?: string
   onGlobalSearchChange?: (value: string) => void
   onVisibleRecordCountChange?: (count: number) => void
+  afterFiltersContent?: React.ReactNode
+  trailingToolbarContent?: React.ReactNode
   onVoidSelected: (records: InstallmentHistoryRecord[], reason: string) => Promise<void>
 }
 
@@ -133,6 +135,8 @@ export function InstallmentHistoryTable({
   globalSearch,
   onGlobalSearchChange,
   onVisibleRecordCountChange,
+  afterFiltersContent,
+  trailingToolbarContent,
   onVoidSelected
 }: InstallmentHistoryTableProps): React.JSX.Element {
   const [search, setSearch] = React.useState('')
@@ -405,7 +409,7 @@ export function InstallmentHistoryTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <TableToolbar className="flex-wrap gap-3 border-b-0 bg-transparent px-4 py-3">
+      <TableToolbar className="-mt-14 ml-auto w-fit max-w-full flex-nowrap gap-3 border-b-0 bg-transparent px-4 py-3">
         <InputGroup className="h-8 w-56 shrink-0 rounded-md">
           <InputGroupInput
             className="h-7"
@@ -428,6 +432,8 @@ export function InstallmentHistoryTable({
           onChange={handleFiltersChange}
           className="shrink-0"
         />
+        {afterFiltersContent}
+        {trailingToolbarContent}
         {Object.keys(rowSelection).length > 0 && (
           <Button
             type="button"

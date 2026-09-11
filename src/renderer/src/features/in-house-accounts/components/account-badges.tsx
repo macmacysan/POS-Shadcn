@@ -45,7 +45,7 @@ export const AccountStatusBadge = React.memo(function AccountStatusBadge({
         status === 'blacklisted'
           ? 'destructive'
           : status === 'overdue'
-            ? 'orange'
+            ? 'amber'
             : status === 'fully-paid'
               ? 'emerald'
               : status === 'due-today' || status === 'due-soon'

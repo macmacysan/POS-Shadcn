@@ -376,7 +376,7 @@ function createdByInitials(name: string): string {
 
 function CreatedByBadge({ name }: { name: string }): React.JSX.Element {
   return (
-    <Badge variant="secondary" className="h-5 px-1 text-[10px] leading-none" aria-label={name}>
+    <Badge variant="secondary" className="h-5 px-1 text-xs leading-none" aria-label={name}>
       {createdByInitials(name)}
     </Badge>
   )
@@ -520,7 +520,7 @@ function InstallmentAttentionPopover({
         </div>
         {summary.overdueCount > 0 && (
           <section aria-label="Overdue installments">
-            <div className="mb-1 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.12em]">
+            <div className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-widest">
               <span className="text-destructive">Overdue</span>
               <span className="text-muted-foreground">{summary.overdueCount} accounts</span>
             </div>
@@ -530,7 +530,7 @@ function InstallmentAttentionPopover({
         {summary.overdueCount > 0 && summary.nearDueCount > 0 && <Separator />}
         {summary.nearDueCount > 0 && (
           <section aria-label="Installments near due">
-            <div className="mb-1 flex items-center justify-between gap-3 text-[10px] font-semibold uppercase tracking-[0.12em]">
+            <div className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-widest">
               <span className="text-warning-foreground">Near due</span>
               <span className="text-muted-foreground">{summary.nearDueCount} accounts</span>
             </div>
@@ -659,7 +659,7 @@ function TruncatedText({
 function ExpenseCategoryCell({ category }: { category: string }): React.JSX.Element {
   const fallbackLabel = category.trim() || 'Unknown'
   const label = expenseCategoryConfigByValue.get(category)?.shortLabel ?? fallbackLabel
-  return <TruncatedText value={label} className="text-[13px] text-muted-foreground" />
+  return <TruncatedText value={label} className="text-sm text-muted-foreground" />
 }
 
 const expenseColumns: ReportColumn<ExpenseRow>[] = [
@@ -1126,7 +1126,9 @@ function ReportTab({
   onVisibleHistoryCountChange,
   isAdmin,
   showVoided,
-  onShowVoidedChange
+  onShowVoidedChange,
+  afterFiltersContent,
+  trailingToolbarContent
 }: {
   tab: (typeof reportTabs)[number]
   isCompact: boolean
@@ -1161,6 +1163,8 @@ function ReportTab({
   isAdmin: boolean
   showVoided: boolean
   onShowVoidedChange: (value: boolean) => void
+  afterFiltersContent?: React.ReactNode
+  trailingToolbarContent?: React.ReactNode
 }): React.JSX.Element {
   const expenseAddedByOptions = React.useMemo(
     () => uniqueSorted(expenseRows.map((row) => row.createdByName)),
@@ -1272,6 +1276,8 @@ function ReportTab({
           onDefaultAction={isAdmin ? undefined : onExpenseDefaultAction}
           serverState={expenseQuery}
           filterOptions={expenseFilterOptions}
+          afterFiltersContent={afterFiltersContent}
+          trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
             <>
               {isAdmin && (
@@ -1312,6 +1318,8 @@ function ReportTab({
             date: uniqueSorted(incomeRows.map((row) => row.date)),
             createdByName: incomeAddedByOptions
           }}
+          afterFiltersContent={afterFiltersContent}
+          trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
             <>
               {isAdmin && (
@@ -1353,6 +1361,8 @@ function ReportTab({
             date: uniqueSorted(paymentRows.map((row) => row.date)),
             createdByName: paymentAddedByOptions
           }}
+          afterFiltersContent={afterFiltersContent}
+          trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
             <>
               {isAdmin && (
@@ -1389,6 +1399,8 @@ function ReportTab({
             dateTo={dateTo}
             globalSearch={globalFilter}
             onGlobalSearchChange={onGlobalFilterChange}
+            afterFiltersContent={afterFiltersContent}
+            trailingToolbarContent={trailingToolbarContent}
             onVisibleRecordCountChange={onVisibleHistoryCountChange}
             selectedId={selectedHistoryId}
             onSelect={onSelectHistory}
@@ -2654,7 +2666,7 @@ export function CashierReportsContent({
                         {tabRowCounts[tab] > 0 && (
                           <Badge
                             variant="secondary"
-                            className="min-w-5 justify-center rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
+                            className="min-w-5 justify-center rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
                           >
                             {tabRowCounts[tab]}
                           </Badge>
@@ -2663,51 +2675,14 @@ export function CashierReportsContent({
                     ))}
                   </TabsList>
                 </div>
-                <CashierReportHeader
-                  error={dateError ?? exportError}
-                  actions={
-                    <div className="flex shrink-0 items-center gap-2">
-                      <InstallmentAttentionPopover
-                        summary={installmentAttention}
-                        onViewOverdue={onViewOverdueInstallments}
-                        onViewAll={onViewInstallmentAccounts}
-                        onOpenAccount={onOpenInstallmentAccount}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          void reviewPdf(undefined, {
-                            branch: selectedBranch,
-                            dateFrom: selectedReport.businessDate,
-                            dateTo: selectedReport.businessDate
-                          })
-                        }
-                      >
-                        <FileDown data-icon="inline-start" aria-hidden="true" />
-                        <span className="hidden sm:inline">Review Report</span>
-                        <span className="sm:hidden">Review</span>
-                      </Button>
-                      {!isAdmin && (
-                        <Button type="button" size="sm" onClick={toggleEntryForm}>
-                          <Plus data-icon="inline-start" aria-hidden="true" />
-                          <span className="hidden sm:inline">
-                            {isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
-                          </span>
-                          <span className="sm:hidden">{isEntryFormVisible ? 'Hide' : 'Add'}</span>
-                        </Button>
-                      )}
-                    </div>
-                  }
-                />
+                <CashierReportHeader error={dateError ?? exportError} />
               </div>
-              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="flex min-h-0 flex-1 flex-col overflow-visible">
                 {reportTabs.map((tab) => (
                   <TabsContent
                     key={tab}
                     value={tab}
-                    className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                    className="flex min-h-0 flex-1 flex-col overflow-visible"
                   >
                     <ReportTab
                       isCompact={isEntryFormCompact}
@@ -2736,6 +2711,43 @@ export function CashierReportsContent({
                       isAdmin={isAdmin}
                       showVoided={showVoided}
                       onShowVoidedChange={setShowVoided}
+                      afterFiltersContent={
+                        <InstallmentAttentionPopover
+                          summary={installmentAttention}
+                          onViewOverdue={onViewOverdueInstallments}
+                          onViewAll={onViewInstallmentAccounts}
+                          onOpenAccount={onOpenInstallmentAccount}
+                        />
+                      }
+                      trailingToolbarContent={
+                        <>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              void reviewPdf(undefined, {
+                                branch: selectedBranch,
+                                dateFrom: selectedReport.businessDate,
+                                dateTo: selectedReport.businessDate
+                              })
+                            }
+                          >
+                            <FileDown data-icon="inline-start" aria-hidden="true" />
+                            <span className="hidden sm:inline">Review Report</span>
+                            <span className="sm:hidden">Review</span>
+                          </Button>
+                          {!isAdmin && (
+                            <Button type="button" size="sm" onClick={toggleEntryForm}>
+                              <Plus data-icon="inline-start" aria-hidden="true" />
+                              <span className="hidden sm:inline">
+                                {isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
+                              </span>
+                              <span className="sm:hidden">{isEntryFormVisible ? 'Hide' : 'Add'}</span>
+                            </Button>
+                          )}
+                        </>
+                      }
                       selectedHistoryId={selectedHistory?.id}
                       onSelectHistory={openHistoryRecord}
                       onVoidSelected={deleteSelectedEntries}
@@ -3203,7 +3215,7 @@ export function CashierReportsContent({
               className="flex min-h-0 flex-col bg-muted/30 p-3 sm:p-4 lg:border-r"
               aria-label="PDF preview"
             >
-              <div className="flex items-center justify-between px-1 pb-2.5 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              <div className="flex items-center justify-between px-1 pb-2.5 text-xs font-medium uppercase tracking-widest text-muted-foreground">
                 <span>PDF preview</span>
                 <span>Final document</span>
               </div>
@@ -3224,7 +3236,7 @@ export function CashierReportsContent({
                       Add context before delivery.
                     </p>
                   </div>
-                  <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                     Optional
                   </span>
                 </div>
@@ -3300,7 +3312,7 @@ export function CashierReportsContent({
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Delivery checklist
                   </p>
                   <p className="text-xs text-muted-foreground">Print from preview</p>

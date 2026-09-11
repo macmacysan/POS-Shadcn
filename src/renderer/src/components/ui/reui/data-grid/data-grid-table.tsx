@@ -660,7 +660,7 @@ function DataGridTableHeadRowCell<TData>({
       data-outer-pinned-col={isFirstLeftPinned ? 'left' : isLastRightPinned ? 'right' : undefined}
       data-last-col={isLastLeftPinned ? 'left' : isFirstRightPinned ? 'right' : undefined}
       className={cn(
-        'relative text-left align-middle text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground rtl:text-right [&:has([role=checkbox])]:pe-0',
+        'relative text-left align-middle text-xs font-medium uppercase tracking-widest text-muted-foreground rtl:text-right [&:has([role=checkbox])]:pe-0',
         headerCellSpacing,
         props.tableLayout?.headerBackground && 'bg-muted',
         props.tableLayout?.cellBorder && 'border-e',
@@ -1017,8 +1017,8 @@ function DataGridTableBodyRow<TData>({
         props.tableLayout?.stripped && 'odd:bg-muted/90 odd:hover:bg-muted hover:bg-transparent',
         table.options.enableRowSelection && '*:first:relative',
         props.tableLayout?.rowsPinnable && isRowPinned && 'bg-muted/30 hover:bg-muted/50',
-        pinnedBoundary === 'top' && '[&>td]:shadow-[0_2px_0_rgba(0,0,0,0.03)]',
-        pinnedBoundary === 'bottom' && '[&>td]:shadow-[0_2px_0_rgba(0,0,0,0.03)]',
+        pinnedBoundary === 'top' && '[&>td]:shadow-[0_2px_0_var(--border)]',
+        pinnedBoundary === 'bottom' && '[&>td]:shadow-[0_2px_0_var(--border)]',
         props.tableClassNames?.bodyRow
       )}
     >

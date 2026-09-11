@@ -27,7 +27,7 @@ export function KpiCard({
       <CardHeader className="gap-0 px-3 pb-0 pt-2.5">
         <CardTitle
           className={cn(
-            'truncate text-[11px] font-medium uppercase leading-none tracking-wide text-muted-foreground',
+            'truncate text-xs font-medium uppercase leading-none tracking-wide text-muted-foreground',
             emphasis && 'text-primary-foreground/80'
           )}
         >

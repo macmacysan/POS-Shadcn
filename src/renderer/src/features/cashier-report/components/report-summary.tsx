@@ -177,7 +177,7 @@ function Section({
   return (
     <section className={cn('border-b border-border/50 py-2 last:border-b-0', className)}>
       {label && (
-        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {label}
         </p>
       )}
@@ -222,7 +222,7 @@ function SummaryRow({
       </span>
       <span
         className={cn(
-          'shrink-0 font-mono text-[11px] tabular-nums',
+          'shrink-0 font-mono text-xs tabular-nums',
           emphasis && 'font-semibold',
           valueMuted ? 'text-muted-foreground' : emphasis && 'text-foreground'
         )}
@@ -797,7 +797,7 @@ export const ReportSummary = React.memo(function ReportSummary({
             </div>
             </div>
           <div className="ml-auto flex items-center gap-1.5">
-            <span className="text-[10px] text-muted-foreground" aria-live="polite">
+            <span className="text-xs text-muted-foreground" aria-live="polite">
               {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
             </span>
           </div>
@@ -827,7 +827,7 @@ export const ReportSummary = React.memo(function ReportSummary({
           <div className="px-2.5">
             {visibleReceiptTypes.length > 0 && (
               <Section label="" className="border-b-0">
-                <div className="grid grid-cols-[minmax(0,1fr)_3.04rem_5.12rem] gap-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                <div className="grid grid-cols-[minmax(0,1fr)_3.04rem_5.12rem] gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   <span>Type</span>
                   <span className="text-right">Qty</span>
                   <span className="text-right">Amount</span>
@@ -844,7 +844,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger
-                            render={<span className="min-w-0 line-clamp-2 text-[11px] leading-tight text-muted-foreground" />}
+                            render={<span className="min-w-0 line-clamp-2 text-xs leading-tight text-muted-foreground" />}
                           >
                             {receiptTypeSummaryName(type.name, type.shortName, type.isSystem)}
                             {!isToday && ` · ${type.isActive ? 'Frozen' : 'Archived'}`}
@@ -856,7 +856,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                         aria-label={`${type.name} quantity`}
                         aria-invalid={hasAmount && !hasQuantity}
                         className={cn(
-                          'h-7 min-w-0 rounded-none border-x-0 border-t-0 border-b border-border/70 px-1.5 text-right text-[11px] font-mono tabular-nums',
+                          'h-7 min-w-0 rounded-none border-x-0 border-t-0 border-b border-border/70 px-1.5 text-right text-xs font-mono tabular-nums',
                           hasAmount &&
                             !hasQuantity &&
                             'border-destructive focus-visible:ring-destructive/40'
@@ -878,7 +878,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                         value={value?.amountCentavos ?? 0}
                         invalid={hasQuantity && !hasAmount}
                         inputClassName={cn(
-                          'text-[11px] font-mono',
+                          'text-xs font-mono',
                           hasQuantity &&
                             !hasAmount &&
                             'border-destructive focus-visible:ring-destructive/40'
@@ -1074,12 +1074,12 @@ export const ReportSummary = React.memo(function ReportSummary({
               className={cn('absolute inset-y-0 left-0 w-0.5', variancePresentation.railClassName)}
             />
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Cash variance
               </span>
               <span
                 className={cn(
-                  'text-[10px] font-semibold uppercase tracking-[0.08em]',
+                  'text-xs font-semibold uppercase tracking-widest',
                   variancePresentation.stateClassName
                 )}
               >
@@ -1090,11 +1090,11 @@ export const ReportSummary = React.memo(function ReportSummary({
               <span className="font-mono text-lg font-semibold tracking-tight tabular-nums">
                 {money(Math.abs(variance))}
               </span>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {variance === 0 ? 'No difference' : variance > 0 ? 'Counted over' : 'Counted short'}
               </span>
             </div>
-            <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+            <p className="mt-1 text-xs leading-4 text-muted-foreground">
               {variancePresentation.detail}
             </p>
           </section>
