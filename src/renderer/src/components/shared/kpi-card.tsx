@@ -19,7 +19,7 @@ export function KpiCard({
   return (
     <Card
       className={cn(
-        'h-full min-w-0 rounded-md border-border/70 bg-muted/30 py-0 shadow-none',
+        'h-full min-w-0 rounded-md border-border bg-muted/30 py-0 shadow-sm',
         emphasis && 'border-primary bg-primary text-primary-foreground',
         className
       )}

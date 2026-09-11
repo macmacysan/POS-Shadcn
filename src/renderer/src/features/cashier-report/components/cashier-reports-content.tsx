@@ -45,6 +45,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ReportDataTable,
@@ -1397,8 +1398,6 @@ function ReportTab({
             selectedBranch={selectedBranch}
             dateFrom={dateFrom}
             dateTo={dateTo}
-            globalSearch={globalFilter}
-            onGlobalSearchChange={onGlobalFilterChange}
             afterFiltersContent={afterFiltersContent}
             trailingToolbarContent={trailingToolbarContent}
             onVisibleRecordCountChange={onVisibleHistoryCountChange}
@@ -1644,7 +1643,7 @@ export function CashierReportsContent({
 }): React.JSX.Element {
   const { notify } = useNotifications()
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(initialTab)
-  const [hoveredTab, setHoveredTab] = React.useState<(typeof reportTabs)[number]>()
+
   const activeReportValue = useActiveReport()
   const hasActiveReport = activeReportValue !== null
   const activeReport = activeReportValue ?? {
@@ -2585,7 +2584,7 @@ export function CashierReportsContent({
   }
 
   const selectTab = (nextTab: (typeof reportTabs)[number]): void => {
-    setHoveredTab(undefined)
+
     if (nextTab !== activeTab && isEntryFormVisible && isEntryFormDirty) {
       setConfirmation({
         title: 'Discard unsaved entry changes?',
@@ -2641,150 +2640,154 @@ export function CashierReportsContent({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-workspace">
         <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <Tabs
-              value={hoveredTab ?? activeTab}
-              onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
-              className="flex min-h-0 flex-1 flex-col gap-0"
-            >
-              <div className="mx-4 flex shrink-0 items-center">
-                <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <TabsList
-                    aria-label="Cashier report sections"
-                    variant="line"
-                    onMouseLeave={() => setHoveredTab(undefined)}
-                    className="mb-3.5 w-fit justify-start rounded-none bg-transparent pb-0"
-                  >
+            <Card className="min-h-0 min-w-0 flex-1 gap-0 overflow-visible py-2">
+              <CardContent className="flex min-h-0 flex-1 flex-col pl-0 pr-0 pt-2 pb-2">
+                <Tabs
+                  value={activeTab}
+                  onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
+                  className="flex min-h-0 flex-1 flex-col gap-0"
+                >
+                  <div className="mx-4 flex shrink-0 items-center">
+                    <div className="min-w-0 flex-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
+                      <TabsList
+                        aria-label="Cashier report sections"
+                        className="mb-2 h-10 w-fit justify-start bg-muted"
+                      >
+                        {reportTabs.map((tab) => (
+                          <TabsTrigger
+                            key={tab}
+                            value={tab}
+                            className="flex-none gap-1.5 px-3 text-xs"
+                          >
+                            <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
+                            {tabRowCounts[tab] > 0 && (
+                              <Badge
+                                variant="secondary"
+                                className="size-5 shrink-0 justify-center rounded-full bg-muted p-0 text-[11px] tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
+                              >
+                                {tabRowCounts[tab]}
+                              </Badge>
+                            )}
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                    </div>
+                    <CashierReportHeader error={dateError ?? exportError} />
+                  </div>
+                  <div className="flex min-h-0 flex-1 flex-col overflow-visible">
                     {reportTabs.map((tab) => (
-                      <TabsTrigger
+                      <TabsContent
                         key={tab}
                         value={tab}
-                        onMouseEnter={() => setHoveredTab(tab)}
-                        onClick={() => selectTab(tab)}
-                        className="h-10 flex-none gap-2 rounded-none px-3.5 text-xs data-active:font-semibold data-active:text-foreground group-data-[variant=line]/tabs-list:data-active:after:bg-muted-foreground/60"
+                        className="flex min-h-0 flex-1 flex-col overflow-visible"
                       >
-                        <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
-                        {tabRowCounts[tab] > 0 && (
-                          <Badge
-                            variant="secondary"
-                            className="min-w-5 justify-center rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
-                          >
-                            {tabRowCounts[tab]}
-                          </Badge>
-                        )}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </div>
-                <CashierReportHeader error={dateError ?? exportError} />
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col overflow-visible">
-                {reportTabs.map((tab) => (
-                  <TabsContent
-                    key={tab}
-                    value={tab}
-                    className="flex min-h-0 flex-1 flex-col overflow-visible"
-                  >
-                    <ReportTab
-                      isCompact={isEntryFormCompact}
-                      tab={tab}
-                      showBranch={selectedBranch === 'All Branch'}
-                      globalFilter={reportSearch}
-                      onGlobalFilterChange={(value) => {
-                        setReportSearch(value)
-                        expenseQuery.onGlobalFilterChange(value)
-                      }}
-                      selectedBranch={selectedBranch}
-                      dateFrom={dateFrom}
-                      dateTo={dateTo}
-                      expenseRows={expenseQuery.rows}
-                      incomeRows={incomes}
-                      paymentRows={payments}
-                      expenseTypes={activeExpenseTypes}
-                      paymentTypes={activePaymentTypes}
-                      expenseQuery={expenseQuery}
-                      onVoidSelectedExpenses={isAdmin ? async () => false : deleteSelectedExpenses}
-                      onView={openEntryView}
-                      onVoid={isAdmin ? () => undefined : requestVoid}
-                      onDuplicate={
-                        isAdmin ? () => undefined : (row) => startEntryForm(row, 'duplicate')
-                      }
-                      isAdmin={isAdmin}
-                      showVoided={showVoided}
-                      onShowVoidedChange={setShowVoided}
-                      afterFiltersContent={
-                        <InstallmentAttentionPopover
-                          summary={installmentAttention}
-                          onViewOverdue={onViewOverdueInstallments}
-                          onViewAll={onViewInstallmentAccounts}
-                          onOpenAccount={onOpenInstallmentAccount}
-                        />
-                      }
-                      trailingToolbarContent={
-                        <>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              void reviewPdf(undefined, {
-                                branch: selectedBranch,
-                                dateFrom: selectedReport.businessDate,
-                                dateTo: selectedReport.businessDate
+                        <ReportTab
+                          isCompact={isEntryFormCompact}
+                          tab={tab}
+                          showBranch={selectedBranch === 'All Branch'}
+                          globalFilter={reportSearch}
+                          onGlobalFilterChange={(value) => {
+                            setReportSearch(value)
+                            expenseQuery.onGlobalFilterChange(value)
+                          }}
+                          selectedBranch={selectedBranch}
+                          dateFrom={dateFrom}
+                          dateTo={dateTo}
+                          expenseRows={expenseQuery.rows}
+                          incomeRows={incomes}
+                          paymentRows={payments}
+                          expenseTypes={activeExpenseTypes}
+                          paymentTypes={activePaymentTypes}
+                          expenseQuery={expenseQuery}
+                          onVoidSelectedExpenses={
+                            isAdmin ? async () => false : deleteSelectedExpenses
+                          }
+                          onView={openEntryView}
+                          onVoid={isAdmin ? () => undefined : requestVoid}
+                          onDuplicate={
+                            isAdmin ? () => undefined : (row) => startEntryForm(row, 'duplicate')
+                          }
+                          isAdmin={isAdmin}
+                          showVoided={showVoided}
+                          onShowVoidedChange={setShowVoided}
+                          afterFiltersContent={
+                            <InstallmentAttentionPopover
+                              summary={installmentAttention}
+                              onViewOverdue={onViewOverdueInstallments}
+                              onViewAll={onViewInstallmentAccounts}
+                              onOpenAccount={onOpenInstallmentAccount}
+                            />
+                          }
+                          trailingToolbarContent={
+                            <>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  void reviewPdf(undefined, {
+                                    branch: selectedBranch,
+                                    dateFrom: selectedReport.businessDate,
+                                    dateTo: selectedReport.businessDate
+                                  })
+                                }
+                              >
+                                <FileDown data-icon="inline-start" aria-hidden="true" />
+                                <span className="hidden sm:inline">Review Report</span>
+                                <span className="sm:hidden">Review</span>
+                              </Button>
+                              {!isAdmin && (
+                                <Button type="button" size="sm" onClick={toggleEntryForm}>
+                                  <Plus data-icon="inline-start" aria-hidden="true" />
+                                  <span className="hidden sm:inline">
+                                    {isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
+                                  </span>
+                                  <span className="sm:hidden">
+                                    {isEntryFormVisible ? 'Hide' : 'Add'}
+                                  </span>
+                                </Button>
+                              )}
+                            </>
+                          }
+                          selectedHistoryId={selectedHistory?.id}
+                          onSelectHistory={openHistoryRecord}
+                          onVoidSelected={deleteSelectedEntries}
+                          onVoidSelectedHistory={async (rows, reason) => {
+                            const payments = rows.filter((row) =>
+                              row.activity.toLowerCase().includes('payment')
+                            )
+                            const contracts = rows
+                              .filter((row) => row.activity === 'Installment record added')
+                              .map((row) => row.id.split(':', 1)[0])
+                            if (payments.length) {
+                              await window.api.installments.voidPayments({
+                                paymentIds: payments.map((row) => row.id),
+                                reason
                               })
                             }
-                          >
-                            <FileDown data-icon="inline-start" aria-hidden="true" />
-                            <span className="hidden sm:inline">Review Report</span>
-                            <span className="sm:hidden">Review</span>
-                          </Button>
-                          {!isAdmin && (
-                            <Button type="button" size="sm" onClick={toggleEntryForm}>
-                              <Plus data-icon="inline-start" aria-hidden="true" />
-                              <span className="hidden sm:inline">
-                                {isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
-                              </span>
-                              <span className="sm:hidden">{isEntryFormVisible ? 'Hide' : 'Add'}</span>
-                            </Button>
-                          )}
-                        </>
-                      }
-                      selectedHistoryId={selectedHistory?.id}
-                      onSelectHistory={openHistoryRecord}
-                      onVoidSelected={deleteSelectedEntries}
-                      onVoidSelectedHistory={async (rows, reason) => {
-                        const payments = rows.filter((row) =>
-                          row.activity.toLowerCase().includes('payment')
-                        )
-                        const contracts = rows
-                          .filter((row) => row.activity === 'Installment record added')
-                          .map((row) => row.id.split(':', 1)[0])
-                        if (payments.length) {
-                          await window.api.installments.voidPayments({
-                            paymentIds: payments.map((row) => row.id),
-                            reason
-                          })
-                        }
-                        if (contracts.length) {
-                          await window.api.installments.void({
-                            contractIds: contracts,
-                            reason
-                          })
-                        }
-                        setHistoryRefreshKey((key) => key + 1)
-                      }}
-                      onEdit={(row) => startEntryForm(row, 'edit')}
-                      incomeLoadState={incomeLoadState}
-                      paymentLoadState={paymentLoadState}
-                      onRetryEntries={() => void refreshEntries()}
-                      historyRecords={historyRecords}
-                      historyLoadState={historyLoadState}
-                      onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
-                      onVisibleHistoryCountChange={setVisibleHistoryCount}
-                    />
-                  </TabsContent>
-                ))}
-              </div>
-            </Tabs>
+                            if (contracts.length) {
+                              await window.api.installments.void({
+                                contractIds: contracts,
+                                reason
+                              })
+                            }
+                            setHistoryRefreshKey((key) => key + 1)
+                          }}
+                          onEdit={(row) => startEntryForm(row, 'edit')}
+                          incomeLoadState={incomeLoadState}
+                          paymentLoadState={paymentLoadState}
+                          onRetryEntries={() => void refreshEntries()}
+                          historyRecords={historyRecords}
+                          historyLoadState={historyLoadState}
+                          onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
+                          onVisibleHistoryCountChange={setVisibleHistoryCount}
+                        />
+                      </TabsContent>
+                    ))}
+                  </div>
+                </Tabs>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

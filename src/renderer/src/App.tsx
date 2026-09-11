@@ -339,7 +339,7 @@ function Workspace({
   return (
     <SidebarProvider
       defaultOpen={false}
-      className="sidebar-always-dark h-full min-h-0 overflow-hidden bg-sidebar"
+      className="h-full min-h-0 overflow-hidden bg-sidebar"
     >
       <SidebarLeft
         isDark={isDark}
@@ -365,7 +365,7 @@ function Workspace({
         settingsOnly={isAdmin}
         openSettingsOnMount={isAdmin}
       />
-      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden bg-sidebar">
         <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-background px-2 pr-24">
           <SidebarTrigger />
           <span aria-hidden="true" className="h-4 w-px bg-border" />

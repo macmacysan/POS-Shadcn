@@ -122,7 +122,6 @@ export function SidebarLeft({
   return (
     <Sidebar
       {...props}
-      className="dark sidebar-always-dark"
       variant="inset"
       collapsible="icon"
       onPointerEnter={(event) => {

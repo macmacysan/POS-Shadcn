@@ -292,7 +292,7 @@ export function ReportDataTable<TData extends ReportRow>({
 
       <div
         className={cn(
-          'mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border/70 bg-card'
+          'mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card'
         )}
       >
         <UniversalDataTable

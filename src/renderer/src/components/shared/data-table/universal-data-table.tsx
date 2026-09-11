@@ -95,7 +95,7 @@ function TableColumnHeader<TData>({
       type="button"
       variant="ghost"
       size="sm"
-      className="group/header -ml-2 h-5 px-2 text-xs font-normal"
+      className="group/header -ml-2 h-5 px-2 text-xs font-normal shadow-none hover:shadow-none"
       onClick={() => column.toggleSorting(isSorted === 'asc')}
       disabled={isLoading || table.getRowModel().rows.length === 0}
       aria-label={`Sort ${label}`}

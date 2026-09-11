@@ -272,7 +272,7 @@ function InstallmentTrendChart({
   const totalFinance = points.reduce((total, point) => total + point.finance, 0)
 
   return (
-    <Frame variant="inverse" spacing="sm" className="min-w-0">
+    <Frame variant="inverse" spacing="sm" className="min-w-0 shadow-sm">
       <FramePanel>
         <FrameHeader className="flex-row flex-wrap items-start justify-between gap-4">
           <div className="flex flex-col gap-1">

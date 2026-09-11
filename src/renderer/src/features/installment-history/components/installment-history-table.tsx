@@ -7,10 +7,9 @@ import {
   type ColumnDef,
   type SortingState
 } from '@tanstack/react-table'
-import { Search, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   createRowActionsColumn,
@@ -43,8 +42,6 @@ type InstallmentHistoryTableProps = {
   selectedBranch?: string
   dateFrom?: string
   dateTo?: string
-  globalSearch?: string
-  onGlobalSearchChange?: (value: string) => void
   onVisibleRecordCountChange?: (count: number) => void
   afterFiltersContent?: React.ReactNode
   trailingToolbarContent?: React.ReactNode
@@ -132,15 +129,11 @@ export function InstallmentHistoryTable({
   selectedBranch = 'All Branch',
   dateFrom,
   dateTo,
-  globalSearch,
-  onGlobalSearchChange,
   onVisibleRecordCountChange,
   afterFiltersContent,
   trailingToolbarContent,
   onVoidSelected
 }: InstallmentHistoryTableProps): React.JSX.Element {
-  const [search, setSearch] = React.useState('')
-  const searchValue = globalSearch ?? search
   const [action, setAction] = React.useState<string>('all')
   const [branch, setBranch] = React.useState(selectedBranch)
   const [source, setSource] = React.useState<InstallmentHistorySource | 'all'>('all')
@@ -223,7 +216,6 @@ export function InstallmentHistoryTable({
   )
 
   const visibleRecords = React.useMemo(() => {
-    const query = searchValue.trim().toLowerCase()
     return records
       .filter((record) => action === 'all' || historyActionLabel(record) === action)
       .filter((record) => source === 'all' || record.source === source)
@@ -231,14 +223,7 @@ export function InstallmentHistoryTable({
       .filter((record) => date === 'all' || record.occurredAt.slice(0, 10) === date)
       .filter((record) => !dateFrom || record.occurredAt.slice(0, 10) >= dateFrom)
       .filter((record) => !dateTo || record.occurredAt.slice(0, 10) <= dateTo)
-      .filter(
-        (record) =>
-          !query ||
-          `${record.accountName} ${record.activity} ${record.reference ?? ''} ${sourceLabels[record.source]} ${historyActionLabel(record)} ${record.amount} ${record.balance} ${record.penaltyCentavos} ${record.occurredAt}`
-            .toLowerCase()
-            .includes(query)
-      )
-  }, [action, date, dateFrom, dateTo, records, searchValue, branch, source])
+  }, [action, date, dateFrom, dateTo, records, branch, source])
 
   React.useEffect(() => {
     onVisibleRecordCountChange?.(visibleRecords.length)
@@ -410,22 +395,6 @@ export function InstallmentHistoryTable({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <TableToolbar className="-mt-14 ml-auto w-fit max-w-full flex-nowrap gap-3 border-b-0 bg-transparent px-4 py-3">
-        <InputGroup className="h-8 w-56 shrink-0 rounded-md">
-          <InputGroupInput
-            className="h-7"
-            value={searchValue}
-            onChange={(event) => {
-              const next = event.target.value
-              setSearch(next)
-              onGlobalSearchChange?.(next)
-            }}
-            placeholder="Search history..."
-            aria-label="Search installment history"
-          />
-          <InputGroupAddon align="inline-start">
-            <Search aria-hidden="true" />
-          </InputGroupAddon>
-        </InputGroup>
         <ShadcnTableFilters
           filters={filters}
           fields={filterFields}
