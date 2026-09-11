@@ -489,6 +489,8 @@ function InstallmentAttentionPopover({
             size="sm"
             className="min-w-0 shrink-0 gap-1.5 border-border/70 bg-background px-2.5"
             aria-label="Open installment attention"
+            onPointerEnter={() => setOpen(true)}
+            onClick={summary.overdueCount > 0 ? () => closeAnd(onViewOverdue) : undefined}
           />
         }
       >
@@ -1642,6 +1644,7 @@ export function CashierReportsContent({
 }): React.JSX.Element {
   const { notify } = useNotifications()
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(initialTab)
+  const [hoveredTab, setHoveredTab] = React.useState<(typeof reportTabs)[number]>()
 
   const activeReportValue = useActiveReport()
   const hasActiveReport = activeReportValue !== null
@@ -2608,12 +2611,12 @@ export function CashierReportsContent({
     <div
       className={
         isSummaryCompact
-          ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden bg-workspace p-3'
-          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(220px,252px)_minmax(0,1fr)] gap-4 overflow-hidden bg-workspace p-3'
+          ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden bg-workspace p-4'
+          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(220px,252px)_minmax(0,1fr)] gap-5 overflow-hidden bg-workspace p-4'
       }
     >
       {!isSummaryCompact && (
-        <div className="-my-3 -ml-3 flex min-h-0 min-w-0 flex-col bg-card">
+        <div className="-my-4 -ml-4 flex min-h-0 min-w-0 flex-col bg-card">
           <ReportSummary
             key={reportId}
             refreshKey={summaryRefreshKey}
@@ -2642,7 +2645,7 @@ export function CashierReportsContent({
             <Card className="min-h-0 min-w-0 flex-1 gap-0 overflow-visible py-2">
               <CardContent className="flex min-h-0 flex-1 flex-col pl-0 pr-0 pt-2 pb-2">
                 <Tabs
-                  value={activeTab}
+                  value={hoveredTab ?? activeTab}
                   onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
                   className="flex min-h-0 flex-1 flex-col gap-0"
                 >
@@ -2651,12 +2654,15 @@ export function CashierReportsContent({
                       <TabsList
                         aria-label="Cashier report sections"
                         className="mb-2 h-10 w-fit justify-start bg-muted"
+                        onPointerLeave={() => setHoveredTab(undefined)}
                       >
                         {reportTabs.map((tab) => (
                           <TabsTrigger
                             key={tab}
                             value={tab}
                             className="flex-none gap-1.5 px-3 text-xs"
+                            onPointerEnter={() => setHoveredTab(tab)}
+                            onClick={() => selectTab(tab)}
                           >
                             <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
                             {tabRowCounts[tab] > 0 && (

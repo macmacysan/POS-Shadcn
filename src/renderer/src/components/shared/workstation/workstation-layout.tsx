@@ -33,7 +33,7 @@ export function WorkstationShell({
   return (
     <main
       className={cn(
-        'grid min-h-0 min-w-0 flex-1 gap-3 overflow-hidden bg-workspace p-3',
+        'grid min-h-0 min-w-0 flex-1 gap-4 overflow-hidden bg-workspace p-4',
         summary ? 'grid-cols-[minmax(14rem,18rem)_minmax(0,1fr)]' : 'grid-cols-1',
         className
       )}

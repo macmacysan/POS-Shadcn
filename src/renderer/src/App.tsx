@@ -338,7 +338,7 @@ function Workspace({
 
   return (
     <SidebarProvider
-      defaultOpen={false}
+      defaultOpen
       className="h-full min-h-0 overflow-hidden bg-sidebar"
     >
       <SidebarLeft
@@ -366,8 +366,8 @@ function Workspace({
         openSettingsOnMount={isAdmin}
       />
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden bg-sidebar">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-background px-2 pr-24">
-          <SidebarTrigger />
+        <div className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-6 pr-24">
+          <SidebarTrigger className="window-no-drag relative z-50 !shadow-none hover:!shadow-none" />
           <span aria-hidden="true" className="h-4 w-px bg-border" />
           <Breadcrumb>
             <BreadcrumbList>
