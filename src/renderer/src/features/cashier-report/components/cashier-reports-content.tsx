@@ -677,7 +677,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'description',
     header: 'Description',
     size: 176,
-    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-[13px]" />,
     meta: { className: 'min-w-0' }
   },
   {
@@ -715,7 +715,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     cell: ({ getValue }) => money(getValue<number>()),
     size: 144,
     meta: {
-      className: 'px-4 text-right font-light tabular-nums text-foreground'
+      className: 'px-4 text-right font-mono text-[13px] font-medium tabular-nums text-foreground'
     }
   }
 ]
@@ -744,7 +744,7 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     accessorKey: 'particular',
     header: 'Particular',
     size: 240,
-    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-[13px]" />,
     meta: { className: 'min-w-0' }
   },
   {
@@ -780,7 +780,7 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     cell: ({ getValue }) => money(getValue<number>()),
     size: 134,
     meta: {
-      className: cn('w-30', 'text-right font-light tabular-nums text-foreground')
+      className: cn('w-30', 'text-right font-mono text-[13px] font-medium tabular-nums text-foreground')
     }
   }
 ]
@@ -807,7 +807,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     accessorKey: 'accountName',
     header: 'Account name',
     size: 200,
-    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="font-light" />,
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-[13px]" />,
     meta: { className: 'min-w-0' }
   },
   {
@@ -837,7 +837,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     header: 'Amount',
     size: 134,
     cell: ({ getValue }) => money(getValue<number>()),
-    meta: { className: 'text-right font-light tabular-nums text-foreground' }
+    meta: { className: 'text-right font-mono text-[13px] font-medium tabular-nums text-foreground' }
   }
 ]
 
@@ -2660,7 +2660,7 @@ export function CashierReportsContent({
                           <TabsTrigger
                             key={tab}
                             value={tab}
-                            className="flex-none gap-1.5 px-3 text-xs"
+                            className="flex-none gap-1.5 px-3 text-[13px]"
                             onPointerEnter={() => setHoveredTab(tab)}
                             onClick={() => selectTab(tab)}
                           >
