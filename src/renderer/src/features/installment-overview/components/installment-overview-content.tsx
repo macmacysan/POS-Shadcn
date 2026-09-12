@@ -97,7 +97,7 @@ function BranchCard({
             onClick={() => onOpenInHouse(summary.branch)}
           >
             <p className="text-xs text-muted-foreground">In-house</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.inHouse}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{summary.inHouse}</p>
             <p className="mt-1 text-xs text-muted-foreground">{summary.dueToday} due today</p>
           </button>
           <button
@@ -106,7 +106,7 @@ function BranchCard({
             onClick={() => onOpenFinance(summary.branch)}
           >
             <p className="text-xs text-muted-foreground">Finance</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.finance}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{summary.finance}</p>
             <p className="mt-1 text-xs text-muted-foreground">active accounts</p>
           </button>
         </div>
@@ -414,19 +414,19 @@ function PortfolioSummary({
         <div className="grid grid-cols-2 divide-x divide-border sm:grid-cols-4">
           <div className="flex flex-col gap-1 px-3 py-2 first:pl-0 sm:px-4">
             <span className="text-xs text-muted-foreground">Active accounts</span>
-            <span className="text-xl font-semibold tabular-nums">{inHouse + finance}</span>
+            <span className="text-lg font-semibold tabular-nums">{inHouse + finance}</span>
           </div>
           <div className="flex flex-col gap-1 px-3 py-2 sm:px-4">
             <span className="text-xs text-muted-foreground">In-house</span>
-            <span className="text-xl font-semibold tabular-nums">{inHouse}</span>
+            <span className="text-lg font-semibold tabular-nums">{inHouse}</span>
           </div>
           <div className="flex flex-col gap-1 border-t px-3 py-2 sm:border-t-0 sm:px-4">
             <span className="text-xs text-muted-foreground">Finance</span>
-            <span className="text-xl font-semibold tabular-nums">{finance}</span>
+            <span className="text-lg font-semibold tabular-nums">{finance}</span>
           </div>
           <div className="flex flex-col gap-1 border-t px-3 py-2 sm:border-t-0 sm:px-4">
             <span className="text-xs text-muted-foreground">Needs attention</span>
-            <span className="text-xl font-semibold tabular-nums text-destructive">{overdue}</span>
+            <span className="text-lg font-semibold tabular-nums text-destructive">{overdue}</span>
           </div>
         </div>
       </FramePanel>
@@ -508,7 +508,7 @@ export function InstallmentOverviewContent({
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">Installments · Overview</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Branch installment overview</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Branch installment overview</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Active accounts, finance types, and in-house payment frequencies at a glance.
           </p>

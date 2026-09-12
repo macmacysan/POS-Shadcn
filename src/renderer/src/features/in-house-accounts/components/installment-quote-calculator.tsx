@@ -171,7 +171,7 @@ export function InstallmentQuoteCalculator({ open, onOpenChange }: Props): React
                 <p className="text-sm text-muted-foreground">
                   Payment every {frequency === 'Semi' ? 'semi-month' : frequency.toLowerCase()}
                 </p>
-                <output className="text-2xl font-semibold tabular-nums">
+                <output className="text-lg font-semibold tabular-nums">
                   {formatCentavos(calculation.paymentAmountCentavos!)}
                 </output>
                 <p className="text-sm text-muted-foreground">

@@ -102,13 +102,13 @@ export function InstallmentAttentionAlertDialog({
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl bg-destructive/10 p-4">
             <p className="text-xs font-medium text-muted-foreground">Overdue accounts</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums text-destructive">
+            <p className="mt-1 text-lg font-semibold tabular-nums text-destructive">
               {summary.overdueCount}
             </p>
           </div>
           <div className="rounded-xl bg-muted/60 p-4">
             <p className="text-xs font-medium text-muted-foreground">Near due accounts</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">{summary.nearDueCount}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{summary.nearDueCount}</p>
           </div>
         </div>
 

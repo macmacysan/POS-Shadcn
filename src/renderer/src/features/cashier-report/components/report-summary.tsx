@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { addDays, format, startOfDay } from 'date-fns'
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, LockKeyhole, Plus, Trash2 } from 'lucide-react'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -176,13 +177,9 @@ function Section({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className={cn('border-b border-border/50 py-1.5 last:border-b-0', className)}>
-      {label && (
-        <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </p>
-      )}
-      <div className="flex flex-col gap-0.5">{children}</div>
+    <section className={cn('border-t border-border/50 py-3 first:border-t-0', className)}>
+      {label && <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>}
+      <div className="flex flex-col gap-1">{children}</div>
     </section>
   )
 }
@@ -209,8 +206,8 @@ function SummaryRow({
   const row = (
     <div
       className={cn(
-        'flex min-h-6 items-center justify-between gap-2 rounded-sm px-1 text-xs transition-colors hover:bg-muted/60',
-        emphasis && 'mt-0.5 min-h-7 border-t border-border/60 pt-1.5 text-[13px]',
+        'flex min-h-7 items-center justify-between gap-3 rounded-md px-2 py-1 text-[13px] transition-colors hover:bg-muted/60',
+        emphasis && 'mt-1 min-h-8 bg-muted py-1.5 font-medium hover:bg-muted',
         className
       )}
     >
@@ -224,8 +221,8 @@ function SummaryRow({
       </span>
       <span
         className={cn(
-          'shrink-0 font-mono text-xs tabular-nums',
-          emphasis && 'text-[13px] font-medium',
+          'shrink-0 tabular-nums',
+          emphasis && 'font-semibold',
           valueMuted ? 'text-muted-foreground' : emphasis && 'text-foreground'
         )}
       >
@@ -643,135 +640,131 @@ export const ReportSummary = React.memo(function ReportSummary({
 
   return (
     <>
-      <aside className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-workspace p-3 text-foreground">
-        <Card className="shrink-0 gap-0 py-0">
-          <CardContent className="p-0">
-            <header className="relative flex h-12 items-center px-3">
-              <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="View previous business day"
-                  disabled={isDateLoading || !startDate}
-                  onClick={() => startDate && selectDate(addDays(startDate, -1))}
-                >
-                  <ChevronLeft aria-hidden="true" />
-                </Button>
-                <ReportDateDialog
-                  branchId={branchId}
-                  cashierUserId={cashierUserId}
-                  date={startDate}
-                  open={dateDialogOpen}
-                  onOpenChange={onDateDialogOpenChange}
-                  disabled={isDateLoading}
-                  onSelect={selectDate}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="View next business day"
-                  disabled={
-                    isDateLoading || !selectedDay || selectedDay.getTime() >= today.getTime()
-                  }
-                  onClick={() => startDate && selectDate(addDays(startDate, 1))}
-                >
-                  <ChevronRight aria-hidden="true" />
-                </Button>
-                <div>
-                  <Popover open={isReceiptPickerOpen} onOpenChange={setIsReceiptPickerOpen}>
-                    <PopoverTrigger
-                      render={
-                        <Button
-                          type="button"
-                          size="icon-sm"
-                          variant="outline"
-                          aria-label="Add receipt type or deductions"
-                        />
-                      }
-                    >
-                      <Plus />
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-72 p-3">
-                      <p className="text-sm font-semibold">Receipt rows</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Show receipt types or clear values from an orphaned row.
-                      </p>
-                      <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
-                        {[...standardReceiptTypes, ...customReceiptTypes].map((type) => {
-                          const value = receiptTotal(snapshot, type.id)
-                          const hasReceiptValue =
-                            (value?.quantity ?? 0) > 0 || (value?.amountCentavos ?? 0) > 0
-                          return (
-                            <div
-                              key={type.id}
-                              className="flex items-center gap-2 rounded-md px-2 py-2 text-xs transition-colors hover:bg-muted"
-                            >
-                              <label
-                                className={cn(
-                                  'flex min-w-0 flex-1 items-center gap-2',
-                                  !hasReceiptValue && 'cursor-pointer'
-                                )}
-                              >
-                                <Checkbox
-                                  checked={visibleReceiptTypeIds.has(type.id)}
-                                  onCheckedChange={(checked) =>
-                                    toggleReceiptType(type.id, checked === true)
-                                  }
-                                  aria-label={`Show ${type.name}`}
-                                />
-                                <span className="min-w-0 truncate">{type.name}</span>
-                              </label>
-                              {hasReceiptValue && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon-xs"
-                                  aria-label={`Clear values for ${type.name}`}
-                                  disabled={readOnly}
-                                  onClick={() => requestClearReceipt(type.id)}
-                                >
-                                  <Trash2 aria-hidden="true" />
-                                </Button>
+      <aside className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden bg-workspace p-3 text-foreground">
+        <header className="flex shrink-0 flex-col gap-2 rounded-xl ">
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <span className="shrink-0 text-xs text-muted-foreground" aria-live="polite">
+              {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
+            </span>
+          </div>
+          <div className="flex items-center justify-center gap-1">
+            <div className="flex min-w-0 items-center gap-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="View previous business day"
+                disabled={isDateLoading || !startDate}
+                onClick={() => startDate && selectDate(addDays(startDate, -1))}
+              >
+                <ChevronLeft aria-hidden="true" />
+              </Button>
+              <ReportDateDialog
+                branchId={branchId}
+                cashierUserId={cashierUserId}
+                date={startDate}
+                open={dateDialogOpen}
+                onOpenChange={onDateDialogOpenChange}
+                disabled={isDateLoading}
+                onSelect={selectDate}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label="View next business day"
+                disabled={isDateLoading || !selectedDay || selectedDay.getTime() >= today.getTime()}
+                onClick={() => startDate && selectDate(addDays(startDate, 1))}
+              >
+                <ChevronRight aria-hidden="true" />
+              </Button>
+              <div>
+                <Popover open={isReceiptPickerOpen} onOpenChange={setIsReceiptPickerOpen}>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="outline"
+                        aria-label="Add receipt type or deductions"
+                      />
+                    }
+                  >
+                    <Plus />
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72 p-3">
+                    <p className="text-sm font-semibold">Receipt rows</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Show receipt types or clear values from an orphaned row.
+                    </p>
+                    <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+                      {[...standardReceiptTypes, ...customReceiptTypes].map((type) => {
+                        const value = receiptTotal(snapshot, type.id)
+                        const hasReceiptValue =
+                          (value?.quantity ?? 0) > 0 || (value?.amountCentavos ?? 0) > 0
+                        return (
+                          <div
+                            key={type.id}
+                            className="flex items-center gap-2 rounded-md px-2 py-2 text-xs transition-colors hover:bg-muted"
+                          >
+                            <label
+                              className={cn(
+                                'flex min-w-0 flex-1 items-center gap-2',
+                                !hasReceiptValue && 'cursor-pointer'
                               )}
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="mt-1 w-full"
-                        onClick={openDeductions}
-                      >
-                        Deductions
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="mt-1 w-full"
-                        onClick={() => {
-                          setIsReceiptPickerOpen(false)
-                          setOpenDialog('cash-count')
-                        }}
-                      >
-                        Counted Cash
-                      </Button>
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                            >
+                              <Checkbox
+                                checked={visibleReceiptTypeIds.has(type.id)}
+                                onCheckedChange={(checked) =>
+                                  toggleReceiptType(type.id, checked === true)
+                                }
+                                aria-label={`Show ${type.name}`}
+                              />
+                              <span className="min-w-0 truncate">{type.name}</span>
+                            </label>
+                            {hasReceiptValue && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label={`Clear values for ${type.name}`}
+                                disabled={readOnly}
+                                onClick={() => requestClearReceipt(type.id)}
+                              >
+                                <Trash2 aria-hidden="true" />
+                              </Button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      className="mt-1 w-full"
+                      onClick={openDeductions}
+                    >
+                      Deductions
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      className="mt-1 w-full"
+                      onClick={() => {
+                        setIsReceiptPickerOpen(false)
+                        setOpenDialog('cash-count')
+                      }}
+                    >
+                      Counted Cash
+                    </Button>
+                  </PopoverContent>
+                </Popover>
               </div>
-              <div className="ml-auto flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground" aria-live="polite">
-                  {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
-                </span>
-              </div>
-            </header>
-          </CardContent>
-        </Card>
+            </div>
+          </div>
+        </header>
 
         <Card className="min-h-0 flex-1 gap-0 py-0">
           <CardContent className="flex min-h-0 flex-1 flex-col p-0">
@@ -799,7 +792,7 @@ export const ReportSummary = React.memo(function ReportSummary({
               <div className="px-2.5">
                 {visibleReceiptTypes.length > 0 && (
                   <>
-                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_4.5rem] pt-2 gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_4.5rem] pt-2 gap-1.5 text-xs font-medium text-muted-foreground">
                       <span>Type</span>
                       <span className="text-right">Qty</span>
                       <span className="text-right">Amount</span>
@@ -813,24 +806,31 @@ export const ReportSummary = React.memo(function ReportSummary({
                           key={type.id}
                           className="grid grid-cols-[minmax(0,1fr)_2.75rem_4.5rem] items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs hover:bg-muted/40"
                         >
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={
-                                  <span className="min-w-0 line-clamp-2 text-xs leading-tight text-muted-foreground" />
-                                }
-                              >
-                                {receiptTypeSummaryName(type.name, type.shortName, type.isSystem)}
-                                {!isToday && ` · ${type.isActive ? 'Frozen' : 'Archived'}`}
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-72">{type.name}</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={
+                                    <span className="min-w-0 truncate text-xs text-muted-foreground" />
+                                  }
+                                >
+                                  {receiptTypeSummaryName(type.name, type.shortName, type.isSystem)}
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-72">{type.name}</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            {!isToday && (
+                              <Badge variant={type.isActive ? 'zinc' : 'amber'}>
+                                <LockKeyhole data-icon="inline-start" aria-hidden="true" />
+                                {type.isActive ? '' : ''}
+                              </Badge>
+                            )}
+                          </div>
                           <Input
                             aria-label={`${type.name} quantity`}
                             aria-invalid={hasAmount && !hasQuantity}
                             className={cn(
-                              'h-7 min-w-0 rounded-none border-x-0 border-t-0 border-b border-border/70 px-1.5 text-right text-xs font-mono tabular-nums',
+                              'h-7 min-w-0 rounded-none border-x-0 border-t-0 border-b border-border/70 px-1.5 text-right text-sm tabular-nums',
                               hasAmount &&
                                 !hasQuantity &&
                                 'border-destructive focus-visible:ring-destructive/40'
@@ -852,7 +852,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                             value={value?.amountCentavos ?? 0}
                             invalid={hasQuantity && !hasAmount}
                             inputClassName={cn(
-                              'text-xs font-mono',
+                              'text-sm',
                               hasQuantity &&
                                 !hasAmount &&
                                 'border-destructive focus-visible:ring-destructive/40'
@@ -867,162 +867,150 @@ export const ReportSummary = React.memo(function ReportSummary({
                   </>
                 )}
                 <Section label="Cash in" className="border-b-0">
-                    <SummaryRow
-                      label="Collections"
-                      value={snapshot.cashCollectionsCentavos ?? 0}
-                      hideWhenZero
-                      valueMuted
-                      hoverDetails={
-                        <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
-                          {snapshot.collectionDetails.map(({ id, name, amountCentavos }) => (
-                            <React.Fragment key={`${name}-${amountCentavos}`}>
-                              {!readOnly && (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="xs"
-                                  onClick={() => onOpenCollection?.(id)}
-                                >
-                                  Update
-                                </Button>
-                              )}
-                              <span className="min-w-0 truncate">{name}</span>
-                              <span className="text-right tabular-nums">
-                                {money(amountCentavos)}
-                              </span>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      }
-                    />
-                    <SummaryRow
-                      label="Other"
-                      value={snapshot.otherIncomeCentavos ?? 0}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Finance Down"
-                      value={snapshot.financeDownCentavos ?? 0}
-                      hideWhenZero
-                      valueMuted
-                      hoverDetails={
-                        <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
-                          {snapshot.financeDownDetails.map(({ id, name, amountCentavos }) => (
-                            <React.Fragment key={`${name}-${amountCentavos}`}>
-                              {!readOnly && (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="xs"
-                                  onClick={() => onOpenFinance?.(id)}
-                                >
-                                  Update
-                                </Button>
-                              )}
-                              <span className="min-w-0 truncate">{name}</span>
-                              <span className="text-right tabular-nums">
-                                {money(amountCentavos)}
-                              </span>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      }
-                    />
-                    <SummaryRow
-                      label="Total Cash Receipts"
-                      value={totalCashReceiptsCentavos}
-                      emphasis
-                    />
-                </Section>
-                <Section label="Cash out" className="border-b-0">
-                    <SummaryRow
-                      label="Expenses"
-                      value={expenseTotals.companyExpensesCentavos}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Drawings"
-                      value={expenseTotals.drawingsCentavos}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Purchases"
-                      value={expenseTotals.purchasesCentavos}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Receivables"
-                      value={expenseTotals.receivablesCentavos}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Deductions"
-                      value={deductionCentavos}
-                      hideWhenZero
-                      valueMuted
-                      hoverDetails={
-                        populatedDeductions.length > 0 && (
-                          <div className="flex min-w-56 flex-col gap-2 text-xs">
-                            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1">
-                              {populatedDeductions.map(({ label, amountCentavos }) => (
-                                <React.Fragment key={label}>
-                                  <span className="min-w-0 truncate">{label}</span>
-                                  <span className="text-right tabular-nums">
-                                    {money(amountCentavos)}
-                                  </span>
-                                </React.Fragment>
-                              ))}
-                            </div>
+                  <SummaryRow
+                    label="Collections"
+                    value={snapshot.cashCollectionsCentavos ?? 0}
+                    hideWhenZero
+                    valueMuted
+                    hoverDetails={
+                      <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
+                        {snapshot.collectionDetails.map(({ id, name, amountCentavos }) => (
+                          <React.Fragment key={`${name}-${amountCentavos}`}>
                             {!readOnly && (
                               <Button
                                 type="button"
                                 variant="secondary"
                                 size="xs"
-                                onClick={openDeductions}
+                                onClick={() => onOpenCollection?.(id)}
                               >
                                 Update
                               </Button>
                             )}
+                            <span className="min-w-0 truncate">{name}</span>
+                            <span className="text-right tabular-nums">{money(amountCentavos)}</span>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    }
+                  />
+                  <SummaryRow
+                    label="Other"
+                    value={snapshot.otherIncomeCentavos ?? 0}
+                    hideWhenZero
+                    valueMuted
+                  />
+                  <SummaryRow
+                    label="Finance Down"
+                    value={snapshot.financeDownCentavos ?? 0}
+                    hideWhenZero
+                    valueMuted
+                    hoverDetails={
+                      <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
+                        {snapshot.financeDownDetails.map(({ id, name, amountCentavos }) => (
+                          <React.Fragment key={`${name}-${amountCentavos}`}>
+                            {!readOnly && (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="xs"
+                                onClick={() => onOpenFinance?.(id)}
+                              >
+                                Update
+                              </Button>
+                            )}
+                            <span className="min-w-0 truncate">{name}</span>
+                            <span className="text-right tabular-nums">{money(amountCentavos)}</span>
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    }
+                  />
+                  <SummaryRow
+                    label="Total Cash Receipts"
+                    value={totalCashReceiptsCentavos}
+                    emphasis
+                  />
+                </Section>
+                <Section label="Cash out" className="border-b-0">
+                  <SummaryRow
+                    label="Expenses"
+                    value={expenseTotals.companyExpensesCentavos}
+                    hideWhenZero
+                    valueMuted
+                  />
+                  <SummaryRow
+                    label="Drawings"
+                    value={expenseTotals.drawingsCentavos}
+                    hideWhenZero
+                    valueMuted
+                  />
+                  <SummaryRow
+                    label="Purchases"
+                    value={expenseTotals.purchasesCentavos}
+                    hideWhenZero
+                    valueMuted
+                  />
+                  <SummaryRow
+                    label="Receivables"
+                    value={expenseTotals.receivablesCentavos}
+                    hideWhenZero
+                    valueMuted
+                  />
+                  <SummaryRow
+                    label="Deductions"
+                    value={deductionCentavos}
+                    hideWhenZero
+                    valueMuted
+                    hoverDetails={
+                      populatedDeductions.length > 0 && (
+                        <div className="flex min-w-56 flex-col gap-2 text-xs">
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1">
+                            {populatedDeductions.map(({ label, amountCentavos }) => (
+                              <React.Fragment key={label}>
+                                <span className="min-w-0 truncate">{label}</span>
+                                <span className="text-right tabular-nums">
+                                  {money(amountCentavos)}
+                                </span>
+                              </React.Fragment>
+                            ))}
                           </div>
-                        )
-                      }
-                    />
-                    <SummaryRow
-                      label="Total Cash Outs"
-                      value={totalCashOutCentavos}
-                      emphasis
-                    />
+                          {!readOnly && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="xs"
+                              onClick={openDeductions}
+                            >
+                              Update
+                            </Button>
+                          )}
+                        </div>
+                      )
+                    }
+                  />
+                  <SummaryRow label="Total Cash Outs" value={totalCashOutCentavos} emphasis />
                 </Section>
                 <Section label="Payments" className="border-b-0">
-                    <SummaryRow
-                      label="Bank Check"
-                      value={paymentTotals.bankCheck}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Bank Transfer"
-                      value={paymentTotals.bankTransfer}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero valueMuted />
-                    <SummaryRow
-                      label="E-wallet"
-                      value={paymentTotals.otherEwallet}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Total Payments"
-                      value={paymentTotals.total}
-                      emphasis
-                    />
+                  <SummaryRow
+                    label="Bank Check"
+                    value={paymentTotals.bankCheck}
+                    hideWhenZero
+                    valueMuted
+                  />
+                  <SummaryRow
+                    label="Bank Transfer"
+                    value={paymentTotals.bankTransfer}
+                    hideWhenZero
+                    valueMuted
+                  />
+                  <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero valueMuted />
+                  <SummaryRow
+                    label="E-wallet"
+                    value={paymentTotals.otherEwallet}
+                    hideWhenZero
+                    valueMuted
+                  />
+                  <SummaryRow label="Total Payments" value={paymentTotals.total} emphasis />
                 </Section>
               </div>
             </ScrollArea>
@@ -1075,12 +1063,10 @@ export const ReportSummary = React.memo(function ReportSummary({
               aria-label="Cash variance"
               className="flex items-baseline justify-between gap-3"
             >
-              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Cash variance
-              </span>
+              <span className="text-sm font-medium text-muted-foreground">Cash variance</span>
               <span
                 className={cn(
-                  'font-mono text-lg font-semibold tracking-tight tabular-nums',
+                  'text-lg font-semibold tabular-nums',
                   variance > 0 && 'text-success',
                   variance < 0 && 'text-destructive'
                 )}
@@ -1167,11 +1153,11 @@ export const ReportSummary = React.memo(function ReportSummary({
               })}
             <div className="col-span-3 mt-2 flex items-center justify-between gap-3 border-t border-border pt-2 text-sm font-semibold">
               <span>Total Cash Amount</span>
-              <span className="font-mono tabular-nums">{money(snapshot.physicalCashCentavos)}</span>
+              <span className="tabular-nums">{money(snapshot.physicalCashCentavos)}</span>
             </div>
             <div className="col-span-3 flex items-center justify-between gap-3 text-sm font-semibold">
               <span>Cash Variance</span>
-              <span className="font-mono tabular-nums">{money(variance)}</span>
+              <span className="tabular-nums">{money(variance)}</span>
             </div>
           </div>
           <DialogFooter>
@@ -1208,7 +1194,7 @@ export const ReportSummary = React.memo(function ReportSummary({
             ))}
             <div className="mt-1 flex items-center justify-between gap-3 border-t border-border pt-2 text-sm font-semibold">
               <span>Total Deductions</span>
-              <span className="font-mono tabular-nums">
+              <span className="tabular-nums">
                 {money(
                   deductionDefinitions.reduce(
                     (total, { id }) => total + (draftDeductions[id] ?? 0),
@@ -1219,7 +1205,7 @@ export const ReportSummary = React.memo(function ReportSummary({
             </div>
             <div className="flex items-center justify-between gap-3 text-sm font-semibold">
               <span>Cash Variance</span>
-              <span className="font-mono tabular-nums">{money(variance)}</span>
+              <span className="tabular-nums">{money(variance)}</span>
             </div>
           </div>
           <DialogFooter>

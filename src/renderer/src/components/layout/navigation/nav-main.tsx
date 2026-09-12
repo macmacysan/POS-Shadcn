@@ -16,7 +16,6 @@ import { Badge as ReuiBadge } from '@/components/ui/reui/badge'
 import {
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -45,12 +44,6 @@ type NavGroupItem = {
   children: NavChildItem[]
 }
 
-type NavSectionItem = {
-  title: string
-  section: true
-  children?: NavChildItem[]
-}
-
 type NavItem =
   | {
       title: string
@@ -61,45 +54,36 @@ type NavItem =
       children?: undefined
     }
   | NavGroupItem
-  | NavSectionItem
 
-type NavLinkItem = Exclude<NavItem, NavGroupItem | NavSectionItem>
+type NavLinkItem = Exclude<NavItem, NavGroupItem>
 
 const navigation: { navMain: NavItem[] } = {
   navMain: [
     { title: 'Dashboard', url: '#', icon: <SquaresFourIcon /> },
+    { title: 'Cashier reports', url: '#', icon: <ClipboardTextIcon /> },
     {
-      title: 'Operations',
-      section: true as const,
+      title: 'In-house',
+      url: '#',
+      icon: <ListBulletsIcon />,
       children: [
-        { title: 'Cashier reports', url: '#', icon: <ClipboardTextIcon /> },
-        {
-          title: 'In-house',
-          url: '#',
-          children: [
-            { title: 'Records', url: '#', icon: <ListBulletsIcon /> },
-            { title: 'Active', url: '#', icon: <ClockIcon /> },
-            { title: 'Closed', url: '#', icon: <CheckCircleIcon /> },
-            { title: 'Blacklisted', url: '#', icon: <ProhibitIcon /> }
-          ]
-        },
-        {
-          title: 'Finance',
-          url: '#',
-          children: [{ title: 'Accounts', url: '#', icon: <CreditCardIcon /> }]
-        },
-        { title: 'Calendar', url: '#', icon: <CalendarIcon /> }
+        { title: 'Records', url: '#', icon: <ListBulletsIcon /> },
+        { title: 'Active', url: '#', icon: <ClockIcon /> },
+        { title: 'Closed', url: '#', icon: <CheckCircleIcon /> },
+        { title: 'Blacklisted', url: '#', icon: <ProhibitIcon /> }
       ]
-    }
+    },
+    {
+      title: 'Finance',
+      url: '#',
+      icon: <CreditCardIcon />,
+      children: [{ title: 'Accounts', url: '#', icon: <CreditCardIcon /> }]
+    },
+    { title: 'Calendar', url: '#', icon: <CalendarIcon /> }
   ]
 }
 
 function isNavGroup(item: NavItem): item is NavGroupItem {
   return Array.isArray(item.children)
-}
-
-function isNavSection(item: NavItem): item is NavSectionItem {
-  return 'section' in item && item.section === true
 }
 
 function handleNavClick(event: React.MouseEvent<HTMLElement>, onClick?: () => void): void {
@@ -143,7 +127,7 @@ function NavChildList({
         ) : (
           <SidebarMenuSubItem key={item.title}>
             <SidebarMenuSubButton
-              className="h-8 rounded-md px-2.5 text-xs"
+              className="h-8 rounded-md px-2.5 text-sm"
               isActive={item.isActive}
               render={
                 <a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />
@@ -170,9 +154,9 @@ function NavChildList({
 
 function NavItemLink({ item }: { item: NavLinkItem }): React.JSX.Element {
   return (
-    <SidebarMenuItem className={item.title === 'Dashboard' ? 'pt-1' : undefined}>
+    <SidebarMenuItem>
       <SidebarMenuButton
-        className="h-8 rounded-md px-2.5 text-xs font-medium"
+        className="h-8 rounded-md px-2.5 text-sm font-medium"
         isActive={item.isActive}
         render={<a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />}
       >
@@ -194,7 +178,7 @@ function NavGroup({
     <Collapsible defaultOpen className="group/collapsible">
       <SidebarMenuItem>
         <SidebarMenuButton
-          className="h-8 rounded-md px-2.5 text-xs font-medium"
+          className="h-8 rounded-md px-2.5 text-sm font-medium"
           isActive={item.isActive}
           render={<CollapsibleTrigger />}
           tooltip={item.title}
@@ -241,79 +225,54 @@ export function NavMain({
   const items = navigation.navMain.map((item) => {
     if (item.title === 'Dashboard')
       return { ...item, isActive: activeView === 'dashboard', onClick: onDashboard }
+    if (item.title === 'Cashier reports')
+      return { ...item, isActive: activeView === 'cashier-reports', onClick: onCashierReports }
     if (item.title === 'Calendar')
       return { ...item, isActive: activeView === 'calendar', onClick: onCalendar }
+    if (!isNavGroup(item)) return item
+    if (item.title === 'In-house')
+      return {
+        ...item,
+        children: item.children.map((entry) =>
+          entry.title === 'Records'
+            ? { ...entry, isActive: activeView === 'in-house-accounts', onClick: onAllAccounts }
+            : entry.title === 'Active'
+              ? {
+                  ...entry,
+                  isActive: activeView === 'in-house-active-accounts',
+                  badge: overdueCount,
+                  onClick: onActiveAccounts
+                }
+              : entry.title === 'Closed'
+                ? {
+                    ...entry,
+                    isActive: activeView === 'in-house-closed-accounts',
+                    onClick: onClosedAccounts
+                  }
+                : {
+                    ...entry,
+                    isActive: activeView === 'in-house-blacklisted-accounts',
+                    onClick: onBlacklistedAccounts
+                  }
+        )
+      }
     return {
       ...item,
-      children: item.children?.map((child) =>
-        child.title === 'Cashier reports'
-          ? { ...child, isActive: activeView === 'cashier-reports', onClick: onCashierReports }
-          : child.title === 'Calendar'
-            ? { ...child, isActive: activeView === 'calendar', onClick: onCalendar }
-            : child.title === 'In-house'
-              ? {
-                  ...child,
-                  children: child.children?.map((entry) =>
-                    entry.title === 'Records'
-                      ? {
-                          ...entry,
-                          isActive: activeView === 'in-house-accounts',
-                          onClick: onAllAccounts
-                        }
-                      : entry.title === 'Active'
-                        ? {
-                            ...entry,
-                            isActive: activeView === 'in-house-active-accounts',
-                            badge: overdueCount,
-                            onClick: onActiveAccounts
-                          }
-                        : entry.title === 'Closed'
-                          ? {
-                              ...entry,
-                              isActive: activeView === 'in-house-closed-accounts',
-                              onClick: onClosedAccounts
-                            }
-                          : {
-                              ...entry,
-                              isActive: activeView === 'in-house-blacklisted-accounts',
-                              onClick: onBlacklistedAccounts
-                            }
-                  )
-                }
-              : {
-                  ...child,
-                  children: child.children?.map((entry) => ({
-                    ...entry,
-                    isActive: activeView === 'finance-accounts',
-                    badge: unpaidFinanceCount,
-                    onClick: onFinanceAccounts
-                  }))
-                }
-      )
+      children: item.children.map((entry) => ({
+        ...entry,
+        isActive: activeView === 'finance-accounts',
+        badge: unpaidFinanceCount,
+        onClick: onFinanceAccounts
+      }))
     }
   }) as NavItem[]
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Workspace</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu className="gap-1.5">
           {items.map((item) =>
-            isNavSection(item) ? (
-              <SidebarMenuItem
-                key={item.title}
-                className="pt-4 group-data-[collapsible=icon]:hidden"
-              >
-                <div className="px-2.5 pb-1.5 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/45">
-                  {item.title}
-                </div>
-                {item.children && (
-                  <SidebarMenuSub className="mx-0 border-0 px-0 py-1">
-                    <NavChildList items={item.children} activeView={activeView} />
-                  </SidebarMenuSub>
-                )}
-              </SidebarMenuItem>
-            ) : isNavGroup(item) ? (
+            isNavGroup(item) ? (
               <NavGroup key={item.title} item={item} activeView={activeView} />
             ) : (
               <NavItemLink key={item.title} item={item} />

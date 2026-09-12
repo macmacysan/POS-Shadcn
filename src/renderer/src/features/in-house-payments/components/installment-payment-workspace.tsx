@@ -917,7 +917,7 @@ export function InstallmentPaymentWorkspace({
                 </p>
                 <div className="mt-3">
                   <div className="min-w-0">
-                    <h2 className="text-5xl font-semibold leading-none tracking-tighter text-primary tabular-nums">
+                    <h2 className="text-lg font-semibold leading-none tracking-tighter text-primary tabular-nums">
                       #
                       {selectedSchedule?.installmentNumber ??
                         workspace?.nextDue?.installmentNumber ??

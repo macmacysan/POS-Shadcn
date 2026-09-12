@@ -126,7 +126,7 @@ export function CalendarWorkspace({
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             Tasks
           </p>
-          <h1 className="mt-1 font-heading text-lg font-light">Calendar tasks</h1>
+          <h1 className="mt-1 font-heading text-lg font-medium">Calendar tasks</h1>
         </div>
         <Collapsible defaultOpen className="group/collapsible min-h-0 flex-1 overflow-auto">
           <CollapsibleTrigger className="flex w-full items-center gap-2 border-b px-5 py-2 text-left text-xs font-medium">
@@ -177,7 +177,7 @@ export function CalendarWorkspace({
         <header className="flex items-center justify-between border-b px-6 py-4">
           <div>
             <p className="text-xs text-muted-foreground">Custom calendar</p>
-            <h2 className="font-heading text-xl font-light">
+            <h2 className="font-heading text-lg font-medium">
               {month.toLocaleString(undefined, { month: 'long', year: 'numeric' })}
             </h2>
           </div>

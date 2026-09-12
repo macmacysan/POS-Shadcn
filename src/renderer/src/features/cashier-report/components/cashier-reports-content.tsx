@@ -677,7 +677,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'description',
     header: 'Description',
     size: 176,
-    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-[13px]" />,
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-sm" />,
     meta: { className: 'min-w-0' }
   },
   {
@@ -715,7 +715,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     cell: ({ getValue }) => money(getValue<number>()),
     size: 144,
     meta: {
-      className: 'px-4 text-right font-mono text-[13px] font-medium tabular-nums text-foreground'
+      className: 'px-4 text-right text-sm font-medium tabular-nums text-foreground'
     }
   }
 ]
@@ -744,7 +744,7 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     accessorKey: 'particular',
     header: 'Particular',
     size: 240,
-    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-[13px]" />,
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-sm" />,
     meta: { className: 'min-w-0' }
   },
   {
@@ -780,7 +780,7 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     cell: ({ getValue }) => money(getValue<number>()),
     size: 134,
     meta: {
-      className: cn('w-30', 'text-right font-mono text-[13px] font-medium tabular-nums text-foreground')
+      className: cn('w-30', 'text-right text-sm font-medium tabular-nums text-foreground')
     }
   }
 ]
@@ -807,7 +807,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     accessorKey: 'accountName',
     header: 'Account name',
     size: 200,
-    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-[13px]" />,
+    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-sm" />,
     meta: { className: 'min-w-0' }
   },
   {
@@ -837,7 +837,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     header: 'Amount',
     size: 134,
     cell: ({ getValue }) => money(getValue<number>()),
-    meta: { className: 'text-right font-mono text-[13px] font-medium tabular-nums text-foreground' }
+    meta: { className: 'text-right text-sm font-medium tabular-nums text-foreground' }
   }
 ]
 
@@ -2611,12 +2611,12 @@ export function CashierReportsContent({
     <div
       className={
         isSummaryCompact
-          ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden bg-workspace p-4'
+          ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden p-4'
           : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(220px,252px)_minmax(0,1fr)] gap-5 overflow-hidden bg-workspace p-4'
       }
     >
       {!isSummaryCompact && (
-        <div className="-my-4 -ml-4 flex min-h-0 min-w-0 flex-col bg-card">
+        <div className="-my-3 -ml-4 flex min-h-0 min-w-76 flex-col bg-card">
           <ReportSummary
             key={reportId}
             refreshKey={summaryRefreshKey}
@@ -2639,7 +2639,7 @@ export function CashierReportsContent({
           />
         </div>
       )}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-workspace">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 <Tabs
@@ -2658,7 +2658,7 @@ export function CashierReportsContent({
                           <TabsTrigger
                             key={tab}
                             value={tab}
-                            className="flex-none gap-1.5 px-3 text-[13px]"
+                            className="flex-none gap-1.5 px-3 text-sm"
                             onPointerEnter={() => setHoveredTab(tab)}
                             onClick={() => selectTab(tab)}
                           >
@@ -2666,7 +2666,7 @@ export function CashierReportsContent({
                             {tabRowCounts[tab] > 0 && (
                               <Badge
                                 variant="secondary"
-                                className="size-5 shrink-0 justify-center rounded-full bg-muted p-0 text-[11px] tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
+                                className="size-5 shrink-0 justify-center rounded-full bg-muted p-0 text-xs tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
                               >
                                 {tabRowCounts[tab]}
                               </Badge>
@@ -2907,7 +2907,7 @@ export function CashierReportsContent({
             <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
               Report builder
             </p>
-            <DialogTitle className="text-2xl tracking-tight">Build a PDF export</DialogTitle>
+            <DialogTitle className="text-lg tracking-tight">Build a PDF export</DialogTitle>
             <DialogDescription>
               Choose the scope first, then add the report data you need.
             </DialogDescription>
@@ -3287,7 +3287,7 @@ export function CashierReportsContent({
                     </p>
                   </div>
                   <div className="flex items-end gap-2">
-                    <span className="text-3xl font-semibold tracking-tight tabular-nums">
+                    <span className="text-lg font-semibold tracking-tight tabular-nums">
                       {Math.round(
                         (pdfProgress.filter(
                           (step) => step.status === 'done' || step.status === 'failed'

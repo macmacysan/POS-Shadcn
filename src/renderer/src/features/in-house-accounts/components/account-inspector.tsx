@@ -84,7 +84,7 @@ function SummaryItem({
   return (
     <div className="flex items-baseline justify-between gap-3 text-xs">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn('text-right font-light', className)}>{value}</span>
+      <span className={cn('text-right font-medium', className)}>{value}</span>
     </div>
   )
 }
@@ -111,7 +111,7 @@ export function DetailRow({
       <dt className="text-muted-foreground">{label}</dt>
       <dd
         className={cn(
-          'min-w-0 wrap-break-word font-light',
+          'min-w-0 wrap-break-word font-medium',
           !stacked && 'text-right',
           destructive && 'text-destructive'
         )}

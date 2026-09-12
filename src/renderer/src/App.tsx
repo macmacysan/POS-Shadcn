@@ -366,15 +366,17 @@ function Workspace({
         openSettingsOnMount={isAdmin}
       />
       <SidebarInset className="flex min-h-0 flex-col overflow-hidden bg-sidebar">
-        <div className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-6 pr-24">
-          <SidebarTrigger className="window-no-drag relative z-50 !shadow-none hover:!shadow-none" />
+        <div className="flex h-10 shrink-0 items-center gap-3 border-b bg-background px-6 pr-24">
+          <SidebarTrigger className="window-no-drag relative z-50 !shadow-none hover:!shadow-none [&_svg]:!size-4" />
           <span aria-hidden="true" className="h-4 w-px bg-border" />
           <Breadcrumb>
             <BreadcrumbList>
-              <BreadcrumbItem className="hidden md:block">Workspace</BreadcrumbItem>
+              <BreadcrumbItem className="hidden text-base font-medium md:block">Documents</BreadcrumbItem>
               <BreadcrumbSeparator className="hidden md:block" />
               <BreadcrumbItem>
-                <BreadcrumbPage>{activeViewLabel(activeView)}</BreadcrumbPage>
+                <BreadcrumbPage className="text-muted-foreground">
+                  {activeViewLabel(activeView)}
+                </BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
@@ -385,7 +387,7 @@ function Workspace({
         {isAdmin ? (
           <main className="flex flex-1 items-center justify-center bg-background p-6">
             <div className="max-w-md text-center">
-              <h1 className="text-xl font-semibold">Settings</h1>
+              <h1 className="text-lg font-semibold">Settings</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 Open Settings from your profile menu to manage application configuration.
               </p>

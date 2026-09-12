@@ -172,7 +172,7 @@ export function SidebarLeft({
               <Settings2Icon aria-hidden="true" />
               Workspace controls
             </div>
-            <DialogTitle className="mt-3 text-xl tracking-tight">Settings</DialogTitle>
+            <DialogTitle className="mt-3 text-lg tracking-tight">Settings</DialogTitle>
             <DialogDescription>
               Choose how this workstation looks and how your team operates.
             </DialogDescription>

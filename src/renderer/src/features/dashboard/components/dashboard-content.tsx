@@ -65,7 +65,7 @@ function Metric({
       </p>
       <p
         className={cn(
-          'mt-1 font-mono text-xl font-semibold tracking-tight tabular-nums',
+          'mt-1 font-mono text-lg font-semibold tracking-tight tabular-nums',
           valueClass
         )}
       >
@@ -179,7 +179,7 @@ export function DashboardContent({
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
             {overview?.scopeLabel ?? `${selectedBranch} Branch`} · {businessDate}
           </p>
-          <h1 className="mt-0.5 text-2xl font-semibold tracking-tight">Cash position</h1>
+          <h1 className="mt-0.5 text-lg font-semibold tracking-tight">Cash position</h1>
         </div>
         <div className="flex items-center gap-2">
           <DatePickerInput
@@ -218,7 +218,7 @@ export function DashboardContent({
         >
           <CardHeader className="gap-1 px-5 py-4">
             <CardDescription>Physical cash counted</CardDescription>
-            <CardTitle className="font-mono text-3xl leading-none tracking-tight tabular-nums">
+            <CardTitle className="font-mono text-lg leading-none tracking-tight tabular-nums">
               {money(physicalCash)}
             </CardTitle>
             <div className="mt-3 grid grid-cols-3 gap-3 border-t pt-3 text-xs">

@@ -401,7 +401,7 @@ function ClientPortfolioModal({
       <div className="grid shrink-0 grid-cols-2 border-b bg-muted/20 lg:grid-cols-[minmax(16rem,1.5fr)_repeat(3,minmax(9rem,1fr))]">
         <div className="col-span-2 border-b px-5 py-3 lg:col-span-1 lg:border-b-0">
           <p className="text-xs text-muted-foreground">Portfolio balance</p>
-          <p className="mt-1 text-xl font-semibold leading-none tabular-nums">
+          <p className="mt-1 text-lg font-semibold leading-none tabular-nums">
             {formatHistoryMoney(balance)}
           </p>
         </div>
