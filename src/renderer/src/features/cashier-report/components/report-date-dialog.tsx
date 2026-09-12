@@ -484,7 +484,7 @@ export function ReportDateDialog({
               </p>
             </div>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-              <Collapsible defaultOpen={Boolean(varianceDays.length)} className="space-y-1.5">
+              <Collapsible className="space-y-1.5">
                 <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-sm border border-border/60 bg-background/70 px-2.5 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <span className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Variance
@@ -519,7 +519,7 @@ export function ReportDateDialog({
                   )}
                 </CollapsibleContent>
               </Collapsible>
-              <Collapsible defaultOpen={Boolean(unsubmittedDays.length)} className="space-y-1.5">
+              <Collapsible className="space-y-1.5">
                 <CollapsibleTrigger className="group flex w-full items-center gap-2 rounded-sm border border-border/60 bg-background/70 px-2.5 py-2 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <span className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                     Not submitted

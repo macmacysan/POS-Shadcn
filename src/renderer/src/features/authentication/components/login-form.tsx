@@ -49,6 +49,10 @@ type LoginValues = {
   password: string
 }
 
+function progressKey(progress: GoogleSyncProgress): string {
+  return `${progress.branch}:${progress.sheet}`
+}
+
 function LoginPreviewCalendar({
   preview
 }: {
