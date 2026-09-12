@@ -183,7 +183,7 @@ export function UniversalDataTable<TData extends object>({
                       key={header.id}
                       colSpan={header.colSpan}
                       className={cn(
-                        'h-7 px-3 text-xs font-medium text-muted-foreground',
+                        'h-8 px-3 text-xs font-medium text-muted-foreground',
                         meta.headerClassName,
                         getNarrowColumnClassName(header.column.id),
                       )}
@@ -209,7 +209,7 @@ export function UniversalDataTable<TData extends object>({
                   {table.getVisibleLeafColumns().map((column) => (
                     <TableCell
                       key={column.id}
-                      className={cn('h-7 px-3 py-1', getNarrowColumnClassName(column.id))}
+                      className={cn('h-9 px-3 py-1.5', getNarrowColumnClassName(column.id))}
                     >
                       <Skeleton className="h-3 w-full" />
                     </TableCell>
@@ -222,7 +222,7 @@ export function UniversalDataTable<TData extends object>({
                 <TableRow
                   data-state={(row.getIsSelected() || row.id === selectedRowId) && 'selected'}
                   className={cn(
-                    'group/row h-7 border-b border-border last:border-b-0',
+                    'group/row h-9 border-b border-border last:border-b-0',
                     (row.original as { status?: string }).status === 'VOIDED' && 'text-destructive',
                     getRowClassName?.(row.original),
                     row.id === selectedRowId && 'bg-primary/10',
@@ -238,7 +238,7 @@ export function UniversalDataTable<TData extends object>({
                       <TableCell
                         key={cell.id}
                         className={cn(
-                          'h-7 max-w-72 px-3 py-1',
+                          'h-9 max-w-72 px-3 py-1.5',
                           getNarrowColumnClassName(cell.column.id),
                           row.id === selectedRowId && index === 0 && 'border-l-2 border-l-primary',
                           meta.cellClassName

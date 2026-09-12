@@ -489,7 +489,7 @@ export function FinanceAccountsContent({
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3 bg-workspace">
       <TableToolbar className="flex-wrap gap-3 border-b-0 bg-transparent px-0 py-3">
         <SearchInputGroup
           value={search}

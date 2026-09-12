@@ -2642,8 +2642,6 @@ export function CashierReportsContent({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-workspace">
         <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <Card className="min-h-0 min-w-0 flex-1 gap-0 overflow-visible py-2">
-              <CardContent className="flex min-h-0 flex-1 flex-col pl-0 pr-0 pt-2 pb-2">
                 <Tabs
                   value={hoveredTab ?? activeTab}
                   onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
@@ -2791,8 +2789,7 @@ export function CashierReportsContent({
                     ))}
                   </div>
                 </Tabs>
-              </CardContent>
-            </Card>
+          
           </div>
         </div>
       </div>

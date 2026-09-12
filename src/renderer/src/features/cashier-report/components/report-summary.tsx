@@ -176,9 +176,9 @@ function Section({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className={cn('border-b border-border/50 py-2 last:border-b-0', className)}>
+    <section className={cn('border-b border-border/50 py-1.5 last:border-b-0', className)}>
       {label && (
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        <p className="mb-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {label}
         </p>
       )}
@@ -209,7 +209,8 @@ function SummaryRow({
   const row = (
     <div
       className={cn(
-        'flex min-h-6 items-center justify-between gap-3 rounded-sm px-1.5 text-xs transition-colors hover:bg-muted/60',
+        'flex min-h-6 items-center justify-between gap-2 rounded-sm px-1 text-xs transition-colors hover:bg-muted/60',
+        emphasis && 'mt-0.5 min-h-7 border-t border-border/60 pt-1.5 text-[13px]',
         className
       )}
     >
@@ -224,7 +225,7 @@ function SummaryRow({
       <span
         className={cn(
           'shrink-0 font-mono text-xs tabular-nums',
-          emphasis && 'font-semibold',
+          emphasis && 'text-[13px] font-medium',
           valueMuted ? 'text-muted-foreground' : emphasis && 'text-foreground'
         )}
       >
@@ -562,20 +563,6 @@ export const ReportSummary = React.memo(function ReportSummary({
     deductionCentavos
   const expectedCashCentavos =
     totalCashReceiptsCentavos - totalCashOutCentavos - paymentTotals.total
-  const hasReceiptSummary = [
-    snapshot.cashCollectionsCentavos,
-    snapshot.otherIncomeCentavos,
-    snapshot.financeDownCentavos,
-    totalCashReceiptsCentavos
-  ].some(Boolean)
-  const hasCashOutSummary = [
-    expenseTotals.companyExpensesCentavos,
-    expenseTotals.drawingsCentavos,
-    expenseTotals.purchasesCentavos,
-    expenseTotals.receivablesCentavos,
-    totalCashOutCentavos,
-    paymentTotals.total
-  ].some(Boolean)
   const variance = snapshot.physicalCashCentavos - expectedCashCentavos
   const receiptTypesByReport = [
     ...snapshot.receiptTypes.map((type) => {
@@ -656,10 +643,10 @@ export const ReportSummary = React.memo(function ReportSummary({
 
   return (
     <>
-      <aside className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden bg-workspace p-3 text-foreground">
+      <aside className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-workspace p-3 text-foreground">
         <Card className="shrink-0 gap-0 py-0">
           <CardContent className="p-0">
-            <header className="relative flex h-14 items-center px-3">
+            <header className="relative flex h-12 items-center px-3">
               <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1">
                 <Button
                   type="button"
@@ -811,8 +798,8 @@ export const ReportSummary = React.memo(function ReportSummary({
             <ScrollArea className="min-h-0 flex-1">
               <div className="px-2.5">
                 {visibleReceiptTypes.length > 0 && (
-                  <Section label="" className="border-b-0">
-                    <div className="grid grid-cols-[minmax(0,1fr)_3.04rem_5.12rem] gap-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <>
+                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_4.5rem] pt-2 gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       <span>Type</span>
                       <span className="text-right">Qty</span>
                       <span className="text-right">Amount</span>
@@ -824,7 +811,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                       return (
                         <div
                           key={type.id}
-                          className="grid grid-cols-[minmax(0,1fr)_3.04rem_5.12rem] items-center gap-2 rounded-sm px-1.5 py-0.5 text-xs hover:bg-muted/40"
+                          className="grid grid-cols-[minmax(0,1fr)_2.75rem_4.5rem] items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs hover:bg-muted/40"
                         >
                           <TooltipProvider>
                             <Tooltip>
@@ -877,10 +864,9 @@ export const ReportSummary = React.memo(function ReportSummary({
                         </div>
                       )
                     })}
-                  </Section>
+                  </>
                 )}
-                {hasReceiptSummary && (
-                  <Section label="" className="-mt-3.5 border-b-0">
+                <Section label="Cash in" className="border-b-0">
                     <SummaryRow
                       label="Collections"
                       value={snapshot.cashCollectionsCentavos ?? 0}
@@ -947,13 +933,9 @@ export const ReportSummary = React.memo(function ReportSummary({
                       label="Total Cash Receipts"
                       value={totalCashReceiptsCentavos}
                       emphasis
-                      hideWhenZero
-                      valueMuted
                     />
-                  </Section>
-                )}
-                {hasCashOutSummary && (
-                  <Section label="" className="-mt-2 border-b-0 py-0">
+                </Section>
+                <Section label="Cash out" className="border-b-0">
                     <SummaryRow
                       label="Expenses"
                       value={expenseTotals.companyExpensesCentavos}
@@ -1014,9 +996,9 @@ export const ReportSummary = React.memo(function ReportSummary({
                       label="Total Cash Outs"
                       value={totalCashOutCentavos}
                       emphasis
-                      hideWhenZero
-                      valueMuted
                     />
+                </Section>
+                <Section label="Payments" className="border-b-0">
                     <SummaryRow
                       label="Bank Check"
                       value={paymentTotals.bankCheck}
@@ -1040,15 +1022,12 @@ export const ReportSummary = React.memo(function ReportSummary({
                       label="Total Payments"
                       value={paymentTotals.total}
                       emphasis
-                      hideWhenZero
-                      valueMuted
                     />
-                  </Section>
-                )}
+                </Section>
               </div>
             </ScrollArea>
-            <div className="shrink-0 border-t border-sidebar-border bg-background/30 px-3 py-1">
-              <SummaryRow label="Expected Cash" value={expectedCashCentavos} emphasis valueMuted />
+            <div className="shrink-0 border-t border-sidebar-border bg-background/30 px-3 py-2">
+              <SummaryRow label="Expected Cash" value={expectedCashCentavos} emphasis />
               <SummaryRow
                 label="Cash Denominations"
                 value={snapshot.physicalCashCentavos}
@@ -1091,7 +1070,7 @@ export const ReportSummary = React.memo(function ReportSummary({
         </Card>
 
         <Card className="shrink-0 gap-0 py-0">
-          <CardContent className="p-3">
+          <CardContent className="p-2">
             <section
               aria-label="Cash variance"
               className="flex items-baseline justify-between gap-3"
@@ -1099,7 +1078,13 @@ export const ReportSummary = React.memo(function ReportSummary({
               <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Cash variance
               </span>
-              <span className="font-mono text-lg font-semibold tracking-tight tabular-nums">
+              <span
+                className={cn(
+                  'font-mono text-lg font-semibold tracking-tight tabular-nums',
+                  variance > 0 && 'text-success',
+                  variance < 0 && 'text-destructive'
+                )}
+              >
                 {money(variance)}
               </span>
             </section>

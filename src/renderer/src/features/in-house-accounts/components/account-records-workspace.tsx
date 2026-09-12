@@ -1550,7 +1550,7 @@ export function AccountRecordsWorkspace({
     getRowId: (row) => row.contractId
   })
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3 bg-workspace">
       <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <SearchInputGroup

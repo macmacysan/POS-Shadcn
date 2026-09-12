@@ -120,7 +120,7 @@ export function CalendarWorkspace({
   }
 
   return (
-    <main className="flex min-h-0 flex-1 overflow-hidden bg-background">
+    <main className="flex min-h-0 flex-1 overflow-hidden bg-workspace">
       <aside className="flex w-80 shrink-0 flex-col border-r bg-card">
         <div className="border-b px-5 py-4">
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">

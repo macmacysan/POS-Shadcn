@@ -5,17 +5,17 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "group/badge inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md px-2 text-xs font-medium whitespace-nowrap ring-1 ring-inset transition-all focus-visible:ring-2 focus-visible:ring-ring/50 [&>svg]:pointer-events-none [&>svg]:size-3.5",
+  "group/badge inline-flex h-6 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-sm px-2 text-xs font-medium whitespace-nowrap ring-1 ring-inset transition-all focus-visible:ring-2 focus-visible:ring-ring/50 [&>svg]:pointer-events-none [&>svg]:size-3.5",
   {
     variants: {
       variant: {
-        default: "bg-secondary text-secondary-foreground ring-border [a]:hover:bg-muted",
-        zinc: "bg-secondary text-secondary-foreground ring-border [a]:hover:bg-muted",
+        default: "bg-info/15 text-info-foreground ring-info/30 [a]:hover:bg-info/25",
+        zinc: "bg-muted text-muted-foreground ring-border [a]:hover:bg-muted/80",
 
         amber: "bg-warning/15 text-warning-foreground ring-warning/30 [a]:hover:bg-warning/25",
         blue: "bg-info/15 text-info-foreground ring-info/30 [a]:hover:bg-info/25",
         emerald: "bg-success/15 text-success-foreground ring-success/30 [a]:hover:bg-success/25",
-        secondary: "bg-secondary text-secondary-foreground ring-border [a]:hover:bg-muted",
+        secondary: "bg-muted text-muted-foreground ring-border [a]:hover:bg-muted/80",
         destructive:
           "bg-destructive/15 text-destructive ring-destructive/30 [a]:hover:bg-destructive/25",
         outline:

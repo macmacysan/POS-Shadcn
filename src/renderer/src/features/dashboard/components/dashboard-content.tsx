@@ -173,7 +173,7 @@ export function DashboardContent({
     (overview?.cashierReportCount ?? 0) - (overview?.reconciledReportCount ?? 0)
   )
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
+    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 bg-workspace">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
