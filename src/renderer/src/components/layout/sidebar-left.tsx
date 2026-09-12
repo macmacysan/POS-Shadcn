@@ -1,10 +1,6 @@
 import * as React from 'react'
 import appIcon from '@/assets/app-icon.png'
-import {
-  MonitorCogIcon,
-  Settings2Icon,
-  ShieldCheckIcon
-} from 'lucide-react'
+import { MonitorCogIcon, Settings2Icon, ShieldCheckIcon } from 'lucide-react'
 
 import { NavMain } from '@/components/layout/navigation/nav-main'
 import { NavUser } from '@/components/layout/navigation/nav-user'
@@ -39,7 +35,13 @@ import type { LoginBranch } from '@/../../shared/contracts'
 
 const teams = [
   {
-    name: <>Nueva Camsur<br />Home Furnishing</>,
+    name: (
+      <>
+        Nueva Camsur
+        <br />
+        Home Furnishing
+      </>
+    ),
     logo: <img src={appIcon} alt="" className="size-10 rounded-2xl object-contain" />
   }
 ]
@@ -51,6 +53,7 @@ export function SidebarLeft({
   selectedBranch,
   onDashboard,
   onCashierReports,
+  onReport,
   onAllAccounts,
   onActiveAccounts,
   onClosedAccounts,
@@ -77,6 +80,7 @@ export function SidebarLeft({
   selectedBranch: 'All Branch' | 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
   onDashboard?: () => void
   onCashierReports?: () => void
+  onReport?: () => void
   onAllAccounts?: () => void
   onActiveAccounts?: () => void
   onClosedAccounts?: () => void
@@ -142,6 +146,7 @@ export function SidebarLeft({
             activeView={activeView}
             onDashboard={onDashboard}
             onCashierReports={onCashierReports}
+            onReport={onReport}
             onAllAccounts={onAllAccounts}
             onActiveAccounts={onActiveAccounts}
             onClosedAccounts={onClosedAccounts}

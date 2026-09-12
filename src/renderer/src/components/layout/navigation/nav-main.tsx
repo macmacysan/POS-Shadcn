@@ -7,6 +7,7 @@ import {
   ClipboardTextIcon,
   ClockIcon,
   CreditCardIcon,
+  FileTextIcon,
   ListBulletsIcon,
   ProhibitIcon,
   SquaresFourIcon
@@ -61,6 +62,7 @@ const navigation: { navMain: NavItem[] } = {
   navMain: [
     { title: 'Dashboard', url: '#', icon: <SquaresFourIcon /> },
     { title: 'Cashier reports', url: '#', icon: <ClipboardTextIcon /> },
+    { title: 'Report', url: '#', icon: <FileTextIcon /> },
     {
       title: 'In-house',
       url: '#',
@@ -201,6 +203,7 @@ export function NavMain({
   activeView,
   onDashboard,
   onCashierReports,
+  onReport,
   onAllAccounts,
   onActiveAccounts,
   onClosedAccounts,
@@ -213,6 +216,7 @@ export function NavMain({
   activeView: string
   onDashboard?: () => void
   onCashierReports?: () => void
+  onReport?: () => void
   onAllAccounts?: () => void
   onActiveAccounts?: () => void
   onClosedAccounts?: () => void
@@ -227,6 +231,8 @@ export function NavMain({
       return { ...item, isActive: activeView === 'dashboard', onClick: onDashboard }
     if (item.title === 'Cashier reports')
       return { ...item, isActive: activeView === 'cashier-reports', onClick: onCashierReports }
+    if (item.title === 'Report')
+      return { ...item, isActive: activeView === 'report', onClick: onReport }
     if (item.title === 'Calendar')
       return { ...item, isActive: activeView === 'calendar', onClick: onCalendar }
     if (!isNavGroup(item)) return item
@@ -287,6 +293,7 @@ export function NavMain({
               activeView === 'cashier-reports',
               onCashierReports
             ],
+            ['Report', <FileTextIcon />, activeView === 'report', onReport],
             ['Records', <ListBulletsIcon />, activeView === 'in-house-accounts', onAllAccounts],
             ['Active', <ClockIcon />, activeView === 'in-house-active-accounts', onActiveAccounts],
             [

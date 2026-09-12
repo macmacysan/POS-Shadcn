@@ -1211,7 +1211,7 @@ export class InstallmentRepository {
 
     const contract = this.db
       .prepare(
-        `SELECT contract_number, first_due_date, down_payment_applied_centavos,
+        `SELECT contract_number, first_due_date, down_payment_centavos, down_payment_applied_centavos,
                 COALESCE(NULLIF(schedule_frequency, ''), payment_frequency) AS payment_frequency,
                 terms, total_payable_centavos
            FROM installment_contracts WHERE id = ? AND account_id = ?`
@@ -1223,6 +1223,7 @@ export class InstallmentRepository {
           payment_frequency: string
           terms: string
           total_payable_centavos: number
+          down_payment_centavos: number
           down_payment_applied_centavos: number
         }
       | undefined
@@ -1374,6 +1375,10 @@ export class InstallmentRepository {
       totalPayableCentavos: contract.total_payable_centavos,
       totalPaidCentavos,
       outstandingBalanceCentavos: Math.max(0, contract.total_payable_centavos - totalPaidCentavos),
+      downPayment:
+        contract.down_payment_centavos > 0
+          ? { paymentDate: record.loan.dateReleased, amountCentavos: contract.down_payment_centavos }
+          : undefined,
       nextDue: next
         ? {
             dueDate: next.dueDate,

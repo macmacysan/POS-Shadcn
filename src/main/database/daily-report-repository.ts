@@ -1225,9 +1225,16 @@ export class DailyReportRepository {
            JOIN accounts a ON a.id = c.account_id
            WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
              AND p.payment_date = ? AND c.branch_id = ?
-          ORDER BY a.display_name, p.id`
+         UNION ALL
+         SELECT c.account_id AS id, a.display_name || ' (Downpayment)' AS name,
+                c.down_payment_centavos AS amountCentavos
+           FROM installment_contracts c
+           JOIN accounts a ON a.id = c.account_id
+          WHERE c.status <> 'VOIDED' AND c.date_released = ? AND c.branch_id = ?
+            AND c.down_payment_centavos > 0
+          ORDER BY name, id`
       )
-      .all(report.businessDate, report.branchId) as Array<{
+      .all(report.businessDate, report.branchId, report.businessDate, report.branchId) as Array<{
       id: string
       name: string
       amountCentavos: number
@@ -1274,6 +1281,11 @@ export class DailyReportRepository {
                       WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
                        AND p.payment_date = report.business_date
                        AND c.branch_id = report.branch_id), 0) AS recorded_paid_amount_centavos,
+          COALESCE((SELECT SUM(c.down_payment_centavos)
+                      FROM installment_contracts c
+                     WHERE c.status <> 'VOIDED'
+                       AND c.date_released = report.business_date
+                       AND c.branch_id = report.branch_id), 0) AS recorded_down_payment_centavos,
           COALESCE((SELECT SUM(i.amount_centavos)
                       FROM income_entries i
                      WHERE i.daily_report_id = ? AND i.status = 'POSTED'), 0) AS other_income_centavos,
@@ -1313,6 +1325,7 @@ export class DailyReportRepository {
       cash_out_centavos: number
       legacy_expense_cash_out_centavos: number
       recorded_paid_amount_centavos: number
+      recorded_down_payment_centavos: number
       other_income_centavos: number
       finance_down_centavos: number
       finance_balance_centavos: number
@@ -1322,6 +1335,7 @@ export class DailyReportRepository {
     const expectedCashCentavos =
       totals.receipt_centavos +
       totals.recorded_paid_amount_centavos +
+      totals.recorded_down_payment_centavos +
       totals.other_income_centavos +
       totals.finance_down_centavos -
       totals.deduction_centavos -
@@ -1343,7 +1357,8 @@ export class DailyReportRepository {
       financeDownDetails,
       financeBalanceDetails,
       legacyExpenseCashOutCentavos: totals.legacy_expense_cash_out_centavos,
-      cashCollectionsCentavos: totals.recorded_paid_amount_centavos,
+      cashCollectionsCentavos:
+        totals.recorded_paid_amount_centavos + totals.recorded_down_payment_centavos,
       otherIncomeCentavos: totals.other_income_centavos,
       financeDownCentavos: totals.finance_down_centavos,
       financeBalanceCentavos: totals.finance_balance_centavos,

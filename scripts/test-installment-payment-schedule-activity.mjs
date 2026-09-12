@@ -22,16 +22,32 @@ try {
     '--outDir',
     output,
     resolve(root, 'src/main/database/migrations.ts'),
+    resolve(root, 'src/main/database/user-repository.ts'),
+    resolve(root, 'src/main/database/daily-report-repository.ts'),
     resolve(root, 'src/main/database/installment-repository.ts')
   ])
   const Database = require('better-sqlite3')
   const { runMigrations } = require(resolve(output, 'main/database/migrations.js'))
+  const { UserRepository } = require(resolve(output, 'main/database/user-repository.js'))
+  const { DailyReportRepository } = require(
+    resolve(output, 'main/database/daily-report-repository.js')
+  )
   const { InstallmentRepository } = require(
     resolve(output, 'main/database/installment-repository.js')
   )
   const db = new Database(':memory:')
   db.pragma('foreign_keys = ON')
   runMigrations(db)
+  const users = new UserRepository(db)
+  users.setCashierLoginBranch('Goa')
+  users.createAccount({
+    username: 'schedule-cashier',
+    password: 'cashier123',
+    branch: 'Goa',
+    role: 'CASHIER'
+  })
+  const cashier = users.authenticate({ username: 'schedule-cashier', password: 'cashier123' })
+  const reports = new DailyReportRepository(db)
   const repository = new InstallmentRepository(db)
   const now = '2026-09-01T00:00:00.000Z'
 
@@ -57,13 +73,25 @@ try {
         dateReleased: '2026-09-01',
         paymentFrequency: 'Monthly',
         terms: '3',
-        downPayment: 0,
+        downPayment: 1000,
         items: [{ id: 'schedule-item', name: 'Test', model: 'Test', quantity: 1, price: 10000 }],
         createdAt: now
       }
     ]
   })
 
+  db.prepare(
+    "UPDATE installment_contracts SET down_payment_applied_centavos = 0 WHERE id = 'schedule-contract'"
+  ).run()
+  const report = reports.resolveActive(
+    { branchId: cashier.branchId, cashierUserId: cashier.id, businessDate: '2026-09-01' },
+    cashier.id
+  )
+  const downPaymentSnapshot = reports.snapshot(report.id)
+  assert.equal(downPaymentSnapshot.cashCollectionsCentavos, 100000)
+  assert.deepEqual(downPaymentSnapshot.collectionDetails, [
+    { id: 'schedule-account', name: 'Test, Schedule (Downpayment)', amountCentavos: 100000 }
+  ])
   const schedules = db
     .prepare(
       'SELECT id, installment_number, due_amount_centavos FROM in_house_schedules WHERE contract_id = ? ORDER BY installment_number'
@@ -115,6 +143,7 @@ try {
   ).run(third.due_amount_centavos, now, now)
 
   const workspace = repository.getPaymentWorkspace({ accountId: 'schedule-account' })
+  assert.deepEqual(workspace.downPayment, { paymentDate: '2026-09-01', amountCentavos: 100000 })
   const secondSchedule = workspace.schedules.find((schedule) => schedule.id === second.id)
   const thirdSchedule = workspace.schedules.find((schedule) => schedule.id === third.id)
   const firstSchedule = workspace.schedules.find((schedule) => schedule.id === first.id)

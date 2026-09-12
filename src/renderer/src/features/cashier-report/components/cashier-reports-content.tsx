@@ -45,7 +45,6 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ReportDataTable,
@@ -200,6 +199,105 @@ const initialPdfProgress: PdfProgressStep[] = [
   { id: 'sheets', label: 'Upload encrypted Drive snapshot', status: 'pending', attempts: 0 },
   { id: 'telegram', label: 'Send to Telegram', status: 'pending', attempts: 0 }
 ]
+
+function DeliveryProgressDialog({
+  open,
+  onOpenChange,
+  steps,
+  isProcessing,
+  onRetry
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  steps: readonly PdfProgressStep[]
+  isProcessing: boolean
+  onRetry: (id: PdfProgressStepId) => void
+}): React.JSX.Element {
+  const completed = steps.filter(
+    (step) => step.status === 'done' || step.status === 'failed'
+  ).length
+  const birdPosition = steps.findIndex((step) => step.status === 'processing')
+  const landingAt = birdPosition >= 0 ? birdPosition : Math.max(0, completed - 1)
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !isProcessing && onOpenChange(nextOpen)}>
+      <DialogContent className="max-w-xl gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b bg-muted/30 px-6 py-5 pr-12">
+          <DialogTitle>Delivery progress</DialogTitle>
+          <DialogDescription>Follow the report as it reaches each destination.</DialogDescription>
+        </DialogHeader>
+        <div className="p-6">
+          <div className="relative mb-6 h-16" aria-label="Report delivery flight path">
+            <div className="absolute left-4 right-4 top-8 border-t border-dashed border-border" />
+            <div
+              className="report-delivery-bird absolute top-1 text-primary"
+              style={{ left: `calc(${landingAt * 50}% + ${landingAt === 0 ? '0' : '2px'})` }}
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 32 24"
+                className="size-8"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M2 14c5-8 10-8 14 0 4-5 8-5 14 0" />
+                <path d="M16 14v6" />
+              </svg>
+            </div>
+            <div className="absolute inset-x-0 top-7 flex justify-between px-4" aria-hidden="true">
+              {steps.map((step) => (
+                <span
+                  key={step.id}
+                  className={cn(
+                    'size-3 rounded-full border-2 bg-background',
+                    step.status === 'done' && 'border-primary bg-primary',
+                    step.status === 'failed' && 'border-destructive bg-destructive',
+                    step.status === 'processing' && 'border-primary report-delivery-checkpoint'
+                  )}
+                />
+              ))}
+            </div>
+          </div>
+          <Progress
+            value={(completed / steps.length) * 100}
+            aria-label="Report delivery progress"
+          />
+          <div className="mt-5 flex flex-col gap-3">
+            {steps.map((step) => (
+              <div key={step.id} className="flex items-start gap-3 rounded-xl border bg-card p-3">
+                {step.status === 'processing' ? (
+                  <Spinner />
+                ) : step.status === 'done' ? (
+                  <Check className="text-primary" />
+                ) : step.status === 'failed' ? (
+                  <CircleAlert className="text-destructive" />
+                ) : (
+                  <span className="mt-1 size-4 rounded-full border border-border" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{step.label}</p>
+                  {step.error && <p className="mt-1 text-xs text-destructive">{step.error}</p>}
+                  {step.status === 'failed' && !isProcessing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => onRetry(step.id)}
+                    >
+                      Retry
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function filenameName(value: string): string {
   const parts = value.trim().split(/\s+/).filter(Boolean)
@@ -1602,6 +1700,7 @@ function EntryFormPanel({
 }
 
 export function CashierReportsContent({
+  reportPage = false,
   selectedBranch = 'All Branch',
   cashierName = 'Cashier',
   isAdmin = false,
@@ -1622,6 +1721,7 @@ export function CashierReportsContent({
   onViewInstallmentAccounts,
   onOpenInstallmentAccount
 }: {
+  reportPage?: boolean
   selectedBranch?: LoginBranch
   cashierName?: string
   isAdmin?: boolean
@@ -1692,9 +1792,11 @@ export function CashierReportsContent({
     tabs: Record<string, ExcelSheetRows>
   }>()
   const [isExcelExporting, setIsExcelExporting] = React.useState(false)
-  const [excelExportMessage, setExcelExportMessage] = React.useState<string>()
+  const [, setExcelExportMessage] = React.useState<string>()
   const summarySnapshotRef = React.useRef<DailyReportSnapshotResponse | undefined>(undefined)
   const [isPdfReviewOpen, setIsPdfReviewOpen] = React.useState(false)
+  const [isDeliveryProgressOpen, setIsDeliveryProgressOpen] = React.useState(false)
+  const [reportPageDate, setReportPageDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [pdfProgress, setPdfProgress] = React.useState<PdfProgressStep[]>(initialPdfProgress)
   const [isPdfProcessing, setIsPdfProcessing] = React.useState(false)
   const [pdfNote, setPdfNote] = React.useState('')
@@ -2569,6 +2671,155 @@ export function CashierReportsContent({
     document.getElementById(id)?.focus()
   }, [activeTab, isEntryFormVisible])
 
+  if (reportPage) {
+    return (
+      <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-workspace p-4">
+        <header className="flex shrink-0 items-center justify-between gap-4 rounded-xl border bg-card px-5 py-4">
+          <div>
+            <h1 className="font-heading text-lg font-medium">Report</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Generate, review, and deliver a cashier report.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              aria-label="Report date"
+              value={reportPageDate}
+              onChange={(event) => setReportPageDate(event.target.value)}
+              className="w-40"
+            />
+            <Button
+              type="button"
+              disabled={isReviewingPdf || !reportPageDate}
+              onClick={() =>
+                void reviewPdf(undefined, {
+                  branch: selectedBranch,
+                  dateFrom: reportPageDate,
+                  dateTo: reportPageDate
+                })
+              }
+            >
+              {isReviewingPdf ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <FileDown data-icon="inline-start" />
+              )}
+              Generate report
+            </Button>
+          </div>
+        </header>
+        {exportError && (
+          <Alert variant="destructive">
+            <AlertTitle>Report unavailable</AlertTitle>
+            <AlertDescription>{exportError}</AlertDescription>
+          </Alert>
+        )}
+        {pdfPreview ? (
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(18rem,1fr)_auto] overflow-hidden rounded-xl border bg-card lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-1">
+            <section className="flex min-h-0 flex-col bg-muted/30 p-4" aria-label="PDF preview">
+              <div className="mb-2 flex items-center justify-between text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                <span>PDF preview</span>
+                <span>Final document</span>
+              </div>
+              <iframe
+                title="Cashier report PDF preview"
+                src={`data:application/pdf;base64,${pdfPreview.pdfBase64}`}
+                className="min-h-0 flex-1 rounded-md border bg-background"
+              />
+            </section>
+            <aside className="flex min-h-0 flex-col border-t lg:border-l lg:border-t-0">
+              <div className="border-b p-5">
+                <p className="text-sm font-semibold">Delivery</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Save a copy and send it when ready.
+                </p>
+                <Button
+                  type="button"
+                  className="mt-4 w-full"
+                  disabled={isPdfProcessing || pdfPreview.note !== pdfNote}
+                  onClick={() => {
+                    setIsDeliveryProgressOpen(true)
+                    if (pdfProgress.every((step) => step.status === 'pending')) beginPdfExport()
+                  }}
+                >
+                  {isPdfProcessing ? (
+                    <Spinner data-icon="inline-start" />
+                  ) : (
+                    <FileDown data-icon="inline-start" />
+                  )}
+                  {pdfProgress.every((step) => step.status === 'pending')
+                    ? 'Deliver report'
+                    : 'View delivery progress'}
+                </Button>
+              </div>
+              <div className="p-5">
+                <label htmlFor="report-page-note" className="text-xs font-medium">
+                  PDF note
+                </label>
+                <Textarea
+                  id="report-page-note"
+                  value={pdfNote}
+                  onChange={(event) => setPdfNote(event.target.value)}
+                  placeholder="Optional note at the end of this PDF"
+                  maxLength={800}
+                  rows={4}
+                  disabled={isPdfProcessing}
+                  className="mt-2 resize-none text-sm"
+                />
+                <label htmlFor="report-page-telegram-note" className="mt-4 block text-xs font-medium">
+                  Telegram note
+                </label>
+                <Textarea
+                  id="report-page-telegram-note"
+                  value={telegramNote}
+                  onChange={(event) => setTelegramNote(event.target.value)}
+                  placeholder="Optional note to include with the Telegram delivery"
+                  maxLength={800}
+                  rows={2}
+                  disabled={isPdfProcessing}
+                  className="mt-2 resize-none text-sm"
+                />
+                {pdfPreview.note !== pdfNote && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    disabled={isReviewingPdf}
+                    onClick={() =>
+                      pdfReviewRequest &&
+                      void reviewPdf(pdfReviewRequest.sections, pdfReviewRequest.filters)
+                    }
+                  >
+                    Update preview
+                  </Button>
+                )}
+              </div>
+            </aside>
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border bg-card p-6 text-center">
+            <div>
+              <FileDown className="mx-auto size-5 text-muted-foreground" />
+              <p className="mt-3 text-sm font-medium">Choose a date to create a report</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The completed report will appear here for review.
+              </p>
+            </div>
+          </div>
+        )}
+        <DeliveryProgressDialog
+          open={isDeliveryProgressOpen}
+          onOpenChange={setIsDeliveryProgressOpen}
+          steps={pdfProgress}
+          isProcessing={isPdfProcessing}
+          onRetry={(id) => void retryPdfStep(id)}
+        />
+      </main>
+    )
+  }
+
   if (selectedReportMissing) {
     return (
       <div className="flex h-full min-h-0 flex-col bg-workspace">
@@ -2586,7 +2837,6 @@ export function CashierReportsContent({
   }
 
   const selectTab = (nextTab: (typeof reportTabs)[number]): void => {
-
     if (nextTab !== activeTab && isEntryFormVisible && isEntryFormDirty) {
       setConfirmation({
         title: 'Discard unsaved entry changes?',
@@ -2642,154 +2892,135 @@ export function CashierReportsContent({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <Tabs
-                  value={hoveredTab ?? activeTab}
-                  onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
-                  className="flex min-h-0 flex-1 flex-col gap-0"
-                >
-                  <div className="mx-4 flex shrink-0 items-center">
-                    <div className="min-w-0 flex-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
-                      <TabsList
-                        aria-label="Cashier report sections"
-                        className="mb-2 h-10 w-fit justify-start bg-muted"
-                        onPointerLeave={() => setHoveredTab(undefined)}
-                      >
-                        {reportTabs.map((tab) => (
-                          <TabsTrigger
-                            key={tab}
-                            value={tab}
-                            className="flex-none gap-1.5 px-3 text-sm"
-                            onPointerEnter={() => setHoveredTab(tab)}
-                            onClick={() => selectTab(tab)}
-                          >
-                            <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
-                            {tabRowCounts[tab] > 0 && (
-                              <Badge
-                                variant="secondary"
-                                className="size-5 shrink-0 justify-center rounded-full bg-muted p-0 text-xs tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
-                              >
-                                {tabRowCounts[tab]}
-                              </Badge>
-                            )}
-                          </TabsTrigger>
-                        ))}
-                      </TabsList>
-                    </div>
-                    <CashierReportHeader error={dateError ?? exportError} />
-                  </div>
-                  <div className="flex min-h-0 flex-1 flex-col overflow-visible">
+            <Tabs
+              value={hoveredTab ?? activeTab}
+              onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
+              className="flex min-h-0 flex-1 flex-col gap-0"
+            >
+              <div className="mx-4 flex shrink-0 items-center">
+                <div className="min-w-0 flex-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
+                  <TabsList
+                    aria-label="Cashier report sections"
+                    className="mb-2 h-10 w-fit justify-start bg-muted"
+                    onPointerLeave={() => setHoveredTab(undefined)}
+                  >
                     {reportTabs.map((tab) => (
-                      <TabsContent
+                      <TabsTrigger
                         key={tab}
                         value={tab}
-                        className="flex min-h-0 flex-1 flex-col overflow-visible"
+                        className="flex-none gap-1.5 px-3 text-sm"
+                        onPointerEnter={() => setHoveredTab(tab)}
+                        onClick={() => selectTab(tab)}
                       >
-                        <ReportTab
-                          isCompact={isEntryFormCompact}
-                          tab={tab}
-                          showBranch={selectedBranch === 'All Branch'}
-                          globalFilter={reportSearch}
-                          onGlobalFilterChange={(value) => {
-                            setReportSearch(value)
-                            expenseQuery.onGlobalFilterChange(value)
-                          }}
-                          selectedBranch={selectedBranch}
-                          dateFrom={dateFrom}
-                          dateTo={dateTo}
-                          expenseRows={expenseQuery.rows}
-                          incomeRows={incomes}
-                          paymentRows={payments}
-                          expenseTypes={activeExpenseTypes}
-                          paymentTypes={activePaymentTypes}
-                          expenseQuery={expenseQuery}
-                          onVoidSelectedExpenses={
-                            isAdmin ? async () => false : deleteSelectedExpenses
-                          }
-                          onView={openEntryView}
-                          onVoid={isAdmin ? () => undefined : requestVoid}
-                          onDuplicate={
-                            isAdmin ? () => undefined : (row) => startEntryForm(row, 'duplicate')
-                          }
-                          isAdmin={isAdmin}
-                          showVoided={showVoided}
-                          onShowVoidedChange={setShowVoided}
-                          afterFiltersContent={
-                            <InstallmentAttentionPopover
-                              summary={installmentAttention}
-                              onViewOverdue={onViewOverdueInstallments}
-                              onViewAll={onViewInstallmentAccounts}
-                              onOpenAccount={onOpenInstallmentAccount}
-                            />
-                          }
-                          trailingToolbarContent={
-                            <>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                  void reviewPdf(undefined, {
-                                    branch: selectedBranch,
-                                    dateFrom: selectedReport.businessDate,
-                                    dateTo: selectedReport.businessDate
-                                  })
-                                }
-                              >
-                                <FileDown data-icon="inline-start" aria-hidden="true" />
-                                <span className="hidden sm:inline">Review Report</span>
-                                <span className="sm:hidden">Review</span>
-                              </Button>
-                              {!isAdmin && (
-                                <Button type="button" size="sm" onClick={toggleEntryForm}>
-                                  <Plus data-icon="inline-start" aria-hidden="true" />
-                                  <span className="hidden sm:inline">
-                                    {isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
-                                  </span>
-                                  <span className="sm:hidden">
-                                    {isEntryFormVisible ? 'Hide' : 'Add'}
-                                  </span>
-                                </Button>
-                              )}
-                            </>
-                          }
-                          selectedHistoryId={selectedHistory?.id}
-                          onSelectHistory={openHistoryRecord}
-                          onVoidSelected={deleteSelectedEntries}
-                          onVoidSelectedHistory={async (rows, reason) => {
-                            const payments = rows.filter((row) =>
-                              row.activity.toLowerCase().includes('payment')
-                            )
-                            const contracts = rows
-                              .filter((row) => row.activity === 'Installment record added')
-                              .map((row) => row.id.split(':', 1)[0])
-                            if (payments.length) {
-                              await window.api.installments.voidPayments({
-                                paymentIds: payments.map((row) => row.id),
-                                reason
-                              })
-                            }
-                            if (contracts.length) {
-                              await window.api.installments.void({
-                                contractIds: contracts,
-                                reason
-                              })
-                            }
-                            setHistoryRefreshKey((key) => key + 1)
-                          }}
-                          onEdit={(row) => startEntryForm(row, 'edit')}
-                          incomeLoadState={incomeLoadState}
-                          paymentLoadState={paymentLoadState}
-                          onRetryEntries={() => void refreshEntries()}
-                          historyRecords={historyRecords}
-                          historyLoadState={historyLoadState}
-                          onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
-                          onVisibleHistoryCountChange={setVisibleHistoryCount}
-                        />
-                      </TabsContent>
+                        <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
+                        {tabRowCounts[tab] > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="size-5 shrink-0 justify-center rounded-full bg-muted p-0 text-xs tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
+                          >
+                            {tabRowCounts[tab]}
+                          </Badge>
+                        )}
+                      </TabsTrigger>
                     ))}
-                  </div>
-                </Tabs>
-          
+                  </TabsList>
+                </div>
+                <CashierReportHeader error={dateError ?? exportError} />
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col overflow-visible">
+                {reportTabs.map((tab) => (
+                  <TabsContent
+                    key={tab}
+                    value={tab}
+                    className="flex min-h-0 flex-1 flex-col overflow-visible"
+                  >
+                    <ReportTab
+                      isCompact={isEntryFormCompact}
+                      tab={tab}
+                      showBranch={selectedBranch === 'All Branch'}
+                      globalFilter={reportSearch}
+                      onGlobalFilterChange={(value) => {
+                        setReportSearch(value)
+                        expenseQuery.onGlobalFilterChange(value)
+                      }}
+                      selectedBranch={selectedBranch}
+                      dateFrom={dateFrom}
+                      dateTo={dateTo}
+                      expenseRows={expenseQuery.rows}
+                      incomeRows={incomes}
+                      paymentRows={payments}
+                      expenseTypes={activeExpenseTypes}
+                      paymentTypes={activePaymentTypes}
+                      expenseQuery={expenseQuery}
+                      onVoidSelectedExpenses={isAdmin ? async () => false : deleteSelectedExpenses}
+                      onView={openEntryView}
+                      onVoid={isAdmin ? () => undefined : requestVoid}
+                      onDuplicate={
+                        isAdmin ? () => undefined : (row) => startEntryForm(row, 'duplicate')
+                      }
+                      isAdmin={isAdmin}
+                      showVoided={showVoided}
+                      onShowVoidedChange={setShowVoided}
+                      afterFiltersContent={
+                        <InstallmentAttentionPopover
+                          summary={installmentAttention}
+                          onViewOverdue={onViewOverdueInstallments}
+                          onViewAll={onViewInstallmentAccounts}
+                          onOpenAccount={onOpenInstallmentAccount}
+                        />
+                      }
+                      trailingToolbarContent={
+                        <>
+                          {!isAdmin && (
+                            <Button type="button" size="sm" onClick={toggleEntryForm}>
+                              <Plus data-icon="inline-start" aria-hidden="true" />
+                              <span className="hidden sm:inline">
+                                {isEntryFormVisible ? 'Hide Entry' : 'Add Entry'}
+                              </span>
+                              <span className="sm:hidden">
+                                {isEntryFormVisible ? 'Hide' : 'Add'}
+                              </span>
+                            </Button>
+                          )}
+                        </>
+                      }
+                      selectedHistoryId={selectedHistory?.id}
+                      onSelectHistory={openHistoryRecord}
+                      onVoidSelected={deleteSelectedEntries}
+                      onVoidSelectedHistory={async (rows, reason) => {
+                        const payments = rows.filter((row) =>
+                          row.activity.toLowerCase().includes('payment')
+                        )
+                        const contracts = rows
+                          .filter((row) => row.activity === 'Installment record added')
+                          .map((row) => row.id.split(':', 1)[0])
+                        if (payments.length) {
+                          await window.api.installments.voidPayments({
+                            paymentIds: payments.map((row) => row.id),
+                            reason
+                          })
+                        }
+                        if (contracts.length) {
+                          await window.api.installments.void({
+                            contractIds: contracts,
+                            reason
+                          })
+                        }
+                        setHistoryRefreshKey((key) => key + 1)
+                      }}
+                      onEdit={(row) => startEntryForm(row, 'edit')}
+                      incomeLoadState={incomeLoadState}
+                      paymentLoadState={paymentLoadState}
+                      onRetryEntries={() => void refreshEntries()}
+                      historyRecords={historyRecords}
+                      historyLoadState={historyLoadState}
+                      onRetryHistory={() => setHistoryRefreshKey((key) => key + 1)}
+                      onVisibleHistoryCountChange={setVisibleHistoryCount}
+                    />
+                  </TabsContent>
+                ))}
+              </div>
+            </Tabs>
           </div>
         </div>
       </div>
@@ -3261,6 +3492,22 @@ export function CashierReportsContent({
                   disabled={isPdfProcessing || isReviewingPdf}
                   className="mt-2 min-h-20 resize-none text-sm"
                 />
+                <label
+                  htmlFor="pdf-report-telegram-note"
+                  className="mt-4 block text-xs font-medium text-muted-foreground"
+                >
+                  Telegram note
+                </label>
+                <Textarea
+                  id="pdf-report-telegram-note"
+                  value={telegramNote}
+                  onChange={(event) => setTelegramNote(event.target.value)}
+                  placeholder="Optional note to include with the Telegram delivery"
+                  maxLength={800}
+                  rows={2}
+                  disabled={isPdfProcessing || isReviewingPdf}
+                  className="mt-2 resize-none text-sm"
+                />
                 {pdfPreview?.note !== pdfNote && (
                   <Button
                     type="button"
@@ -3278,121 +3525,19 @@ export function CashierReportsContent({
                   </Button>
                 )}
               </div>
-              <div className="shrink-0 border-b px-4 py-4 sm:px-5">
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">Delivery progress</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Save a copy and send to Telegram.
-                    </p>
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <span className="text-lg font-semibold tracking-tight tabular-nums">
-                      {Math.round(
-                        (pdfProgress.filter(
-                          (step) => step.status === 'done' || step.status === 'failed'
-                        ).length /
-                          pdfProgress.length) *
-                          100
-                      )}
-                      %
-                    </span>
-                    <span className="pb-0.5 text-xs text-muted-foreground">
-                      {pdfProgress.filter((step) => step.status === 'done').length} of{' '}
-                      {pdfProgress.length} done
-                    </span>
-                  </div>
-                </div>
-                <Progress
-                  className="mt-3"
-                  value={
-                    (pdfProgress.filter(
-                      (step) => step.status === 'done' || step.status === 'failed'
-                    ).length /
-                      pdfProgress.length) *
-                    100
-                  }
-                  aria-label="Report delivery progress"
-                />
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    Delivery checklist
-                  </p>
-                  <p className="text-xs text-muted-foreground">Print from preview</p>
-                </div>
-                {excelExportMessage && (
-                  <p className="mb-3 text-xs text-primary" role="status">
-                    {excelExportMessage}
-                  </p>
-                )}
-                <div className="flex flex-col gap-2">
-                  {pdfProgress.map((step) => (
-                    <div
-                      key={step.id}
-                      className="flex items-start gap-2.5 rounded-lg border border-border/70 p-3"
-                    >
-                      <div className="mt-0.5 text-muted-foreground">
-                        {step.status === 'processing' ? (
-                          <Spinner />
-                        ) : step.status === 'done' ? (
-                          <Check className="text-primary" aria-hidden="true" />
-                        ) : step.status === 'failed' ? (
-                          <CircleAlert className="text-destructive" aria-hidden="true" />
-                        ) : (
-                          <span className="block size-4 rounded-full border border-border" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-medium">{step.label}</span>
-                          <Badge
-                            variant={step.status === 'failed' ? 'destructive' : 'secondary'}
-                            className="capitalize"
-                          >
-                            {step.status}
-                          </Badge>
-                        </div>
-                        {step.error && (
-                          <Alert variant="destructive" className="mt-2">
-                            <AlertTitle>Could not complete this step</AlertTitle>
-                            <AlertDescription>{step.error}</AlertDescription>
-                          </Alert>
-                        )}
-                        {step.id === 'telegram' && (
-                          <div className="mt-3 flex flex-col gap-1.5">
-                            <label htmlFor="telegram-report-note" className="text-xs font-medium">
-                              Telegram note
-                            </label>
-                            <Textarea
-                              id="telegram-report-note"
-                              value={telegramNote}
-                              onChange={(event) => setTelegramNote(event.target.value)}
-                              placeholder="Optional note for this report"
-                              maxLength={800}
-                              rows={3}
-                              disabled={isPdfProcessing || step.status === 'done'}
-                              className="min-h-20 resize-none text-xs"
-                            />
-                          </div>
-                        )}
-                        {step.status === 'failed' && !isPdfProcessing && pdfPreview && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="mt-2"
-                            disabled={pdfPreview.note !== pdfNote}
-                            onClick={() => void retryPdfStep(step.id)}
-                          >
-                            Retry
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex flex-1 flex-col justify-center p-5">
+                <p className="text-sm font-semibold">Ready to deliver</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Delivery progress opens in a focused window with live checkpoints.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-4 self-start"
+                  onClick={() => setIsDeliveryProgressOpen(true)}
+                >
+                  View delivery progress
+                </Button>
               </div>
               <DialogFooter className="mx-0 mb-0 flex-wrap rounded-none border-t px-4 py-4 sm:px-5">
                 <Button
@@ -3419,8 +3564,10 @@ export function CashierReportsContent({
                   type="button"
                   disabled={isPdfProcessing || pdfPreview?.note !== pdfNote}
                   onClick={() => {
-                    if (pdfProgress.every((step) => step.status === 'pending')) beginPdfExport()
-                    else {
+                    if (pdfProgress.every((step) => step.status === 'pending')) {
+                      setIsDeliveryProgressOpen(true)
+                      beginPdfExport()
+                    } else {
                       setIsPdfReviewOpen(false)
                       setPdfPreview(undefined)
                     }
@@ -3434,6 +3581,13 @@ export function CashierReportsContent({
           </div>
         </DialogContent>
       </Dialog>
+      <DeliveryProgressDialog
+        open={isDeliveryProgressOpen}
+        onOpenChange={setIsDeliveryProgressOpen}
+        steps={pdfProgress}
+        isProcessing={isPdfProcessing}
+        onRetry={(id) => void retryPdfStep(id)}
+      />
       {confirmation && (
         <ConfirmationAlertDialog
           open

@@ -298,6 +298,7 @@ export type InstallmentPaymentWorkspace = {
   totalPayableCentavos: number
   totalPaidCentavos: number
   outstandingBalanceCentavos: number
+  downPayment?: { paymentDate: string; amountCentavos: number }
   nextDue?: { dueDate: string; amountCentavos: number; installmentNumber: number }
   schedules: InHouseScheduleRecord[]
   payments: InHousePaymentRecord[]

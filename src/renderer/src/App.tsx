@@ -34,6 +34,7 @@ import type {
   LoginBranch
 } from '@/../../shared/contracts'
 import { PESO_SIGN_HIDDEN_STORAGE_KEY, setPesoSignHidden } from '@/lib/currency'
+import { loadThemeFonts } from '@/lib/load-theme-fonts'
 
 const THEME_STORAGE_KEY = 'cashiers-report-theme'
 const BRANCH_DOWNLOAD_NOTIFICATION_ID = 'branch-download-failures'
@@ -41,6 +42,7 @@ type ActiveView =
   | 'dashboard'
   | 'installment-overview'
   | 'cashier-reports'
+  | 'report'
   | 'in-house-accounts'
   | 'in-house-active-accounts'
   | 'in-house-closed-accounts'
@@ -76,6 +78,7 @@ function paymentBackLabel(origin: PaymentOrigin): string {
 
 function activeViewLabel(view: ActiveView): string {
   if (view === 'cashier-reports') return 'Cashier reports'
+  if (view === 'report') return 'Report'
   if (view === 'installment-overview') return 'Installments overview'
   if (view === 'in-house-accounts') return 'In-house records'
   if (view === 'in-house-active-accounts') return 'Active accounts'
@@ -337,10 +340,7 @@ function Workspace({
   }
 
   return (
-    <SidebarProvider
-      defaultOpen
-      className="h-full min-h-0 overflow-hidden bg-sidebar"
-    >
+    <SidebarProvider defaultOpen={false} className="h-full min-h-0 overflow-hidden bg-sidebar">
       <SidebarLeft
         isDark={isDark}
         activeView={activeView}
@@ -348,6 +348,7 @@ function Workspace({
         selectedBranch={selectedBranch}
         onDashboard={() => selectView('dashboard')}
         onCashierReports={() => selectView('cashier-reports')}
+        onReport={() => selectView('report')}
         onAllAccounts={() => selectView('in-house-accounts')}
         onActiveAccounts={() => selectView('in-house-active-accounts')}
         onClosedAccounts={() => selectView('in-house-closed-accounts')}
@@ -371,7 +372,9 @@ function Workspace({
           <span aria-hidden="true" className="h-4 w-px bg-border" />
           <Breadcrumb>
             <BreadcrumbList>
-              <BreadcrumbItem className="hidden text-base font-medium md:block">Documents</BreadcrumbItem>
+              <BreadcrumbItem className="hidden text-base font-medium md:block">
+                Documents
+              </BreadcrumbItem>
               <BreadcrumbSeparator className="hidden md:block" />
               <BreadcrumbItem>
                 <BreadcrumbPage className="text-muted-foreground">
@@ -395,6 +398,7 @@ function Workspace({
           </main>
         ) : activeView === 'cashier-reports' ? (
           <CashierReportsContent
+            key="cashier-reports"
             selectedBranch={selectedBranch}
             cashierName={cashierName}
             isAdmin={isAdmin}
@@ -432,6 +436,14 @@ function Workspace({
             onOpenInstallmentAccount={(accountId) =>
               openPaymentWorkspace(accountId, 'schedule', 'active')
             }
+          />
+        ) : activeView === 'report' ? (
+          <CashierReportsContent
+            key="report"
+            reportPage
+            selectedBranch={selectedBranch}
+            cashierName={cashierName}
+            isAdmin={isAdmin}
           />
         ) : activeView === 'installment-overview' ? (
           <InstallmentOverviewContent
@@ -564,6 +576,7 @@ function App(): React.JSX.Element {
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
     localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light')
+    loadThemeFonts()
   }, [isDark])
 
   const toggleTheme = (): void => setIsDark((current) => !current)

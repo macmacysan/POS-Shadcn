@@ -766,7 +766,7 @@ export const ReportSummary = React.memo(function ReportSummary({
           </div>
         </header>
 
-        <Card className="min-h-0 flex-1 gap-0 py-0">
+        <Card className="min-h-0 flex-1 gap-0 py-0 shadow-none">
           <CardContent className="flex min-h-0 flex-1 flex-col p-0">
             {error && (
               <div className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -866,156 +866,171 @@ export const ReportSummary = React.memo(function ReportSummary({
                     })}
                   </>
                 )}
-                <Section label="Cash in" className="border-b-0">
-                  <SummaryRow
-                    label="Collections"
-                    value={snapshot.cashCollectionsCentavos ?? 0}
-                    hideWhenZero
-                    valueMuted
-                    hoverDetails={
-                      <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
-                        {snapshot.collectionDetails.map(({ id, name, amountCentavos }) => (
-                          <React.Fragment key={`${name}-${amountCentavos}`}>
-                            {!readOnly && (
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => onOpenCollection?.(id)}
-                              >
-                                Update
-                              </Button>
-                            )}
-                            <span className="min-w-0 truncate">{name}</span>
-                            <span className="text-right tabular-nums">{money(amountCentavos)}</span>
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    }
-                  />
-                  <SummaryRow
-                    label="Other"
-                    value={snapshot.otherIncomeCentavos ?? 0}
-                    hideWhenZero
-                    valueMuted
-                  />
-                  <SummaryRow
-                    label="Finance Down"
-                    value={snapshot.financeDownCentavos ?? 0}
-                    hideWhenZero
-                    valueMuted
-                    hoverDetails={
-                      <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
-                        {snapshot.financeDownDetails.map(({ id, name, amountCentavos }) => (
-                          <React.Fragment key={`${name}-${amountCentavos}`}>
-                            {!readOnly && (
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => onOpenFinance?.(id)}
-                              >
-                                Update
-                              </Button>
-                            )}
-                            <span className="min-w-0 truncate">{name}</span>
-                            <span className="text-right tabular-nums">{money(amountCentavos)}</span>
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    }
-                  />
-                  <SummaryRow
-                    label="Total Cash Receipts"
-                    value={totalCashReceiptsCentavos}
-                    emphasis
-                  />
-                </Section>
-                <Section label="Cash out" className="border-b-0">
-                  <SummaryRow
-                    label="Expenses"
-                    value={expenseTotals.companyExpensesCentavos}
-                    hideWhenZero
-                    valueMuted
-                  />
-                  <SummaryRow
-                    label="Drawings"
-                    value={expenseTotals.drawingsCentavos}
-                    hideWhenZero
-                    valueMuted
-                  />
-                  <SummaryRow
-                    label="Purchases"
-                    value={expenseTotals.purchasesCentavos}
-                    hideWhenZero
-                    valueMuted
-                  />
-                  <SummaryRow
-                    label="Receivables"
-                    value={expenseTotals.receivablesCentavos}
-                    hideWhenZero
-                    valueMuted
-                  />
-                  <SummaryRow
-                    label="Deductions"
-                    value={deductionCentavos}
-                    hideWhenZero
-                    valueMuted
-                    hoverDetails={
-                      populatedDeductions.length > 0 && (
-                        <div className="flex min-w-56 flex-col gap-2 text-xs">
-                          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1">
-                            {populatedDeductions.map(({ label, amountCentavos }) => (
-                              <React.Fragment key={label}>
-                                <span className="min-w-0 truncate">{label}</span>
-                                <span className="text-right tabular-nums">
-                                  {money(amountCentavos)}
-                                </span>
-                              </React.Fragment>
-                            ))}
-                          </div>
-                          {!readOnly && (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="xs"
-                              onClick={openDeductions}
-                            >
-                              Update
-                            </Button>
-                          )}
+                {totalCashReceiptsCentavos !== 0 && (
+                  <Section label="Cash in" className="border-b-0">
+                    <SummaryRow
+                      label="Collections"
+                      value={snapshot.cashCollectionsCentavos ?? 0}
+                      hideWhenZero
+                      valueMuted
+                      hoverDetails={
+                        <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
+                          {snapshot.collectionDetails.map(({ id, name, amountCentavos }) => (
+                            <React.Fragment key={`${name}-${amountCentavos}`}>
+                              {!readOnly && (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="xs"
+                                  onClick={() => onOpenCollection?.(id)}
+                                >
+                                  Update
+                                </Button>
+                              )}
+                              <span className="min-w-0 truncate">{name}</span>
+                              <span className="text-right tabular-nums">
+                                {money(amountCentavos)}
+                              </span>
+                            </React.Fragment>
+                          ))}
                         </div>
-                      )
-                    }
-                  />
-                  <SummaryRow label="Total Cash Outs" value={totalCashOutCentavos} emphasis />
-                </Section>
-                <Section label="Payments" className="border-b-0">
-                  <SummaryRow
-                    label="Bank Check"
-                    value={paymentTotals.bankCheck}
-                    hideWhenZero
-                    valueMuted
-                  />
-                  <SummaryRow
-                    label="Bank Transfer"
-                    value={paymentTotals.bankTransfer}
-                    hideWhenZero
-                    valueMuted
-                  />
-                  <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero valueMuted />
-                  <SummaryRow
-                    label="E-wallet"
-                    value={paymentTotals.otherEwallet}
-                    hideWhenZero
-                    valueMuted
-                  />
-                  <SummaryRow label="Total Payments" value={paymentTotals.total} emphasis />
-                </Section>
+                      }
+                    />
+                    <SummaryRow
+                      label="Other"
+                      value={snapshot.otherIncomeCentavos ?? 0}
+                      hideWhenZero
+                      valueMuted
+                    />
+                    <SummaryRow
+                      label="Finance Down"
+                      value={snapshot.financeDownCentavos ?? 0}
+                      hideWhenZero
+                      valueMuted
+                      hoverDetails={
+                        <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
+                          {snapshot.financeDownDetails.map(({ id, name, amountCentavos }) => (
+                            <React.Fragment key={`${name}-${amountCentavos}`}>
+                              {!readOnly && (
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="xs"
+                                  onClick={() => onOpenFinance?.(id)}
+                                >
+                                  Update
+                                </Button>
+                              )}
+                              <span className="min-w-0 truncate">{name}</span>
+                              <span className="text-right tabular-nums">
+                                {money(amountCentavos)}
+                              </span>
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      }
+                    />
+                    <SummaryRow
+                      label="Total Cash Receipts"
+                      value={totalCashReceiptsCentavos}
+                      emphasis
+                    />
+                  </Section>
+                )}
+                {totalCashOutCentavos !== 0 && (
+                  <Section label="Cash out" className="border-b-0">
+                    <SummaryRow
+                      label="Expenses"
+                      value={expenseTotals.companyExpensesCentavos}
+                      hideWhenZero
+                      valueMuted
+                    />
+                    <SummaryRow
+                      label="Drawings"
+                      value={expenseTotals.drawingsCentavos}
+                      hideWhenZero
+                      valueMuted
+                    />
+                    <SummaryRow
+                      label="Purchases"
+                      value={expenseTotals.purchasesCentavos}
+                      hideWhenZero
+                      valueMuted
+                    />
+                    <SummaryRow
+                      label="Receivables"
+                      value={expenseTotals.receivablesCentavos}
+                      hideWhenZero
+                      valueMuted
+                    />
+                    <SummaryRow
+                      label="Deductions"
+                      value={deductionCentavos}
+                      hideWhenZero
+                      valueMuted
+                      hoverDetails={
+                        populatedDeductions.length > 0 && (
+                          <div className="flex min-w-56 flex-col gap-2 text-xs">
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1">
+                              {populatedDeductions.map(({ label, amountCentavos }) => (
+                                <React.Fragment key={label}>
+                                  <span className="min-w-0 truncate">{label}</span>
+                                  <span className="text-right tabular-nums">
+                                    {money(amountCentavos)}
+                                  </span>
+                                </React.Fragment>
+                              ))}
+                            </div>
+                            {!readOnly && (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="xs"
+                                onClick={openDeductions}
+                              >
+                                Update
+                              </Button>
+                            )}
+                          </div>
+                        )
+                      }
+                    />
+                    <SummaryRow label="Total Cash Outs" value={totalCashOutCentavos} emphasis />
+                  </Section>
+                )}
+                {paymentTotals.total !== 0 && (
+                  <Section label="Payments" className="border-b-0">
+                    <SummaryRow
+                      label="Bank Check"
+                      value={paymentTotals.bankCheck}
+                      hideWhenZero
+                      valueMuted
+                    />
+                    <SummaryRow
+                      label="Bank Transfer"
+                      value={paymentTotals.bankTransfer}
+                      hideWhenZero
+                      valueMuted
+                    />
+                    <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero valueMuted />
+                    <SummaryRow
+                      label="E-wallet"
+                      value={paymentTotals.otherEwallet}
+                      hideWhenZero
+                      valueMuted
+                    />
+                    <SummaryRow label="Total Payments" value={paymentTotals.total} emphasis />
+                  </Section>
+                )}
               </div>
             </ScrollArea>
             <div className="shrink-0 border-t border-sidebar-border bg-background/30 px-3 py-2">
-              <SummaryRow label="Expected Cash" value={expectedCashCentavos} emphasis />
+              <SummaryRow
+                label="Expected Cash"
+                value={expectedCashCentavos}
+                emphasis
+                hideWhenZero
+              />
               <SummaryRow
                 label="Cash Denominations"
                 value={snapshot.physicalCashCentavos}
@@ -1057,7 +1072,7 @@ export const ReportSummary = React.memo(function ReportSummary({
           </CardContent>
         </Card>
 
-        <Card className="shrink-0 gap-0 py-0">
+        <Card className="shrink-0 gap-0 py-0 shadow-none">
           <CardContent className="p-2">
             <section
               aria-label="Cash variance"

@@ -295,10 +295,12 @@ function formatScheduleCoverage(
   return ranges.join(', ')
 }
 
+type LedgerEntry = InHousePaymentRecord & { isDownPayment?: boolean }
+
 function paymentColumns(
   schedules: readonly InHouseScheduleRecord[],
   onVoid: ((payment: InHousePaymentRecord) => void) | undefined
-): ColumnDef<InHousePaymentRecord>[] {
+): ColumnDef<LedgerEntry>[] {
   const scheduleNumbers = new Map(
     schedules.map((schedule) => [schedule.id, schedule.installmentNumber])
   )
@@ -308,7 +310,7 @@ function paymentColumns(
       header: 'Payment no.',
       size: 90,
       meta: { cellClassName: 'text-muted-foreground tabular-nums' },
-      cell: ({ row }) => row.index + 1
+      cell: ({ row }) => (row.original.isDownPayment ? '—' : row.index + 1)
     },
     {
       id: 'paymentDate',
@@ -322,7 +324,10 @@ function paymentColumns(
       header: 'Covers',
       size: 65,
       meta: { cellClassName: 'text-muted-foreground tabular-nums' },
-      cell: ({ row }) => formatScheduleCoverage(row.original.scheduleIds, scheduleNumbers)
+      cell: ({ row }) =>
+        row.original.isDownPayment
+          ? 'Down payment'
+          : formatScheduleCoverage(row.original.scheduleIds, scheduleNumbers)
     },
     {
       id: 'reference',
@@ -378,7 +383,9 @@ function paymentColumns(
       header: 'Status',
       size: 128,
       cell: ({ row }) => (
-        <Badge variant={statusVariant(row.original.status)}>{row.original.status}</Badge>
+        <Badge variant={row.original.isDownPayment ? 'info-light' : statusVariant(row.original.status)}>
+          {row.original.isDownPayment ? 'Downpayment' : row.original.status}
+        </Badge>
       )
     },
     {
@@ -386,7 +393,7 @@ function paymentColumns(
       header: 'Actions',
       size: 56,
       cell: ({ row }) =>
-        onVoid && (
+        onVoid && !row.original.isDownPayment && (
           <RowActions
             label="Payment actions"
             className="size-5"
@@ -516,7 +523,26 @@ export function InstallmentPaymentWorkspace({
     getRowId: (row) => row.id
   })
   const paymentTable = useReactTable({
-    data: workspace?.payments ?? [],
+    data: React.useMemo<LedgerEntry[]>(() => {
+      if (!workspace) return []
+      if (!workspace.downPayment) return workspace.payments
+      return [
+        {
+          id: 'down-payment',
+          paymentDate: workspace.downPayment.paymentDate,
+          amountCentavos: workspace.downPayment.amountCentavos,
+          penaltyCentavos: 0,
+          allocatedAmountCentavos: 0,
+          status: 'POSTED',
+          isAdjustment: false,
+          isDownPayment: true,
+          createdAt: workspace.downPayment.paymentDate,
+          paymentIds: [],
+          scheduleIds: []
+        },
+        ...workspace.payments
+      ]
+    }, [workspace]),
     columns: React.useMemo(
       () =>
         paymentColumns(workspace?.schedules ?? [], canAdjustPayment ? setPaymentToVoid : undefined),
@@ -888,13 +914,14 @@ export function InstallmentPaymentWorkspace({
                   <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col p-0">
                     <UniversalDataTable
                       table={paymentTable}
-                      recordCount={workspace?.payments.length ?? 0}
+                      recordCount={paymentTable.getRowCount()}
                       isLoading={isLoading}
                       emptyMessage="No payments have been recorded for this contract."
                       showPagination={false}
                       selectedRowId={selectedPaymentId}
                       onRowClick={(payment) => {
-                        if (payment.status !== 'POSTED' || !canAdjustPayment) return
+                        if (payment.isDownPayment || payment.status !== 'POSTED' || !canAdjustPayment)
+                          return
                         const schedule = payment.scheduleIds
                           .map((scheduleId) =>
                             workspace?.schedules.find((item) => item.id === scheduleId)
