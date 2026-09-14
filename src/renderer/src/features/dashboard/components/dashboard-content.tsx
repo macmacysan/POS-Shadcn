@@ -3,13 +3,7 @@ import { format } from 'date-fns'
 import { ArrowUpRight, CircleAlert, FileDown, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -60,9 +54,7 @@ function Metric({
         : 'text-foreground'
   return (
     <div className="group relative min-w-0 border-l border-border pl-3">
-      <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-        {label}
-      </p>
+      <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">{label}</p>
       <p
         className={cn(
           'mt-1 font-mono text-lg font-semibold tracking-tight tabular-nums',
@@ -133,7 +125,7 @@ export function DashboardContent({
         const next = await window.api.dashboard.get({
           businessDate,
           branch: selectedBranch === 'All Branch' ? undefined : selectedBranch,
-          rangeDays: 14,
+          rangeDays: 14
         })
         if (requestVersion === requestVersionRef.current) setOverview(next)
       } catch (caught) {
@@ -172,6 +164,7 @@ export function DashboardContent({
     0,
     (overview?.cashierReportCount ?? 0) - (overview?.reconciledReportCount ?? 0)
   )
+  const needsCashReview = variance !== 0 || pendingReports > 0
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 bg-workspace">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
@@ -213,9 +206,7 @@ export function DashboardContent({
         </div>
       )}
       <section className="grid shrink-0 gap-4 lg:grid-cols-[minmax(19rem,.9fr)_minmax(0,1.4fr)]">
-        <Card
-          className={cn('border-l-4', variance === 0 ? 'border-l-success' : 'border-l-destructive')}
-        >
+        <Card className={cn(needsCashReview ? 'border-destructive/40' : 'border-success/30')}>
           <CardHeader className="gap-1 px-5 py-4">
             <CardDescription>Physical cash counted</CardDescription>
             <CardTitle className="font-mono text-lg leading-none tracking-tight tabular-nums">
@@ -244,6 +235,12 @@ export function DashboardContent({
                 </p>
               </div>
             </div>
+            {needsCashReview && (
+              <Button className="mt-4 self-start" size="sm" onClick={onOpenCashierReports}>
+                Review cashier reports
+                <ArrowUpRight data-icon="inline-end" />
+              </Button>
+            )}
           </CardHeader>
         </Card>
         <div className="grid gap-x-4 gap-y-5 sm:grid-cols-3">

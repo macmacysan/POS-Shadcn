@@ -373,7 +373,7 @@ function Workspace({
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem className="hidden text-base font-medium md:block">
-                Documents
+                Cashiers Report
               </BreadcrumbItem>
               <BreadcrumbSeparator className="hidden md:block" />
               <BreadcrumbItem>
