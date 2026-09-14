@@ -44,6 +44,8 @@ import {
   type RowActionItem
 } from '@/components/shared/data-table/row-actions'
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
+import { TaskSheet } from '@/components/shared/task-sheet'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/reui/badge'
@@ -80,14 +82,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle
-} from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { formatAccountName, type BranchName } from '@/lib/in-house-accounts'
@@ -159,6 +153,25 @@ const activeStatusBadgeVariant = {
   'due-soon': 'warning',
   'fully-paid': 'success'
 } as const
+
+const workspaceCopy: Record<InstallmentView, { title: string; description: string }> = {
+  active: {
+    title: 'Active Accounts',
+    description: 'Review active installment accounts and their next collection.'
+  },
+  closed: {
+    title: 'Closed Accounts',
+    description: 'Review completed installment accounts and their final records.'
+  },
+  blacklisted: {
+    title: 'Blacklisted Accounts',
+    description: 'Review restricted accounts and their status history.'
+  },
+  records: {
+    title: 'Account Records',
+    description: 'Manage customer records and installment contracts.'
+  }
+}
 
 const visibleColumnOptions = [
   { id: 'account', label: 'Account' },
@@ -1412,42 +1425,51 @@ export function AccountRecordsWorkspace({
         accessorFn: (row) => formatAccountName(row.account),
         cell: ({ row }) => (
           <span className="font-medium">{formatAccountName(row.original.account)}</span>
-        )
+        ),
+        size: 220
       },
       {
         id: 'branch',
         header: 'Branch',
         accessorFn: (row) => row.account.branch,
-        cell: ({ row }) => <AccountBranchBadge branch={row.original.account.branch} />
+        cell: ({ row }) => <AccountBranchBadge branch={row.original.account.branch} />,
+        size: 84
       },
       {
         id: 'city',
         header: 'City',
         accessorFn: (row) => row.account.cityMunicipality,
-        cell: ({ row }) => row.original.account.cityMunicipality
+        cell: ({ row }) => row.original.account.cityMunicipality,
+        meta: { cellClassName: 'text-muted-foreground' },
+        size: 132
       },
       {
         id: 'barangay',
         header: 'Barangay',
         accessorFn: (row) => row.account.barangay,
-        cell: ({ row }) => row.original.account.barangay
+        cell: ({ row }) => row.original.account.barangay,
+        meta: { cellClassName: 'text-muted-foreground' },
+        size: 132
       },
       {
         id: 'released',
         header: 'Released',
         accessorFn: (row) => row.loan.dateReleased,
-        cell: ({ row }) => formatHistoryDate(row.original.loan.dateReleased)
+        cell: ({ row }) => formatHistoryDate(row.original.loan.dateReleased),
+        meta: { cellClassName: 'text-muted-foreground' },
+        size: 112
       },
       {
         id: 'balance',
         header: 'Balance',
         accessorFn: (row) => row.meta.outstandingBalance,
         cell: ({ row }) => (
-          <span className="block text-right tabular-nums">
+          <span className="block text-right font-medium tabular-nums">
             {formatHistoryMoney(row.original.meta.outstandingBalance)}
           </span>
         ),
-        meta: { cellClassName: 'text-right' }
+        meta: { headerClassName: 'text-right', cellClassName: 'text-right' },
+        size: 128
       },
       ...(view === 'active'
         ? [
@@ -1462,7 +1484,8 @@ export function AccountRecordsWorkspace({
                     {row.original.meta.status === 'fully-paid' ? 'Fully paid' : countdown.label}
                   </span>
                 )
-              }
+              },
+              size: 128
             } satisfies ColumnDef<PersistedInstallmentRow>
           ]
         : []),
@@ -1470,24 +1493,28 @@ export function AccountRecordsWorkspace({
         id: 'status',
         header: 'Status',
         accessorFn: (row) => row.meta.status,
-        cell: ({ row }) => <AccountStatusBadge status={row.original.meta.status} />
+        cell: ({ row }) => <AccountStatusBadge status={row.original.meta.status} />,
+        size: 112
       },
       {
         id: 'nextDue',
         header: 'Next due',
         accessorFn: (row) => row.meta.nextDue ?? '',
-        cell: ({ row }) => formatHistoryDate(row.original.meta.nextDue)
+        cell: ({ row }) => formatHistoryDate(row.original.meta.nextDue),
+        meta: { cellClassName: 'text-muted-foreground' },
+        size: 112
       },
       {
         id: 'installment',
         header: 'Installment',
         accessorFn: (row) => row.meta.installmentAmount ?? 0,
         cell: ({ row }) => (
-          <span className="block text-right tabular-nums">
+          <span className="block text-right font-medium tabular-nums">
             {formatHistoryMoney(row.original.meta.installmentAmount)}
           </span>
         ),
-        meta: { cellClassName: 'text-right' }
+        meta: { headerClassName: 'text-right', cellClassName: 'text-right' },
+        size: 128
       },
       {
         id: 'paymentFrequency',
@@ -1507,17 +1534,20 @@ export function AccountRecordsWorkspace({
         header: 'Total paid',
         accessorFn: (row) => row.meta.totalPaid ?? 0,
         cell: ({ row }) => (
-          <span className="block text-right tabular-nums">
+          <span className="block text-right font-medium tabular-nums">
             {formatHistoryMoney(row.original.meta.totalPaid)}
           </span>
         ),
-        meta: { cellClassName: 'text-right' }
+        meta: { headerClassName: 'text-right', cellClassName: 'text-right' },
+        size: 128
       },
       {
         id: 'lastPayment',
         header: 'Last payment',
         accessorFn: (row) => row.meta.lastPayment ?? '',
-        cell: ({ row }) => formatHistoryDate(row.original.meta.lastPayment)
+        cell: ({ row }) => formatHistoryDate(row.original.meta.lastPayment),
+        meta: { cellClassName: 'text-muted-foreground' },
+        size: 112
       },
       ...(view === 'closed' || view === 'blacklisted'
         ? [
@@ -1549,10 +1579,40 @@ export function AccountRecordsWorkspace({
     getPaginationRowModel: getPaginationRowModel(),
     getRowId: (row) => row.contractId
   })
+  const copy = workspaceCopy[view]
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3 bg-workspace">
-      <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+      <header className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-lg font-medium">{copy.title}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{copy.description}</p>
+        </div>
         <div className="flex items-center gap-2">
+          {ownBranch && view === 'records' && (
+            <Button type="button" size="sm" onClick={() => setCreator({ kind: 'new-client' })}>
+              Add Client
+            </Button>
+          )}
+          {ownBranch && view === 'active' && (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setIsQuoteCalculatorOpen(true)}
+              >
+                Calculate installment
+              </Button>
+              <Button type="button" size="sm" onClick={() => setCreator({ kind: 'new-loan' })}>
+                Add Loan
+              </Button>
+            </>
+          )}
+        </div>
+      </header>
+      <TableToolbar className="mb-3 justify-between rounded-md border bg-card">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SearchInputGroup
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -1633,26 +1693,12 @@ export function AccountRecordsWorkspace({
             </PopoverContent>
           </Popover>
         </div>
-        <div className="flex items-center gap-3">
-          {ownBranch && view === 'records' && (
-            <Button type="button" size="sm" onClick={() => setCreator({ kind: 'new-client' })}>
-              Add Client
-            </Button>
-          )}
-          {ownBranch && view === 'active' && (
-            <>
-              <Button type="button" size="sm" variant="outline" onClick={() => setIsQuoteCalculatorOpen(true)}>
-                Calculate installment
-              </Button>
-              <Button type="button" size="sm" onClick={() => setCreator({ kind: 'new-loan' })}>
-                Add Loan
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-      <InstallmentQuoteCalculator open={isQuoteCalculatorOpen} onOpenChange={setIsQuoteCalculatorOpen} />
-      <Card className="flex min-h-0 min-w-0 flex-1 flex-col">
+      </TableToolbar>
+      <InstallmentQuoteCalculator
+        open={isQuoteCalculatorOpen}
+        onOpenChange={setIsQuoteCalculatorOpen}
+      />
+      <Card className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 py-0">
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <UniversalDataTable
             table={table}
@@ -1668,252 +1714,243 @@ export function AccountRecordsWorkspace({
           />
         </CardContent>
       </Card>
-      <Sheet
+      <TaskSheet
         open={Boolean(clientDraft)}
         onOpenChange={(open) => !open && setClientDraft(undefined)}
-      >
-        <SheetContent side="right" className="flex w-[min(92vw,30rem)] flex-col p-0">
-          <SheetHeader>
-            <SheetTitle>Update Client Record</SheetTitle>
-            <SheetDescription>
-              Update the client’s identifying and address details.
-            </SheetDescription>
-          </SheetHeader>
-          {clientDraft && (
-            <FieldGroup className="grid min-h-0 flex-1 grid-cols-2 content-start gap-3 overflow-y-auto px-4 pb-4">
-              <Field>
-                <FieldLabel htmlFor="client-first-name">First name</FieldLabel>
-                <Input
-                  id="client-first-name"
-                  value={clientDraft.firstName}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, firstName: event.target.value }
-                    )
-                  }
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="client-last-name">Last name</FieldLabel>
-                <Input
-                  id="client-last-name"
-                  value={clientDraft.lastName}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, lastName: event.target.value }
-                    )
-                  }
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="client-middle-name">Middle name</FieldLabel>
-                <Input
-                  id="client-middle-name"
-                  value={clientDraft.middleName ?? ''}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, middleName: event.target.value }
-                    )
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="client-suffix">Suffix</FieldLabel>
-                <Input
-                  id="client-suffix"
-                  value={clientDraft.suffix ?? ''}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, suffix: event.target.value }
-                    )
-                  }
-                />
-              </Field>
-              <Field className="col-span-2">
-                <FieldLabel htmlFor="client-street">Street / subdivision</FieldLabel>
-                <Input
-                  id="client-street"
-                  value={clientDraft.streetSubdivision ?? ''}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, streetSubdivision: event.target.value }
-                    )
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="client-barangay">Barangay</FieldLabel>
-                <Input
-                  id="client-barangay"
-                  value={clientDraft.barangay}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, barangay: event.target.value }
-                    )
-                  }
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="client-city">City / municipality</FieldLabel>
-                <Input
-                  id="client-city"
-                  value={clientDraft.cityMunicipality}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, cityMunicipality: event.target.value }
-                    )
-                  }
-                  required
-                />
-              </Field>
-              <Field className="col-span-2">
-                <FieldLabel htmlFor="client-province">Province</FieldLabel>
-                <Input
-                  id="client-province"
-                  value={clientDraft.province}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, province: event.target.value }
-                    )
-                  }
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="client-occupation">Occupation</FieldLabel>
-                <Input
-                  id="client-occupation"
-                  value={clientDraft.occupation ?? ''}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, occupation: event.target.value }
-                    )
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="client-agent">Agent</FieldLabel>
-                <Input
-                  id="client-agent"
-                  value={clientDraft.agent ?? ''}
-                  onChange={(event) =>
-                    setClientDraft(
-                      (current) => current && { ...current, agent: event.target.value }
-                    )
-                  }
-                />
-              </Field>
-            </FieldGroup>
-          )}
-          <SheetFooter>
+        title="Update Client Record"
+        description="Update the client’s identifying and address details."
+        width="default"
+        bodyClassName="p-4"
+        footer={
+          <>
             <Button type="button" variant="outline" onClick={() => setClientDraft(undefined)}>
               Cancel
             </Button>
             <Button type="button" onClick={() => void saveClientRecord()} disabled={isEditSaving}>
               Save client
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-      <Sheet open={Boolean(loanDraft)} onOpenChange={(open) => !open && setLoanDraft(undefined)}>
-        <SheetContent side="right" className="flex w-[min(92vw,30rem)] flex-col p-0">
-          <SheetHeader>
-            <SheetTitle>Update Client Loan</SheetTitle>
-            <SheetDescription>
-              Changing a loan rebuilds its schedule and is unavailable after payment is posted.
-            </SheetDescription>
-          </SheetHeader>
-          {loanDraft && (
-            <FieldGroup className="grid min-h-0 flex-1 content-start gap-3 overflow-y-auto px-4 pb-4">
-              <Field>
-                <FieldLabel htmlFor="loan-date-released">Date released</FieldLabel>
-                <DatePickerInput
-                  id="loan-date-released"
-                  value={loanDraft.dateReleased}
-                  onValueChange={(date) =>
-                    setLoanDraft(
-                      (current) => current && { ...current, dateReleased: date }
-                    )
-                  }
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="loan-payment-frequency">Payment frequency</FieldLabel>
-                <Select
-                  value={loanDraft.paymentFrequency}
-                  onValueChange={(value) =>
-                    setLoanDraft(
-                      (current) =>
-                        current && {
-                          ...current,
-                          paymentFrequency: value as LoanEditDraft['paymentFrequency']
-                        }
-                    )
-                  }
-                >
-                  <SelectTrigger id="loan-payment-frequency">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Daily">Daily</SelectItem>
-                    <SelectItem value="Weekly">Weekly</SelectItem>
-                    <SelectItem value="Semi">Semi-monthly</SelectItem>
-                    <SelectItem value="Monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="loan-terms">Terms</FieldLabel>
-                <Input
-                  id="loan-terms"
-                  type="number"
-                  min="1"
-                  value={loanDraft.terms}
-                  onChange={(event) =>
-                    setLoanDraft((current) => current && { ...current, terms: event.target.value })
-                  }
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="loan-down-payment">Down payment</FieldLabel>
-                <AmountInputGroup
-                  id="loan-down-payment"
-                  name="loan-down-payment"
-                  value={loanDraft.downPayment}
-                  onValueChange={(value) =>
-                    setLoanDraft((current) => current && { ...current, downPayment: value })
-                  }
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="loan-remarks">Remarks</FieldLabel>
-                <Textarea
-                  id="loan-remarks"
-                  value={loanDraft.remarks}
-                  onChange={(event) =>
-                    setLoanDraft(
-                      (current) => current && { ...current, remarks: event.target.value }
-                    )
-                  }
-                />
-              </Field>
-            </FieldGroup>
-          )}
-          <SheetFooter>
+          </>
+        }
+      >
+        {clientDraft && (
+          <FieldGroup className="grid grid-cols-2 content-start gap-3">
+            <Field>
+              <FieldLabel htmlFor="client-first-name">First name</FieldLabel>
+              <Input
+                id="client-first-name"
+                value={clientDraft.firstName}
+                onChange={(event) =>
+                  setClientDraft(
+                    (current) => current && { ...current, firstName: event.target.value }
+                  )
+                }
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="client-last-name">Last name</FieldLabel>
+              <Input
+                id="client-last-name"
+                value={clientDraft.lastName}
+                onChange={(event) =>
+                  setClientDraft(
+                    (current) => current && { ...current, lastName: event.target.value }
+                  )
+                }
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="client-middle-name">Middle name</FieldLabel>
+              <Input
+                id="client-middle-name"
+                value={clientDraft.middleName ?? ''}
+                onChange={(event) =>
+                  setClientDraft(
+                    (current) => current && { ...current, middleName: event.target.value }
+                  )
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="client-suffix">Suffix</FieldLabel>
+              <Input
+                id="client-suffix"
+                value={clientDraft.suffix ?? ''}
+                onChange={(event) =>
+                  setClientDraft((current) => current && { ...current, suffix: event.target.value })
+                }
+              />
+            </Field>
+            <Field className="col-span-2">
+              <FieldLabel htmlFor="client-street">Street / subdivision</FieldLabel>
+              <Input
+                id="client-street"
+                value={clientDraft.streetSubdivision ?? ''}
+                onChange={(event) =>
+                  setClientDraft(
+                    (current) => current && { ...current, streetSubdivision: event.target.value }
+                  )
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="client-barangay">Barangay</FieldLabel>
+              <Input
+                id="client-barangay"
+                value={clientDraft.barangay}
+                onChange={(event) =>
+                  setClientDraft(
+                    (current) => current && { ...current, barangay: event.target.value }
+                  )
+                }
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="client-city">City / municipality</FieldLabel>
+              <Input
+                id="client-city"
+                value={clientDraft.cityMunicipality}
+                onChange={(event) =>
+                  setClientDraft(
+                    (current) => current && { ...current, cityMunicipality: event.target.value }
+                  )
+                }
+                required
+              />
+            </Field>
+            <Field className="col-span-2">
+              <FieldLabel htmlFor="client-province">Province</FieldLabel>
+              <Input
+                id="client-province"
+                value={clientDraft.province}
+                onChange={(event) =>
+                  setClientDraft(
+                    (current) => current && { ...current, province: event.target.value }
+                  )
+                }
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="client-occupation">Occupation</FieldLabel>
+              <Input
+                id="client-occupation"
+                value={clientDraft.occupation ?? ''}
+                onChange={(event) =>
+                  setClientDraft(
+                    (current) => current && { ...current, occupation: event.target.value }
+                  )
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="client-agent">Agent</FieldLabel>
+              <Input
+                id="client-agent"
+                value={clientDraft.agent ?? ''}
+                onChange={(event) =>
+                  setClientDraft((current) => current && { ...current, agent: event.target.value })
+                }
+              />
+            </Field>
+          </FieldGroup>
+        )}
+      </TaskSheet>
+      <TaskSheet
+        open={Boolean(loanDraft)}
+        onOpenChange={(open) => !open && setLoanDraft(undefined)}
+        title="Update Client Loan"
+        description="Changing a loan rebuilds its schedule and is unavailable after payment is posted."
+        width="default"
+        bodyClassName="p-4"
+        footer={
+          <>
             <Button type="button" variant="outline" onClick={() => setLoanDraft(undefined)}>
               Cancel
             </Button>
             <Button type="button" onClick={() => void saveClientLoan()} disabled={isEditSaving}>
               Save loan
             </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
+          </>
+        }
+      >
+        {loanDraft && (
+          <FieldGroup className="grid content-start gap-3">
+            <Field>
+              <FieldLabel htmlFor="loan-date-released">Date released</FieldLabel>
+              <DatePickerInput
+                id="loan-date-released"
+                value={loanDraft.dateReleased}
+                onValueChange={(date) =>
+                  setLoanDraft((current) => current && { ...current, dateReleased: date })
+                }
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="loan-payment-frequency">Payment frequency</FieldLabel>
+              <Select
+                value={loanDraft.paymentFrequency}
+                onValueChange={(value) =>
+                  setLoanDraft(
+                    (current) =>
+                      current && {
+                        ...current,
+                        paymentFrequency: value as LoanEditDraft['paymentFrequency']
+                      }
+                  )
+                }
+              >
+                <SelectTrigger id="loan-payment-frequency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Daily">Daily</SelectItem>
+                  <SelectItem value="Weekly">Weekly</SelectItem>
+                  <SelectItem value="Semi">Semi-monthly</SelectItem>
+                  <SelectItem value="Monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="loan-terms">Terms</FieldLabel>
+              <Input
+                id="loan-terms"
+                type="number"
+                min="1"
+                value={loanDraft.terms}
+                onChange={(event) =>
+                  setLoanDraft((current) => current && { ...current, terms: event.target.value })
+                }
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="loan-down-payment">Down payment</FieldLabel>
+              <AmountInputGroup
+                id="loan-down-payment"
+                name="loan-down-payment"
+                value={loanDraft.downPayment}
+                onValueChange={(value) =>
+                  setLoanDraft((current) => current && { ...current, downPayment: value })
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="loan-remarks">Remarks</FieldLabel>
+              <Textarea
+                id="loan-remarks"
+                value={loanDraft.remarks}
+                onChange={(event) =>
+                  setLoanDraft((current) => current && { ...current, remarks: event.target.value })
+                }
+              />
+            </Field>
+          </FieldGroup>
+        )}
+      </TaskSheet>
       <Dialog open={Boolean(creator)} onOpenChange={(open) => !open && setCreator(undefined)}>
         <DialogContent className="flex h-[min(92vh,52rem)] w-[min(96vw,72rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
           <DialogHeader className="sr-only">
@@ -1983,9 +2020,7 @@ export function AccountRecordsWorkspace({
                   min={new Date().toISOString().slice(0, 10)}
                   value={restructureDraft.firstDueDate}
                   onValueChange={(date) =>
-                    setRestructureDraft(
-                      (current) => current && { ...current, firstDueDate: date }
-                    )
+                    setRestructureDraft((current) => current && { ...current, firstDueDate: date })
                   }
                 />
               </Field>

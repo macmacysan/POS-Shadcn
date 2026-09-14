@@ -189,8 +189,8 @@ function Cell({
     <span
       className={
         money
-          ? 'block text-right text-sm font-light tabular-nums'
-          : 'block truncate text-sm font-light'
+          ? 'block text-right text-xs font-medium tabular-nums'
+          : 'block truncate text-xs text-muted-foreground'
       }
     >
       {children}
@@ -207,7 +207,7 @@ function financeColumns(expandedIds: ReadonlySet<string>): ColumnDef<FinanceTabl
       cell: ({ row }) => (
         <span className="flex items-center gap-1">
           <ChevronDown
-            className={expandedIds.has(row.original.id) ? 'rotate-180' : ''}
+            className={expandedIds.has(row.original.id) ? 'size-3 rotate-180' : 'size-3'}
             aria-hidden="true"
           />
           <AccountBranchBadge branch={row.original.branch} />
@@ -264,7 +264,9 @@ function financeColumns(expandedIds: ReadonlySet<string>): ColumnDef<FinanceTabl
       accessorFn: (row) =>
         [`${row.lastName},`, row.firstName, row.middleName, row.suffix].filter(Boolean).join(' '),
       header: 'Client Name',
-      cell: ({ getValue }) => <Cell>{getValue<string>()}</Cell>,
+      cell: ({ getValue }) => (
+        <span className="block truncate font-medium">{getValue<string>()}</span>
+      ),
       size: 180
     },
     {
@@ -272,21 +274,24 @@ function financeColumns(expandedIds: ReadonlySet<string>): ColumnDef<FinanceTabl
       accessorFn: (row) => row.grandTotalCentavos,
       header: 'Grand Total',
       cell: ({ row }) => <Cell money>{formatMoney(row.original.grandTotalCentavos)}</Cell>,
-      size: 128
+      size: 128,
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right' }
     },
     {
       id: 'downpayment',
       accessorFn: (row) => row.downpaymentCentavos,
       header: 'Downpayment',
       cell: ({ row }) => <Cell money>{formatMoney(row.original.downpaymentCentavos)}</Cell>,
-      size: 128
+      size: 128,
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right' }
     },
     {
       id: 'balance',
       accessorFn: (row) => row.balanceCentavos,
       header: 'Balance',
       cell: ({ row }) => <Cell money>{formatMoney(row.original.balanceCentavos)}</Cell>,
-      size: 120
+      size: 120,
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right' }
     }
   ]
 }
@@ -490,7 +495,32 @@ export function FinanceAccountsContent({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3 bg-workspace">
-      <TableToolbar className="flex-wrap gap-3 border-b-0 bg-transparent px-0 py-3">
+      <header className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-lg font-medium">Finance Accounts</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Review finance contracts and collection records.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedBranch === 'All Branch' ? (
+            <Button
+              type="button"
+              size="sm"
+              variant={includeVoided ? 'secondary' : 'outline'}
+              onClick={() => setIncludeVoided((value) => !value)}
+            >
+              {includeVoided ? 'Hide Voided' : 'Include Voided'}
+            </Button>
+          ) : (
+            <Button type="button" size="sm" onClick={() => setIsCreating(true)}>
+              <Plus data-icon="inline-start" />
+              Add Finance Account
+            </Button>
+          )}
+        </div>
+      </header>
+      <TableToolbar className="mb-3 flex-wrap rounded-md border bg-card">
         <SearchInputGroup
           value={search}
           onChange={(event) => {
@@ -513,22 +543,6 @@ export function FinanceAccountsContent({
           className="shrink-0"
         />
         <div className="ml-auto flex items-center gap-2">
-          {selectedBranch !== 'All Branch' && (
-            <Button type="button" size="sm" onClick={() => setIsCreating(true)}>
-              <Plus data-icon="inline-start" />
-              Add Finance Account
-            </Button>
-          )}
-          {selectedBranch === 'All Branch' && (
-            <Button
-              type="button"
-              size="sm"
-              variant={includeVoided ? 'secondary' : 'outline'}
-              onClick={() => setIncludeVoided((value) => !value)}
-            >
-              {includeVoided ? 'Hide Voided' : 'Include Voided'}
-            </Button>
-          )}
           {selectedAccountIds.length > 0 &&
             selectedBranch !== 'All Branch' &&
             selectedAccountIds.every(

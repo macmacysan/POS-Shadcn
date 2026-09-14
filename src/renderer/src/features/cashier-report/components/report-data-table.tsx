@@ -223,9 +223,7 @@ export function ReportDataTable<TData extends ReportRow>({
     [additionalFilterFields, data, filterOptions, filterPlaceholder, filterableColumns]
   )
 
-  const handleShadcnFiltersChange = (
-    next: Array<{ field: string; value: string }>
-  ): void => {
+  const handleShadcnFiltersChange = (next: Array<{ field: string; value: string }>): void => {
     table.setGlobalFilter(next.find((filter) => filter.field === 'search')?.value ?? '')
     table.setColumnFilters(
       next
@@ -236,7 +234,7 @@ export function ReportDataTable<TData extends ReportRow>({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col">
-      <TableToolbar className="-mt-14 ml-auto w-fit max-w-full flex-nowrap gap-3 border-b-0 bg-transparent px-4 py-3">
+      <TableToolbar className="mx-4 mt-3 flex-wrap rounded-md border bg-card">
         <ShadcnTableFilters
           fields={shadcnFilterFields}
           filters={[
@@ -292,7 +290,7 @@ export function ReportDataTable<TData extends ReportRow>({
 
       <div
         className={cn(
-          'mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border bg-card'
+          'mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-xl border border-border bg-card'
         )}
       >
         <UniversalDataTable
@@ -310,13 +308,13 @@ export function ReportDataTable<TData extends ReportRow>({
         />
         {emptyStateFooter && data.length > 0 && data.length < 5 && (
           <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
-          <div className="h-9 w-9 rounded-full border border-border bg-muted flex items-center justify-center mb-2.5">
-            <FileText size={15} className="text-muted-foreground" />
-          </div>
-          <p className="text-sm font-medium text-muted-foreground">{emptyStateFooter}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            New entries you add will show up above this line.
-          </p>
+            <div className="h-9 w-9 rounded-full border border-border bg-muted flex items-center justify-center mb-2.5">
+              <FileText size={15} className="text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium text-muted-foreground">{emptyStateFooter}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              New entries you add will show up above this line.
+            </p>
           </div>
         )}
       </div>

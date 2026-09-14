@@ -394,7 +394,7 @@ export function InstallmentHistoryTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <TableToolbar className="-mt-14 ml-auto w-fit max-w-full flex-nowrap gap-3 border-b-0 bg-transparent px-4 py-3">
+      <TableToolbar className="mx-4 mt-3 flex-wrap rounded-md border bg-card">
         <ShadcnTableFilters
           filters={filters}
           fields={filterFields}
@@ -417,7 +417,7 @@ export function InstallmentHistoryTable({
           )}
         </div>
       </TableToolbar>
-      <div className="mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-lg border border-border/70 bg-background">
+      <div className="mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
         <UniversalDataTable
           table={table}
           recordCount={visibleRecords.length}

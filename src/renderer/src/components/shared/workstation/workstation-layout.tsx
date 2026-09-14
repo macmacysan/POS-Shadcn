@@ -74,7 +74,7 @@ export function WorkstationSurface({
     <Card
       size="sm"
       className={cn(
-        'h-full min-h-0 min-w-0 gap-0 overflow-hidden rounded-lg border border-border bg-workspace-surface py-0',
+        'h-full min-h-0 min-w-0 gap-0 overflow-hidden rounded-xl border border-border bg-workspace-surface py-0',
         className
       )}
       {...props}

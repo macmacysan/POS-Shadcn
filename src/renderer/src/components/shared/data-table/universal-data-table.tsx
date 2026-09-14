@@ -173,7 +173,7 @@ export function UniversalDataTable<TData extends object>({
     <div className={cn('flex min-h-0 min-w-0 flex-1 basis-0 flex-col', className)}>
       <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col [&>[data-slot=table-container]]:h-0 [&>[data-slot=table-container]]:min-h-0 [&>[data-slot=table-container]]:flex-1 [&>[data-slot=table-container]]:overflow-auto">
         <Table className="w-full table-fixed text-xs" style={{ minWidth: fixedWidth || undefined }}>
-          <TableHeader className="sticky top-0 z-10 bg-card">
+          <TableHeader className="sticky top-0 z-10 border-b bg-muted/50">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => {
@@ -185,7 +185,7 @@ export function UniversalDataTable<TData extends object>({
                       className={cn(
                         'h-8 px-3 text-xs font-medium text-muted-foreground',
                         meta.headerClassName,
-                        getNarrowColumnClassName(header.column.id),
+                        getNarrowColumnClassName(header.column.id)
                       )}
                       style={meta.autoSize ? undefined : { width: header.getSize() }}
                     >
@@ -219,38 +219,38 @@ export function UniversalDataTable<TData extends object>({
             ) : rows.length > 0 ? (
               rows.map((row) => (
                 <React.Fragment key={row.id}>
-                <TableRow
-                  data-state={(row.getIsSelected() || row.id === selectedRowId) && 'selected'}
-                  className={cn(
-                    'group/row h-9 border-b border-border last:border-b-0',
-                    (row.original as { status?: string }).status === 'VOIDED' && 'text-destructive',
-                    getRowClassName?.(row.original),
-                    row.id === selectedRowId && 'bg-primary/10',
-                    (onRowClick || onRowDoubleClick) && 'cursor-pointer'
-                  )}
-                  onClick={() => onRowClick?.(row.original)}
-                  onDoubleClick={() => onRowDoubleClick?.(row.original)}
-                  onContextMenu={(event) => onRowContextMenu?.(row.original, event)}
-                >
-                  {row.getVisibleCells().map((cell, index) => {
-                    const meta = getColumnMeta(cell.column)
-                    return (
-                      <TableCell
-                        key={cell.id}
-                        className={cn(
-                          'h-9 max-w-72 px-3 py-1.5',
-                          getNarrowColumnClassName(cell.column.id),
-                          row.id === selectedRowId && index === 0 && 'border-l-2 border-l-primary',
-                          meta.cellClassName
-                        )}
-                        style={meta.autoSize ? undefined : { width: cell.column.getSize() }}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    )
-                  })}
-                </TableRow>
-                {renderExpandedRow?.(row.original)}
+                  <TableRow
+                    data-state={(row.getIsSelected() || row.id === selectedRowId) && 'selected'}
+                    className={cn(
+                      'group/row h-9 border-b border-border last:border-b-0',
+                      (row.original as { status?: string }).status === 'VOIDED' &&
+                        'text-destructive',
+                      getRowClassName?.(row.original),
+                      row.id === selectedRowId && 'bg-primary/10',
+                      (onRowClick || onRowDoubleClick) && 'cursor-pointer'
+                    )}
+                    onClick={() => onRowClick?.(row.original)}
+                    onDoubleClick={() => onRowDoubleClick?.(row.original)}
+                    onContextMenu={(event) => onRowContextMenu?.(row.original, event)}
+                  >
+                    {row.getVisibleCells().map((cell) => {
+                      const meta = getColumnMeta(cell.column)
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          className={cn(
+                            'h-9 max-w-72 px-3 py-1.5',
+                            getNarrowColumnClassName(cell.column.id),
+                            meta.cellClassName
+                          )}
+                          style={meta.autoSize ? undefined : { width: cell.column.getSize() }}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>
+                  {renderExpandedRow?.(row.original)}
                 </React.Fragment>
               ))
             ) : (
@@ -270,7 +270,7 @@ export function UniversalDataTable<TData extends object>({
       {showPagination && (
         <div
           className={cn(
-            'flex h-10 shrink-0 items-center justify-between gap-3 border-t border-border bg-card px-3 text-xs',
+            'flex h-10 shrink-0 items-center justify-between gap-3 border-t border-border bg-muted/30 px-3 text-xs',
             paginationClassName
           )}
         >
