@@ -157,6 +157,7 @@ function Workspace({
   const [cashierReportInitialTab, setCashierReportInitialTab] = useState<
     ('Expenses' | 'Income' | 'Payment' | 'Activity') | undefined
   >(initialPaymentRoute?.origin === 'cashier-history' ? 'Activity' : undefined)
+  const [selectedCashierReportDate, setSelectedCashierReportDate] = useState<string>()
   const [reportAttentionBranch, setReportAttentionBranch] = useState<LoginBranch>()
   const [attentionReportId, setAttentionReportId] = useState<string>()
   const [openAttentionDateDialog, setOpenAttentionDateDialog] = useState(false)
@@ -399,6 +400,8 @@ function Workspace({
             cashierName={cashierName}
             isAdmin={isAdmin}
             initialTab={cashierReportInitialTab}
+            selectedBusinessDate={selectedCashierReportDate}
+            onSelectedBusinessDateChange={setSelectedCashierReportDate}
             attentionReportId={attentionReportId}
             onAttentionReportOpened={clearAttentionReport}
             onAttentionReportLoaded={showAttentionDateDialog}
@@ -437,6 +440,8 @@ function Workspace({
             selectedBranch={selectedBranch}
             cashierName={cashierName}
             isAdmin={isAdmin}
+            selectedBusinessDate={selectedCashierReportDate}
+            onSelectedBusinessDateChange={setSelectedCashierReportDate}
           />
         ) : activeView === 'installment-overview' ? (
           <InstallmentOverviewContent

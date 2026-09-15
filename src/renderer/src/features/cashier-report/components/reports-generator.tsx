@@ -693,6 +693,8 @@ type ReportsGeneratorProps = {
   cashierName: string
   reportId: string
   businessDate: string
+  selectedBusinessDate?: string
+  onSelectedBusinessDateChange?: (businessDate: string) => void
   summarySnapshotRef: React.RefObject<DailyReportSnapshotResponse | undefined>
 }
 
@@ -702,6 +704,8 @@ export function ReportsGenerator({
   cashierName,
   reportId,
   businessDate,
+  selectedBusinessDate,
+  onSelectedBusinessDateChange,
   summarySnapshotRef
 }: ReportsGeneratorProps): React.JSX.Element {
   const [exportError, setExportError] = React.useState<string>()
@@ -721,7 +725,9 @@ export function ReportsGenerator({
   const [, setExcelExportMessage] = React.useState<string>()
   const [isPdfReviewOpen, setIsPdfReviewOpen] = React.useState(false)
   const [isDeliveryProgressOpen, setIsDeliveryProgressOpen] = React.useState(false)
-  const [reportPageDate, setReportPageDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [reportPageDate, setReportPageDate] = React.useState(
+    () => selectedBusinessDate ?? businessDate
+  )
   const [isRangeReportOpen, setIsRangeReportOpen] = React.useState(false)
   const [rangeReportDateFrom, setRangeReportDateFrom] = React.useState(() =>
     format(new Date(), 'yyyy-MM-dd')
@@ -736,12 +742,24 @@ export function ReportsGenerator({
   const [pdfReviewRequest, setPdfReviewRequest] = React.useState<PdfReviewRequest>()
   const [telegramNote, setTelegramNote] = React.useState('')
 
+  React.useEffect(() => {
+    if (selectedBusinessDate) setReportPageDate(selectedBusinessDate)
+  }, [selectedBusinessDate])
+
   const updateRangeReportDateFrom = React.useCallback((value: string): void => {
     setRangeReportDateFrom(value)
     setRangeReportDateTo((currentValue) =>
       currentValue && value && currentValue < value ? value : currentValue
     )
   }, [])
+
+  const updateReportPageDate = React.useCallback(
+    (value: string): void => {
+      setReportPageDate(value)
+      onSelectedBusinessDateChange?.(value)
+    },
+    [onSelectedBusinessDateChange]
+  )
 
   const reviewPdf = async (
     mode: 'day' | 'range',
@@ -784,7 +802,7 @@ export function ReportsGenerator({
         financeAccounts,
         charts
       ] = await Promise.all([
-        mode === 'range'
+        mode === 'range' || (filters?.dateFrom && filters.dateFrom === filters.dateTo)
           ? window.api.dailyReports.getRangeSnapshot({
               branch: branchFilter,
               dateFrom: filters?.dateFrom ?? businessDate,
@@ -959,7 +977,7 @@ export function ReportsGenerator({
         generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
         note: pdfNote,
         snapshot:
-          mode === 'day' && summarySnapshotRef.current?.report.id === reportId
+          mode === 'day' && summarySnapshotRef.current?.report.id === snapshot.report.id
             ? summarySnapshotRef.current
             : snapshot,
         expenses: postedExpenses,
@@ -1132,7 +1150,7 @@ export function ReportsGenerator({
       <>
         <ReportsGeneratorPage
           reportDate={reportPageDate}
-          onReportDateChange={setReportPageDate}
+          onReportDateChange={updateReportPageDate}
           onOpenDateRangeReport={() => setIsRangeReportOpen(true)}
           isReviewing={isReviewingPdf}
           onReviewDailyReport={() =>

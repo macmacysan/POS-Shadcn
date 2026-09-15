@@ -177,13 +177,29 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
   const expenseTotal = data.expenses.reduce((total, item) => total + item.amountCentavos, 0)
   const incomeTotal = data.incomes.reduce((total, item) => total + item.amountCentavos, 0)
   const paymentTotal = data.payments.reduce((total, item) => total + item.amountCentavos, 0)
-  const expenseRows = [...new Set(data.expenses.map((item) => item.type))].map((type) => [
-    type,
-    data.expenses
-      .filter((item) => item.type === type)
-      .reduce((total, item) => total + item.amountCentavos, 0)
-  ]) as Array<[string, number]>
-  const cashOutCentavos = expenseTotal + deductionTotal
+  const expenseSummary = data.expenses.reduce(
+    (totals, item) => {
+      if (item.type === 'Company Expenses' || item.type === 'Operating')
+        totals.companyExpensesCentavos += item.amountCentavos
+      else if (item.type === 'Drawings') totals.drawingsCentavos += item.amountCentavos
+      else if (item.type === 'Purchases' || item.type === 'Supply')
+        totals.purchasesCentavos += item.amountCentavos
+      else if (item.type === 'Receivables') totals.receivablesCentavos += item.amountCentavos
+      return totals
+    },
+    {
+      companyExpensesCentavos: 0,
+      drawingsCentavos: 0,
+      purchasesCentavos: 0,
+      receivablesCentavos: 0
+    }
+  )
+  const cashOutCentavos =
+    expenseSummary.companyExpensesCentavos +
+    expenseSummary.drawingsCentavos +
+    expenseSummary.purchasesCentavos +
+    expenseSummary.receivablesCentavos +
+    deductionTotal
   const paymentTotals = snapshot.paymentEntries
     .filter((item) => item.status === 'POSTED')
     .reduce(
@@ -217,9 +233,11 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     { label: 'Collections', value: snapshot.cashCollectionsCentavos },
     { label: 'Other', value: snapshot.otherIncomeCentavos },
     { label: 'Finance Down', value: snapshot.financeDownCentavos },
-    { label: 'Finance Bal', value: snapshot.financeBalanceCentavos },
     { label: 'Total Cash Receipts', value: totalReceiptsCentavos, emphasis: true },
-    ...expenseRows.map(([label, value]) => ({ label, value })),
+    { label: 'Expenses', value: expenseSummary.companyExpensesCentavos },
+    { label: 'Drawings', value: expenseSummary.drawingsCentavos },
+    { label: 'Purchases', value: expenseSummary.purchasesCentavos },
+    { label: 'Receivables', value: expenseSummary.receivablesCentavos },
     { label: 'Deductions', value: deductionTotal },
     { label: 'Total Cash Outs', value: cashOutCentavos, emphasis: true },
     { label: 'Bank Check', value: paymentTotals.bankCheck },
@@ -227,9 +245,8 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     { label: 'Gcash', value: paymentTotals.gcash },
     { label: 'E-wallet', value: paymentTotals.otherEwallet },
     { label: 'Total Payments', value: paymentTotals.total, emphasis: true },
-    { label: 'Expected Cash', value: expectedCashCentavos },
+    { label: 'Expected Cash', value: expectedCashCentavos, emphasis: true },
     { label: 'Cash Denominations', value: snapshot.physicalCashCentavos },
-    { label: 'Cash Remitted', value: snapshot.report.cashRemittedCentavos },
     { label: 'Cash Variance', value: cashVarianceCentavos, emphasis: true, alwaysShow: true }
   ]
 

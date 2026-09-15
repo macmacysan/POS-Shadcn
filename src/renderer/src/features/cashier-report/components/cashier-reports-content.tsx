@@ -1523,6 +1523,8 @@ export function CashierReportsContent({
   cashierName = 'Cashier',
   isAdmin = false,
   initialTab = 'Expenses',
+  selectedBusinessDate,
+  onSelectedBusinessDateChange,
   attentionReportId,
   onAttentionReportOpened,
   onAttentionReportLoaded,
@@ -1541,6 +1543,8 @@ export function CashierReportsContent({
   cashierName?: string
   isAdmin?: boolean
   initialTab?: (typeof reportTabs)[number]
+  selectedBusinessDate?: string
+  onSelectedBusinessDateChange?: (businessDate: string) => void
   attentionReportId?: string
   onAttentionReportOpened?: () => void
   onAttentionReportLoaded?: () => void
@@ -1584,9 +1588,10 @@ export function CashierReportsContent({
   const summarySnapshotRef = React.useRef<DailyReportSnapshotResponse | undefined>(undefined)
   const [reportSearch, setReportSearch] = React.useState('')
   const [dateRange, setDateRange] = React.useState<DateSelectorValue>(() => {
-    const today = new Date()
-    return { period: 'day', operator: 'is', startDate: today, endDate: today }
+    const initialDate = parseISO(selectedBusinessDate ?? activeReport.businessDate)
+    return { period: 'day', operator: 'is', startDate: initialDate, endDate: initialDate }
   })
+  const persistedBusinessDateRef = React.useRef(selectedBusinessDate)
   const dateRequestVersionRef = React.useRef(0)
   React.useEffect(() => {
     if (!activeReportValue) setSelectedReportMissing(true)
@@ -1730,6 +1735,11 @@ export function CashierReportsContent({
     [activeReport.branchId, activeReport.cashierUserId, selectedReport.businessDate]
   )
   React.useEffect(() => {
+    const persistedBusinessDate = persistedBusinessDateRef.current
+    if (!persistedBusinessDate || persistedBusinessDate === selectedReport.businessDate) return
+    void changeBusinessDate(parseISO(persistedBusinessDate))
+  }, [changeBusinessDate, selectedReport.businessDate])
+  React.useEffect(() => {
     if (!attentionReportId) return
     let active = true
     void window.api.dailyReports
@@ -1740,6 +1750,7 @@ export function CashierReportsContent({
         setSelectedReportMissing(false)
         const date = parseISO(snapshot.report.businessDate)
         setDateRange({ period: 'day', operator: 'is', startDate: date, endDate: date })
+        onSelectedBusinessDateChange?.(snapshot.report.businessDate)
         onAttentionReportLoaded?.()
       })
       .catch(() => {
@@ -1751,7 +1762,12 @@ export function CashierReportsContent({
     return () => {
       active = false
     }
-  }, [attentionReportId, onAttentionReportLoaded, onAttentionReportOpened])
+  }, [
+    attentionReportId,
+    onAttentionReportLoaded,
+    onAttentionReportOpened,
+    onSelectedBusinessDateChange
+  ])
 
   const changeDateRange = React.useCallback(
     (value: DateSelectorValue): void => {
@@ -1763,9 +1779,10 @@ export function CashierReportsContent({
         endDate: value.startDate
       }
       setDateRange(next)
+      onSelectedBusinessDateChange?.(format(value.startDate, 'yyyy-MM-dd'))
       void changeBusinessDate(value.startDate)
     },
-    [changeBusinessDate]
+    [changeBusinessDate, onSelectedBusinessDateChange]
   )
   const setEntryFormOpen = React.useCallback(
     (open: boolean): void => {
