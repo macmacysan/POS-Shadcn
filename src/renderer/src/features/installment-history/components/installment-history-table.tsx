@@ -43,6 +43,7 @@ type InstallmentHistoryTableProps = {
   dateFrom?: string
   dateTo?: string
   onVisibleRecordCountChange?: (count: number) => void
+  leadingToolbarContent?: React.ReactNode
   afterFiltersContent?: React.ReactNode
   trailingToolbarContent?: React.ReactNode
   onVoidSelected: (records: InstallmentHistoryRecord[], reason: string) => Promise<void>
@@ -130,6 +131,7 @@ export function InstallmentHistoryTable({
   dateFrom,
   dateTo,
   onVisibleRecordCountChange,
+  leadingToolbarContent,
   afterFiltersContent,
   trailingToolbarContent,
   onVoidSelected
@@ -395,6 +397,7 @@ export function InstallmentHistoryTable({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <TableToolbar className="mx-4 mt-3 flex-wrap rounded-md border bg-card">
+        {leadingToolbarContent}
         <ShadcnTableFilters
           filters={filters}
           fields={filterFields}

@@ -258,12 +258,23 @@ try {
     { label: 'blacklisted', prepare: () => repository.blacklistAccount(request) }
   ]) {
     transition.prepare()
+    const paymentId = `status-void-payment-${transition.label.replaceAll(' ', '-')}`
+    db.prepare(
+      `INSERT INTO in_house_payments
+        (id, contract_id, payment_date, amount_centavos, status, created_at, updated_at)
+       VALUES (?, 'status-contract', '2026-01-02', 100, 'POSTED', ?, ?)`
+    ).run(paymentId, now, now)
     repository.voidContracts(['status-contract'], 'status-user', `Void from ${transition.label}`)
     assert.equal(
       db.prepare('SELECT status FROM installment_contracts WHERE id = ?').get('status-contract')
         .status,
       'VOIDED',
       `voiding from ${transition.label} should void the contract`
+    )
+    assert.equal(
+      db.prepare('SELECT status FROM in_house_payments WHERE id = ?').get(paymentId).status,
+      'VOIDED',
+      `voiding from ${transition.label} should void its posted payments`
     )
     repository.unvoidContracts(['status-contract'], 'status-user')
   }

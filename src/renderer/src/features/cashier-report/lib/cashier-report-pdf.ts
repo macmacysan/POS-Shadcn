@@ -9,7 +9,7 @@ import type {
   InstallmentAccountRecord
 } from '@/../../shared/contracts'
 import { formatCentavos } from '@/lib/currency'
-import { historyActionLabel } from '@/lib/installment-history'
+import { historyActionLabel, isVisibleInstallmentHistoryRecord } from '@/lib/installment-history'
 
 type AccountCounts = {
   records: number
@@ -140,7 +140,7 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
       quantity: item.quantity
     }))
     .filter((item) => item.quantity > 0 && item.valueCentavos > 0)
-  const history = data.installmentHistory.filter((item) => item.action !== 'deleted')
+  const history = data.installmentHistory.filter(isVisibleInstallmentHistoryRecord)
   const receiptTotal = snapshot.receiptTotals.reduce(
     (total, item) => total + item.amountCentavos,
     0

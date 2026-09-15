@@ -520,28 +520,30 @@ export function FinanceAccountsContent({
           )}
         </div>
       </header>
-      <TableToolbar className="mb-3 flex-wrap rounded-md border bg-card">
-        <SearchInputGroup
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value)
-            setPagination((current) => ({ ...current, pageIndex: 0 }))
-          }}
-          placeholder="Search finance accounts..."
-          aria-label="Search finance accounts"
-        />
-        <ShadcnTableFilters
-          fields={financeFilterFields}
-          filters={filters}
-          onChange={(next) => {
-            setBranch(next.find((filter) => filter.field === 'branch')?.value ?? '')
-            setProvider(next.find((filter) => filter.field === 'provider')?.value ?? '')
-            setDateFrom(next.find((filter) => filter.field === 'dateFrom')?.value ?? '')
-            setDateTo(next.find((filter) => filter.field === 'dateTo')?.value ?? '')
-            setTerms(next.find((filter) => filter.field === 'terms')?.value ?? '')
-          }}
-          className="shrink-0"
-        />
+      <TableToolbar className="mb-3 justify-between rounded-md border bg-card">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <SearchInputGroup
+            value={search}
+            onChange={(event) => {
+              setSearch(event.target.value)
+              setPagination((current) => ({ ...current, pageIndex: 0 }))
+            }}
+            placeholder="Search finance accounts..."
+            aria-label="Search finance accounts"
+          />
+          <ShadcnTableFilters
+            fields={financeFilterFields}
+            filters={filters}
+            onChange={(next) => {
+              setBranch(next.find((filter) => filter.field === 'branch')?.value ?? '')
+              setProvider(next.find((filter) => filter.field === 'provider')?.value ?? '')
+              setDateFrom(next.find((filter) => filter.field === 'dateFrom')?.value ?? '')
+              setDateTo(next.find((filter) => filter.field === 'dateTo')?.value ?? '')
+              setTerms(next.find((filter) => filter.field === 'terms')?.value ?? '')
+            }}
+            className="shrink-0"
+          />
+        </div>
         <div className="ml-auto flex items-center gap-2">
           {selectedAccountIds.length > 0 &&
             selectedBranch !== 'All Branch' &&
@@ -563,7 +565,7 @@ export function FinanceAccountsContent({
             )}
         </div>
       </TableToolbar>
-      <Card className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <Card className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 py-0">
         <CardContent className="flex min-h-0 flex-1 flex-col p-0">
           <UniversalDataTable
             table={table}
@@ -573,7 +575,7 @@ export function FinanceAccountsContent({
             onRetry={() => void reload()}
             emptyMessage="No finance accounts found."
             paginationSizes={[25, 50, 100]}
-            paginationInfo="Showing {from}-{to} of {count} items"
+            paginationInfo="Showing {from}-{to} of {count} records"
             tableLayout={{ columnsResizable: true }}
             onRowClick={(row) =>
               setExpandedIds((current) => {

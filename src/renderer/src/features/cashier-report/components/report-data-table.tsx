@@ -63,6 +63,7 @@ type ReportDataTableProps<TData extends ReportRow> = {
   }
   filterOptions?: Record<string, readonly string[]>
   additionalFilterFields?: ShadcnFilterField[]
+  leadingToolbarContent?: React.ReactNode
   afterFiltersContent?: React.ReactNode
   trailingToolbarContent?: React.ReactNode
   toolbarContent?: React.ReactNode
@@ -100,6 +101,7 @@ export function ReportDataTable<TData extends ReportRow>({
   serverState,
   filterOptions,
   additionalFilterFields,
+  leadingToolbarContent,
   afterFiltersContent,
   trailingToolbarContent,
   toolbarContent,
@@ -235,6 +237,7 @@ export function ReportDataTable<TData extends ReportRow>({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col">
       <TableToolbar className="mx-4 mt-3 flex-wrap rounded-md border bg-card">
+        {leadingToolbarContent}
         <ShadcnTableFilters
           fields={shadcnFilterFields}
           filters={[

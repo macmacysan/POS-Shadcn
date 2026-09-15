@@ -104,7 +104,10 @@ import type { EntryEntityType, EntryHistoryRecord } from '@/../../shared/contrac
 import { DateSelector, type DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import type { InstallmentHistoryRecord } from '@/lib/installment-history'
+import {
+  isVisibleInstallmentHistoryRecord,
+  type InstallmentHistoryRecord
+} from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import { formatAmountInput, formatPhilippinePeso } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
@@ -1228,6 +1231,7 @@ function ReportTab({
   isAdmin,
   showVoided,
   onShowVoidedChange,
+  leadingToolbarContent,
   afterFiltersContent,
   trailingToolbarContent
 }: {
@@ -1264,6 +1268,7 @@ function ReportTab({
   isAdmin: boolean
   showVoided: boolean
   onShowVoidedChange: (value: boolean) => void
+  leadingToolbarContent?: React.ReactNode
   afterFiltersContent?: React.ReactNode
   trailingToolbarContent?: React.ReactNode
 }): React.JSX.Element {
@@ -1377,6 +1382,7 @@ function ReportTab({
           onDefaultAction={isAdmin ? undefined : onExpenseDefaultAction}
           serverState={expenseQuery}
           filterOptions={expenseFilterOptions}
+          leadingToolbarContent={leadingToolbarContent}
           afterFiltersContent={afterFiltersContent}
           trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
@@ -1419,6 +1425,7 @@ function ReportTab({
             date: uniqueSorted(incomeRows.map((row) => row.date)),
             createdByName: incomeAddedByOptions
           }}
+          leadingToolbarContent={leadingToolbarContent}
           afterFiltersContent={afterFiltersContent}
           trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
@@ -1462,6 +1469,7 @@ function ReportTab({
             date: uniqueSorted(paymentRows.map((row) => row.date)),
             createdByName: paymentAddedByOptions
           }}
+          leadingToolbarContent={leadingToolbarContent}
           afterFiltersContent={afterFiltersContent}
           trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
@@ -1497,6 +1505,7 @@ function ReportTab({
             isLoading={historyLoadState.isLoading}
             dateFrom={dateFrom}
             dateTo={dateTo}
+            leadingToolbarContent={leadingToolbarContent}
             afterFiltersContent={afterFiltersContent}
             trailingToolbarContent={trailingToolbarContent}
             onVisibleRecordCountChange={onVisibleHistoryCountChange}
@@ -1918,7 +1927,9 @@ export function CashierReportsContent({
       .listHistory({ dateFrom, dateTo })
       .then((records) => {
         if (requestVersion !== historyRequestVersionRef.current) return
-        setHistoryRecords(records.map(installmentHistoryRow))
+        setHistoryRecords(
+          records.filter(isVisibleInstallmentHistoryRecord).map(installmentHistoryRow)
+        )
         setHistoryLoadState({ isLoading: false })
       })
       .catch(() => {
@@ -2039,222 +2050,223 @@ export function CashierReportsContent({
     ...incomes.map((income) => `${income.id}:${income.amount}`),
     ...payments.map((payment) => `${payment.id}:${payment.paymentMethodId}:${payment.amount}`)
   ].join(':')
-  const reviewPdf = React.useCallback(
-    async (
-      sections?: readonly CashierReportSection[],
-      filters?: { branch: LoginBranch; dateFrom?: string; dateTo?: string; accountType?: string }
-    ): Promise<void> => {
-      setPdfReviewRequest({ sections, filters })
-      setIsReviewingPdf(true)
-      setExportError(undefined)
-      setIsPdfReviewOpen(false)
-      setPdfPreview(undefined)
-      try {
-        const branchFilter = filters?.branch ?? selectedBranch
-        const allExpenses: ExpenseRecord[] = []
-        for (let pageIndex = 0; ; pageIndex += 1) {
-          const result = await window.api.reports.expenses.list({
-            reportId: undefined,
-            includeVoided: true,
-            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-            dateFrom: filters?.dateFrom,
-            dateTo: filters?.dateTo,
-            pageIndex,
-            pageSize: 100,
-            search: '',
-            sorting: [],
-            filters: {}
-          })
-          allExpenses.push(...result.rows)
-          if (allExpenses.length >= result.totalRows) break
-        }
-        const [
-          snapshot,
-          incomeResult,
-          paymentResult,
-          installmentHistory,
-          records,
-          active,
-          closed,
-          blacklisted,
-          financeAccounts,
-          charts
-        ] = await Promise.all([
-          window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
-          window.api.dailyReports.listIncome({
-            branch: branchFilter,
-            dateFrom: filters?.dateFrom,
-            dateTo: filters?.dateTo,
-            includeVoided: true
-          }),
-          window.api.dailyReports.listPayments({
-            branch: branchFilter,
-            dateFrom: filters?.dateFrom,
-            dateTo: filters?.dateTo,
-            includeVoided: true
-          }),
-          window.api.installments.listHistory({
-            dateFrom: filters?.dateFrom,
-            dateTo: filters?.dateTo
-          }),
-          window.api.installments.list({
-            view: 'records',
-            search: '',
-            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-            includeVoided: true
-          }),
-          window.api.installments.list({
-            view: 'active',
-            search: '',
-            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-            includeVoided: true
-          }),
-          window.api.installments.list({
-            view: 'closed',
-            search: '',
-            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-            includeVoided: true
-          }),
-          window.api.installments.list({
-            view: 'blacklisted',
-            search: '',
-            branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-            includeVoided: true
-          }),
-          window.api.financeAccounts.list({
-            search: '',
-            includeVoided: true,
-            ...(branchFilter === 'All Branch' ? {} : { branch: branchFilter })
-          }),
-          window.api.dashboard.getPdfCharts({
-            businessDate: filters?.dateTo ?? selectedReport.businessDate,
-            ...(branchFilter === 'All Branch' ? {} : { branch: branchFilter })
-          })
-        ])
-        const branch = branchFilter === 'All Branch' ? 'All Branch' : branchFilter
-        const postedExpenses = allExpenses.filter(
-          (item) => item.source === 'local' && item.status === 'POSTED'
-        )
-        const postedIncomes = incomeResult.rows.filter(
-          (item) => item.source === 'local' && item.status === 'POSTED'
-        )
-        const postedPayments = paymentResult.rows.filter(
-          (item) => item.source === 'local' && item.status === 'POSTED'
-        )
-        const filteredFinanceAccounts = financeAccounts.rows.filter(
-          (item: FinanceAccountRecord) =>
-            (!filters?.dateFrom || item.dateReleased >= filters.dateFrom) &&
-            (!filters?.dateTo || item.dateReleased <= filters.dateTo) &&
-            (!filters?.accountType ||
-              filters.accountType === 'All Types' ||
-              item.provider === filters.accountType)
-        )
-        const nextExcelSheets: Record<string, ExcelSheetRows> = {}
-        if (sections?.includes('Expenses'))
-          nextExcelSheets.Expenses = postedExpenses.map((item) => flattenExcelRecord(item))
-        if (sections?.includes('Income'))
-          nextExcelSheets.Income = postedIncomes.map((item) => flattenExcelRecord(item))
-        if (sections?.includes('Payment'))
-          nextExcelSheets.Payment = postedPayments.map((item) => flattenExcelRecord(item))
-        if (sections?.includes('Activity History'))
-          nextExcelSheets['Activity History'] = installmentHistory
-            .filter((item) => branchFilter === 'All Branch' || item.branch === branchFilter)
-            .map((item) => flattenExcelRecord(item))
-        if (sections?.includes('Accounts'))
-          nextExcelSheets.Finance = filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
-        if (sections?.includes('Records'))
-          nextExcelSheets.Records = records.rows.map(installmentAccountRow)
-        if (sections?.includes('Active'))
-          nextExcelSheets.Active = active.rows.map(installmentAccountRow)
-        if (sections?.includes('Closed'))
-          nextExcelSheets.Closed = closed.rows.map(installmentAccountRow)
-        if (sections?.includes('Blacklisted'))
-          nextExcelSheets.Blacklisted = blacklisted.rows.map(installmentAccountRow)
-        setExcelSheets(nextExcelSheets)
-        const publishDate =
-          filters?.dateFrom && filters.dateFrom === filters.dateTo ? filters.dateFrom : undefined
-        setPublishContext({
-          branch: branchFilter,
-          businessDate: publishDate,
-          tabs: {
-            Expenses: allExpenses
-              .filter((item) => item.source === 'local')
-              .map((item) => flattenExcelRecord(item)),
-            Income: incomeResult.rows
-              .filter((item) => item.source === 'local')
-              .map((item) => flattenExcelRecord(item)),
-            Payment: paymentResult.rows
-              .filter((item) => item.source === 'local')
-              .map((item) => flattenExcelRecord(item)),
-            Records: records.rows.map(installmentAccountRow),
-            Finance: filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
-          }
+  const reviewPdf = async (
+    sections?: readonly CashierReportSection[],
+    filters?: { branch: LoginBranch; dateFrom?: string; dateTo?: string; accountType?: string }
+  ): Promise<void> => {
+    setPdfReviewRequest({ sections, filters })
+    setIsReviewingPdf(true)
+    setExportError(undefined)
+    setIsPdfReviewOpen(false)
+    setPdfPreview(undefined)
+    try {
+      const branchFilter = filters?.branch ?? selectedBranch
+      const allExpenses: ExpenseRecord[] = []
+      for (let pageIndex = 0; ; pageIndex += 1) {
+        const result = await window.api.reports.expenses.list({
+          reportId: undefined,
+          includeVoided: true,
+          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+          dateFrom: filters?.dateFrom,
+          dateTo: filters?.dateTo,
+          pageIndex,
+          pageSize: 100,
+          search: '',
+          sorting: [],
+          filters: {}
         })
-        setExcelExportMessage(undefined)
-        const contributors = [
-          ...postedExpenses.map((item) => item.createdByName),
-          ...postedIncomes.map((item) => item.createdByName),
-          ...postedPayments.map((item) => item.createdByName)
-        ].filter((name): name is string => Boolean(name?.trim()))
-        const contributorLabel = [...new Set(contributors)].join(', ') || cashierName
-        const now = new Date()
-        const html = cashierReportPdfHtml({
-          cashierName: contributorLabel,
-          branch,
-          businessDate:
-            filters?.dateFrom && filters?.dateTo
-              ? `${filters.dateFrom} to ${filters.dateTo}`
-              : selectedReport.businessDate,
-          generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
-          note: pdfNote,
-          snapshot:
-            summarySnapshotRef.current?.report.id === reportId
-              ? summarySnapshotRef.current
-              : snapshot,
-          expenses: postedExpenses,
-          incomes: postedIncomes,
-          payments: postedPayments,
-          installmentHistory: installmentHistory.filter(
-            (item) => branchFilter === 'All Branch' || item.branch === branchFilter
-          ),
-          accountCounts: {
-            records: records.rows.length,
-            active: active.rows.length,
-            closed: closed.rows.length,
-            blacklisted: blacklisted.rows.length
-          },
-          charts,
-          sections,
-          financeAccounts: sections ? filteredFinanceAccounts : undefined,
-          accountLists: {
-            records: records.rows,
-            active: active.rows,
-            closed: closed.rows,
-            blacklisted: blacklisted.rows
-          }
-        })
-        const reportDate = filters?.dateFrom ?? selectedReport.businessDate
-        const fileName = `${format(parseISO(reportDate), 'MMMM d, yyyy')} - ${filenameName(cashierName)}.pdf`
-        const { pdfBase64 } = await window.api.pdfExport.preview({ html, fileName })
-        setPdfProgress(initialPdfProgress)
-        setTelegramNote('')
-        setPdfPreview({ fileName, pdfBase64, note: pdfNote })
-        setIsPdfReviewOpen(true)
-      } catch (error) {
-        const message =
-          error &&
-          typeof error === 'object' &&
-          'message' in error &&
-          typeof error.message === 'string'
-            ? error.message
-            : 'The PDF could not be exported. Please try again.'
-        setExportError(message)
-      } finally {
-        setIsReviewingPdf(false)
+        allExpenses.push(...result.rows)
+        if (allExpenses.length >= result.totalRows) break
       }
-    },
-    [cashierName, pdfNote, reportId, selectedBranch, selectedReport.businessDate]
-  )
+      const [
+        snapshot,
+        incomeResult,
+        paymentResult,
+        installmentHistory,
+        records,
+        active,
+        closed,
+        blacklisted,
+        financeAccounts,
+        charts
+      ] = await Promise.all([
+        window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
+        window.api.dailyReports.listIncome({
+          branch: branchFilter,
+          dateFrom: filters?.dateFrom,
+          dateTo: filters?.dateTo,
+          includeVoided: true
+        }),
+        window.api.dailyReports.listPayments({
+          branch: branchFilter,
+          dateFrom: filters?.dateFrom,
+          dateTo: filters?.dateTo,
+          includeVoided: true
+        }),
+        window.api.installments.listHistory({
+          dateFrom: filters?.dateFrom,
+          dateTo: filters?.dateTo
+        }),
+        window.api.installments.list({
+          view: 'records',
+          search: '',
+          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+          includeVoided: true
+        }),
+        window.api.installments.list({
+          view: 'active',
+          search: '',
+          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+          includeVoided: true
+        }),
+        window.api.installments.list({
+          view: 'closed',
+          search: '',
+          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+          includeVoided: true
+        }),
+        window.api.installments.list({
+          view: 'blacklisted',
+          search: '',
+          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
+          includeVoided: true
+        }),
+        window.api.financeAccounts.list({
+          search: '',
+          includeVoided: true,
+          ...(branchFilter === 'All Branch' ? {} : { branch: branchFilter })
+        }),
+        window.api.dashboard.getPdfCharts({
+          businessDate: filters?.dateTo ?? selectedReport.businessDate,
+          ...(branchFilter === 'All Branch' ? {} : { branch: branchFilter })
+        })
+      ])
+      const branch = branchFilter === 'All Branch' ? 'All Branch' : branchFilter
+      const postedExpenses = allExpenses.filter(
+        (item) => item.source === 'local' && item.status === 'POSTED'
+      )
+      const postedIncomes = incomeResult.rows.filter(
+        (item) => item.source === 'local' && item.status === 'POSTED'
+      )
+      const postedPayments = paymentResult.rows.filter(
+        (item) => item.source === 'local' && item.status === 'POSTED'
+      )
+      const filteredFinanceAccounts = financeAccounts.rows.filter(
+        (item: FinanceAccountRecord) =>
+          (!filters?.dateFrom || item.dateReleased >= filters.dateFrom) &&
+          (!filters?.dateTo || item.dateReleased <= filters.dateTo) &&
+          (!filters?.accountType ||
+            filters.accountType === 'All Types' ||
+            item.provider === filters.accountType)
+      )
+      const nextExcelSheets: Record<string, ExcelSheetRows> = {}
+      if (sections?.includes('Expenses'))
+        nextExcelSheets.Expenses = postedExpenses.map((item) => flattenExcelRecord(item))
+      if (sections?.includes('Income'))
+        nextExcelSheets.Income = postedIncomes.map((item) => flattenExcelRecord(item))
+      if (sections?.includes('Payment'))
+        nextExcelSheets.Payment = postedPayments.map((item) => flattenExcelRecord(item))
+      if (sections?.includes('Activity History'))
+        nextExcelSheets['Activity History'] = installmentHistory
+          .filter(
+            (item) =>
+              isVisibleInstallmentHistoryRecord(item) &&
+              (branchFilter === 'All Branch' || item.branch === branchFilter)
+          )
+          .map((item) => flattenExcelRecord(item))
+      if (sections?.includes('Accounts'))
+        nextExcelSheets.Finance = filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
+      if (sections?.includes('Records'))
+        nextExcelSheets.Records = records.rows.map(installmentAccountRow)
+      if (sections?.includes('Active'))
+        nextExcelSheets.Active = active.rows.map(installmentAccountRow)
+      if (sections?.includes('Closed'))
+        nextExcelSheets.Closed = closed.rows.map(installmentAccountRow)
+      if (sections?.includes('Blacklisted'))
+        nextExcelSheets.Blacklisted = blacklisted.rows.map(installmentAccountRow)
+      setExcelSheets(nextExcelSheets)
+      const publishDate =
+        filters?.dateFrom && filters.dateFrom === filters.dateTo ? filters.dateFrom : undefined
+      setPublishContext({
+        branch: branchFilter,
+        businessDate: publishDate,
+        tabs: {
+          Expenses: allExpenses
+            .filter((item) => item.source === 'local')
+            .map((item) => flattenExcelRecord(item)),
+          Income: incomeResult.rows
+            .filter((item) => item.source === 'local')
+            .map((item) => flattenExcelRecord(item)),
+          Payment: paymentResult.rows
+            .filter((item) => item.source === 'local')
+            .map((item) => flattenExcelRecord(item)),
+          Records: records.rows.map(installmentAccountRow),
+          Finance: filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
+        }
+      })
+      setExcelExportMessage(undefined)
+      const contributors = [
+        ...postedExpenses.map((item) => item.createdByName),
+        ...postedIncomes.map((item) => item.createdByName),
+        ...postedPayments.map((item) => item.createdByName)
+      ].filter((name): name is string => Boolean(name?.trim()))
+      const contributorLabel = [...new Set(contributors)].join(', ') || cashierName
+      const now = new Date()
+      const html = cashierReportPdfHtml({
+        cashierName: contributorLabel,
+        branch,
+        businessDate:
+          filters?.dateFrom && filters?.dateTo
+            ? `${filters.dateFrom} to ${filters.dateTo}`
+            : selectedReport.businessDate,
+        generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
+        note: pdfNote,
+        snapshot:
+          summarySnapshotRef.current?.report.id === reportId
+            ? summarySnapshotRef.current
+            : snapshot,
+        expenses: postedExpenses,
+        incomes: postedIncomes,
+        payments: postedPayments,
+        installmentHistory: installmentHistory.filter(
+          (item) => branchFilter === 'All Branch' || item.branch === branchFilter
+        ),
+        accountCounts: {
+          records: records.rows.length,
+          active: active.rows.length,
+          closed: closed.rows.length,
+          blacklisted: blacklisted.rows.length
+        },
+        charts,
+        sections,
+        financeAccounts: sections ? filteredFinanceAccounts : undefined,
+        accountLists: {
+          records: records.rows,
+          active: active.rows,
+          closed: closed.rows,
+          blacklisted: blacklisted.rows
+        }
+      })
+      const reportDate = filters?.dateFrom ?? selectedReport.businessDate
+      const fileName = `${format(parseISO(reportDate), 'MMMM d, yyyy')} - ${filenameName(cashierName)}.pdf`
+      const { pdfBase64 } = await window.api.pdfExport.preview({ html, fileName })
+      setPdfProgress(initialPdfProgress)
+      setTelegramNote('')
+      setPdfPreview({ fileName, pdfBase64, note: pdfNote })
+      setIsPdfReviewOpen(true)
+    } catch (error) {
+      const message =
+        error &&
+        typeof error === 'object' &&
+        'message' in error &&
+        typeof error.message === 'string'
+          ? error.message
+          : 'The PDF could not be exported. Please try again.'
+      setExportError(message)
+    } finally {
+      setIsReviewingPdf(false)
+    }
+  }
   const updatePdfStep = React.useCallback(
     (id: PdfProgressStepId, patch: Partial<PdfProgressStep>): void => {
       setPdfProgress((steps) =>
@@ -2767,7 +2779,10 @@ export function CashierReportsContent({
                   disabled={isPdfProcessing}
                   className="mt-2 resize-none text-sm"
                 />
-                <label htmlFor="report-page-telegram-note" className="mt-4 block text-xs font-medium">
+                <label
+                  htmlFor="report-page-telegram-note"
+                  className="mt-4 block text-xs font-medium"
+                >
                   Telegram note
                 </label>
                 <Textarea
@@ -2856,6 +2871,35 @@ export function CashierReportsContent({
     setActiveTab(nextTab)
     if (nextTab === 'Activity') setIsEntryFormVisible(false)
   }
+  const tabToolbarContent = (
+    <div className="min-w-0 max-w-full overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
+      <TabsList
+        aria-label="Cashier report sections"
+        className="h-8 w-fit justify-start bg-muted"
+        onPointerLeave={() => setHoveredTab(undefined)}
+      >
+        {reportTabs.map((tab) => (
+          <TabsTrigger
+            key={tab}
+            value={tab}
+            className="flex-none gap-1.5 px-3 text-sm"
+            onPointerEnter={() => setHoveredTab(tab)}
+            onClick={() => selectTab(tab)}
+          >
+            <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
+            {tabRowCounts[tab] > 0 && (
+              <Badge
+                variant="secondary"
+                className="size-5 shrink-0 justify-center rounded-full bg-muted p-0 text-xs tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
+              >
+                {tabRowCounts[tab]}
+              </Badge>
+            )}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </div>
+  )
 
   return (
     <div
@@ -2897,36 +2941,6 @@ export function CashierReportsContent({
               onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
-              <div className="mx-4 flex shrink-0 items-center">
-                <div className="min-w-0 flex-1 overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
-                  <TabsList
-                    aria-label="Cashier report sections"
-                    className="mb-2 h-10 w-fit justify-start bg-muted"
-                    onPointerLeave={() => setHoveredTab(undefined)}
-                  >
-                    {reportTabs.map((tab) => (
-                      <TabsTrigger
-                        key={tab}
-                        value={tab}
-                        className="flex-none gap-1.5 px-3 text-sm"
-                        onPointerEnter={() => setHoveredTab(tab)}
-                        onClick={() => selectTab(tab)}
-                      >
-                        <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
-                        {tabRowCounts[tab] > 0 && (
-                          <Badge
-                            variant="secondary"
-                            className="size-5 shrink-0 justify-center rounded-full bg-muted p-0 text-xs tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
-                          >
-                            {tabRowCounts[tab]}
-                          </Badge>
-                        )}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </div>
-                <CashierReportHeader error={dateError ?? exportError} />
-              </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-visible">
                 {reportTabs.map((tab) => (
                   <TabsContent
@@ -2961,6 +2975,7 @@ export function CashierReportsContent({
                       isAdmin={isAdmin}
                       showVoided={showVoided}
                       onShowVoidedChange={setShowVoided}
+                      leadingToolbarContent={tabToolbarContent}
                       afterFiltersContent={
                         <InstallmentAttentionPopover
                           summary={installmentAttention}
@@ -2971,6 +2986,14 @@ export function CashierReportsContent({
                       }
                       trailingToolbarContent={
                         <>
+                          {(dateError || exportError) && (
+                            <span
+                              className="max-w-48 truncate text-xs text-destructive"
+                              role="alert"
+                            >
+                              {dateError ?? exportError}
+                            </span>
+                          )}
                           {!isAdmin && (
                             <Button type="button" size="sm" onClick={toggleEntryForm}>
                               <Plus data-icon="inline-start" aria-hidden="true" />

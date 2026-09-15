@@ -86,6 +86,13 @@ export function historyActionLabel(
   return 'Updated'
 }
 
+export function isVisibleInstallmentHistoryRecord(
+  record: Pick<InstallmentHistoryRecord, 'action' | 'activity'>
+): boolean {
+  const activity = record.activity.toLowerCase()
+  return record.action !== 'deleted' && !activity.includes('void') && !activity.includes('deleted')
+}
+
 export const sourceLabels: Record<InstallmentHistorySource, string> = {
   'in-house': 'In-house',
   'home-credit': 'Home Credit',

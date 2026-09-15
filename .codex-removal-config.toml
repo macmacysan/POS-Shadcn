@@ -1,0 +1,94 @@
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
+approvals_reviewer = "user"
+notify = [ "C:\\Users\\markus\\AppData\\Local\\OpenAI\\Codex\\runtimes\\cua_node\\cd454f7c85348168\\bin\\node_modules\\@oai\\sky\\bin\\windows\\codex-computer-use.exe", "turn-ended" ]
+[projects.'c:\windows\system32']
+trust_level = "trusted"
+
+[projects.'d:\markdev\posv2\cashiers-report']
+trust_level = "trusted"
+
+[projects.'c:\users\markus']
+trust_level = "trusted"
+
+[projects.'d:\markdev\pos-shadcn']
+trust_level = "trusted"
+
+[tui]
+theme = "catppuccin-latte"
+status_line = ["model-with-reasoning", "permissions", "approval-mode", "context-used", "five-hour-limit", "weekly-limit", "fast-mode", "task-progress"]
+status_line_use_colors = true
+
+[tui.model_availability_nux]
+"gpt-5.6-sol" = 1
+gpt-6-astra = 2
+
+[mcp_servers.reui]
+url = "https://mcp.reui.io/api/mcp"
+
+[mcp_servers.serena]
+command = "serena"
+args = ["start-mcp-server", "--context=codex", "--project-from-cwd"]
+
+[mcp_servers.node_repl]
+args = []
+command = 'C:\Users\markus\AppData\Local\OpenAI\Codex\runtimes\cua_node\cd454f7c85348168\bin\node_repl.exe'
+startup_timeout_sec = 120
+
+[mcp_servers.node_repl.env]
+NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS = "1000"
+NODE_REPL_NODE_MODULE_DIRS = 'C:\Users\markus\AppData\Local\OpenAI\Codex\runtimes\cua_node\cd454f7c85348168\bin\node_modules'
+NODE_REPL_NODE_PATH = 'C:\Users\markus\AppData\Local\OpenAI\Codex\runtimes\cua_node\cd454f7c85348168\bin\node.exe'
+NODE_REPL_TRUSTED_CODE_PATHS = 'C:\Users\markus\.codex;C:\Users\markus\AppData\Local\OpenAI\Codex\runtimes\cua_node\cd454f7c85348168\bin\node_modules'
+CODEX_HOME = 'C:\Users\markus\.codex'
+BROWSER_USE_AVAILABLE_BACKENDS = "chrome,iab"
+BROWSER_USE_TINYSKY_ENABLED = "0"
+NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER = "Control the in-app browser in conjunction with the Browser Plugin."
+NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME = "Control the Chrome browser in conjunction with the Chrome Plugin. Prefer this method of controlling Chrome over alternatives (such as Computer Use) unless the user explicitly mentions an alternative."
+BROWSER_USE_CODEX_APP_BUILD_FLAVOR = "prod"
+BROWSER_USE_CODEX_APP_VERSION = "26.818.41509"
+NODE_REPL_TRUSTED_SERVICES = '{"browser":"C:/Users/markus/.codex/plugins/cache/openai-bundled/browser/26.818.41509/scripts/browser-service.mjs","sky":"@oai/sky/service"}'
+SKY_CUA_NATIVE_PIPE = "1"
+SKY_CUA_NATIVE_PIPE_DIRECTORY = '\\.\pipe\codex-computer-use-6f2faadc-8b4b-41d2-89a4-fcdfafef82b7'
+CODEX_CLI_PATH = 'C:\Users\markus\AppData\Local\OpenAI\Codex\bin\110b3d66a02d864e\codex.exe'
+
+[features]
+hooks = true
+js_repl = false
+
+[hooks.state]
+
+[marketplaces.openai-bundled]
+source_type = "local"
+source = '\\?\C:\Users\markus\.codex\.tmp\bundled-marketplaces\openai-bundled'
+
+[marketplaces.openai-primary-runtime]
+source_type = "local"
+source = '\\?\C:\Users\markus\.cache\codex-runtimes\codex-primary-runtime\plugins\openai-primary-runtime'
+
+[plugins."codex-app-tools@openai-bundled"]
+enabled = true
+
+[plugins."browser@openai-bundled"]
+enabled = true
+
+[plugins."visualize@openai-bundled"]
+enabled = true
+
+[plugins."documents@openai-primary-runtime"]
+enabled = true
+
+[plugins."pdf@openai-primary-runtime"]
+enabled = true
+
+[plugins."spreadsheets@openai-primary-runtime"]
+enabled = true
+
+[plugins."presentations@openai-primary-runtime"]
+enabled = true
+
+[plugins."template-creator@openai-primary-runtime"]
+enabled = true
+
+[windows]
+sandbox = "elevated"

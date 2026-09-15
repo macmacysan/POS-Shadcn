@@ -1060,18 +1060,29 @@ export class InstallmentRepository {
     const now = new Date().toISOString()
     const remove = this.db.transaction(() => {
       const findContract = this.db.prepare('SELECT status FROM installment_contracts WHERE id = ?')
+      const findPostedPayments = this.db.prepare(
+        `SELECT id FROM in_house_payments WHERE contract_id = ? AND status = 'POSTED'`
+      )
       const voidContract = this.db.prepare(
         `UPDATE installment_contracts
             SET previous_status = status, status = 'VOIDED', closed_at = ?, closed_by_user_id = ?,
                 close_reason = ?, updated_at = ?
           WHERE id = ?`
       )
+      const voidPaymentsForContract = this.db.prepare(
+        `UPDATE in_house_payments
+            SET status = 'VOIDED', voided_at = ?, voided_by_user_id = ?,
+                void_reason = ?, updated_at = ?
+          WHERE contract_id = ? AND status = 'POSTED'`
+      )
       for (const contractId of contractIds) {
         const contract = findContract.get(contractId) as { status: string } | undefined
         if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
         if (contract.status === 'VOIDED')
           throw new AppError('CONFLICT', 'Installment contract was already deleted.')
+        const payments = findPostedPayments.all(contractId) as Array<{ id: string }>
         voidContract.run(now, actorUserId, reason, now, contractId)
+        voidPaymentsForContract.run(now, actorUserId, reason, now, contractId)
         this.writeAudit(
           actorUserId,
           'installment_contract',
@@ -1081,11 +1092,20 @@ export class InstallmentRepository {
           'VOIDED',
           now
         )
+        for (const payment of payments)
+          this.writeAudit(
+            actorUserId,
+            'in_house_payment',
+            payment.id,
+            reason,
+            'POSTED',
+            'VOIDED',
+            now
+          )
       }
     })
     remove()
   }
-
   unvoidContracts(contractIds: readonly string[], actorUserId: string): void {
     const now = new Date().toISOString()
     const restore = this.db.transaction(() => {
@@ -1114,7 +1134,6 @@ export class InstallmentRepository {
     })
     restore()
   }
-
   voidPayments(paymentIds: readonly string[], actorUserId: string, reason: string): void {
     const now = new Date().toISOString()
     this.db.transaction(() => {
@@ -1377,7 +1396,10 @@ export class InstallmentRepository {
       outstandingBalanceCentavos: Math.max(0, contract.total_payable_centavos - totalPaidCentavos),
       downPayment:
         contract.down_payment_centavos > 0
-          ? { paymentDate: record.loan.dateReleased, amountCentavos: contract.down_payment_centavos }
+          ? {
+              paymentDate: record.loan.dateReleased,
+              amountCentavos: contract.down_payment_centavos
+            }
           : undefined,
       nextDue: next
         ? {
