@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { format } from 'date-fns'
-import { ArrowUpRight, CircleAlert, FileDown, RefreshCw } from 'lucide-react'
+import { ArrowUpRight, CircleAlert, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,7 +14,6 @@ import type { DashboardOverview, LoginBranch } from '@/../../shared/contracts'
 type Props = {
   selectedBranch: LoginBranch
   onOpenCashierReports: () => void
-  onOpenExportReports: (businessDate: string) => void
   onOpenInHouse: () => void
   onOpenFinance: () => void
   onOpenPaymentWorkspace: (accountId: string) => void
@@ -106,7 +105,6 @@ function DashboardLoading(): React.JSX.Element {
 export function DashboardContent({
   selectedBranch,
   onOpenCashierReports,
-  onOpenExportReports,
   onOpenInHouse,
   onOpenFinance
 }: Props): React.JSX.Element {
@@ -181,10 +179,6 @@ export function DashboardContent({
             value={businessDate}
             onValueChange={setBusinessDate}
           />
-          <Button variant="outline" size="sm" onClick={() => onOpenExportReports(businessDate)}>
-            <FileDown data-icon="inline-start" />
-            Export
-          </Button>
           <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={isLoading}>
             <RefreshCw
               data-icon="inline-start"

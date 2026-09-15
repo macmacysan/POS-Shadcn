@@ -22,7 +22,11 @@ import type {
 import { AppError } from './errors'
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 import { InstallmentRulesRepository } from './installment-rules-repository'
-import { calculateEndDate, calculateInstallment } from '../../shared/installment-calculations'
+import {
+  calculateEndDate,
+  calculateInstallment,
+  roundToWholePesoCentavos
+} from '../../shared/installment-calculations'
 import type { InstallmentFrequency } from '../../shared/contracts'
 
 type ContractRow = {
@@ -740,7 +744,7 @@ export class InstallmentRepository {
         request.paymentFrequency === 'Daily' || request.paymentFrequency === 'Semi'
           ? 'Monthly'
           : request.paymentFrequency
-      const paymentAmount = Math.round(outstanding / request.terms)
+      const paymentAmount = roundToWholePesoCentavos(outstanding / request.terms)
       this.db
         .prepare(
           `UPDATE installment_contracts
@@ -1469,6 +1473,7 @@ export class InstallmentRepository {
              JOIN contract_balances cb ON cb.contract_id = c.id
              JOIN accounts a ON a.id = c.account_id
              JOIN branches b ON b.id = c.branch_id
+            WHERE c.status != 'VOIDED'
            UNION ALL
            SELECT p.id, p.payment_date || 'T00:00:00',
                   CASE WHEN p.status = 'VOIDED' THEN 'deleted'
@@ -1484,6 +1489,7 @@ export class InstallmentRepository {
              JOIN contract_balances cb ON cb.contract_id = c.id
              JOIN accounts a ON a.id = c.account_id
              JOIN branches b ON b.id = c.branch_id
+            WHERE c.status != 'VOIDED'
            UNION ALL
            SELECT c.id || ':closed', c.closed_at, 'edited', 'in-house',
                   'Installment record closed', c.total_payable_centavos, c.contract_number, cb.balance_centavos, NULL,
@@ -1492,7 +1498,7 @@ export class InstallmentRepository {
              JOIN contract_balances cb ON cb.contract_id = c.id
              JOIN accounts a ON a.id = c.account_id
              JOIN branches b ON b.id = c.branch_id
-            WHERE c.closed_at IS NOT NULL
+            WHERE c.closed_at IS NOT NULL AND c.status != 'VOIDED'
            UNION ALL
            SELECT a.id || ':blacklisted', a.blacklisted_at, 'edited', 'in-house',
                   'Installment record blacklisted', NULL, a.account_number, cb.balance_centavos, NULL,
@@ -1501,7 +1507,7 @@ export class InstallmentRepository {
              JOIN installment_contracts c ON c.account_id = a.id
              JOIN contract_balances cb ON cb.contract_id = c.id
             JOIN branches b ON b.id = c.branch_id
-            WHERE a.blacklisted_at IS NOT NULL
+            WHERE a.blacklisted_at IS NOT NULL AND c.status != 'VOIDED'
            UNION ALL
            SELECT r.id, r.created_at, 'edited', 'in-house',
                   'Loan repayment schedule restructured', r.outstanding_balance_centavos,
@@ -1511,6 +1517,7 @@ export class InstallmentRepository {
             JOIN contract_balances cb ON cb.contract_id = c.id
             JOIN accounts a ON a.id = c.account_id
             JOIN branches b ON b.id = c.branch_id
+           WHERE c.status != 'VOIDED'
           UNION ALL
            SELECT h.id, h.created_at, 'edited', 'in-house', h.activity, h.amount_centavos,
                   c.contract_number, cb.balance_centavos, NULL, a.id, a.account_number, a.display_name, b.name
@@ -1519,7 +1526,7 @@ export class InstallmentRepository {
              JOIN contract_balances cb ON cb.contract_id = c.id
              JOIN accounts a ON a.id = c.account_id
              JOIN branches b ON b.id = c.branch_id
-            WHERE h.action = 'WARRANTY_SERVICE'
+            WHERE h.action = 'WARRANTY_SERVICE' AND c.status != 'VOIDED'
           UNION ALL
            SELECT f.id || ':created', f.created_at, 'new', 'finance',
                   'Finance account added', f.grand_total_centavos, COALESCE(f.or_number, f.provider), f.balance_centavos, NULL,

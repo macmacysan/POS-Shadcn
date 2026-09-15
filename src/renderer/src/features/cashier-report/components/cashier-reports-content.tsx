@@ -1,16 +1,11 @@
 import * as React from 'react'
-import * as XLSX from 'xlsx'
 import { format, parse, parseISO } from 'date-fns'
-import { CalendarIcon } from '@phosphor-icons/react'
 import {
   BadgeCheck,
   BriefcaseBusiness,
   Building2,
   Bus,
   CarFront,
-  ChevronRight,
-  Check,
-  CircleAlert,
   CreditCard,
   Ellipsis,
   GraduationCap,
@@ -21,7 +16,6 @@ import {
   Package,
   Phone,
   Printer,
-  FileDown,
   Plus,
   ReceiptText,
   Scale,
@@ -36,12 +30,10 @@ import {
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
@@ -52,10 +44,6 @@ import {
   type ReportRow
 } from '@/features/cashier-report/components/report-data-table'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Progress } from '@/components/ui/progress'
-import { Spinner } from '@/components/ui/spinner'
-import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -82,14 +70,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet
-} from '@/components/ui/field'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { AmountInputGroup } from '@/components/ui/amount-input-group'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -101,7 +82,7 @@ import type { RowActionItem } from '@/components/shared/data-table/row-actions'
 import { ConfirmationAlertDialog } from '@/components/shared/confirmation-alert-dialog'
 import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import type { EntryEntityType, EntryHistoryRecord } from '@/../../shared/contracts'
-import { DateSelector, type DateSelectorValue } from '@/../../components/reui/date-selector'
+import type { DateSelectorValue } from '@/../../components/reui/date-selector'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -113,6 +94,7 @@ import { formatAmountInput, formatPhilippinePeso } from '@/lib/currency'
 import { useMediaQuery } from '@/hooks/use-mobile'
 import { useNotifications } from '@/hooks/use-notifications'
 import { ReportSummary } from '@/features/cashier-report/components/report-summary'
+import { ReportsGenerator } from '@/features/cashier-report/components/reports-generator'
 import { useExpenses, type ExpenseTableRow } from '@/features/cashier-report/hooks/use-expenses'
 import { useActiveReport } from '@/contexts/active-report-context'
 import {
@@ -124,190 +106,17 @@ import {
   type ExpenseCategory,
   type ExpenseType,
   type ExpenseVat,
-  type ExpenseRecord,
   type IncomeEntryRecord,
   type InstallmentAttentionSummary,
   type InstallmentHistoryRecord as PersistedInstallmentHistoryRecord,
-  type InstallmentAccountRecord,
-  type FinanceAccountRecord,
   type LoginBranch
 } from '@/../../shared/contracts'
-import {
-  cashierReportPdfHtml,
-  type CashierReportSection
-} from '@/features/cashier-report/lib/cashier-report-pdf'
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
-type ExcelCell = string | number | null
-type ExcelSheetRows = Record<string, ExcelCell>[]
-
-function flattenExcelRecord(value: unknown, prefix = ''): Record<string, ExcelCell> {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    return {
-      [prefix || 'Value']: Array.isArray(value) ? JSON.stringify(value) : String(value ?? '')
-    }
-  const result: Record<string, ExcelCell> = {}
-  for (const [key, nested] of Object.entries(value)) {
-    const name = prefix ? `${prefix}.${key}` : key
-    if (nested && typeof nested === 'object' && !Array.isArray(nested))
-      Object.assign(result, flattenExcelRecord(nested, name))
-    else if (Array.isArray(nested)) result[name] = JSON.stringify(nested)
-    else if (nested == null || (typeof nested === 'number' && !Number.isFinite(nested)))
-      result[name] = null
-    else
-      result[name] =
-        typeof nested === 'boolean' ? (nested ? 'TRUE' : 'FALSE') : (nested as ExcelCell)
-  }
-  return result
-}
-
-function installmentAccountRow(item: InstallmentAccountRecord): Record<string, ExcelCell> {
-  return {
-    id: item.contractId || item.loan.id || item.account.id,
-    ...flattenExcelRecord(item)
-  }
-}
-
-function workbookBase64(sheets: Record<string, ExcelSheetRows>): string {
-  const workbook = XLSX.utils.book_new()
-  for (const [name, rows] of Object.entries(sheets)) {
-    const worksheet = XLSX.utils.json_to_sheet(rows)
-    worksheet['!freeze'] = { xSplit: 0, ySplit: 1 }
-    XLSX.utils.book_append_sheet(workbook, worksheet, name.slice(0, 31))
-  }
-  return XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' })
-}
 
 const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT'] as const
 const paymentTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
-
-type PdfProgressStepId = 'save' | 'sheets' | 'telegram'
-type PdfProgressStatus = 'pending' | 'processing' | 'done' | 'failed'
-type PdfProgressStep = {
-  id: PdfProgressStepId
-  label: string
-  status: PdfProgressStatus
-  error?: string
-  attempts: number
-}
-
-type PdfReviewRequest = {
-  sections?: readonly CashierReportSection[]
-  filters?: { branch: LoginBranch; dateFrom?: string; dateTo?: string; accountType?: string }
-}
-
-const initialPdfProgress: PdfProgressStep[] = [
-  { id: 'save', label: 'Save to Documents', status: 'pending', attempts: 0 },
-  { id: 'sheets', label: 'Upload encrypted Drive snapshot', status: 'pending', attempts: 0 },
-  { id: 'telegram', label: 'Send to Telegram', status: 'pending', attempts: 0 }
-]
-
-function DeliveryProgressDialog({
-  open,
-  onOpenChange,
-  steps,
-  isProcessing,
-  onRetry
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  steps: readonly PdfProgressStep[]
-  isProcessing: boolean
-  onRetry: (id: PdfProgressStepId) => void
-}): React.JSX.Element {
-  const completed = steps.filter(
-    (step) => step.status === 'done' || step.status === 'failed'
-  ).length
-  const birdPosition = steps.findIndex((step) => step.status === 'processing')
-  const landingAt = birdPosition >= 0 ? birdPosition : Math.max(0, completed - 1)
-
-  return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !isProcessing && onOpenChange(nextOpen)}>
-      <DialogContent className="max-w-xl gap-0 overflow-hidden p-0">
-        <DialogHeader className="border-b bg-muted/30 px-6 py-5 pr-12">
-          <DialogTitle>Delivery progress</DialogTitle>
-          <DialogDescription>Follow the report as it reaches each destination.</DialogDescription>
-        </DialogHeader>
-        <div className="p-6">
-          <div className="relative mb-6 h-16" aria-label="Report delivery flight path">
-            <div className="absolute left-4 right-4 top-8 border-t border-dashed border-border" />
-            <div
-              className="report-delivery-bird absolute top-1 text-primary"
-              style={{ left: `calc(${landingAt * 50}% + ${landingAt === 0 ? '0' : '2px'})` }}
-              aria-hidden="true"
-            >
-              <svg
-                viewBox="0 0 32 24"
-                className="size-8"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M2 14c5-8 10-8 14 0 4-5 8-5 14 0" />
-                <path d="M16 14v6" />
-              </svg>
-            </div>
-            <div className="absolute inset-x-0 top-7 flex justify-between px-4" aria-hidden="true">
-              {steps.map((step) => (
-                <span
-                  key={step.id}
-                  className={cn(
-                    'size-3 rounded-full border-2 bg-background',
-                    step.status === 'done' && 'border-primary bg-primary',
-                    step.status === 'failed' && 'border-destructive bg-destructive',
-                    step.status === 'processing' && 'border-primary report-delivery-checkpoint'
-                  )}
-                />
-              ))}
-            </div>
-          </div>
-          <Progress
-            value={(completed / steps.length) * 100}
-            aria-label="Report delivery progress"
-          />
-          <div className="mt-5 flex flex-col gap-3">
-            {steps.map((step) => (
-              <div key={step.id} className="flex items-start gap-3 rounded-xl border bg-card p-3">
-                {step.status === 'processing' ? (
-                  <Spinner />
-                ) : step.status === 'done' ? (
-                  <Check className="text-primary" />
-                ) : step.status === 'failed' ? (
-                  <CircleAlert className="text-destructive" />
-                ) : (
-                  <span className="mt-1 size-4 rounded-full border border-border" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{step.label}</p>
-                  {step.error && <p className="mt-1 text-xs text-destructive">{step.error}</p>}
-                  {step.status === 'failed' && !isProcessing && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                      onClick={() => onRetry(step.id)}
-                    >
-                      Retry
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function filenameName(value: string): string {
-  const parts = value.trim().split(/\s+/).filter(Boolean)
-  if (!parts.length) return 'Report'
-  const lastName = parts.pop()!
-  return [...parts, lastName.charAt(0)].join(' ').replace(/[^A-Za-z0-9 ]/g, '') || 'Report'
-}
 
 type ExpenseCategoryConfig = {
   value: string
@@ -1714,14 +1523,11 @@ export function CashierReportsContent({
   cashierName = 'Cashier',
   isAdmin = false,
   initialTab = 'Expenses',
-  openExportReports = false,
-  exportDate,
   attentionReportId,
   onAttentionReportOpened,
   onAttentionReportLoaded,
   openAttentionDateDialog,
   onAttentionDateDialogOpenChange,
-  onExportReportsOpened,
   onOpenCollection,
   onOpenHistoryPayment,
   onOpenFinance,
@@ -1735,14 +1541,11 @@ export function CashierReportsContent({
   cashierName?: string
   isAdmin?: boolean
   initialTab?: (typeof reportTabs)[number]
-  openExportReports?: boolean
-  exportDate?: string
   attentionReportId?: string
   onAttentionReportOpened?: () => void
   onAttentionReportLoaded?: () => void
   openAttentionDateDialog?: boolean
   onAttentionDateDialogOpenChange?: (open: boolean) => void
-  onExportReportsOpened?: () => void
   onOpenCollection?: (accountId: string) => void
   onOpenHistoryPayment?: (accountId: string, paymentId: string) => void
   onOpenFinance?: (accountId: string, returnToHistory?: boolean) => void
@@ -1753,7 +1556,6 @@ export function CashierReportsContent({
 }): React.JSX.Element {
   const { notify } = useNotifications()
   const [activeTab, setActiveTab] = React.useState<(typeof reportTabs)[number]>(initialTab)
-  const [hoveredTab, setHoveredTab] = React.useState<(typeof reportTabs)[number]>()
 
   const activeReportValue = useActiveReport()
   const hasActiveReport = activeReportValue !== null
@@ -1779,48 +1581,7 @@ export function CashierReportsContent({
   const [isDateLoading, setIsDateLoading] = React.useState(false)
   const [selectedReportMissing, setSelectedReportMissing] = React.useState(!hasActiveReport)
   const [dateError, setDateError] = React.useState<string>()
-  const [exportError, setExportError] = React.useState<string>()
-  const [isReviewingPdf, setIsReviewingPdf] = React.useState(false)
-  const [isExportReportsOpen, setIsExportReportsOpen] = React.useState(false)
-  const [exportSections, setExportSections] = React.useState<CashierReportSection[]>([])
-  const [exportBranch, setExportBranch] = React.useState<LoginBranch>(selectedBranch)
-  const [exportType, setExportType] = React.useState('All Types')
-  const [exportStartDate, setExportStartDate] = React.useState(() =>
-    format(new Date(), 'yyyy-MM-dd')
-  )
-  const [exportEndDate, setExportEndDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
-  const [pdfPreview, setPdfPreview] = React.useState<{
-    fileName: string
-    pdfBase64: string
-    note: string
-  }>()
-  const [excelSheets, setExcelSheets] = React.useState<Record<string, ExcelSheetRows>>({})
-  const [publishContext, setPublishContext] = React.useState<{
-    branch: LoginBranch
-    businessDate?: string
-    tabs: Record<string, ExcelSheetRows>
-  }>()
-  const [isExcelExporting, setIsExcelExporting] = React.useState(false)
-  const [, setExcelExportMessage] = React.useState<string>()
   const summarySnapshotRef = React.useRef<DailyReportSnapshotResponse | undefined>(undefined)
-  const [isPdfReviewOpen, setIsPdfReviewOpen] = React.useState(false)
-  const [isDeliveryProgressOpen, setIsDeliveryProgressOpen] = React.useState(false)
-  const [reportPageDate, setReportPageDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
-  const [pdfProgress, setPdfProgress] = React.useState<PdfProgressStep[]>(initialPdfProgress)
-  const [isPdfProcessing, setIsPdfProcessing] = React.useState(false)
-  const [pdfNote, setPdfNote] = React.useState('')
-  const [pdfReviewRequest, setPdfReviewRequest] = React.useState<PdfReviewRequest>()
-  const [telegramNote, setTelegramNote] = React.useState('')
-  React.useEffect(() => {
-    if (!openExportReports) return
-    const date = exportDate ?? format(new Date(), 'yyyy-MM-dd')
-    setExportSections([])
-    setExportBranch(selectedBranch)
-    setExportStartDate(date)
-    setExportEndDate(date)
-    setIsExportReportsOpen(true)
-    onExportReportsOpened?.()
-  }, [exportDate, onExportReportsOpened, openExportReports, selectedBranch])
   const [reportSearch, setReportSearch] = React.useState('')
   const [dateRange, setDateRange] = React.useState<DateSelectorValue>(() => {
     const today = new Date()
@@ -2050,336 +1811,6 @@ export function CashierReportsContent({
     ...incomes.map((income) => `${income.id}:${income.amount}`),
     ...payments.map((payment) => `${payment.id}:${payment.paymentMethodId}:${payment.amount}`)
   ].join(':')
-  const reviewPdf = async (
-    sections?: readonly CashierReportSection[],
-    filters?: { branch: LoginBranch; dateFrom?: string; dateTo?: string; accountType?: string }
-  ): Promise<void> => {
-    setPdfReviewRequest({ sections, filters })
-    setIsReviewingPdf(true)
-    setExportError(undefined)
-    setIsPdfReviewOpen(false)
-    setPdfPreview(undefined)
-    try {
-      const branchFilter = filters?.branch ?? selectedBranch
-      const allExpenses: ExpenseRecord[] = []
-      for (let pageIndex = 0; ; pageIndex += 1) {
-        const result = await window.api.reports.expenses.list({
-          reportId: undefined,
-          includeVoided: true,
-          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-          dateFrom: filters?.dateFrom,
-          dateTo: filters?.dateTo,
-          pageIndex,
-          pageSize: 100,
-          search: '',
-          sorting: [],
-          filters: {}
-        })
-        allExpenses.push(...result.rows)
-        if (allExpenses.length >= result.totalRows) break
-      }
-      const [
-        snapshot,
-        incomeResult,
-        paymentResult,
-        installmentHistory,
-        records,
-        active,
-        closed,
-        blacklisted,
-        financeAccounts,
-        charts
-      ] = await Promise.all([
-        window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
-        window.api.dailyReports.listIncome({
-          branch: branchFilter,
-          dateFrom: filters?.dateFrom,
-          dateTo: filters?.dateTo,
-          includeVoided: true
-        }),
-        window.api.dailyReports.listPayments({
-          branch: branchFilter,
-          dateFrom: filters?.dateFrom,
-          dateTo: filters?.dateTo,
-          includeVoided: true
-        }),
-        window.api.installments.listHistory({
-          dateFrom: filters?.dateFrom,
-          dateTo: filters?.dateTo
-        }),
-        window.api.installments.list({
-          view: 'records',
-          search: '',
-          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-          includeVoided: true
-        }),
-        window.api.installments.list({
-          view: 'active',
-          search: '',
-          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-          includeVoided: true
-        }),
-        window.api.installments.list({
-          view: 'closed',
-          search: '',
-          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-          includeVoided: true
-        }),
-        window.api.installments.list({
-          view: 'blacklisted',
-          search: '',
-          branch: branchFilter === 'All Branch' ? undefined : branchFilter,
-          includeVoided: true
-        }),
-        window.api.financeAccounts.list({
-          search: '',
-          includeVoided: true,
-          ...(branchFilter === 'All Branch' ? {} : { branch: branchFilter })
-        }),
-        window.api.dashboard.getPdfCharts({
-          businessDate: filters?.dateTo ?? selectedReport.businessDate,
-          ...(branchFilter === 'All Branch' ? {} : { branch: branchFilter })
-        })
-      ])
-      const branch = branchFilter === 'All Branch' ? 'All Branch' : branchFilter
-      const postedExpenses = allExpenses.filter(
-        (item) => item.source === 'local' && item.status === 'POSTED'
-      )
-      const postedIncomes = incomeResult.rows.filter(
-        (item) => item.source === 'local' && item.status === 'POSTED'
-      )
-      const postedPayments = paymentResult.rows.filter(
-        (item) => item.source === 'local' && item.status === 'POSTED'
-      )
-      const filteredFinanceAccounts = financeAccounts.rows.filter(
-        (item: FinanceAccountRecord) =>
-          (!filters?.dateFrom || item.dateReleased >= filters.dateFrom) &&
-          (!filters?.dateTo || item.dateReleased <= filters.dateTo) &&
-          (!filters?.accountType ||
-            filters.accountType === 'All Types' ||
-            item.provider === filters.accountType)
-      )
-      const nextExcelSheets: Record<string, ExcelSheetRows> = {}
-      if (sections?.includes('Expenses'))
-        nextExcelSheets.Expenses = postedExpenses.map((item) => flattenExcelRecord(item))
-      if (sections?.includes('Income'))
-        nextExcelSheets.Income = postedIncomes.map((item) => flattenExcelRecord(item))
-      if (sections?.includes('Payment'))
-        nextExcelSheets.Payment = postedPayments.map((item) => flattenExcelRecord(item))
-      if (sections?.includes('Activity History'))
-        nextExcelSheets['Activity History'] = installmentHistory
-          .filter(
-            (item) =>
-              isVisibleInstallmentHistoryRecord(item) &&
-              (branchFilter === 'All Branch' || item.branch === branchFilter)
-          )
-          .map((item) => flattenExcelRecord(item))
-      if (sections?.includes('Accounts'))
-        nextExcelSheets.Finance = filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
-      if (sections?.includes('Records'))
-        nextExcelSheets.Records = records.rows.map(installmentAccountRow)
-      if (sections?.includes('Active'))
-        nextExcelSheets.Active = active.rows.map(installmentAccountRow)
-      if (sections?.includes('Closed'))
-        nextExcelSheets.Closed = closed.rows.map(installmentAccountRow)
-      if (sections?.includes('Blacklisted'))
-        nextExcelSheets.Blacklisted = blacklisted.rows.map(installmentAccountRow)
-      setExcelSheets(nextExcelSheets)
-      const publishDate =
-        filters?.dateFrom && filters.dateFrom === filters.dateTo ? filters.dateFrom : undefined
-      setPublishContext({
-        branch: branchFilter,
-        businessDate: publishDate,
-        tabs: {
-          Expenses: allExpenses
-            .filter((item) => item.source === 'local')
-            .map((item) => flattenExcelRecord(item)),
-          Income: incomeResult.rows
-            .filter((item) => item.source === 'local')
-            .map((item) => flattenExcelRecord(item)),
-          Payment: paymentResult.rows
-            .filter((item) => item.source === 'local')
-            .map((item) => flattenExcelRecord(item)),
-          Records: records.rows.map(installmentAccountRow),
-          Finance: filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
-        }
-      })
-      setExcelExportMessage(undefined)
-      const contributors = [
-        ...postedExpenses.map((item) => item.createdByName),
-        ...postedIncomes.map((item) => item.createdByName),
-        ...postedPayments.map((item) => item.createdByName)
-      ].filter((name): name is string => Boolean(name?.trim()))
-      const contributorLabel = [...new Set(contributors)].join(', ') || cashierName
-      const now = new Date()
-      const html = cashierReportPdfHtml({
-        cashierName: contributorLabel,
-        branch,
-        businessDate:
-          filters?.dateFrom && filters?.dateTo
-            ? `${filters.dateFrom} to ${filters.dateTo}`
-            : selectedReport.businessDate,
-        generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
-        note: pdfNote,
-        snapshot:
-          summarySnapshotRef.current?.report.id === reportId
-            ? summarySnapshotRef.current
-            : snapshot,
-        expenses: postedExpenses,
-        incomes: postedIncomes,
-        payments: postedPayments,
-        installmentHistory: installmentHistory.filter(
-          (item) => branchFilter === 'All Branch' || item.branch === branchFilter
-        ),
-        accountCounts: {
-          records: records.rows.length,
-          active: active.rows.length,
-          closed: closed.rows.length,
-          blacklisted: blacklisted.rows.length
-        },
-        charts,
-        sections,
-        financeAccounts: sections ? filteredFinanceAccounts : undefined,
-        accountLists: {
-          records: records.rows,
-          active: active.rows,
-          closed: closed.rows,
-          blacklisted: blacklisted.rows
-        }
-      })
-      const reportDate = filters?.dateFrom ?? selectedReport.businessDate
-      const fileName = `${format(parseISO(reportDate), 'MMMM d, yyyy')} - ${filenameName(cashierName)}.pdf`
-      const { pdfBase64 } = await window.api.pdfExport.preview({ html, fileName })
-      setPdfProgress(initialPdfProgress)
-      setTelegramNote('')
-      setPdfPreview({ fileName, pdfBase64, note: pdfNote })
-      setIsPdfReviewOpen(true)
-    } catch (error) {
-      const message =
-        error &&
-        typeof error === 'object' &&
-        'message' in error &&
-        typeof error.message === 'string'
-          ? error.message
-          : 'The PDF could not be exported. Please try again.'
-      setExportError(message)
-    } finally {
-      setIsReviewingPdf(false)
-    }
-  }
-  const updatePdfStep = React.useCallback(
-    (id: PdfProgressStepId, patch: Partial<PdfProgressStep>): void => {
-      setPdfProgress((steps) =>
-        steps.map((step) => (step.id === id ? { ...step, ...patch } : step))
-      )
-    },
-    []
-  )
-  const runPdfStep = React.useCallback(
-    async (id: PdfProgressStepId, operation: () => Promise<void>): Promise<void> => {
-      let lastError = 'This operation failed.'
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
-        updatePdfStep(id, { status: 'processing', attempts: attempt, error: undefined })
-        try {
-          await operation()
-          if (id === 'telegram') {
-            await window.api.dailyReports.markDelivery({
-              dailyReportId: reportId,
-              channel: 'TELEGRAM'
-            })
-            window.dispatchEvent(new Event('daily-report-delivery-updated'))
-          }
-          updatePdfStep(id, { status: 'done', error: undefined })
-          return
-        } catch (error) {
-          lastError =
-            id === 'sheets' && error instanceof Error && error.message
-              ? error.message
-              : id === 'telegram' && error instanceof Error && error.message
-                ? error.message
-                : 'Saving the report was canceled or failed.'
-        }
-      }
-      updatePdfStep(id, { status: 'failed', error: lastError })
-    },
-    [reportId, updatePdfStep]
-  )
-  const pdfOperation = React.useCallback(
-    (
-      id: PdfProgressStepId,
-      preview: { fileName: string; pdfBase64: string }
-    ): (() => Promise<void>) => {
-      if (id === 'save') {
-        return async () => {
-          const result = await window.api.pdfExport.save(preview)
-          if (result.canceled) throw new Error('Save canceled')
-        }
-      }
-      if (id === 'sheets') {
-        return async () => {
-          if (
-            !publishContext ||
-            publishContext.branch === 'All Branch' ||
-            !publishContext.businessDate
-          )
-            throw new Error('Select one branch and one business date to publish.')
-          await window.api.googleSync.sync({ branch: publishContext.branch })
-        }
-      }
-      return () =>
-        window.api.pdfExport.sendTelegram({
-          ...preview,
-          caption: [
-            `Date: ${selectedReport.businessDate}`,
-            `Time: ${format(new Date(), 'hh:mm a')}`,
-            `Branch: ${selectedBranch}`,
-            `Name: ${cashierName}`,
-            '',
-            `Note: ${telegramNote.trim()}`
-          ].join('\n')
-        })
-    },
-    [cashierName, publishContext, selectedBranch, selectedReport.businessDate, telegramNote]
-  )
-  const startPdfExport = React.useCallback(async (): Promise<void> => {
-    if (!pdfPreview) return
-    setPdfProgress(initialPdfProgress)
-    setIsPdfProcessing(true)
-    for (const step of initialPdfProgress) {
-      await runPdfStep(step.id, pdfOperation(step.id, pdfPreview))
-    }
-    setIsPdfProcessing(false)
-  }, [pdfOperation, pdfPreview, runPdfStep])
-  const beginPdfExport = React.useCallback((): void => {
-    if (!pdfPreview) return
-    setPdfProgress(initialPdfProgress)
-    void startPdfExport()
-  }, [pdfPreview, startPdfExport])
-  const retryPdfStep = React.useCallback(
-    async (id: PdfProgressStepId): Promise<void> => {
-      if (!pdfPreview || isPdfProcessing || pdfPreview.note !== pdfNote) return
-      setIsPdfProcessing(true)
-      await runPdfStep(id, pdfOperation(id, pdfPreview))
-      setIsPdfProcessing(false)
-    },
-    [isPdfProcessing, pdfNote, pdfOperation, pdfPreview, runPdfStep]
-  )
-  const exportExcel = React.useCallback(async (): Promise<void> => {
-    if (!pdfPreview || !Object.keys(excelSheets).length || isExcelExporting) return
-    setIsExcelExporting(true)
-    setExcelExportMessage(undefined)
-    try {
-      const result = await window.api.pdfExport.saveExcel({
-        workbookBase64: workbookBase64(excelSheets),
-        fileName: pdfPreview.fileName.replace(/\.pdf$/i, '.xlsx')
-      })
-      if (!result.canceled) setExcelExportMessage('Excel workbook saved.')
-    } catch {
-      setExcelExportMessage('Excel could not be exported. Please try again.')
-    } finally {
-      setIsExcelExporting(false)
-    }
-  }, [excelSheets, isExcelExporting, pdfPreview])
   const refreshEntries = React.useCallback(async (): Promise<void> => {
     const requestVersion = ++entriesRequestVersionRef.current
     setIncomeLoadState((current) => ({ ...current, isLoading: true, error: undefined }))
@@ -2685,153 +2116,14 @@ export function CashierReportsContent({
 
   if (reportPage) {
     return (
-      <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-workspace p-4">
-        <header className="flex shrink-0 items-center justify-between gap-4 rounded-xl border bg-card px-5 py-4">
-          <div>
-            <h1 className="font-heading text-lg font-medium">Report</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Generate, review, and deliver a cashier report.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              aria-label="Report date"
-              value={reportPageDate}
-              onChange={(event) => setReportPageDate(event.target.value)}
-              className="w-40"
-            />
-            <Button
-              type="button"
-              disabled={isReviewingPdf || !reportPageDate}
-              onClick={() =>
-                void reviewPdf(undefined, {
-                  branch: selectedBranch,
-                  dateFrom: reportPageDate,
-                  dateTo: reportPageDate
-                })
-              }
-            >
-              {isReviewingPdf ? (
-                <Spinner data-icon="inline-start" />
-              ) : (
-                <FileDown data-icon="inline-start" />
-              )}
-              Generate report
-            </Button>
-          </div>
-        </header>
-        {exportError && (
-          <Alert variant="destructive">
-            <AlertTitle>Report unavailable</AlertTitle>
-            <AlertDescription>{exportError}</AlertDescription>
-          </Alert>
-        )}
-        {pdfPreview ? (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(18rem,1fr)_auto] overflow-hidden rounded-xl border bg-card lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-1">
-            <section className="flex min-h-0 flex-col bg-muted/30 p-4" aria-label="PDF preview">
-              <div className="mb-2 flex items-center justify-between text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                <span>PDF preview</span>
-                <span>Final document</span>
-              </div>
-              <iframe
-                title="Cashier report PDF preview"
-                src={`data:application/pdf;base64,${pdfPreview.pdfBase64}`}
-                className="min-h-0 flex-1 rounded-md border bg-background"
-              />
-            </section>
-            <aside className="flex min-h-0 flex-col border-t lg:border-l lg:border-t-0">
-              <div className="border-b p-5">
-                <p className="text-sm font-semibold">Delivery</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Save a copy and send it when ready.
-                </p>
-                <Button
-                  type="button"
-                  className="mt-4 w-full"
-                  disabled={isPdfProcessing || pdfPreview.note !== pdfNote}
-                  onClick={() => {
-                    setIsDeliveryProgressOpen(true)
-                    if (pdfProgress.every((step) => step.status === 'pending')) beginPdfExport()
-                  }}
-                >
-                  {isPdfProcessing ? (
-                    <Spinner data-icon="inline-start" />
-                  ) : (
-                    <FileDown data-icon="inline-start" />
-                  )}
-                  {pdfProgress.every((step) => step.status === 'pending')
-                    ? 'Deliver report'
-                    : 'View delivery progress'}
-                </Button>
-              </div>
-              <div className="p-5">
-                <label htmlFor="report-page-note" className="text-xs font-medium">
-                  PDF note
-                </label>
-                <Textarea
-                  id="report-page-note"
-                  value={pdfNote}
-                  onChange={(event) => setPdfNote(event.target.value)}
-                  placeholder="Optional note at the end of this PDF"
-                  maxLength={800}
-                  rows={4}
-                  disabled={isPdfProcessing}
-                  className="mt-2 resize-none text-sm"
-                />
-                <label
-                  htmlFor="report-page-telegram-note"
-                  className="mt-4 block text-xs font-medium"
-                >
-                  Telegram note
-                </label>
-                <Textarea
-                  id="report-page-telegram-note"
-                  value={telegramNote}
-                  onChange={(event) => setTelegramNote(event.target.value)}
-                  placeholder="Optional note to include with the Telegram delivery"
-                  maxLength={800}
-                  rows={2}
-                  disabled={isPdfProcessing}
-                  className="mt-2 resize-none text-sm"
-                />
-                {pdfPreview.note !== pdfNote && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    disabled={isReviewingPdf}
-                    onClick={() =>
-                      pdfReviewRequest &&
-                      void reviewPdf(pdfReviewRequest.sections, pdfReviewRequest.filters)
-                    }
-                  >
-                    Update preview
-                  </Button>
-                )}
-              </div>
-            </aside>
-          </div>
-        ) : (
-          <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border bg-card p-6 text-center">
-            <div>
-              <FileDown className="mx-auto size-5 text-muted-foreground" />
-              <p className="mt-3 text-sm font-medium">Choose a date to create a report</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                The completed report will appear here for review.
-              </p>
-            </div>
-          </div>
-        )}
-        <DeliveryProgressDialog
-          open={isDeliveryProgressOpen}
-          onOpenChange={setIsDeliveryProgressOpen}
-          steps={pdfProgress}
-          isProcessing={isPdfProcessing}
-          onRetry={(id) => void retryPdfStep(id)}
-        />
-      </main>
+      <ReportsGenerator
+        reportPage
+        selectedBranch={selectedBranch}
+        cashierName={cashierName}
+        reportId={reportId}
+        businessDate={selectedReport.businessDate}
+        summarySnapshotRef={summarySnapshotRef}
+      />
     )
   }
 
@@ -2873,17 +2165,12 @@ export function CashierReportsContent({
   }
   const tabToolbarContent = (
     <div className="min-w-0 max-w-full overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
-      <TabsList
-        aria-label="Cashier report sections"
-        className="h-8 w-fit justify-start bg-muted"
-        onPointerLeave={() => setHoveredTab(undefined)}
-      >
+      <TabsList aria-label="Cashier report sections" className="h-8 w-fit justify-start bg-muted">
         {reportTabs.map((tab) => (
           <TabsTrigger
             key={tab}
             value={tab}
             className="flex-none gap-1.5 px-3 text-sm"
-            onPointerEnter={() => setHoveredTab(tab)}
             onClick={() => selectTab(tab)}
           >
             <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
@@ -2937,7 +2224,7 @@ export function CashierReportsContent({
         <div className="grid min-h-0 w-full min-w-0 flex-1 grid-cols-1">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <Tabs
-              value={hoveredTab ?? activeTab}
+              value={activeTab}
               onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
@@ -2986,12 +2273,12 @@ export function CashierReportsContent({
                       }
                       trailingToolbarContent={
                         <>
-                          {(dateError || exportError) && (
+                          {dateError && (
                             <span
                               className="max-w-48 truncate text-xs text-destructive"
                               role="alert"
                             >
-                              {dateError ?? exportError}
+                              {dateError}
                             </span>
                           )}
                           {!isAdmin && (
@@ -3155,461 +2442,13 @@ export function CashierReportsContent({
           </SheetContent>
         </Sheet>
       )}
-      <Dialog open={isExportReportsOpen} onOpenChange={setIsExportReportsOpen}>
-        <DialogContent className="flex h-[min(88vh,720px)] w-[min(94vw,860px)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
-          <DialogHeader className="border-b bg-muted/30 px-7 py-6 pr-12">
-            <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-              Report builder
-            </p>
-            <DialogTitle className="text-lg tracking-tight">Build a PDF export</DialogTitle>
-            <DialogDescription>
-              Choose the scope first, then add the report data you need.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto bg-background px-5 py-6 sm:px-7">
-            <div className="mx-auto flex max-w-3xl flex-col gap-8">
-              <FieldSet className="gap-5">
-                <FieldLegend className="mb-0 flex items-start gap-3">
-                  <span className="font-mono text-xs text-muted-foreground">01</span>
-                  <span>
-                    <span className="block font-medium">Set the report scope</span>
-                    <span className="block text-sm font-normal text-muted-foreground">
-                      This applies to every selected section.
-                    </span>
-                  </span>
-                </FieldLegend>
-                <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel>Starting date</FieldLabel>
-                    <Popover>
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full justify-between font-normal"
-                          >
-                            <span className="flex min-w-0 items-center gap-2 truncate">
-                              <CalendarIcon aria-hidden="true" />
-                              <span className="truncate">
-                                {format(parseISO(exportStartDate), 'MMM d, yyyy')}
-                              </span>
-                            </span>
-                            <ChevronRight
-                              aria-hidden="true"
-                              className="rotate-90 text-muted-foreground"
-                            />
-                          </Button>
-                        }
-                      />
-                      <PopoverContent align="start" className="w-[min(92vw,360px)] p-4">
-                        <DateSelector
-                          value={{
-                            period: 'day',
-                            operator: 'is',
-                            startDate: parseISO(exportStartDate),
-                            endDate: parseISO(exportStartDate)
-                          }}
-                          onChange={(value) => {
-                            if (value.startDate)
-                              setExportStartDate(format(value.startDate, 'yyyy-MM-dd'))
-                          }}
-                          allowRange={false}
-                          defaultFilterType="is"
-                          showInput={false}
-                          showTwoMonths={false}
-                          className="w-full sm:max-w-none"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </Field>
-                  <Field>
-                    <FieldLabel>Ending date</FieldLabel>
-                    <Popover>
-                      <PopoverTrigger
-                        render={
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full justify-between font-normal"
-                          >
-                            <span className="flex min-w-0 items-center gap-2 truncate">
-                              <CalendarIcon aria-hidden="true" />
-                              <span className="truncate">
-                                {format(parseISO(exportEndDate), 'MMM d, yyyy')}
-                              </span>
-                            </span>
-                            <ChevronRight
-                              aria-hidden="true"
-                              className="rotate-90 text-muted-foreground"
-                            />
-                          </Button>
-                        }
-                      />
-                      <PopoverContent align="start" className="w-[min(92vw,360px)] p-4">
-                        <DateSelector
-                          value={{
-                            period: 'day',
-                            operator: 'is',
-                            startDate: parseISO(exportEndDate),
-                            endDate: parseISO(exportEndDate)
-                          }}
-                          onChange={(value) => {
-                            if (value.startDate)
-                              setExportEndDate(format(value.startDate, 'yyyy-MM-dd'))
-                          }}
-                          allowRange={false}
-                          defaultFilterType="is"
-                          showInput={false}
-                          showTwoMonths={false}
-                          className="w-full sm:max-w-none"
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </Field>
-                  <Field>
-                    <FieldLabel>Branch</FieldLabel>
-                    <Select
-                      value={exportBranch}
-                      onValueChange={(value) => setExportBranch(value as LoginBranch)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="All Branch">All Branch</SelectItem>
-                        <SelectItem value="Goa">Goa</SelectItem>
-                        <SelectItem value="Tinambac">Tinambac</SelectItem>
-                        <SelectItem value="Tigaon">Tigaon</SelectItem>
-                        <SelectItem value="Lagonoy">Lagonoy</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field>
-                    <FieldLabel>Account type</FieldLabel>
-                    <Select
-                      value={exportType}
-                      onValueChange={(value) => value && setExportType(value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="All Types">All Types</SelectItem>
-                        <SelectItem value="Home Credit">Home Credit</SelectItem>
-                        <SelectItem value="Salmon">Salmon</SelectItem>
-                        <SelectItem value="Skyro">Skyro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </FieldGroup>
-              </FieldSet>
-
-              <FieldSet className="gap-5 border-t pt-7">
-                <FieldLegend className="mb-0 flex items-start gap-3">
-                  <span className="font-mono text-xs text-muted-foreground">02</span>
-                  <span>
-                    <span className="block font-medium">Choose report contents</span>
-                    <span className="block text-sm font-normal text-muted-foreground">
-                      Add only the sections you want to review.
-                    </span>
-                  </span>
-                </FieldLegend>
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <FieldSet className="gap-3">
-                    <FieldLegend variant="label">Cashier report</FieldLegend>
-                    <FieldDescription>Daily entries and activity.</FieldDescription>
-                    <FieldGroup data-slot="checkbox-group" className="grid grid-cols-2 gap-2">
-                      {(['Expenses', 'Income', 'Payment', 'Activity History'] as const).map(
-                        (section) => {
-                          const selected = exportSections.includes(section)
-                          const id = `export-section-${section.toLowerCase().replaceAll(' ', '-')}`
-                          return (
-                            <Field
-                              key={section}
-                              orientation="horizontal"
-                              className="items-center gap-2"
-                            >
-                              <Checkbox
-                                id={id}
-                                checked={selected}
-                                onCheckedChange={(checked) =>
-                                  setExportSections((current) =>
-                                    checked
-                                      ? [...current, section]
-                                      : current.filter((item) => item !== section)
-                                  )
-                                }
-                              />
-                              <FieldLabel
-                                htmlFor={id}
-                                className="cursor-pointer text-sm font-normal"
-                              >
-                                {section}
-                              </FieldLabel>
-                            </Field>
-                          )
-                        }
-                      )}
-                    </FieldGroup>
-                  </FieldSet>
-                  <FieldSet className="gap-3">
-                    <FieldLegend variant="label">Accounts</FieldLegend>
-                    <FieldDescription>Account lists and finance data.</FieldDescription>
-                    <FieldGroup data-slot="checkbox-group" className="grid grid-cols-2 gap-2">
-                      {(['Records', 'Active', 'Closed', 'Blacklisted'] as const).map((section) => {
-                        const selected = exportSections.includes(section)
-                        const id = `export-section-${section.toLowerCase()}`
-                        return (
-                          <Field
-                            key={section}
-                            orientation="horizontal"
-                            className="items-center gap-2"
-                          >
-                            <Checkbox
-                              id={id}
-                              checked={selected}
-                              onCheckedChange={(checked) =>
-                                setExportSections((current) =>
-                                  checked
-                                    ? [...current, section]
-                                    : current.filter((item) => item !== section)
-                                )
-                              }
-                            />
-                            <FieldLabel htmlFor={id} className="cursor-pointer text-sm font-normal">
-                              {section}
-                            </FieldLabel>
-                          </Field>
-                        )
-                      })}
-                      <Field orientation="horizontal" className="items-center gap-2">
-                        <Checkbox
-                          id="export-section-finance"
-                          checked={exportSections.includes('Accounts')}
-                          onCheckedChange={(checked) =>
-                            setExportSections((current) =>
-                              checked
-                                ? [...current, 'Accounts']
-                                : current.filter((item) => item !== 'Accounts')
-                            )
-                          }
-                        />
-                        <FieldLabel
-                          htmlFor="export-section-finance"
-                          className="cursor-pointer text-sm font-normal"
-                        >
-                          Finance
-                        </FieldLabel>
-                      </Field>
-                    </FieldGroup>
-                  </FieldSet>
-                </div>
-              </FieldSet>
-            </div>
-          </div>
-          <DialogFooter className="items-center border-t bg-muted/30 px-7 py-4">
-            <div className="sm:mr-auto">
-              <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-                03 — Review
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {exportSections.length
-                  ? `${exportSections.length} section${exportSections.length === 1 ? '' : 's'} included`
-                  : 'Choose at least one section'}
-              </p>
-            </div>
-            <Button type="button" variant="outline" onClick={() => setIsExportReportsOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              disabled={
-                !exportSections.length ||
-                !exportStartDate ||
-                !exportEndDate ||
-                exportEndDate < exportStartDate ||
-                isReviewingPdf
-              }
-              onClick={() => {
-                setIsExportReportsOpen(false)
-                void reviewPdf(exportSections, {
-                  branch: exportBranch,
-                  dateFrom: exportStartDate,
-                  dateTo: exportEndDate,
-                  accountType: exportType
-                })
-              }}
-            >
-              Review PDF
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
-        open={Boolean(pdfPreview) && isPdfReviewOpen}
-        onOpenChange={(open) => {
-          if (!open && !isPdfProcessing) {
-            setIsPdfReviewOpen(false)
-            setPdfPreview(undefined)
-          }
-        }}
-      >
-        <DialogContent className="h-[min(88vh,54rem)] w-[min(96vw,88rem)] max-w-none grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-none">
-          <DialogHeader className="border-b bg-background px-6 py-4 pr-12 sm:px-7">
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <FileDown className="size-4" aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <DialogTitle className="truncate text-lg tracking-tight">Review Report</DialogTitle>
-                <DialogDescription className="mt-0.5">
-                  Check the PDF, then choose how to deliver it.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <div className="grid min-h-0 grid-rows-[minmax(16rem,1fr)_minmax(21rem,auto)] lg:grid-cols-[minmax(0,7fr)_minmax(20rem,3fr)] lg:grid-rows-1">
-            <section
-              className="flex min-h-0 flex-col bg-muted/30 p-3 sm:p-4 lg:border-r"
-              aria-label="PDF preview"
-            >
-              <div className="flex items-center justify-between px-1 pb-2.5 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                <span>PDF preview</span>
-                <span>Final document</span>
-              </div>
-              {pdfPreview && (
-                <iframe
-                  title="Cashier report PDF preview"
-                  src={`data:application/pdf;base64,${pdfPreview.pdfBase64}`}
-                  className="min-h-0 flex-1 w-full rounded-md border border-border bg-background shadow-sm"
-                />
-              )}
-            </section>
-            <aside className="flex min-h-0 flex-col bg-card lg:border-l-0">
-              <div className="shrink-0 border-b bg-muted/20 p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold">Report details</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Add context before delivery.
-                    </p>
-                  </div>
-                  <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                    Optional
-                  </span>
-                </div>
-                <label
-                  htmlFor="pdf-report-note"
-                  className="mt-4 block text-xs font-medium text-muted-foreground"
-                >
-                  PDF note
-                </label>
-                <Textarea
-                  id="pdf-report-note"
-                  value={pdfNote}
-                  onChange={(event) => setPdfNote(event.target.value)}
-                  placeholder="Optional note at the end of this PDF"
-                  maxLength={800}
-                  rows={3}
-                  disabled={isPdfProcessing || isReviewingPdf}
-                  className="mt-2 min-h-20 resize-none text-sm"
-                />
-                <label
-                  htmlFor="pdf-report-telegram-note"
-                  className="mt-4 block text-xs font-medium text-muted-foreground"
-                >
-                  Telegram note
-                </label>
-                <Textarea
-                  id="pdf-report-telegram-note"
-                  value={telegramNote}
-                  onChange={(event) => setTelegramNote(event.target.value)}
-                  placeholder="Optional note to include with the Telegram delivery"
-                  maxLength={800}
-                  rows={2}
-                  disabled={isPdfProcessing || isReviewingPdf}
-                  className="mt-2 resize-none text-sm"
-                />
-                {pdfPreview?.note !== pdfNote && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-2"
-                    disabled={isReviewingPdf}
-                    onClick={() =>
-                      pdfReviewRequest &&
-                      void reviewPdf(pdfReviewRequest.sections, pdfReviewRequest.filters)
-                    }
-                  >
-                    {isReviewingPdf ? <Spinner data-icon="inline-start" /> : null}
-                    Update preview
-                  </Button>
-                )}
-              </div>
-              <div className="flex flex-1 flex-col justify-center p-5">
-                <p className="text-sm font-semibold">Ready to deliver</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Delivery progress opens in a focused window with live checkpoints.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-4 self-start"
-                  onClick={() => setIsDeliveryProgressOpen(true)}
-                >
-                  View delivery progress
-                </Button>
-              </div>
-              <DialogFooter className="mx-0 mb-0 flex-wrap rounded-none border-t px-4 py-4 sm:px-5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isPdfProcessing || isExcelExporting}
-                  onClick={() => void exportExcel()}
-                >
-                  {isExcelExporting ? <Spinner data-icon="inline-start" /> : null}
-                  Export in Excel
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={isPdfProcessing || isExcelExporting}
-                  onClick={() => {
-                    setIsPdfReviewOpen(false)
-                    setPdfPreview(undefined)
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  disabled={isPdfProcessing || pdfPreview?.note !== pdfNote}
-                  onClick={() => {
-                    if (pdfProgress.every((step) => step.status === 'pending')) {
-                      setIsDeliveryProgressOpen(true)
-                      beginPdfExport()
-                    } else {
-                      setIsPdfReviewOpen(false)
-                      setPdfPreview(undefined)
-                    }
-                  }}
-                >
-                  {isPdfProcessing ? <Spinner data-icon="inline-start" /> : null}
-                  {pdfProgress.every((step) => step.status === 'pending') ? 'Send' : 'Done'}
-                </Button>
-              </DialogFooter>
-            </aside>
-          </div>
-        </DialogContent>
-      </Dialog>
-      <DeliveryProgressDialog
-        open={isDeliveryProgressOpen}
-        onOpenChange={setIsDeliveryProgressOpen}
-        steps={pdfProgress}
-        isProcessing={isPdfProcessing}
-        onRetry={(id) => void retryPdfStep(id)}
+      <ReportsGenerator
+        reportPage={false}
+        selectedBranch={selectedBranch}
+        cashierName={cashierName}
+        reportId={reportId}
+        businessDate={selectedReport.businessDate}
+        summarySnapshotRef={summarySnapshotRef}
       />
       {confirmation && (
         <ConfirmationAlertDialog

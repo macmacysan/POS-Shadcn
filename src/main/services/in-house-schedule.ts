@@ -1,3 +1,5 @@
+import { roundToWholePesoCentavos } from '../../shared/installment-calculations'
+
 export type InHouseScheduleSeed = {
   installmentNumber: number
   dueDate: string
@@ -27,8 +29,8 @@ export function buildInHouseSchedule(
   totalPayableCentavos: number
 ): InHouseScheduleSeed[] {
   const count = termCount(terms)
-  const baseAmount = Math.floor(totalPayableCentavos / count)
-  const remainder = totalPayableCentavos % count
+  const paymentAmount = roundToWholePesoCentavos(totalPayableCentavos / count)
+  const finalPaymentAmount = totalPayableCentavos - paymentAmount * (count - 1)
   const firstDue = new Date(`${firstDueDate}T00:00:00.000Z`)
 
   if (Number.isNaN(firstDue.getTime()) || totalPayableCentavos <= 0) return []
@@ -38,7 +40,7 @@ export function buildInHouseSchedule(
     return {
       installmentNumber: index + 1,
       dueDate,
-      dueAmountCentavos: baseAmount + (index === count - 1 ? remainder : 0)
+      dueAmountCentavos: index === count - 1 ? finalPaymentAmount : paymentAmount
     }
   })
 }

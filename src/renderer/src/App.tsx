@@ -157,8 +157,6 @@ function Workspace({
   const [cashierReportInitialTab, setCashierReportInitialTab] = useState<
     ('Expenses' | 'Income' | 'Payment' | 'Activity') | undefined
   >(initialPaymentRoute?.origin === 'cashier-history' ? 'Activity' : undefined)
-  const [isCashierReportExportRequested, setIsCashierReportExportRequested] = useState(false)
-  const [cashierReportExportDate, setCashierReportExportDate] = useState<string>()
   const [reportAttentionBranch, setReportAttentionBranch] = useState<LoginBranch>()
   const [attentionReportId, setAttentionReportId] = useState<string>()
   const [openAttentionDateDialog, setOpenAttentionDateDialog] = useState(false)
@@ -334,8 +332,6 @@ function Workspace({
     if (paymentRoute) window.location.hash = ''
     setPaymentRoute(undefined)
     setCashierReportInitialTab(undefined)
-    setIsCashierReportExportRequested(false)
-    setCashierReportExportDate(undefined)
     setActiveView(view)
   }
 
@@ -403,14 +399,11 @@ function Workspace({
             cashierName={cashierName}
             isAdmin={isAdmin}
             initialTab={cashierReportInitialTab}
-            openExportReports={isCashierReportExportRequested}
-            exportDate={cashierReportExportDate}
             attentionReportId={attentionReportId}
             onAttentionReportOpened={clearAttentionReport}
             onAttentionReportLoaded={showAttentionDateDialog}
             openAttentionDateDialog={openAttentionDateDialog}
             onAttentionDateDialogOpenChange={setOpenAttentionDateDialog}
-            onExportReportsOpened={() => setIsCashierReportExportRequested(false)}
             onOpenCollection={(accountId) => openPaymentWorkspace(accountId, 'ledger', 'active')}
             onOpenHistoryPayment={(accountId, paymentId) =>
               openPaymentWorkspace(accountId, 'ledger', 'cashier-history', paymentId)
@@ -504,11 +497,6 @@ function Workspace({
           <DashboardContent
             selectedBranch={selectedBranch}
             onOpenCashierReports={() => selectView('cashier-reports')}
-            onOpenExportReports={(businessDate) => {
-              setCashierReportExportDate(businessDate)
-              setIsCashierReportExportRequested(true)
-              setActiveView('cashier-reports')
-            }}
             onOpenInHouse={() => selectView('in-house-active-accounts')}
             onOpenFinance={() => selectView('finance-accounts')}
             onOpenPaymentWorkspace={(accountId) =>

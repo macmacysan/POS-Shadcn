@@ -33,6 +33,12 @@ try {
   assert.equal(calculate('Monthly', 12).totalInstallmentCentavos, 1500000)
   assert.equal(calculate('Monthly', 12).requiredFeeCentavos, 225000)
   assert.equal(calculate('Daily', 5).totalInstallmentCentavos, null)
+  const roundingConfig = { ...config, standardInterestRateBps: 0, requiredDownPaymentRateBps: 0, monthlyPlans: [{ terms: 2, interestRateBps: 0 }], dailyPlans: [{ terms: 2, requiredFeePayments: 1 }], weeklyTerms: [2], semiTerms: [2] }
+  const roundedPayment = (frequency, amount) => calculations.calculateInstallment({ releaseDate: '2026-01-01', frequency, terms: 2, items: [{ quantity: 1, unitPriceCentavos: amount }], actualDownPaymentCentavos: 0 }, roundingConfig).paymentAmountCentavos
+  for (const frequency of ['Daily', 'Weekly', 'Semi', 'Monthly']) {
+    assert.equal(roundedPayment(frequency, 249110), 124600)
+    assert.equal(roundedPayment(frequency, 249044), 124500)
+  }
   console.log('installment calculation tests passed')
 } finally {
   if (existsSync(output)) rmSync(output, { recursive: true, force: true })

@@ -276,6 +276,22 @@ try {
       'VOIDED',
       `voiding from ${transition.label} should void its posted payments`
     )
+    const voidedHistory = repository.listHistory({}).filter((record) => record.accountId === 'status-account')
+    assert.equal(
+      voidedHistory.some((record) => record.activity === 'Installment record added'),
+      false,
+      `voiding from ${transition.label} should hide the new-account history record`
+    )
+    assert.equal(
+      voidedHistory.some((record) => record.activity === 'Installment record closed'),
+      false,
+      `voiding from ${transition.label} should hide the closed-loan history record`
+    )
+    assert.equal(
+      voidedHistory.some((record) => record.id === paymentId),
+      false,
+      `voiding from ${transition.label} should hide the payment history record`
+    )
     repository.unvoidContracts(['status-contract'], 'status-user')
   }
   db.close()

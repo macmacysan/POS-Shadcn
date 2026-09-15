@@ -13,6 +13,7 @@ try {
   const { runMigrations } = require(resolve(output, 'main/database/migrations.js'))
   const { InstallmentRulesRepository } = require(resolve(output, 'main/database/installment-rules-repository.js'))
   const { InstallmentRepository } = require(resolve(output, 'main/database/installment-repository.js'))
+  const { buildInHouseSchedule } = require(resolve(output, 'main/services/in-house-schedule.js'))
   const db = new Database(':memory:'); db.pragma('foreign_keys = ON'); runMigrations(db)
   const repository = new InstallmentRulesRepository(db); const baseline = repository.getActive()
   assert.equal(baseline.version, 1); assert.equal(baseline.standardInterestRateBps, 3800); assert.deepEqual(baseline.weeklyTerms, [5, 8, 12, 16]); assert.deepEqual(baseline.semiTerms, [2, 4, 6, 8])
@@ -33,5 +34,13 @@ try {
   installments.bootstrap({ accounts: [account('account-c')], loans: [{ ...loan('contract-c', 'account-c'), paymentFrequency: 'Monthly', terms: '3', downPayment: 2000 }] })
   const monthly = installments.list({ view: 'records', search: '' }).rows.find((row) => row.contractId === 'contract-c')
   assert.equal(monthly?.meta.totalPaid, 2000); assert.equal(monthly?.meta.outstandingBalance, 10800)
+  for (const frequency of ['Daily', 'Weekly', 'Semi-monthly', 'Monthly']) {
+    const roundedUp = buildInHouseSchedule('2026-01-01', frequency, '2', 249110)
+    assert.equal(roundedUp[0]?.dueAmountCentavos, 124600)
+    assert.equal(roundedUp.reduce((total, payment) => total + payment.dueAmountCentavos, 0), 249110)
+    const roundedDown = buildInHouseSchedule('2026-01-01', frequency, '2', 249044)
+    assert.equal(roundedDown[0]?.dueAmountCentavos, 124500)
+    assert.equal(roundedDown.reduce((total, payment) => total + payment.dueAmountCentavos, 0), 249044)
+  }
   db.close(); console.log('installment rules migration tests passed')
 } finally { if (existsSync(output)) rmSync(output, { recursive: true, force: true }) }
