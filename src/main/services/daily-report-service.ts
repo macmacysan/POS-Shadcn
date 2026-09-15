@@ -15,6 +15,7 @@ import type {
   DailyReportSummaryUpdateRequest,
   DailyReportNoteUpdateRequest,
   DailyReportRecord,
+  DailyReportRangeSnapshotRequest,
   DailyReportSnapshotRequest,
   IncomeCreateRequest,
   IncomeListRequest,
@@ -64,6 +65,13 @@ export class DailyReportService {
   getSnapshot(request: DailyReportSnapshotRequest) {
     this.requireReportAccess(request.dailyReportId, this.auth.requireCashierWorkspace())
     return this.repository.snapshot(request.dailyReportId)
+  }
+
+  getRangeSnapshot(request: DailyReportRangeSnapshotRequest) {
+    const user = this.auth.requireCashierWorkspace()
+    const branchId = this.readBranchId(request.branch, user)
+    if (!branchId) throw new AppError('FORBIDDEN', 'Your account is not assigned to a branch.')
+    return this.repository.rangeSnapshot(branchId, request.dateFrom, request.dateTo)
   }
 
   updateSummary(request: DailyReportSummaryUpdateRequest) {

@@ -290,6 +290,16 @@ export const cashDenominationRecordSchema = z.object({
 })
 
 export const dailyReportSnapshotRequestSchema = z.object({ dailyReportId: uuidSchema })
+export const dailyReportRangeSnapshotRequestSchema = z
+  .object({
+    branch: z.string().trim().min(1).max(100),
+    dateFrom: businessDateSchema,
+    dateTo: businessDateSchema
+  })
+  .refine((value) => value.dateFrom <= value.dateTo, {
+    message: 'End date must be on or after the start date.',
+    path: ['dateTo']
+  })
 export const dailyReportDetailSchema = z.object({
   id: uuidSchema,
   name: z.string().trim().min(1).max(200),
@@ -318,6 +328,7 @@ export const dailyReportSnapshotResponseSchema = z.object({
   physicalCashCentavos: centavosSchema.nonnegative(),
   cashVarianceCentavos: centavosSchema
 })
+export const dailyReportRangeSnapshotResponseSchema = dailyReportSnapshotResponseSchema
 export const dailyReportSummaryUpdateRequestSchema = z.object({
   dailyReportId: uuidSchema,
   openingCashCentavos: centavosSchema.nonnegative(),
@@ -407,6 +418,10 @@ export type DailyReportReceiptTypeRestoreResponse = z.infer<
 export type DailyReportCashCountRecord = z.infer<typeof dailyReportCashCountRecordSchema>
 export type DailyReportSnapshotRequest = z.infer<typeof dailyReportSnapshotRequestSchema>
 export type DailyReportSnapshotResponse = z.infer<typeof dailyReportSnapshotResponseSchema>
+export type DailyReportRangeSnapshotRequest = z.infer<typeof dailyReportRangeSnapshotRequestSchema>
+export type DailyReportRangeSnapshotResponse = z.infer<
+  typeof dailyReportRangeSnapshotResponseSchema
+>
 export type DailyReportSummaryUpdateRequest = z.infer<typeof dailyReportSummaryUpdateRequestSchema>
 export type DailyReportNoteUpdateRequest = z.infer<typeof dailyReportNoteUpdateRequestSchema>
 export type DailyReportDeliveryUpdateRequest = z.infer<
@@ -421,6 +436,7 @@ export const dailyReportIpcChannels = {
   listCalendar: 'daily-reports:calendar:list',
   attention: 'daily-reports:attention',
   getSnapshot: 'daily-reports:get-snapshot',
+  getRangeSnapshot: 'daily-reports:get-range-snapshot',
   updateNote: 'daily-reports:note:update',
   markDelivery: 'daily-reports:delivery:mark',
   updateSummary: 'daily-reports:summary:update',
@@ -446,6 +462,9 @@ export type DailyReportsApi = {
     listCalendar(request: DailyReportCalendarRequest): Promise<DailyReportCalendarResponse>
     getAttention(request: DailyReportAttentionRequest): Promise<DailyReportAttentionResponse>
     getSnapshot(request: DailyReportSnapshotRequest): Promise<DailyReportSnapshotResponse>
+    getRangeSnapshot(
+      request: DailyReportRangeSnapshotRequest
+    ): Promise<DailyReportRangeSnapshotResponse>
     updateSummary(
       request: DailyReportSummaryUpdateRequest
     ): Promise<DailyReportSummaryUpdateResponse>

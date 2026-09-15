@@ -102,6 +102,8 @@ const api: ExpensesApi &
     listCalendar: (request) => ipcRenderer.invoke(dailyReportIpcChannels.listCalendar, request),
     getAttention: (request) => ipcRenderer.invoke(dailyReportIpcChannels.attention, request),
     getSnapshot: (request) => ipcRenderer.invoke(dailyReportIpcChannels.getSnapshot, request),
+    getRangeSnapshot: (request) =>
+      ipcRenderer.invoke(dailyReportIpcChannels.getRangeSnapshot, request),
     updateSummary: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateSummary, request),
     updateNote: (request) => ipcRenderer.invoke(dailyReportIpcChannels.updateNote, request),
     markDelivery: (request) => ipcRenderer.invoke(dailyReportIpcChannels.markDelivery, request),

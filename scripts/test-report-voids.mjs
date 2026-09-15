@@ -53,7 +53,7 @@ try {
   runMigrations(db)
   assert.equal(
     db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version,
-    40
+    49
   )
   runMigrations(db)
   const users = new UserRepository(db)
@@ -86,6 +86,39 @@ try {
     },
     cashier.id
   )
+  const nextReport = dailyReports.resolveActive(
+    {
+      branchId: cashier.branchId,
+      cashierUserId: cashier.id,
+      businessDate: '2026-08-28'
+    },
+    cashier.id
+  )
+  const receiptTypeId = dailyReports.snapshot(report.id).receiptTypes[0].id
+  dailyReportService.updateSummary({
+    dailyReportId: report.id,
+    openingCashCentavos: 0,
+    cashRemittedCentavos: 1000,
+    receiptTotals: [{ receiptTypeId, quantity: 1, amountCentavos: 10000 }],
+    deductions: [],
+    cashCounts: []
+  })
+  dailyReportService.updateSummary({
+    dailyReportId: nextReport.id,
+    openingCashCentavos: 0,
+    cashRemittedCentavos: 2000,
+    receiptTotals: [{ receiptTypeId, quantity: 2, amountCentavos: 20000 }],
+    deductions: [],
+    cashCounts: []
+  })
+  const rangeSnapshot = dailyReportService.getRangeSnapshot({
+    branch: 'Tinambac',
+    dateFrom: '2026-08-27',
+    dateTo: '2026-08-28'
+  })
+  assert.equal(rangeSnapshot.receiptTotals[0].quantity, 3)
+  assert.equal(rangeSnapshot.receiptTotals[0].amountCentavos, 30000)
+  assert.equal(rangeSnapshot.report.cashRemittedCentavos, 3000)
   const telegramDelivery = dailyReportService.markDelivery({
     dailyReportId: report.id,
     channel: 'TELEGRAM'
@@ -101,6 +134,7 @@ try {
       .rows.map(({ telegramSubmittedAt }) => ({
         telegramSubmittedAt: Boolean(telegramSubmittedAt)
       })),
+    [{ telegramSubmittedAt: true }, { telegramSubmittedAt: false }]
   )
   users.createAccount({
     username: 'branch-cashier',

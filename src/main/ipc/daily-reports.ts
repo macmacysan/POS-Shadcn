@@ -12,6 +12,7 @@ import {
   dailyReportReceiptTypeDeleteRequestSchema,
   dailyReportReceiptTypeRestoreRequestSchema,
   dailyReportResolveActiveRequestSchema,
+  dailyReportRangeSnapshotRequestSchema,
   dailyReportSnapshotRequestSchema,
   dailyReportSummaryUpdateRequestSchema,
   dailyReportNoteUpdateRequestSchema,
@@ -42,6 +43,7 @@ export function registerDailyReportIpc(
             dailyReportIpcChannels.listCalendar,
             dailyReportIpcChannels.attention,
             dailyReportIpcChannels.getSnapshot,
+            dailyReportIpcChannels.getRangeSnapshot,
             dailyReportIpcChannels.listIncome,
             dailyReportIpcChannels.listPayments,
             dailyReportIpcChannels.listReceiptTypes
@@ -68,6 +70,11 @@ export function registerDailyReportIpc(
   )
   handle(dailyReportIpcChannels.getSnapshot, dailyReportSnapshotRequestSchema.parse, (input) =>
     service.getSnapshot(input)
+  )
+  handle(
+    dailyReportIpcChannels.getRangeSnapshot,
+    dailyReportRangeSnapshotRequestSchema.parse,
+    (input) => service.getRangeSnapshot(input)
   )
   handle(
     dailyReportIpcChannels.updateSummary,

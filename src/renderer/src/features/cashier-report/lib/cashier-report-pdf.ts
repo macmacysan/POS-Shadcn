@@ -19,7 +19,8 @@ type AccountCounts = {
 }
 
 export type CashierReportSection =
-  | 'Receipt Types'
+  | 'Cash Summary'
+  | 'Total Cash Receipts'
   | 'Expenses'
   | 'Income'
   | 'Payment'
@@ -28,7 +29,7 @@ export type CashierReportSection =
   | 'Active'
   | 'Closed'
   | 'Blacklisted'
-  | 'Accounts'
+  | 'Finance Accounts'
 
 export type CashierReportPdfData = {
   cashierName: string
@@ -43,6 +44,7 @@ export type CashierReportPdfData = {
   installmentHistory: InstallmentHistoryRecord[]
   accountCounts: AccountCounts
   charts: PdfReportCharts
+  includeCharts?: boolean
   sections?: readonly CashierReportSection[]
   financeAccounts?: FinanceAccountRecord[]
   accountLists?: {
@@ -129,7 +131,7 @@ function barChart(
 export function cashierReportPdfHtml(data: CashierReportPdfData): string {
   const { snapshot } = data
   const sections = new Set<CashierReportSection>(
-    data.sections ?? ['Expenses', 'Income', 'Payment', 'Activity History', 'Accounts']
+    data.sections ?? ['Cash Summary', 'Expenses', 'Income', 'Payment', 'Activity History']
   )
   const deductions = snapshot.deductions
     .map((item) => ({
@@ -157,6 +159,20 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     snapshot.cashCollectionsCentavos +
     snapshot.otherIncomeCentavos +
     snapshot.financeDownCentavos
+  const cashReceiptRows = [
+    ...snapshot.receiptTotals.map((item) => ({
+      type: item.receiptName,
+      quantity: item.quantity,
+      amountCentavos: item.amountCentavos
+    })),
+    { type: 'Collections', quantity: undefined, amountCentavos: snapshot.cashCollectionsCentavos },
+    { type: 'Other Income', quantity: undefined, amountCentavos: snapshot.otherIncomeCentavos },
+    {
+      type: 'Finance Downpayment',
+      quantity: undefined,
+      amountCentavos: snapshot.financeDownCentavos
+    }
+  ].filter((item) => item.quantity !== undefined || item.amountCentavos > 0)
   const deductionTotal = deductions.reduce((total, item) => total + item.amountCentavos, 0)
   const expenseTotal = data.expenses.reduce((total, item) => total + item.amountCentavos, 0)
   const incomeTotal = data.incomes.reduce((total, item) => total + item.amountCentavos, 0)
@@ -227,18 +243,22 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     .two-column { display:grid; gap:10px; grid-template-columns:1fr 1fr; } .cash-overview { break-inside:avoid; display:grid; grid-template-columns:42% 30%; justify-content:space-between; margin:8px 0 12px; } .cash-side { display:flex; flex-direction:column; gap:10px; } .cash-overview > div { min-width:0; } .cash-overview h2 { margin-top:0; } .summary-row { border-bottom:1px solid #ddd; display:flex; justify-content:space-between; gap:8px; padding:2px 0; } .summary-row > span:first-child { flex:1; } .summary-row strong { font-weight:400; text-align:right; white-space:nowrap; } .summary-qty { color:#555; font-size:8px; white-space:nowrap; } .summary-row.emphasis, .summary-row.emphasis strong { font-weight:700; } .section { break-inside:avoid; } .signatures { break-inside:avoid; display:grid; gap:26px; grid-template-columns:1fr 1fr; margin-top:24px; } .signature-line { border-bottom:1px solid #111; height:22px; margin:14px 0 3px; } .signature-label { color:#555; display:block; font-size:7px; text-transform:uppercase; } .signature-name { font-size:9px; } .note { break-inside:avoid; margin-top:16px; } .note p { margin:0; white-space:pre-wrap; } .muted { color:#555; } .charts { break-before:page; } .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .chart { break-inside:avoid; } .chart h2 { margin:0 0 3px; } .chart svg { display:block; height:auto; width:100%; } .chart svg text { fill:#555; font-size:7px; } .chart-legend { display:flex; gap:8px; margin:0 0 2px; } .chart-legend span { align-items:center; display:flex; gap:3px; } .chart-legend i { display:inline-block; height:6px; width:6px; }
   </style></head><body>
     <header><div class="company">Nueva Camsur Home Furnishing</div><h1>Branch Cashier Report</h1><div class="meta"><div><span>Contributors</span><strong>${escapeHtml(data.cashierName)}</strong></div><div><span>Branch</span><strong>${escapeHtml(data.branch)}</strong></div><div><span>Business date</span><strong>${escapeHtml(data.businessDate)}</strong></div><div><span>Generated</span><strong>${escapeHtml(data.generatedAt)}</strong></div></div></header>
-    <section class="cash-overview"><div><h2>Cashier Summary</h2>${cashSummaryRows.map((item) => summaryRow(item.label, item.value, item)).join('')}</div><div class="cash-side"><div><h2>Cash Denominations</h2>${denominations.length ? `<table><thead><tr><th>Denomination</th><th class="amount">Qty</th><th class="amount">Total</th></tr></thead><tbody>${denominations.map((item) => `<tr><td>${escapeHtml(money(item.valueCentavos))}</td><td class="amount">${item.quantity}</td>${amount(item.valueCentavos * item.quantity)}</tr>`).join('')}</tbody></table>` : ''}</div><div><h2>Deductions</h2>${deductions.map((item) => summaryRow(item.label, item.amountCentavos)).join('')}${summaryRow('Total deductions', deductionTotal)}</div></div></section>
     ${
-      sections.has('Receipt Types')
+      sections.has('Cash Summary')
+        ? `<section class="cash-overview"><div><h2>Cash Summary</h2>${cashSummaryRows.map((item) => summaryRow(item.label, item.value, item)).join('')}</div><div class="cash-side"><div><h2>Cash Denominations</h2>${denominations.length ? `<table><thead><tr><th>Denomination</th><th class="amount">Qty</th><th class="amount">Total</th></tr></thead><tbody>${denominations.map((item) => `<tr><td>${escapeHtml(money(item.valueCentavos))}</td><td class="amount">${item.quantity}</td>${amount(item.valueCentavos * item.quantity)}</tr>`).join('')}</tbody></table>` : ''}</div><div><h2>Deductions</h2>${deductions.map((item) => summaryRow(item.label, item.amountCentavos)).join('')}${summaryRow('Total deductions', deductionTotal)}</div></div></section>`
+        : ''
+    }
+    ${
+      sections.has('Total Cash Receipts')
         ? table(
-            'Receipt Types',
-            ['Type', 'Qty', 'Amount'],
-            snapshot.receiptTotals.map(
+            'Total Cash Receipts',
+            ['Receipt type', 'Qty', 'Amount'],
+            cashReceiptRows.map(
               (item) =>
-                `<tr><td>${escapeHtml(item.receiptName)}</td><td class="amount">${item.quantity}</td>${amount(item.amountCentavos)}</tr>`
+                `<tr><td>${escapeHtml(item.type)}</td><td class="amount">${item.quantity ?? ''}</td>${amount(item.amountCentavos)}</tr>`
             ),
-            receiptTotal,
-            'Grand Total'
+            totalReceiptsCentavos,
+            'Total Cash Receipts'
           )
         : ''
     }
@@ -316,7 +336,7 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
       )
       .join('')}
     ${
-      sections.has('Accounts') && data.financeAccounts?.length
+      sections.has('Finance Accounts') && data.financeAccounts?.length
         ? table(
             'Finance Accounts',
             ['Date Released', 'Branch', 'Type', 'Account', 'Balance'],
@@ -329,38 +349,42 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     }
     <section class="signatures"><div><span class="signature-label">Prepared by</span><div class="signature-line"></div><strong class="signature-name">${escapeHtml(data.cashierName)}</strong></div><div><span class="signature-label">Verified by</span><div class="signature-line"></div></div></section>
     ${data.note?.trim() ? `<section class="note"><h2>Note</h2><p>${escapeHtml(data.note.trim())}</p></section>` : ''}
-    <section class="charts"><h1>Sales & Expense Charts</h1><div class="chart-grid">${barChart(
-      'Weekly Sales',
-      data.charts.weeklySales.map((item) => ({
-        label: item.businessDate,
-        salesCentavos: item.salesCentavos
-      })),
-      [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
-    )}${barChart(
-      'Monthly Sales',
-      data.charts.monthlySales.map((item) => ({
-        label: item.month,
-        salesCentavos: item.salesCentavos
-      })),
-      [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
-    )}${barChart(
-      'Yearly Sales',
-      data.charts.yearlySales.map((item) => ({
-        label: item.year,
-        salesCentavos: item.salesCentavos
-      })),
-      [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
-    )}${barChart(
-      'Expenses vs Sales',
-      data.charts.expensesVsSales.map((item) => ({
-        label: item.month,
-        salesCentavos: item.salesCentavos,
-        expenseCentavos: item.expenseCentavos
-      })),
-      [
-        { key: 'salesCentavos', label: 'Sales', color: '#0369a1' },
-        { key: 'expenseCentavos', label: 'Expenses', color: '#dc2626' }
-      ]
-    )}</div></section>
+    ${
+      data.includeCharts === false
+        ? ''
+        : `<section class="charts"><h1>Sales & Expense Charts</h1><div class="chart-grid">${barChart(
+            'Weekly Sales',
+            data.charts.weeklySales.map((item) => ({
+              label: item.businessDate,
+              salesCentavos: item.salesCentavos
+            })),
+            [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
+          )}${barChart(
+            'Monthly Sales',
+            data.charts.monthlySales.map((item) => ({
+              label: item.month,
+              salesCentavos: item.salesCentavos
+            })),
+            [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
+          )}${barChart(
+            'Yearly Sales',
+            data.charts.yearlySales.map((item) => ({
+              label: item.year,
+              salesCentavos: item.salesCentavos
+            })),
+            [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
+          )}${barChart(
+            'Expenses vs Sales',
+            data.charts.expensesVsSales.map((item) => ({
+              label: item.month,
+              salesCentavos: item.salesCentavos,
+              expenseCentavos: item.expenseCentavos
+            })),
+            [
+              { key: 'salesCentavos', label: 'Sales', color: '#0369a1' },
+              { key: 'expenseCentavos', label: 'Expenses', color: '#dc2626' }
+            ]
+          )}</div></section>`
+    }
   </body></html>`
 }

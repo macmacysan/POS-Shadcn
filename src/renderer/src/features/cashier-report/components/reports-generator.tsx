@@ -1,10 +1,11 @@
 import * as React from 'react'
 import * as XLSX from 'xlsx'
 import { format, parseISO } from 'date-fns'
-import { Check, CircleAlert, FileDown } from 'lucide-react'
+import { Check, CircleAlert, FileDown, SlidersHorizontal } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import {
   Dialog,
@@ -43,9 +44,32 @@ type PdfProgressStep = {
   attempts: number
 }
 type PdfReviewRequest = {
-  sections?: readonly CashierReportSection[]
+  mode: 'day' | 'range'
+  sections: readonly CashierReportSection[]
   filters?: { branch: LoginBranch; dateFrom?: string; dateTo?: string; accountType?: string }
 }
+
+const reportSectionOptions = [
+  'Cash Summary',
+  'Total Cash Receipts',
+  'Expenses',
+  'Income',
+  'Payment',
+  'Activity History',
+  'Records',
+  'Active',
+  'Closed',
+  'Blacklisted',
+  'Finance Accounts'
+] as const satisfies readonly CashierReportSection[]
+
+const dailyReportSections = [
+  'Cash Summary',
+  'Expenses',
+  'Income',
+  'Payment',
+  'Activity History'
+] as const satisfies readonly CashierReportSection[]
 
 const initialPdfProgress: PdfProgressStep[] = [
   { id: 'save', label: 'Save to Documents', status: 'pending', attempts: 0 },
@@ -97,6 +121,7 @@ function filenameName(value: string): string {
 type ReportsGeneratorPageProps = {
   reportDate: string
   onReportDateChange: (value: string) => void
+  onOpenDateRangeReport: () => void
   isReviewing: boolean
   onReviewDailyReport: () => void
   exportError?: string
@@ -211,9 +236,141 @@ function DeliveryProgressDialog({
   )
 }
 
+function DateRangeReportDialog({
+  open,
+  onOpenChange,
+  dateFrom,
+  dateTo,
+  onDateFromChange,
+  onDateToChange,
+  selectedSections,
+  onSelectedSectionsChange,
+  isReviewing,
+  onReview
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  dateFrom: string
+  dateTo: string
+  onDateFromChange: (value: string) => void
+  onDateToChange: (value: string) => void
+  selectedSections: readonly CashierReportSection[]
+  onSelectedSectionsChange: (sections: CashierReportSection[]) => void
+  isReviewing: boolean
+  onReview: () => void
+}): React.JSX.Element {
+  const selectedSectionSet = new Set(selectedSections)
+  const hasValidDateRange = Boolean(dateFrom && dateTo && dateFrom <= dateTo)
+
+  const toggleSection = (section: CashierReportSection, checked: boolean): void => {
+    onSelectedSectionsChange(
+      checked
+        ? [...selectedSections, section]
+        : selectedSections.filter((selectedSection) => selectedSection !== section)
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !isReviewing && onOpenChange(nextOpen)}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Date range report</DialogTitle>
+          <DialogDescription>
+            Select the reporting period and the sections to include in the PDF.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="range-report-from" className="text-xs font-medium">
+                From
+              </label>
+              <DatePickerInput
+                id="range-report-from"
+                value={dateFrom}
+                onValueChange={onDateFromChange}
+                className="mt-2 w-full"
+              />
+            </div>
+            <div>
+              <label htmlFor="range-report-to" className="text-xs font-medium">
+                To
+              </label>
+              <DatePickerInput
+                id="range-report-to"
+                value={dateTo}
+                onValueChange={onDateToChange}
+                min={dateFrom}
+                className="mt-2 w-full"
+              />
+            </div>
+          </div>
+          {!hasValidDateRange && dateFrom && dateTo && (
+            <p className="text-xs text-destructive">
+              The end date must be on or after the start date.
+            </p>
+          )}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">PDF contents</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Choose one or more sections for this range report.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onSelectedSectionsChange([...reportSectionOptions])}
+              >
+                Select all
+              </Button>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
+              {reportSectionOptions.map((section) => (
+                <label key={section} className="flex min-w-0 items-center gap-2 text-[13px]">
+                  <Checkbox
+                    checked={selectedSectionSet.has(section)}
+                    onCheckedChange={(checked) => toggleSection(section, checked === true)}
+                  />
+                  <span className="truncate">{section}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isReviewing}
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={isReviewing || !hasValidDateRange || selectedSections.length === 0}
+            onClick={onReview}
+          >
+            {isReviewing ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <FileDown data-icon="inline-start" />
+            )}
+            Review range report
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function ReportsGeneratorPage({
   reportDate,
   onReportDateChange,
+  onOpenDateRangeReport,
   isReviewing,
   onReviewDailyReport,
   exportError,
@@ -230,20 +387,24 @@ export function ReportsGeneratorPage({
 }: ReportsGeneratorPageProps): React.JSX.Element {
   return (
     <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden bg-workspace p-4">
-      <header className="flex shrink-0 items-center justify-between gap-4 rounded-xl border bg-card px-5 py-4">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 rounded-xl border bg-card px-5 py-4">
         <div>
           <h1 className="font-heading text-lg font-medium">Daily cashier report</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Review and deliver the selected business day. Past reports are available when needed.
+            Review the selected business day. Past reports are available when needed.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <DatePickerInput
             aria-label="Business date"
             value={reportDate}
             onValueChange={onReportDateChange}
             className="w-40"
           />
+          <Button type="button" variant="outline" onClick={onOpenDateRangeReport}>
+            <SlidersHorizontal data-icon="inline-start" />
+            Date range report
+          </Button>
           <Button type="button" disabled={isReviewing || !reportDate} onClick={onReviewDailyReport}>
             {isReviewing ? (
               <Spinner data-icon="inline-start" />
@@ -561,17 +722,33 @@ export function ReportsGenerator({
   const [isPdfReviewOpen, setIsPdfReviewOpen] = React.useState(false)
   const [isDeliveryProgressOpen, setIsDeliveryProgressOpen] = React.useState(false)
   const [reportPageDate, setReportPageDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [isRangeReportOpen, setIsRangeReportOpen] = React.useState(false)
+  const [rangeReportDateFrom, setRangeReportDateFrom] = React.useState(() =>
+    format(new Date(), 'yyyy-MM-dd')
+  )
+  const [rangeReportDateTo, setRangeReportDateTo] = React.useState(() =>
+    format(new Date(), 'yyyy-MM-dd')
+  )
+  const [rangeReportSections, setRangeReportSections] = React.useState<CashierReportSection[]>([])
   const [pdfProgress, setPdfProgress] = React.useState<PdfProgressStep[]>(initialPdfProgress)
   const [isPdfProcessing, setIsPdfProcessing] = React.useState(false)
   const [pdfNote, setPdfNote] = React.useState('')
   const [pdfReviewRequest, setPdfReviewRequest] = React.useState<PdfReviewRequest>()
   const [telegramNote, setTelegramNote] = React.useState('')
 
+  const updateRangeReportDateFrom = React.useCallback((value: string): void => {
+    setRangeReportDateFrom(value)
+    setRangeReportDateTo((currentValue) =>
+      currentValue && value && currentValue < value ? value : currentValue
+    )
+  }, [])
+
   const reviewPdf = async (
-    sections?: readonly CashierReportSection[],
+    mode: 'day' | 'range',
+    sections: readonly CashierReportSection[],
     filters?: { branch: LoginBranch; dateFrom?: string; dateTo?: string; accountType?: string }
   ): Promise<void> => {
-    setPdfReviewRequest({ sections, filters })
+    setPdfReviewRequest({ mode, sections, filters })
     setIsReviewingPdf(true)
     setExportError(undefined)
     setIsPdfReviewOpen(false)
@@ -607,7 +784,13 @@ export function ReportsGenerator({
         financeAccounts,
         charts
       ] = await Promise.all([
-        window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
+        mode === 'range'
+          ? window.api.dailyReports.getRangeSnapshot({
+              branch: branchFilter,
+              dateFrom: filters?.dateFrom ?? businessDate,
+              dateTo: filters?.dateTo ?? businessDate
+            })
+          : window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
         window.api.dailyReports.listIncome({
           branch: branchFilter,
           dateFrom: filters?.dateFrom,
@@ -675,6 +858,15 @@ export function ReportsGenerator({
             filters.accountType === 'All Types' ||
             item.provider === filters.accountType)
       )
+      const isWithinDateRange = (date: string): boolean =>
+        (!filters?.dateFrom || date >= filters.dateFrom) &&
+        (!filters?.dateTo || date <= filters.dateTo)
+      const filteredAccountLists = {
+        records: records.rows.filter((item) => isWithinDateRange(item.loan.dateReleased)),
+        active: active.rows.filter((item) => isWithinDateRange(item.loan.dateReleased)),
+        closed: closed.rows.filter((item) => isWithinDateRange(item.loan.dateReleased)),
+        blacklisted: blacklisted.rows.filter((item) => isWithinDateRange(item.loan.dateReleased))
+      }
       const nextExcelSheets: Record<string, ExcelSheetRows> = {}
       if (sections?.includes('Expenses'))
         nextExcelSheets.Expenses = postedExpenses.map((item) => flattenExcelRecord(item))
@@ -682,18 +874,33 @@ export function ReportsGenerator({
         nextExcelSheets.Income = postedIncomes.map((item) => flattenExcelRecord(item))
       if (sections?.includes('Payment'))
         nextExcelSheets.Payment = postedPayments.map((item) => flattenExcelRecord(item))
-      if (sections?.includes('Receipt Types')) {
-        nextExcelSheets['Receipt Types'] = [
+      if (sections?.includes('Total Cash Receipts')) {
+        const totalCashReceiptsCentavos =
+          snapshot.receiptTotals.reduce((total, item) => total + item.amountCentavos, 0) +
+          snapshot.cashCollectionsCentavos +
+          snapshot.otherIncomeCentavos +
+          snapshot.financeDownCentavos
+        nextExcelSheets['Total Cash Receipts'] = [
           ...snapshot.receiptTotals.map((item) => ({
             Type: item.receiptName,
             Quantity: item.quantity,
             Amount: item.amountCentavos / 100
           })),
+          ...[
+            { Type: 'Collections', Amount: snapshot.cashCollectionsCentavos },
+            { Type: 'Other Income', Amount: snapshot.otherIncomeCentavos },
+            { Type: 'Finance Downpayment', Amount: snapshot.financeDownCentavos }
+          ]
+            .filter((item) => item.Amount > 0)
+            .map((item) => ({
+              Type: item.Type,
+              Quantity: null,
+              Amount: item.Amount / 100
+            })),
           {
-            Type: 'Grand Total',
+            Type: 'Total Cash Receipts',
             Quantity: snapshot.receiptTotals.reduce((total, item) => total + item.quantity, 0),
-            Amount:
-              snapshot.receiptTotals.reduce((total, item) => total + item.amountCentavos, 0) / 100
+            Amount: totalCashReceiptsCentavos / 100
           }
         ]
       }
@@ -705,16 +912,18 @@ export function ReportsGenerator({
               (branchFilter === 'All Branch' || item.branch === branchFilter)
           )
           .map((item) => flattenExcelRecord(item))
-      if (sections?.includes('Accounts'))
-        nextExcelSheets.Finance = filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
+      if (sections?.includes('Finance Accounts'))
+        nextExcelSheets['Finance Accounts'] = filteredFinanceAccounts.map((item) =>
+          flattenExcelRecord(item)
+        )
       if (sections?.includes('Records'))
-        nextExcelSheets.Records = records.rows.map(installmentAccountRow)
+        nextExcelSheets.Records = filteredAccountLists.records.map(installmentAccountRow)
       if (sections?.includes('Active'))
-        nextExcelSheets.Active = active.rows.map(installmentAccountRow)
+        nextExcelSheets.Active = filteredAccountLists.active.map(installmentAccountRow)
       if (sections?.includes('Closed'))
-        nextExcelSheets.Closed = closed.rows.map(installmentAccountRow)
+        nextExcelSheets.Closed = filteredAccountLists.closed.map(installmentAccountRow)
       if (sections?.includes('Blacklisted'))
-        nextExcelSheets.Blacklisted = blacklisted.rows.map(installmentAccountRow)
+        nextExcelSheets.Blacklisted = filteredAccountLists.blacklisted.map(installmentAccountRow)
       setExcelSheets(nextExcelSheets)
       setPublishContext({
         branch: branchFilter,
@@ -729,7 +938,7 @@ export function ReportsGenerator({
           Payment: paymentResult.rows
             .filter((item) => item.source === 'local')
             .map((item) => flattenExcelRecord(item)),
-          Records: records.rows.map(installmentAccountRow),
+          Records: filteredAccountLists.records.map(installmentAccountRow),
           Finance: filteredFinanceAccounts.map((item) => flattenExcelRecord(item))
         }
       })
@@ -750,7 +959,7 @@ export function ReportsGenerator({
         generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
         note: pdfNote,
         snapshot:
-          summarySnapshotRef.current?.report.id === reportId
+          mode === 'day' && summarySnapshotRef.current?.report.id === reportId
             ? summarySnapshotRef.current
             : snapshot,
         expenses: postedExpenses,
@@ -760,20 +969,16 @@ export function ReportsGenerator({
           (item) => branchFilter === 'All Branch' || item.branch === branchFilter
         ),
         accountCounts: {
-          records: records.rows.length,
-          active: active.rows.length,
-          closed: closed.rows.length,
-          blacklisted: blacklisted.rows.length
+          records: filteredAccountLists.records.length,
+          active: filteredAccountLists.active.length,
+          closed: filteredAccountLists.closed.length,
+          blacklisted: filteredAccountLists.blacklisted.length
         },
         charts,
+        includeCharts: mode === 'day',
         sections,
-        financeAccounts: sections ? filteredFinanceAccounts : undefined,
-        accountLists: {
-          records: records.rows,
-          active: active.rows,
-          closed: closed.rows,
-          blacklisted: blacklisted.rows
-        }
+        financeAccounts: filteredFinanceAccounts,
+        accountLists: filteredAccountLists
       })
       const reportDate = filters?.dateFrom ?? businessDate
       const { pdfBase64 } = await window.api.pdfExport.preview({
@@ -924,34 +1129,61 @@ export function ReportsGenerator({
 
   if (reportPage) {
     return (
-      <ReportsGeneratorPage
-        reportDate={reportPageDate}
-        onReportDateChange={setReportPageDate}
-        isReviewing={isReviewingPdf}
-        onReviewDailyReport={() =>
-          void reviewPdf(undefined, {
-            branch: selectedBranch,
-            dateFrom: reportPageDate,
-            dateTo: reportPageDate
-          })
-        }
-        exportError={exportError}
-        pdfPreview={pdfPreview}
-        pdfNote={pdfNote}
-        onPdfNoteChange={setPdfNote}
-        telegramNote={telegramNote}
-        onTelegramNoteChange={setTelegramNote}
-        isProcessing={isPdfProcessing}
-        hasStartedDelivery={pdfProgress.some((step) => step.status !== 'pending')}
-        onDeliver={() => {
-          setIsDeliveryProgressOpen(true)
-          if (pdfProgress.every((step) => step.status === 'pending')) beginPdfExport()
-        }}
-        onUpdatePreview={() => {
-          if (pdfReviewRequest) void reviewPdf(pdfReviewRequest.sections, pdfReviewRequest.filters)
-        }}
-        deliveryProgressDialog={deliveryProgressDialog}
-      />
+      <>
+        <ReportsGeneratorPage
+          reportDate={reportPageDate}
+          onReportDateChange={setReportPageDate}
+          onOpenDateRangeReport={() => setIsRangeReportOpen(true)}
+          isReviewing={isReviewingPdf}
+          onReviewDailyReport={() =>
+            void reviewPdf('day', dailyReportSections, {
+              branch: selectedBranch,
+              dateFrom: reportPageDate,
+              dateTo: reportPageDate
+            })
+          }
+          exportError={exportError}
+          pdfPreview={pdfPreview}
+          pdfNote={pdfNote}
+          onPdfNoteChange={setPdfNote}
+          telegramNote={telegramNote}
+          onTelegramNoteChange={setTelegramNote}
+          isProcessing={isPdfProcessing}
+          hasStartedDelivery={pdfProgress.some((step) => step.status !== 'pending')}
+          onDeliver={() => {
+            setIsDeliveryProgressOpen(true)
+            if (pdfProgress.every((step) => step.status === 'pending')) beginPdfExport()
+          }}
+          onUpdatePreview={() => {
+            if (pdfReviewRequest)
+              void reviewPdf(
+                pdfReviewRequest.mode,
+                pdfReviewRequest.sections,
+                pdfReviewRequest.filters
+              )
+          }}
+          deliveryProgressDialog={deliveryProgressDialog}
+        />
+        <DateRangeReportDialog
+          open={isRangeReportOpen}
+          onOpenChange={setIsRangeReportOpen}
+          dateFrom={rangeReportDateFrom}
+          dateTo={rangeReportDateTo}
+          onDateFromChange={updateRangeReportDateFrom}
+          onDateToChange={setRangeReportDateTo}
+          selectedSections={rangeReportSections}
+          onSelectedSectionsChange={setRangeReportSections}
+          isReviewing={isReviewingPdf}
+          onReview={() => {
+            setIsRangeReportOpen(false)
+            void reviewPdf('range', rangeReportSections, {
+              branch: selectedBranch,
+              dateFrom: rangeReportDateFrom,
+              dateTo: rangeReportDateTo
+            })
+          }}
+        />
+      </>
     )
   }
 
@@ -975,7 +1207,12 @@ export function ReportsGenerator({
         isExcelExporting={isExcelExporting}
         hasStartedDelivery={pdfProgress.some((step) => step.status !== 'pending')}
         onUpdatePreview={() => {
-          if (pdfReviewRequest) void reviewPdf(pdfReviewRequest.sections, pdfReviewRequest.filters)
+          if (pdfReviewRequest)
+            void reviewPdf(
+              pdfReviewRequest.mode,
+              pdfReviewRequest.sections,
+              pdfReviewRequest.filters
+            )
         }}
         onViewDeliveryProgress={() => setIsDeliveryProgressOpen(true)}
         onExportExcel={() => void exportExcel()}

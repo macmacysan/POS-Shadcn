@@ -18,6 +18,7 @@ import type {
   DailyReportReceiptTypeDeleteRequest,
   DailyReportReceiptTypeDeleteResponse,
   DailyReportReceiptTypeRecord,
+  DailyReportRangeSnapshotResponse,
   DailyReportResolveActiveRequest,
   DailyReportSummaryUpdateRequest,
   DailyReportSnapshotResponse,
@@ -1136,6 +1137,110 @@ export class DailyReportRepository {
     })
     update()
     return this.snapshot(request.dailyReportId)
+  }
+
+  rangeSnapshot(
+    branchId: string,
+    dateFrom: string,
+    dateTo: string
+  ): DailyReportRangeSnapshotResponse {
+    const reportRows = this.db
+      .prepare(
+        `SELECT id FROM daily_reports
+          WHERE branch_id = ? AND business_date >= ? AND business_date <= ?
+          ORDER BY business_date ASC, created_at ASC, id ASC`
+      )
+      .all(branchId, dateFrom, dateTo) as Array<{ id: string }>
+    const snapshots = reportRows.map((row) => this.snapshot(row.id))
+    const finalSnapshot = snapshots.at(-1)
+    if (!finalSnapshot)
+      throw new AppError('NOT_FOUND', 'No daily reports were found for the selected date range.')
+
+    const sum = (values: number[]): number => values.reduce((total, value) => total + value, 0)
+    const receiptTotals = [
+      ...snapshots
+        .flatMap((snapshot) => snapshot.receiptTotals)
+        .reduce((groups, item) => {
+          const existing = groups.get(item.receiptTypeId)
+          groups.set(
+            item.receiptTypeId,
+            existing
+              ? {
+                  ...existing,
+                  quantity: existing.quantity + item.quantity,
+                  amountCentavos: existing.amountCentavos + item.amountCentavos
+                }
+              : item
+          )
+          return groups
+        }, new Map<string, DailyReceiptTotalRecord>())
+        .values()
+    ]
+    const deductions = [
+      ...snapshots
+        .flatMap((snapshot) => snapshot.deductions)
+        .reduce((groups, item) => {
+          const existing = groups.get(item.deductionTypeId)
+          groups.set(
+            item.deductionTypeId,
+            existing
+              ? { ...existing, amountCentavos: existing.amountCentavos + item.amountCentavos }
+              : item
+          )
+          return groups
+        }, new Map<string, DailyReportDeductionRecord>())
+        .values()
+    ]
+    const cashCounts = [
+      ...snapshots
+        .flatMap((snapshot) => snapshot.cashCounts)
+        .reduce((groups, item) => {
+          const existing = groups.get(item.denominationId)
+          groups.set(
+            item.denominationId,
+            existing ? { ...existing, quantity: existing.quantity + item.quantity } : item
+          )
+          return groups
+        }, new Map<string, DailyReportCashCountRecord>())
+        .values()
+    ]
+    const mergedById = <T extends { id: string }>(items: T[]): T[] => [
+      ...new Map(items.map((item) => [item.id, item])).values()
+    ]
+    const cashRemittedValues = snapshots
+      .map((snapshot) => snapshot.report.cashRemittedCentavos)
+      .filter((value): value is number => value !== null)
+
+    return {
+      ...finalSnapshot,
+      report: {
+        ...finalSnapshot.report,
+        openingCashCentavos: sum(snapshots.map((snapshot) => snapshot.report.openingCashCentavos)),
+        cashRemittedCentavos: cashRemittedValues.length ? sum(cashRemittedValues) : null
+      },
+      receiptTotals,
+      incomeEntries: snapshots.flatMap((snapshot) => snapshot.incomeEntries),
+      paymentEntries: snapshots.flatMap((snapshot) => snapshot.paymentEntries),
+      cashOutEntries: snapshots.flatMap((snapshot) => snapshot.cashOutEntries),
+      deductions,
+      cashCounts,
+      receiptTypes: mergedById(snapshots.flatMap((snapshot) => snapshot.receiptTypes)),
+      deductionTypes: mergedById(snapshots.flatMap((snapshot) => snapshot.deductionTypes)),
+      cashDenominations: mergedById(snapshots.flatMap((snapshot) => snapshot.cashDenominations)),
+      collectionDetails: snapshots.flatMap((snapshot) => snapshot.collectionDetails),
+      financeDownDetails: snapshots.flatMap((snapshot) => snapshot.financeDownDetails),
+      financeBalanceDetails: finalSnapshot.financeBalanceDetails,
+      legacyExpenseCashOutCentavos: sum(
+        snapshots.map((snapshot) => snapshot.legacyExpenseCashOutCentavos)
+      ),
+      cashCollectionsCentavos: sum(snapshots.map((snapshot) => snapshot.cashCollectionsCentavos)),
+      otherIncomeCentavos: sum(snapshots.map((snapshot) => snapshot.otherIncomeCentavos)),
+      financeDownCentavos: sum(snapshots.map((snapshot) => snapshot.financeDownCentavos)),
+      financeBalanceCentavos: finalSnapshot.financeBalanceCentavos,
+      expectedCashCentavos: sum(snapshots.map((snapshot) => snapshot.expectedCashCentavos)),
+      physicalCashCentavos: sum(snapshots.map((snapshot) => snapshot.physicalCashCentavos)),
+      cashVarianceCentavos: sum(snapshots.map((snapshot) => snapshot.cashVarianceCentavos))
+    }
   }
 
   snapshot(dailyReportId: string): DailyReportSnapshotResponse {
