@@ -57,7 +57,10 @@ function SnapshotDetails({
         <DetailValue label="Frequency" value={snapshot.frequency} />
         <DetailValue label="Start date" value={formatHistoryDate(snapshot.startDate)} />
         <DetailValue label="End date" value={formatHistoryDate(snapshot.endDate)} />
-        <DetailValue label="Downpayment" value={formatHistoryMoney(snapshot.downpayment)} />
+        <DetailValue
+          label={snapshot.frequency === 'Monthly' ? 'Downpayment' : 'Advanced payment'}
+          value={formatHistoryMoney(snapshot.downpayment)}
+        />
         <DetailValue label="Grand total" value={formatHistoryMoney(snapshot.grandTotal)} />
         <DetailValue label="Initial balance" value={formatHistoryMoney(snapshot.initialBalance)} />
       </dl>

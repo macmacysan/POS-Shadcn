@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 49
+export const currentSchemaVersion = 50
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -2025,6 +2025,119 @@ export function runMigrations(db: Database.Database): void {
         'ALTER TABLE in_house_schedules ADD COLUMN is_service INTEGER NOT NULL DEFAULT 0 CHECK (is_service IN (0, 1))'
       )
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(49, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 50) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      const contracts = db
+        .prepare(
+          `SELECT c.id, c.date_released, c.down_payment_centavos, c.first_due_date,
+                  COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) AS payment_frequency,
+                  c.terms, c.total_payable_centavos
+             FROM installment_contracts c
+            WHERE COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) != 'Monthly'
+              AND c.down_payment_centavos > 0
+              AND NOT EXISTS (
+                SELECT 1 FROM in_house_payments p
+                 WHERE p.contract_id = c.id
+                   AND p.submission_id = 'advanced-payment:' || c.id
+              )`
+        )
+        .all() as Array<{
+        id: string
+        date_released: string
+        down_payment_centavos: number
+        first_due_date: string
+        payment_frequency: string
+        terms: string
+        total_payable_centavos: number
+      }>
+      const insertSchedule = db.prepare(
+        `INSERT INTO in_house_schedules
+          (id, contract_id, installment_number, due_date, due_amount_centavos, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      )
+      const schedulesForContract = db.prepare(
+        `SELECT s.id, s.due_amount_centavos,
+                COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0)
+                  AS paid_amount_centavos
+           FROM in_house_schedules s
+           LEFT JOIN installment_payment_allocations pa ON pa.schedule_id = s.id
+           LEFT JOIN in_house_payments p ON p.id = pa.payment_id
+          WHERE s.contract_id = ? AND s.status != 'WAIVED' AND s.is_restructured = 0 AND s.is_service = 0
+          GROUP BY s.id
+          ORDER BY s.due_date, s.installment_number`
+      )
+      const insertPayment = db.prepare(
+        `INSERT INTO in_house_payments
+          (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, remarks, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, 'Advanced payment', ?, ?)`
+      )
+      const insertAllocation = db.prepare(
+        `INSERT INTO installment_payment_allocations
+          (id, payment_id, schedule_id, allocated_amount_centavos, penalty_centavos, created_at)
+         VALUES (?, ?, ?, ?, 0, ?)`
+      )
+      const updateSchedule = db.prepare(
+        `UPDATE in_house_schedules SET status = ?, updated_at = ? WHERE id = ?`
+      )
+
+      for (const contract of contracts) {
+        let schedules = schedulesForContract.all(contract.id) as Array<{
+          id: string
+          due_amount_centavos: number
+          paid_amount_centavos: number
+        }>
+        if (!schedules.length) {
+          for (const schedule of buildInHouseSchedule(
+            contract.first_due_date,
+            contract.payment_frequency,
+            contract.terms,
+            contract.total_payable_centavos
+          ))
+            insertSchedule.run(
+              randomUUID(),
+              contract.id,
+              schedule.installmentNumber,
+              schedule.dueDate,
+              schedule.dueAmountCentavos,
+              now,
+              now
+            )
+          schedules = schedulesForContract.all(contract.id) as typeof schedules
+        }
+        if (!schedules.length) continue
+        const paymentId = randomUUID()
+        insertPayment.run(
+          paymentId,
+          contract.id,
+          `advanced-payment:${contract.id}`,
+          contract.date_released,
+          contract.down_payment_centavos,
+          now,
+          now
+        )
+        let remaining = contract.down_payment_centavos
+        for (const schedule of schedules) {
+          if (remaining <= 0) break
+          const balance = Math.max(0, schedule.due_amount_centavos - schedule.paid_amount_centavos)
+          if (!balance) continue
+          const allocation = Math.min(balance, remaining)
+          insertAllocation.run(randomUUID(), paymentId, schedule.id, allocation, now)
+          updateSchedule.run(
+            schedule.paid_amount_centavos + allocation >= schedule.due_amount_centavos
+              ? 'PAID'
+              : 'PARTIALLY_PAID',
+            now,
+            schedule.id
+          )
+          remaining -= allocation
+        }
+      }
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(50, now)
     })
     migrate()
   }

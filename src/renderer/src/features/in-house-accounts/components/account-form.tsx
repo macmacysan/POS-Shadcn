@@ -1515,7 +1515,11 @@ export function InHouseAccountForm({
                   <FieldLegend variant="label">Payment Summary</FieldLegend>
                   <FieldGroup className="grid max-w-3xl gap-3 sm:grid-cols-2">
                     <Field data-invalid={Boolean(loanErrors.downPayment)}>
-                      <FieldLabel htmlFor="downPayment">Down Payment</FieldLabel>
+                      <FieldLabel htmlFor="downPayment">
+                        {loanDraft.paymentFrequency === 'Monthly'
+                          ? 'Down Payment'
+                          : 'Advanced Payment'}
+                      </FieldLabel>
                       <AmountInputGroup
                         id="downPayment"
                         name="downPayment"
@@ -1536,7 +1540,12 @@ export function InHouseAccountForm({
                     {[
                       ['Grand Total', money(calculatedLoan.grandTotal)],
                       ['Payment Amount', money(calculatedLoan.installmentAmount)],
-                      ['Downpayment', money(calculatedLoan.fees)],
+                      [
+                        calculatedLoan.paymentFrequency === 'Monthly'
+                          ? 'Required Downpayment'
+                          : 'Required Fee',
+                        money(calculatedLoan.fees)
+                      ],
                       ['Interest', money(calculatedLoan.interest)],
                       [
                         'Total Installment',
@@ -1631,12 +1640,26 @@ export function InHouseAccountForm({
                       label="Total Installment"
                       value={money(calculatedLoan.grandTotal + calculatedLoan.interest)}
                     />
-                    <ReviewValue label="Down Payment" value={money(calculatedLoan.downPayment)} />
+                    <ReviewValue
+                      label={
+                        calculatedLoan.paymentFrequency === 'Monthly'
+                          ? 'Down Payment'
+                          : 'Advanced Payment'
+                      }
+                      value={money(calculatedLoan.downPayment)}
+                    />
                     <ReviewValue
                       label="Payment Amount"
                       value={money(calculatedLoan.installmentAmount)}
                     />
-                    <ReviewValue label="Downpayment" value={money(calculatedLoan.fees)} />
+                    <ReviewValue
+                      label={
+                        calculatedLoan.paymentFrequency === 'Monthly'
+                          ? 'Required Downpayment'
+                          : 'Required Fee'
+                      }
+                      value={money(calculatedLoan.fees)}
+                    />
                   </ReviewSection>
                 )}
                 {createLoan && (

@@ -565,6 +565,8 @@ export class InstallmentRepository {
             )
           }
           this.ensureSchedules(loanId, firstDueDate, paymentFrequency, terms, scheduleTotal)
+          if (frequency !== 'Monthly')
+            this.recordAdvancedPayment(loanId, released, downPayment, now)
         }
       }
     })
@@ -670,6 +672,13 @@ export class InstallmentRepository {
         String(request.terms),
         scheduleTotal
       )
+      if (request.paymentFrequency !== 'Monthly')
+        this.recordAdvancedPayment(
+          contract.id,
+          request.dateReleased,
+          request.downPaymentCentavos,
+          now
+        )
     })
     update()
   }
@@ -1399,7 +1408,7 @@ export class InstallmentRepository {
       totalPaidCentavos,
       outstandingBalanceCentavos: Math.max(0, contract.total_payable_centavos - totalPaidCentavos),
       downPayment:
-        contract.down_payment_centavos > 0
+        contract.payment_frequency === 'Monthly' && contract.down_payment_centavos > 0
           ? {
               paymentDate: record.loan.dateReleased,
               amountCentavos: contract.down_payment_centavos
@@ -1927,6 +1936,80 @@ export class InstallmentRepository {
         now,
         now
       )
+    }
+  }
+
+  /** Records the initial non-monthly advance against the earliest unpaid schedule rows. */
+  private recordAdvancedPayment(
+    contractId: string,
+    paymentDate: string,
+    amountCentavos: number,
+    now: string
+  ): void {
+    if (amountCentavos <= 0) return
+    const schedules = this.db
+      .prepare(
+        `SELECT s.id, s.due_amount_centavos,
+                COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0)
+                  AS paid_amount_centavos
+           FROM in_house_schedules s
+           LEFT JOIN installment_payment_allocations pa ON pa.schedule_id = s.id
+           LEFT JOIN in_house_payments p ON p.id = pa.payment_id
+          WHERE s.contract_id = ? AND s.status != 'WAIVED' AND s.is_restructured = 0 AND s.is_service = 0
+          GROUP BY s.id
+          ORDER BY s.due_date, s.installment_number`
+      )
+      .all(contractId) as Array<{
+      id: string
+      due_amount_centavos: number
+      paid_amount_centavos: number
+    }>
+    if (!schedules.length)
+      throw new AppError(
+        'DATABASE_ERROR',
+        'Payment schedule could not be created for the advance payment.'
+      )
+
+    const paymentId = randomUUID()
+    this.db
+      .prepare(
+        `INSERT INTO in_house_payments
+          (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, remarks, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, 'Advanced payment', ?, ?)`
+      )
+      .run(
+        paymentId,
+        contractId,
+        `advanced-payment:${contractId}`,
+        paymentDate,
+        amountCentavos,
+        now,
+        now
+      )
+
+    const insertAllocation = this.db.prepare(
+      `INSERT INTO installment_payment_allocations
+        (id, payment_id, schedule_id, allocated_amount_centavos, penalty_centavos, created_at)
+       VALUES (?, ?, ?, ?, 0, ?)`
+    )
+    const updateSchedule = this.db.prepare(
+      `UPDATE in_house_schedules SET status = ?, updated_at = ? WHERE id = ?`
+    )
+    let remaining = amountCentavos
+    for (const schedule of schedules) {
+      if (remaining <= 0) break
+      const balance = Math.max(0, schedule.due_amount_centavos - schedule.paid_amount_centavos)
+      if (!balance) continue
+      const allocation = Math.min(balance, remaining)
+      insertAllocation.run(randomUUID(), paymentId, schedule.id, allocation, now)
+      updateSchedule.run(
+        schedule.paid_amount_centavos + allocation >= schedule.due_amount_centavos
+          ? 'PAID'
+          : 'PARTIALLY_PAID',
+        now,
+        schedule.id
+      )
+      remaining -= allocation
     }
   }
 

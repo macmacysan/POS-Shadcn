@@ -81,7 +81,7 @@ export function InstallmentQuoteCalculator({ open, onOpenChange }: Props): React
   )
   const isValid = calculation?.paymentAmountCentavos !== null && calculation !== undefined
   const quote = isValid
-    ? `${frequency === 'Semi' ? 'Semi-monthly' : frequency}: ${formatCentavos(calculation.paymentAmountCentavos!)} x ${terms} payments. Total: ${formatCentavos(calculation.totalInstallmentCentavos!)}. Down payment: ${formatCentavos(Math.round(Number(downPayment.replace(/,/g, '')) * 100))}. First due: ${calculation.startDate}. Last due: ${calculation.endDate}.`
+    ? `${frequency === 'Semi' ? 'Semi-monthly' : frequency}: ${formatCentavos(calculation.paymentAmountCentavos!)} x ${terms} payments. Total: ${formatCentavos(calculation.totalInstallmentCentavos!)}. ${frequency === 'Monthly' ? 'Down payment' : 'Advanced payment'}: ${formatCentavos(Math.round(Number(downPayment.replace(/,/g, '')) * 100))}. First due: ${calculation.startDate}. Last due: ${calculation.endDate}.`
     : undefined
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -105,7 +105,9 @@ export function InstallmentQuoteCalculator({ open, onOpenChange }: Props): React
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="quote-down-payment">Down payment</FieldLabel>
+              <FieldLabel htmlFor="quote-down-payment">
+                {frequency === 'Monthly' ? 'Down payment' : 'Advanced payment'}
+              </FieldLabel>
               <AmountInputGroup
                 id="quote-down-payment"
                 name="down-payment"
@@ -227,4 +229,3 @@ export function InstallmentQuoteCalculator({ open, onOpenChange }: Props): React
     </Sheet>
   )
 }
-

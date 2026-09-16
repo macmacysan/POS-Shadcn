@@ -312,7 +312,8 @@ export function validateLoanDraft(draft: LoanDraft): LoanValidationErrors {
   if (draft.installmentAmount <= 0)
     errors.installmentAmount = 'Installment Amount must be greater than zero.'
   if (draft.grandTotal <= 0) errors.grandTotal = 'Grand Total must be greater than zero.'
-  if (draft.downPayment < 0) errors.downPayment = 'Down Payment cannot be negative.'
+  if (draft.downPayment < 0)
+    errors.downPayment = `${draft.paymentFrequency === 'Monthly' ? 'Down Payment' : 'Advanced Payment'} cannot be negative.`
   if (!draft.items.some((item) => item.name.trim() && item.quantity > 0 && item.price > 0))
     errors.items = 'Add at least one complete item.'
   return errors

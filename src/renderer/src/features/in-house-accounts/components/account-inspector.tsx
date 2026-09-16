@@ -225,7 +225,10 @@ function LoanHistory({ loans }: { readonly loans: readonly InHouseLoan[] }): Rea
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-3 text-xs">
             <SummaryItem label="Grand total" value={formatHistoryMoney(loan.grandTotal)} />
             <SummaryItem label="Installment" value={formatHistoryMoney(loan.installmentAmount)} />
-            <SummaryItem label="Down payment" value={formatHistoryMoney(loan.downPayment)} />
+            <SummaryItem
+              label={loan.paymentFrequency === 'Monthly' ? 'Down payment' : 'Advanced payment'}
+              value={formatHistoryMoney(loan.downPayment)}
+            />
             <SummaryItem label="Terms" value={loan.terms} />
           </div>
           {loan.items.length > 0 && (
@@ -429,9 +432,18 @@ export function InHouseAccountInspector({
                         label="Total interest"
                         value={optionalMoney(meta?.totalInterest)}
                       />
-                      <DetailRow label="Down payment" value={optionalMoney(meta?.downPayment)} />
                       <DetailRow
-                        label="Required Downpayment"
+                        label={
+                          meta?.paymentFrequency === 'Monthly' ? 'Down payment' : 'Advanced payment'
+                        }
+                        value={optionalMoney(meta?.downPayment)}
+                      />
+                      <DetailRow
+                        label={
+                          meta?.paymentFrequency === 'Monthly'
+                            ? 'Required Downpayment'
+                            : 'Required Fee'
+                        }
                         value={optionalMoney(meta?.requiredFee)}
                       />
                       <DetailRow label="Total paid" value={optionalMoney(meta?.totalPaid)} />

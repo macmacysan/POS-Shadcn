@@ -1337,6 +1337,7 @@ export class DailyReportRepository {
            JOIN accounts a ON a.id = c.account_id
           WHERE c.status <> 'VOIDED' AND c.date_released = ? AND c.branch_id = ?
             AND c.down_payment_centavos > 0
+            AND COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) = 'Monthly'
           ORDER BY name, id`
       )
       .all(report.businessDate, report.branchId, report.businessDate, report.branchId) as Array<{
@@ -1390,7 +1391,8 @@ export class DailyReportRepository {
                       FROM installment_contracts c
                      WHERE c.status <> 'VOIDED'
                        AND c.date_released = report.business_date
-                       AND c.branch_id = report.branch_id), 0) AS recorded_down_payment_centavos,
+                       AND c.branch_id = report.branch_id
+                       AND COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) = 'Monthly'), 0) AS recorded_down_payment_centavos,
           COALESCE((SELECT SUM(i.amount_centavos)
                       FROM income_entries i
                      WHERE i.daily_report_id = ? AND i.status = 'POSTED'), 0) AS other_income_centavos,

@@ -741,7 +741,12 @@ function ClientPortfolioModal({
                         </dd>
                       </div>
                       <div className="flex justify-between gap-4 py-2">
-                        <dt className="text-muted-foreground">Down payment</dt>
+                        <dt className="text-muted-foreground">
+                          {(selectedContract.meta.paymentFrequency ??
+                            selectedContract.loan.paymentFrequency) === 'Monthly'
+                            ? 'Down payment'
+                            : 'Advanced payment'}
+                        </dt>
                         <dd className="tabular-nums">
                           {formatHistoryMoney(
                             selectedContract.meta.downPayment ?? selectedContract.loan.downPayment
@@ -1928,7 +1933,9 @@ export function AccountRecordsWorkspace({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="loan-down-payment">Down payment</FieldLabel>
+              <FieldLabel htmlFor="loan-down-payment">
+                {loanDraft.paymentFrequency === 'Monthly' ? 'Down payment' : 'Advanced payment'}
+              </FieldLabel>
               <AmountInputGroup
                 id="loan-down-payment"
                 name="loan-down-payment"
