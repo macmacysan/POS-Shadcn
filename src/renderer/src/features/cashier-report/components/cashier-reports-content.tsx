@@ -1591,7 +1591,6 @@ export function CashierReportsContent({
     const initialDate = parseISO(selectedBusinessDate ?? activeReport.businessDate)
     return { period: 'day', operator: 'is', startDate: initialDate, endDate: initialDate }
   })
-  const persistedBusinessDateRef = React.useRef(selectedBusinessDate)
   const dateRequestVersionRef = React.useRef(0)
   React.useEffect(() => {
     if (!activeReportValue) setSelectedReportMissing(true)
@@ -1735,10 +1734,9 @@ export function CashierReportsContent({
     [activeReport.branchId, activeReport.cashierUserId, selectedReport.businessDate]
   )
   React.useEffect(() => {
-    const persistedBusinessDate = persistedBusinessDateRef.current
-    if (!persistedBusinessDate || persistedBusinessDate === selectedReport.businessDate) return
-    void changeBusinessDate(parseISO(persistedBusinessDate))
-  }, [changeBusinessDate, selectedReport.businessDate])
+    if (!selectedBusinessDate || selectedBusinessDate === selectedReport.businessDate) return
+    void changeBusinessDate(parseISO(selectedBusinessDate))
+  }, [changeBusinessDate, selectedBusinessDate, selectedReport.businessDate])
   React.useEffect(() => {
     if (!attentionReportId) return
     let active = true
