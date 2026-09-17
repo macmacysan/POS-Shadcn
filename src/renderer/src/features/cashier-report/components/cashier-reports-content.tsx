@@ -397,7 +397,7 @@ function InstallmentAttentionPopover({
             type="button"
             variant="outline"
             size="sm"
-            className="min-w-0 shrink-0 gap-1.5 border-border/70 bg-background px-2.5"
+            className="min-w-0 shrink-0 gap-1.5 border-border/70 bg-background px-4"
             aria-label="Open installment attention"
             onPointerEnter={() => setOpen(true)}
             onClick={summary.overdueCount > 0 ? () => closeAnd(onViewOverdue) : undefined}
@@ -419,8 +419,8 @@ function InstallmentAttentionPopover({
           <span className="text-muted-foreground">·</span>
         )}
         {summary.nearDueCount > 0 && (
-          <span className="text-warning-foreground">
-            <Clock3 data-icon="inline-start" aria-hidden="true" />
+          <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-warning-foreground">
+            {summary.overdueCount > 0 && <Clock3 aria-hidden="true" />}
             <span className="hidden sm:inline">{summary.nearDueCount} Near due</span>
             <span className="sm:hidden">{summary.nearDueCount}</span>
           </span>
@@ -2278,14 +2278,6 @@ export function CashierReportsContent({
                       showVoided={showVoided}
                       onShowVoidedChange={setShowVoided}
                       leadingToolbarContent={tabToolbarContent}
-                      afterFiltersContent={
-                        <InstallmentAttentionPopover
-                          summary={installmentAttention}
-                          onViewOverdue={onViewOverdueInstallments}
-                          onViewAll={onViewInstallmentAccounts}
-                          onOpenAccount={onOpenInstallmentAccount}
-                        />
-                      }
                       trailingToolbarContent={
                         <>
                           {dateError && (
@@ -2296,6 +2288,12 @@ export function CashierReportsContent({
                               {dateError}
                             </span>
                           )}
+                          <InstallmentAttentionPopover
+                            summary={installmentAttention}
+                            onViewOverdue={onViewOverdueInstallments}
+                            onViewAll={onViewInstallmentAccounts}
+                            onOpenAccount={onOpenInstallmentAccount}
+                          />
                           {!isAdmin && (
                             <Button type="button" size="sm" onClick={toggleEntryForm}>
                               <Plus data-icon="inline-start" aria-hidden="true" />
