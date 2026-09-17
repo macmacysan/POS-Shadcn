@@ -299,7 +299,7 @@ export class DashboardRepository {
 
   getPdfCharts(businessDate: string, scope: Scope): PdfReportCharts {
     const branch = scope.branch ?? null
-    const weeklySales = this.db
+    const weeklyCashReceipts = this.db
       .prepare(
         `WITH RECURSIVE dates(business_date) AS (
            SELECT date(?, '-6 days')
@@ -313,15 +313,15 @@ export class DashboardRepository {
               AND (? IS NULL OR b.name = ?)
             GROUP BY dr.business_date
          )
-         SELECT dates.business_date, COALESCE(sales.amount_centavos, 0) AS sales_centavos
+         SELECT dates.business_date, COALESCE(sales.amount_centavos, 0) AS cash_receipts_centavos
            FROM dates LEFT JOIN sales ON sales.business_date = dates.business_date
           ORDER BY dates.business_date`
       )
       .all(businessDate, businessDate, businessDate, businessDate, branch, branch) as Array<{
       business_date: string
-      sales_centavos: number
+      cash_receipts_centavos: number
     }>
-    const monthly = this.db
+    const monthlyCashFlow = this.db
       .prepare(
         `WITH RECURSIVE months(month) AS (
            SELECT date(?, 'start of month', '-11 months')
@@ -345,7 +345,7 @@ export class DashboardRepository {
             GROUP BY month
          )
          SELECT strftime('%Y-%m', months.month) AS month,
-                COALESCE(sales.amount_centavos, 0) AS sales_centavos,
+                COALESCE(sales.amount_centavos, 0) AS cash_receipts_centavos,
                 COALESCE(expense_totals.amount_centavos, 0) AS expense_centavos
            FROM months
            LEFT JOIN sales ON sales.month = strftime('%Y-%m', months.month)
@@ -363,53 +363,58 @@ export class DashboardRepository {
         businessDate,
         branch,
         branch
-      ) as Array<{ month: string; sales_centavos: number; expense_centavos: number }>
-    const yearlySales = this.db
+      ) as Array<{ month: string; cash_receipts_centavos: number; expense_centavos: number }>
+    const overdue = this.db
       .prepare(
-        `WITH RECURSIVE years(year) AS (
-           SELECT date(COALESCE((
-             SELECT MIN(business_date) FROM (
-               SELECT dr.business_date FROM daily_receipt_totals rt
-               JOIN daily_reports dr ON dr.id = rt.daily_report_id AND dr.status <> 'VOIDED'
-               JOIN branches b ON b.id = dr.branch_id
-               WHERE dr.business_date <= ? AND (? IS NULL OR b.name = ?)
-               UNION ALL
-               SELECT dr.business_date FROM expenses e
-               JOIN daily_reports dr ON dr.id = e.report_id AND dr.status <> 'VOIDED'
-               JOIN branches b ON b.id = dr.branch_id
-               WHERE e.status = 'POSTED' AND dr.business_date <= ? AND (? IS NULL OR b.name = ?)
-             )
-           ), ?), 'start of year')
-           UNION ALL SELECT date(year, '+1 year') FROM years WHERE year < date(?, 'start of year')
-         ), sales AS (
-           SELECT strftime('%Y', dr.business_date) AS year, SUM(rt.amount_centavos) AS amount_centavos
-             FROM daily_receipt_totals rt
-             JOIN daily_reports dr ON dr.id = rt.daily_report_id AND dr.status <> 'VOIDED'
-             JOIN branches b ON b.id = dr.branch_id
-            WHERE dr.business_date <= ? AND (? IS NULL OR b.name = ?)
-            GROUP BY year
-         )
-         SELECT strftime('%Y', years.year) AS year, COALESCE(sales.amount_centavos, 0) AS sales_centavos
-           FROM years LEFT JOIN sales ON sales.year = strftime('%Y', years.year)
-          ORDER BY years.year`
+        `SELECT COUNT(*) AS overdue_account_count,
+                COALESCE(SUM(outstanding_centavos), 0) AS overdue_outstanding_centavos
+           FROM (
+             SELECT c.id,
+                    SUM(s.due_amount_centavos - COALESCE(allocated.paid_centavos, 0))
+                      AS outstanding_centavos
+               FROM in_house_schedules s
+               JOIN installment_contracts c ON c.id = s.contract_id AND c.status = 'ACTIVE'
+               JOIN accounts a ON a.id = c.account_id AND a.is_active = 1
+               JOIN branches b ON b.id = c.branch_id
+               LEFT JOIN (
+                 SELECT allocation.schedule_id,
+                        SUM(allocation.allocated_amount_centavos) AS paid_centavos
+                   FROM installment_payment_allocations allocation
+                   JOIN in_house_payments payment ON payment.id = allocation.payment_id
+                  WHERE payment.status = 'POSTED' AND payment.payment_date <= ?
+                  GROUP BY allocation.schedule_id
+               ) allocated ON allocated.schedule_id = s.id
+              WHERE s.due_date < ? AND (? IS NULL OR b.name = ?)
+              GROUP BY c.id
+             HAVING outstanding_centavos > 0
+           )`
       )
-      .all(businessDate, branch, branch, businessDate, branch, branch, businessDate, businessDate, businessDate, branch, branch) as Array<{
-      year: string
-      sales_centavos: number
-    }>
+      .get(businessDate, businessDate, branch, branch) as {
+      overdue_account_count: number
+      overdue_outstanding_centavos: number
+    }
+    const currentMonth = monthlyCashFlow.at(-1) ?? {
+      cash_receipts_centavos: 0,
+      expense_centavos: 0
+    }
 
     return {
-      weeklySales: weeklySales.map((row) => ({
+      weeklyCashReceipts: weeklyCashReceipts.map((row) => ({
         businessDate: row.business_date,
-        salesCentavos: row.sales_centavos
+        cashReceiptsCentavos: row.cash_receipts_centavos
       })),
-      monthlySales: monthly.map((row) => ({ month: row.month, salesCentavos: row.sales_centavos })),
-      yearlySales: yearlySales.map((row) => ({ year: row.year, salesCentavos: row.sales_centavos })),
-      expensesVsSales: monthly.map((row) => ({
+      monthlyCashFlow: monthlyCashFlow.map((row) => ({
         month: row.month,
-        salesCentavos: row.sales_centavos,
-        expenseCentavos: row.expense_centavos
-      }))
+        cashReceiptsCentavos: row.cash_receipts_centavos,
+        expenseCentavos: row.expense_centavos,
+        operatingResultCentavos: row.cash_receipts_centavos - row.expense_centavos
+      })),
+      currentMonthCashReceiptsCentavos: currentMonth.cash_receipts_centavos,
+      currentMonthExpenseCentavos: currentMonth.expense_centavos,
+      currentMonthOperatingResultCentavos:
+        currentMonth.cash_receipts_centavos - currentMonth.expense_centavos,
+      overdueAccountCount: overdue.overdue_account_count,
+      overdueOutstandingCentavos: overdue.overdue_outstanding_centavos
     }
   }
 }

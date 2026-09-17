@@ -14,10 +14,18 @@ export const dashboardGetRequestSchema = z.object({
 export type DashboardGetRequest = z.infer<typeof dashboardGetRequestSchema>
 type FinanceBranch = (typeof financeBranchValues)[number]
 export type PdfReportCharts = {
-  weeklySales: Array<{ businessDate: string; salesCentavos: number }>
-  monthlySales: Array<{ month: string; salesCentavos: number }>
-  yearlySales: Array<{ year: string; salesCentavos: number }>
-  expensesVsSales: Array<{ month: string; salesCentavos: number; expenseCentavos: number }>
+  weeklyCashReceipts: Array<{ businessDate: string; cashReceiptsCentavos: number }>
+  monthlyCashFlow: Array<{
+    month: string
+    cashReceiptsCentavos: number
+    expenseCentavos: number
+    operatingResultCentavos: number
+  }>
+  currentMonthCashReceiptsCentavos: number
+  currentMonthExpenseCentavos: number
+  currentMonthOperatingResultCentavos: number
+  overdueAccountCount: number
+  overdueOutstandingCentavos: number
 }
 export type DashboardOverview = {
   scopeLabel: string

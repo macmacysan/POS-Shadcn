@@ -90,7 +90,13 @@ function summaryRow(
   return `<div class="summary-row${options.emphasis ? ' emphasis' : ''}"><span>${escapeHtml(label)}</span>${options.quantity === undefined ? '' : `<span class="summary-qty">Qty ${options.quantity}</span>`}<strong>${escapeHtml(money(value ?? 0))}</strong></div>`
 }
 
-type ChartPoint = { label: string; salesCentavos: number; expenseCentavos?: number }
+type ChartValueKey = 'cashReceiptsCentavos' | 'expenseCentavos' | 'operatingResultCentavos'
+type ChartPoint = {
+  label: string
+  cashReceiptsCentavos?: number
+  expenseCentavos?: number
+  operatingResultCentavos?: number
+}
 
 function chartLabel(value: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value.slice(5, 7)}/${value.slice(8)}`
@@ -101,12 +107,12 @@ function chartLabel(value: string): string {
 function barChart(
   title: string,
   points: ChartPoint[],
-  series: Array<{ key: 'salesCentavos' | 'expenseCentavos'; label: string; color: string }>
+  series: Array<{ key: ChartValueKey; label: string; color: string }>,
+  height = 176
 ): string {
   const max = Math.max(1, ...points.flatMap((point) => series.map(({ key }) => point[key] ?? 0)))
   const width = 680
-  const height = 176
-  const plotHeight = 116
+  const plotHeight = height - 60
   const left = 34
   const slot = (width - left) / points.length
   const barWidth = Math.max(3, (slot - 7) / series.length)
@@ -126,6 +132,35 @@ function barChart(
     )
     .join('')
   return `<section class="chart"><h2>${escapeHtml(title)}</h2><div class="chart-legend">${series.map((item) => `<span><i style="background:${item.color}"></i>${escapeHtml(item.label)}</span>`).join('')}</div><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}"><line x1="${left}" y1="${plotHeight + 16}" x2="${width}" y2="${plotHeight + 16}" stroke="#777"/><text x="0" y="24">${escapeHtml(money(max))}</text><text x="17" y="${plotHeight + 19}">0</text>${bars}</svg></section>`
+}
+
+function operatingResultChart(points: ChartPoint[]): string {
+  const values = points.map((point) => point.operatingResultCentavos ?? 0)
+  const bound = Math.max(1, ...values.map((value) => Math.abs(value)))
+  const width = 680
+  const height = 132
+  const left = 36
+  const right = 8
+  const top = 12
+  const bottom = 30
+  const plotHeight = height - top - bottom
+  const zeroY = top + plotHeight / 2
+  const slot = (width - left - right) / Math.max(1, points.length - 1)
+  const path = points
+    .map((point, index) => {
+      const x = left + index * slot
+      const value = point.operatingResultCentavos ?? 0
+      const y = zeroY - (value / bound) * (plotHeight / 2)
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  const labels = points
+    .map(
+      (point, index) =>
+        `<text x="${left + index * slot}" y="${height - 4}" text-anchor="middle">${escapeHtml(chartLabel(point.label))}</text>`
+    )
+    .join('')
+  return `<section class="chart"><h2>12-Month Operating Result</h2><div class="chart-legend"><span><i style="background:#15803d"></i>Cash receipts minus expenses</span></div><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="12-month operating result"><line x1="${left}" y1="${zeroY}" x2="${width - right}" y2="${zeroY}" stroke="#777"/><text x="0" y="${top + 4}">${escapeHtml(money(bound))}</text><text x="0" y="${height - bottom + 4}">-${escapeHtml(money(bound))}</text><path d="${path}" fill="none" stroke="#15803d" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>${labels}</svg></section>`
 }
 
 export function cashierReportPdfHtml(data: CashierReportPdfData): string {
@@ -249,6 +284,46 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     { label: 'Cash Denominations', value: snapshot.physicalCashCentavos },
     { label: 'Cash Variance', value: cashVarianceCentavos, emphasis: true, alwaysShow: true }
   ]
+  const currentMonthLabel =
+    data.charts.monthlyCashFlow.at(-1)?.month ?? data.businessDate.slice(0, 7)
+  const variance = snapshot.cashVarianceCentavos
+  const operatingResult = data.charts.currentMonthOperatingResultCentavos
+  const varianceSignal =
+    variance === 0
+      ? {
+          title: 'Cash control balanced',
+          detail: 'Physical cash matches expected cash.',
+          tone: 'positive'
+        }
+      : {
+          title: variance > 0 ? 'Cash overage requires review' : 'Cash shortage requires review',
+          detail: `Variance: ${money(variance)}`,
+          tone: 'alert'
+        }
+  const operatingSignal =
+    operatingResult < 0
+      ? {
+          title: 'Negative monthly operating result',
+          detail: `${currentMonthLabel}: ${money(operatingResult)}`,
+          tone: 'alert'
+        }
+      : {
+          title: 'Positive monthly operating result',
+          detail: `${currentMonthLabel}: ${money(operatingResult)}`,
+          tone: 'positive'
+        }
+  const overdueSignal =
+    data.charts.overdueAccountCount > 0
+      ? {
+          title: `${data.charts.overdueAccountCount} overdue account${data.charts.overdueAccountCount === 1 ? '' : 's'}`,
+          detail: `Outstanding: ${money(data.charts.overdueOutstandingCentavos)}`,
+          tone: 'alert'
+        }
+      : {
+          title: 'No overdue accounts',
+          detail: 'No overdue in-house balance as of this date.',
+          tone: 'positive'
+        }
 
   return `<!doctype html><html><head><meta charset="utf-8"><style>
     @page { size: A4; margin: 10mm 9mm 14mm; }
@@ -257,7 +332,7 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     .company { font-size:10px; font-weight:700; letter-spacing:.04em; margin-bottom:2px; text-transform:uppercase; }
     .meta { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:7px; } .meta span { color:#555; display:block; font-size:7px; text-transform:uppercase; } .meta strong { font-size:9px; }
     table { border-collapse:collapse; width:100%; } th,td { border-bottom:1px solid #ddd; padding:2px 3px; text-align:left; vertical-align:top; } th { font-size:7px; text-transform:uppercase; } thead { display:table-header-group; } tr { break-inside:avoid; } tfoot th,tfoot td { border-top:1px solid #111; font-weight:700; } .amount { text-align:right; white-space:nowrap; }
-    .two-column { display:grid; gap:10px; grid-template-columns:1fr 1fr; } .cash-overview { break-inside:avoid; display:grid; grid-template-columns:42% 30%; justify-content:space-between; margin:8px 0 12px; } .cash-side { display:flex; flex-direction:column; gap:10px; } .cash-overview > div { min-width:0; } .cash-overview h2 { margin-top:0; } .summary-row { border-bottom:1px solid #ddd; display:flex; justify-content:space-between; gap:8px; padding:2px 0; } .summary-row > span:first-child { flex:1; } .summary-row strong { font-weight:400; text-align:right; white-space:nowrap; } .summary-qty { color:#555; font-size:8px; white-space:nowrap; } .summary-row.emphasis, .summary-row.emphasis strong { font-weight:700; } .section { break-inside:avoid; } .signatures { break-inside:avoid; display:grid; gap:26px; grid-template-columns:1fr 1fr; margin-top:24px; } .signature-line { border-bottom:1px solid #111; height:22px; margin:14px 0 3px; } .signature-label { color:#555; display:block; font-size:7px; text-transform:uppercase; } .signature-name { font-size:9px; } .note { break-inside:avoid; margin-top:16px; } .note p { margin:0; white-space:pre-wrap; } .muted { color:#555; } .charts { break-before:page; } .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .chart { break-inside:avoid; } .chart h2 { margin:0 0 3px; } .chart svg { display:block; height:auto; width:100%; } .chart svg text { fill:#555; font-size:7px; } .chart-legend { display:flex; gap:8px; margin:0 0 2px; } .chart-legend span { align-items:center; display:flex; gap:3px; } .chart-legend i { display:inline-block; height:6px; width:6px; }
+    .two-column { display:grid; gap:10px; grid-template-columns:1fr 1fr; } .cash-overview { break-inside:avoid; display:grid; grid-template-columns:42% 30%; justify-content:space-between; margin:8px 0 12px; } .cash-side { display:flex; flex-direction:column; gap:10px; } .cash-overview > div { min-width:0; } .cash-overview h2 { margin-top:0; } .summary-row { border-bottom:1px solid #ddd; display:flex; justify-content:space-between; gap:8px; padding:2px 0; } .summary-row > span:first-child { flex:1; } .summary-row strong { font-weight:400; text-align:right; white-space:nowrap; } .summary-qty { color:#555; font-size:8px; white-space:nowrap; } .summary-row.emphasis, .summary-row.emphasis strong { font-weight:700; } .section { break-inside:avoid; } .signatures { break-inside:avoid; display:grid; gap:26px; grid-template-columns:1fr 1fr; margin-top:24px; } .signature-line { border-bottom:1px solid #111; height:22px; margin:14px 0 3px; } .signature-label { color:#555; display:block; font-size:7px; text-transform:uppercase; } .signature-name { font-size:9px; } .note { break-inside:avoid; margin-top:16px; } .note p { margin:0; white-space:pre-wrap; } .muted { color:#555; } .charts { break-before:page; } .chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .chart { break-inside:avoid; } .chart h2 { border:0; font-size:10px; margin:0 0 3px; padding:0; } .chart svg { display:block; height:auto; width:100%; } .chart svg text { fill:#555; font-size:7px; } .chart-legend { display:flex; gap:8px; margin:0 0 2px; } .chart-legend span { align-items:center; display:flex; gap:3px; } .chart-legend i { display:inline-block; height:6px; width:6px; } .executive-header { border-bottom:2px solid #111; margin-bottom:8px; padding-bottom:6px; } .executive-header h1 { margin-bottom:2px; } .executive-subtitle { color:#555; font-size:9px; } .executive-meta { display:flex; gap:14px; margin-top:5px; } .executive-meta span { color:#555; font-size:7px; text-transform:uppercase; } .executive-meta strong { font-size:8px; margin-left:3px; } .kpi-grid { display:grid; gap:5px; grid-template-columns:repeat(4,1fr); margin:7px 0; } .kpi { border:1px solid #bbb; min-height:46px; padding:6px; } .kpi-label { color:#555; display:block; font-size:7px; text-transform:uppercase; } .kpi-value { display:block; font-size:11px; font-weight:700; margin-top:5px; white-space:nowrap; } .signals { display:grid; gap:6px; grid-template-columns:repeat(3,1fr); margin-top:10px; } .signal { border-left:3px solid #15803d; background:#f4f7f4; min-height:56px; padding:7px 8px; } .signal.alert { border-left-color:#b91c1c; background:#fff5f5; } .signal strong { display:block; font-size:8.5px; } .signal span { color:#555; display:block; font-size:7.5px; margin-top:4px; } .executive-footer { border-top:1px solid #bbb; color:#555; display:flex; font-size:7px; justify-content:space-between; margin-top:10px; padding-top:4px; }
   </style></head><body>
     <header><div class="company">Nueva Camsur Home Furnishing</div><h1>Branch Cashier Report</h1><div class="meta"><div><span>Contributors</span><strong>${escapeHtml(data.cashierName)}</strong></div><div><span>Branch</span><strong>${escapeHtml(data.branch)}</strong></div><div><span>Business date</span><strong>${escapeHtml(data.businessDate)}</strong></div><div><span>Generated</span><strong>${escapeHtml(data.generatedAt)}</strong></div></div></header>
     ${
@@ -369,39 +444,27 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     ${
       data.includeCharts === false
         ? ''
-        : `<section class="charts"><h1>Sales & Expense Charts</h1><div class="chart-grid">${barChart(
-            'Weekly Sales',
-            data.charts.weeklySales.map((item) => ({
-              label: item.businessDate,
-              salesCentavos: item.salesCentavos
-            })),
-            [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
-          )}${barChart(
-            'Monthly Sales',
-            data.charts.monthlySales.map((item) => ({
+        : `<section class="charts"><div class="executive-header"><div class="company">Nueva Camsur Home Furnishing</div><h1>Executive Performance &amp; Cash Control</h1><div class="executive-subtitle">Management view of cash receipts, expenses, reconciliation, and material exceptions.</div><div class="executive-meta"><div><span>Scope</span><strong>${escapeHtml(data.branch)}</strong></div><div><span>As of</span><strong>${escapeHtml(data.businessDate)}</strong></div><div><span>Generated</span><strong>${escapeHtml(data.generatedAt)}</strong></div></div></div><div class="kpi-grid"><div class="kpi"><span class="kpi-label">${escapeHtml(currentMonthLabel)} cash receipts</span><span class="kpi-value">${escapeHtml(money(data.charts.currentMonthCashReceiptsCentavos))}</span></div><div class="kpi"><span class="kpi-label">${escapeHtml(currentMonthLabel)} posted expenses</span><span class="kpi-value">${escapeHtml(money(data.charts.currentMonthExpenseCentavos))}</span></div><div class="kpi"><span class="kpi-label">Monthly operating result</span><span class="kpi-value">${escapeHtml(money(operatingResult))}</span></div><div class="kpi"><span class="kpi-label">Selected-day expected cash</span><span class="kpi-value">${escapeHtml(money(snapshot.expectedCashCentavos))}</span></div><div class="kpi"><span class="kpi-label">Physical cash counted</span><span class="kpi-value">${escapeHtml(money(snapshot.physicalCashCentavos))}</span></div><div class="kpi"><span class="kpi-label">Cash remitted</span><span class="kpi-value">${escapeHtml(snapshot.report.cashRemittedCentavos === null ? 'Not recorded' : money(snapshot.report.cashRemittedCentavos))}</span></div><div class="kpi"><span class="kpi-label">Cash variance</span><span class="kpi-value">${escapeHtml(money(snapshot.cashVarianceCentavos))}</span></div></div>${barChart(
+            '12-Month Cash Receipts vs Expenses',
+            data.charts.monthlyCashFlow.map((item) => ({
               label: item.month,
-              salesCentavos: item.salesCentavos
-            })),
-            [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
-          )}${barChart(
-            'Yearly Sales',
-            data.charts.yearlySales.map((item) => ({
-              label: item.year,
-              salesCentavos: item.salesCentavos
-            })),
-            [{ key: 'salesCentavos', label: 'Sales', color: '#0369a1' }]
-          )}${barChart(
-            'Expenses vs Sales',
-            data.charts.expensesVsSales.map((item) => ({
-              label: item.month,
-              salesCentavos: item.salesCentavos,
+              cashReceiptsCentavos: item.cashReceiptsCentavos,
               expenseCentavos: item.expenseCentavos
             })),
             [
-              { key: 'salesCentavos', label: 'Sales', color: '#0369a1' },
+              { key: 'cashReceiptsCentavos', label: 'Cash Receipts', color: '#0369a1' },
               { key: 'expenseCentavos', label: 'Expenses', color: '#dc2626' }
-            ]
-          )}</div></section>`
+            ],
+            285
+          )}<div class="chart-grid">${barChart(
+            'Seven-Day Cash Receipts Trend',
+            data.charts.weeklyCashReceipts.map((item) => ({
+              label: item.businessDate,
+              cashReceiptsCentavos: item.cashReceiptsCentavos
+            })),
+            [{ key: 'cashReceiptsCentavos', label: 'Cash Receipts', color: '#0369a1' }],
+            180
+          )}${operatingResultChart(data.charts.monthlyCashFlow.map((item) => ({ label: item.month, operatingResultCentavos: item.operatingResultCentavos })))}</div><div class="signals">${[varianceSignal, operatingSignal, overdueSignal].map((signal) => `<div class="signal ${signal.tone === 'alert' ? 'alert' : ''}"><strong>${escapeHtml(signal.title)}</strong><span>${escapeHtml(signal.detail)}</span></div>`).join('')}</div><div class="executive-footer"><span>Executive Performance &amp; Cash Control</span><span>${escapeHtml(data.branch)} · ${escapeHtml(data.businessDate)}</span></div></section>`
     }
   </body></html>`
 }
