@@ -5,7 +5,8 @@ const pdfBase64MaxLength = 50_000_000
 
 export const pdfPreviewRequestSchema = z.object({
   html: z.string().min(1).max(pdfHtmlMaxLength),
-  fileName: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9 .,_-]{0,140}\.pdf$/)
+  fileName: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9 .,_-]{0,140}\.pdf$/),
+  paperSize: z.enum(['A4', 'INDEX_CARD_8X5']).optional()
 })
 
 export const pdfPreviewResponseSchema = z.object({

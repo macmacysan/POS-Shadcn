@@ -1398,6 +1398,7 @@ export class InstallmentRepository {
 
     return {
       account: record.account,
+      loan: record.loan,
       accountStatus: record.accountStatus,
       contractId: record.contractId,
       contractNumber: contract.contract_number,

@@ -289,6 +289,7 @@ export type InstallmentHistoryRecord = {
 
 export type InstallmentPaymentWorkspace = {
   account: InstallmentAccountRecord['account']
+  loan: InstallmentAccountRecord['loan']
   accountStatus: InstallmentAccountStatus
   contractId: string
   contractNumber: string

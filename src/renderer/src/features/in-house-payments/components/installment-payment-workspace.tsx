@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowLeft, CalendarDays, Lock, ReceiptText, Wrench } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Lock, Printer, ReceiptText, Wrench } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -22,7 +22,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { AmountInputGroup } from '@/components/ui/amount-input-group'
 import { Badge, type BadgeProps } from '@/components/ui/reui/badge'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -31,6 +38,7 @@ import { formatPhilippinePeso } from '@/lib/currency'
 import { formatAccountName } from '@/lib/in-house-accounts'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
+import { createPaymentSchedulePdfHtml } from '@/features/in-house-payments/lib/payment-schedule-pdf'
 import type {
   InHousePaymentRecord,
   InHouseScheduleRecord,
@@ -433,6 +441,9 @@ export function InstallmentPaymentWorkspace({
   const [paymentToVoid, setPaymentToVoid] = React.useState<InHousePaymentRecord>()
   const [isWarrantyServiceOpen, setIsWarrantyServiceOpen] = React.useState(false)
   const [isWarrantyServiceSaving, setIsWarrantyServiceSaving] = React.useState(false)
+  const [schedulePreview, setSchedulePreview] = React.useState<{ pdfBase64: string }>()
+  const [isPreparingSchedulePreview, setIsPreparingSchedulePreview] = React.useState(false)
+  const [scheduleVerticalAdjustmentInches, setScheduleVerticalAdjustmentInches] = React.useState(0)
   const [activeTab, setActiveTab] = React.useState(initialTab)
   const [amount, setAmount] = React.useState('')
   const [penalty, setPenalty] = React.useState('0.00')
@@ -729,6 +740,35 @@ export function InstallmentPaymentWorkspace({
     setIsWarrantyServiceOpen(true)
   }
 
+  const openSchedulePreview = async (
+    verticalAdjustmentInches = scheduleVerticalAdjustmentInches
+  ): Promise<void> => {
+    if (!workspace || isPreparingSchedulePreview) return
+    setIsPreparingSchedulePreview(true)
+    try {
+      const fileName = `Payment Schedule - ${workspace.contractNumber}.pdf`
+      const { pdfBase64 } = await window.api.pdfExport.preview({
+        html: createPaymentSchedulePdfHtml(workspace, verticalAdjustmentInches),
+        fileName,
+        paperSize: 'INDEX_CARD_8X5'
+      })
+      setSchedulePreview({ pdfBase64 })
+    } catch {
+      notify({ type: 'error', title: 'Payment schedule could not be prepared.' })
+    } finally {
+      setIsPreparingSchedulePreview(false)
+    }
+  }
+
+  const adjustSchedulePreviewVertically = (deltaInches: number): void => {
+    const nextAdjustment = Math.max(
+      -0.1,
+      Math.min(0.16, Number((scheduleVerticalAdjustmentInches + deltaInches).toFixed(2)))
+    )
+    setScheduleVerticalAdjustmentInches(nextAdjustment)
+    void openSchedulePreview(nextAdjustment)
+  }
+
   if (error) {
     return (
       <Dialog open onOpenChange={(open) => !open && onBack()}>
@@ -848,6 +888,19 @@ export function InstallmentPaymentWorkspace({
                   </TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!workspace || isPreparingSchedulePreview}
+                    onClick={() => {
+                      setScheduleVerticalAdjustmentInches(0)
+                      void openSchedulePreview(0)
+                    }}
+                  >
+                    <Printer data-icon="inline-start" />
+                    {isPreparingSchedulePreview ? 'Preparing…' : 'Print schedule'}
+                  </Button>
                   <Button
                     type="button"
                     size="sm"
@@ -1077,6 +1130,69 @@ export function InstallmentPaymentWorkspace({
           icon={<Wrench />}
           onConfirm={() => void applyWarrantyService()}
         />
+        <Dialog
+          open={Boolean(schedulePreview)}
+          onOpenChange={(open) => !open && setSchedulePreview(undefined)}
+        >
+          <DialogContent className="flex h-[min(90vh,58rem)] w-[min(96vw,88rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
+            <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12">
+              <DialogTitle>Print payment schedule</DialogTitle>
+              <DialogDescription>
+                Review the 8 × 5 inch card, then use the viewer&apos;s print control.
+              </DialogDescription>
+            </DialogHeader>
+            {schedulePreview && (
+              <iframe
+                title="Client payment schedule print preview"
+                src={`data:application/pdf;base64,${schedulePreview.pdfBase64}`}
+                className="min-h-0 flex-1 bg-muted/30"
+              />
+            )}
+            <DialogFooter className="border-t px-5 py-3">
+              <div className="mr-auto flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  Vertical alignment:{' '}
+                  {scheduleVerticalAdjustmentInches === 0
+                    ? 'Default'
+                    : `${scheduleVerticalAdjustmentInches > 0 ? 'Down' : 'Up'} ${Math.abs(scheduleVerticalAdjustmentInches).toFixed(2)} in`}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isPreparingSchedulePreview || scheduleVerticalAdjustmentInches <= -0.1}
+                  onClick={() => adjustSchedulePreviewVertically(-0.02)}
+                >
+                  Move up
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isPreparingSchedulePreview || scheduleVerticalAdjustmentInches >= 0.16}
+                  onClick={() => adjustSchedulePreviewVertically(0.02)}
+                >
+                  Move down
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isPreparingSchedulePreview || scheduleVerticalAdjustmentInches === 0}
+                  onClick={() => {
+                    setScheduleVerticalAdjustmentInches(0)
+                    void openSchedulePreview(0)
+                  }}
+                >
+                  Reset
+                </Button>
+              </div>
+              <Button type="button" variant="outline" onClick={() => setSchedulePreview(undefined)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   )

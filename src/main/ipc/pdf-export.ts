@@ -19,7 +19,11 @@ function throwIpcError(error: unknown): never {
   throw ipcError
 }
 
-async function createPdf(html: string, fileName: string): Promise<Buffer> {
+async function createPdf(
+  html: string,
+  fileName: string,
+  paperSize: 'A4' | 'INDEX_CARD_8X5'
+): Promise<Buffer> {
   const printWindow = new BrowserWindow({
     show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
@@ -31,9 +35,10 @@ async function createPdf(html: string, fileName: string): Promise<Buffer> {
       true
     )
     return await printWindow.webContents.printToPDF({
-      pageSize: 'A4',
+      pageSize: paperSize === 'INDEX_CARD_8X5' ? { width: 8, height: 5 } : 'A4',
+      preferCSSPageSize: paperSize === 'INDEX_CARD_8X5',
       printBackground: false,
-      displayHeaderFooter: true,
+      displayHeaderFooter: paperSize === 'A4',
       headerTemplate: '<span></span>',
       footerTemplate: `<div style="width:100%;font-size:8px;color:#555;text-align:center">${fileName} · Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>`
     })
@@ -59,8 +64,10 @@ function workbookFromBase64(workbookBase64: string): Buffer {
 export function registerPdfExportIpc(telegramSettings: TelegramSettingsService): void {
   ipcMain.handle(pdfExportIpcChannels.preview, async (_event, input: unknown) => {
     try {
-      const { html, fileName } = pdfPreviewRequestSchema.parse(input)
-      return { pdfBase64: (await createPdf(html, fileName)).toString('base64') }
+      const { html, fileName, paperSize } = pdfPreviewRequestSchema.parse(input)
+      return {
+        pdfBase64: (await createPdf(html, fileName, paperSize ?? 'A4')).toString('base64')
+      }
     } catch (error) {
       throwIpcError(error)
     }
