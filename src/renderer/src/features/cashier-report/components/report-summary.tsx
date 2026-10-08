@@ -49,9 +49,7 @@ const deductionDefinitions = [
 const receiptTypesExcludedFromPicker = new Set(['CASH SALES', 'COLLECTIONS'])
 const paymentMethodIds = {
   bankCheck: 'report-payment-method-check',
-  bankTransfer: 'report-payment-method-bank-transfer',
-  gcash: 'report-payment-method-gcash',
-  otherEwallet: 'report-payment-method-other-ewallet'
+  bankTransfer: 'report-payment-method-bank-transfer'
 } as const
 const RECEIPT_VISIBILITY_STORAGE_KEY = 'cashiers-report-visible-receipt-types'
 const defaultReceiptTypeNames = new Set([
@@ -539,13 +537,10 @@ export const ReportSummary = React.memo(function ReportSummary({
           totals.bankCheck += item.amountCentavos
         else if (item.paymentMethodId === paymentMethodIds.bankTransfer)
           totals.bankTransfer += item.amountCentavos
-        else if (item.paymentMethodId === paymentMethodIds.gcash)
-          totals.gcash += item.amountCentavos
-        else totals.otherEwallet += item.amountCentavos
         totals.total += item.amountCentavos
         return totals
       },
-      { bankCheck: 0, bankTransfer: 0, gcash: 0, otherEwallet: 0, total: 0 }
+      { bankCheck: 0, bankTransfer: 0, total: 0 }
     )
   const totalCashReceiptsCentavos =
     snapshot.receiptTotals.reduce((total, item) => total + item.amountCentavos, 0) +
@@ -1009,13 +1004,6 @@ export const ReportSummary = React.memo(function ReportSummary({
                     <SummaryRow
                       label="Bank Transfer"
                       value={paymentTotals.bankTransfer}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow label="Gcash" value={paymentTotals.gcash} hideWhenZero valueMuted />
-                    <SummaryRow
-                      label="E-wallet"
-                      value={paymentTotals.otherEwallet}
                       hideWhenZero
                       valueMuted
                     />

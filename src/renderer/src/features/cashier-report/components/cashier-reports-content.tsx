@@ -116,7 +116,7 @@ const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 
 const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT'] as const
-const paymentTypes = ['Bank Check', 'Bank Transfer', 'GCash', 'Other e-wallet'] as const
+const paymentTypes = ['Bank Check', 'Bank Transfer'] as const
 
 type ExpenseCategoryConfig = {
   value: string
@@ -1391,6 +1391,14 @@ function ReportDetailsForm({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
+                    {tab === 'Payment' &&
+                      field === 'Type' &&
+                      initialValues[id] &&
+                      !options.includes(initialValues[id]) && (
+                        <SelectItem value={initialValues[id]} disabled>
+                          {initialValues[id]} (inactive)
+                        </SelectItem>
+                      )}
                     {options.map((option) => (
                       <SelectItem key={option} value={option}>
                         {option}

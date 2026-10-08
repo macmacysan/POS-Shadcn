@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 50
+export const currentSchemaVersion = 51
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -2138,6 +2138,29 @@ export function runMigrations(db: Database.Database): void {
         }
       }
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(50, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 51) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.prepare(
+        `UPDATE catalog_options
+            SET is_active = 0, updated_at = ?
+          WHERE kind = 'CASHIER_PAYMENT_TYPE'
+            AND (
+              id IN ('catalog-payment-gcash', 'catalog-payment-ewallet')
+              OR reference_id IN (
+                'report-payment-method-gcash',
+                'report-payment-method-other-ewallet'
+              )
+            )`
+      ).run(now)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+        51,
+        now
+      )
     })
     migrate()
   }

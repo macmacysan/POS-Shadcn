@@ -15,6 +15,7 @@
     "test:installment-rules": "node scripts/run-electron-test.mjs scripts/test-installment-rules.mjs",
     "test:installment-status": "node scripts/run-electron-test.mjs scripts/test-installment-status-actions.mjs",
     "test:auth": "node scripts/run-electron-test.mjs scripts/test-local-auth.mjs",
+    "test:wallet-method-retirement": "node scripts/run-electron-test.mjs scripts/test-wallet-method-retirement.mjs",
     "test:report-voids": "node scripts/run-electron-test.mjs scripts/test-report-voids.mjs",
     "test:backup": "node scripts/run-electron-test.mjs scripts/test-backup.mjs",
     "test:portable-database": "node scripts/run-electron-test.mjs scripts/test-portable-database.mjs",

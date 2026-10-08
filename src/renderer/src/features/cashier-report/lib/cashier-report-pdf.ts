@@ -216,13 +216,10 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
           totals.bankCheck += item.amountCentavos
         else if (item.paymentMethodId === 'report-payment-method-bank-transfer')
           totals.bankTransfer += item.amountCentavos
-        else if (item.paymentMethodId === 'report-payment-method-gcash')
-          totals.gcash += item.amountCentavos
-        else totals.otherEwallet += item.amountCentavos
         totals.total += item.amountCentavos
         return totals
       },
-      { bankCheck: 0, bankTransfer: 0, gcash: 0, otherEwallet: 0, total: 0 }
+      { bankCheck: 0, bankTransfer: 0, total: 0 }
     )
   const expectedCashCentavos = totalReceiptsCentavos - cashOutCentavos - paymentTotals.total
   const cashVarianceCentavos = snapshot.physicalCashCentavos - expectedCashCentavos
@@ -250,8 +247,6 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     { label: 'Total Cash Outs', value: cashOutCentavos, emphasis: true },
     { label: 'Bank Check', value: paymentTotals.bankCheck },
     { label: 'Bank Transfer', value: paymentTotals.bankTransfer },
-    { label: 'Gcash', value: paymentTotals.gcash },
-    { label: 'E-wallet', value: paymentTotals.otherEwallet },
     { label: 'Total Payments', value: paymentTotals.total, emphasis: true },
     { label: 'Expected Cash', value: expectedCashCentavos, emphasis: true },
     { label: 'Cash Denominations', value: snapshot.physicalCashCentavos },

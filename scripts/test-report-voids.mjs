@@ -38,7 +38,9 @@ try {
   )
 
   const Database = require('better-sqlite3')
-  const { runMigrations } = require(resolve(output, 'main/database/migrations.js'))
+  const { currentSchemaVersion, runMigrations } = require(
+    resolve(output, 'main/database/migrations.js')
+  )
   const { UserRepository } = require(resolve(output, 'main/database/user-repository.js'))
   const { ExpenseRepository } = require(resolve(output, 'main/database/expense-repository.js'))
   const { DailyReportRepository } = require(
@@ -53,7 +55,7 @@ try {
   runMigrations(db)
   assert.equal(
     db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version,
-    49
+    currentSchemaVersion
   )
   runMigrations(db)
   const users = new UserRepository(db)
