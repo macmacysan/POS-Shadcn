@@ -32,6 +32,9 @@ try {
   assert.equal(calculate('Monthly', 6).totalInstallmentCentavos, 1350000)
   assert.equal(calculate('Monthly', 12).totalInstallmentCentavos, 1500000)
   assert.equal(calculate('Monthly', 12).requiredFeeCentavos, 225000)
+  const deliverySchedule = calculations.calculateInstallment({ releaseDate: '2026-01-01', startDate: '2026-01-15', frequency: 'Monthly', terms: 3, items: [{ quantity: 1, unitPriceCentavos: 1000000 }], actualDownPaymentCentavos: 0 }, config)
+  assert.equal(deliverySchedule.startDate, '2026-01-15')
+  assert.equal(deliverySchedule.endDate, '2026-03-15')
   assert.equal(calculate('Daily', 5).totalInstallmentCentavos, null)
   const roundingConfig = { ...config, standardInterestRateBps: 0, requiredDownPaymentRateBps: 0, monthlyPlans: [{ terms: 2, interestRateBps: 0 }], dailyPlans: [{ terms: 2, requiredFeePayments: 1 }], weeklyTerms: [2], semiTerms: [2] }
   const roundedPayment = (frequency, amount) => calculations.calculateInstallment({ releaseDate: '2026-01-01', frequency, terms: 2, items: [{ quantity: 1, unitPriceCentavos: amount }], actualDownPaymentCentavos: 0 }, roundingConfig).paymentAmountCentavos

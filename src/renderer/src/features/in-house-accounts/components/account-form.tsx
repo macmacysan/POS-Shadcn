@@ -547,6 +547,7 @@ export function InHouseAccountForm({
     const calculation = calculateInstallment(
       {
         releaseDate: loanDraft.dateReleased,
+        startDate: loanDraft.startDate,
         frequency,
         terms: Number.parseInt(loanDraft.terms, 10),
         items: loanDraft.items.map((item) => ({
@@ -1432,10 +1433,13 @@ export function InHouseAccountForm({
                       <FieldError>{loanErrors.dateReleased}</FieldError>
                     </Field>
                     <Field data-invalid={Boolean(loanErrors.startDate)}>
-                      <FieldLabel>Start Date</FieldLabel>
-                      <output className="flex min-h-9 items-center text-sm tabular-nums text-foreground">
-                        {calculatedLoan.startDate || '—'}
-                      </output>
+                      <FieldLabel htmlFor="start-date">Start Date</FieldLabel>
+                      <DatePickerInput
+                        id="start-date"
+                        value={calculatedLoan.startDate}
+                        aria-invalid={Boolean(loanErrors.startDate)}
+                        onValueChange={(date) => setLoan('startDate', date)}
+                      />
                       <FieldError>{loanErrors.startDate}</FieldError>
                     </Field>
                     <Field data-invalid={Boolean(loanErrors.firstDueDate)}>
