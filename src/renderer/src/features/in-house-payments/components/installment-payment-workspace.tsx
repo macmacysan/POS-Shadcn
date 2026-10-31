@@ -18,6 +18,7 @@ import { KpiCard } from '@/components/shared/kpi-card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { AmountInputGroup } from '@/components/ui/amount-input-group'
@@ -446,6 +447,7 @@ export function InstallmentPaymentWorkspace({
   const [scheduleVerticalAdjustmentInches, setScheduleVerticalAdjustmentInches] = React.useState(0)
   const [activeTab, setActiveTab] = React.useState(initialTab)
   const [amount, setAmount] = React.useState('')
+  const [paymentMethod, setPaymentMethod] = React.useState<'Cash' | 'GCash'>('Cash')
   const [penalty, setPenalty] = React.useState('0.00')
   const [paymentDate, setPaymentDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [referenceNumber, setReferenceNumber] = React.useState('')
@@ -542,6 +544,7 @@ export function InstallmentPaymentWorkspace({
           id: 'down-payment',
           paymentDate: workspace.downPayment.paymentDate,
           amountCentavos: workspace.downPayment.amountCentavos,
+          paymentMethod: 'Cash',
           penaltyCentavos: 0,
           allocatedAmountCentavos: 0,
           status: 'POSTED',
@@ -578,6 +581,7 @@ export function InstallmentPaymentWorkspace({
         )
       )
       setPenalty('0.00')
+      setPaymentMethod('Cash')
       setPaymentDate(format(new Date(), 'yyyy-MM-dd'))
       setReferenceNumber('')
       setRemarks('')
@@ -660,6 +664,7 @@ export function InstallmentPaymentWorkspace({
           submissionId: submissionIdRef.current ?? crypto.randomUUID(),
           paymentDate,
           amountCentavos,
+          paymentMethod,
           penaltyCentavos,
           referenceNumber: referenceNumber.trim() || undefined,
           remarks: remarks.trim() || undefined,
@@ -674,6 +679,7 @@ export function InstallmentPaymentWorkspace({
           submissionId: submissionIdRef.current ?? crypto.randomUUID(),
           paymentDate,
           amountCentavos,
+          paymentMethod,
           penaltyCentavos,
           referenceNumber: referenceNumber.trim() || undefined,
           remarks: remarks.trim() || undefined,
@@ -1047,6 +1053,13 @@ export function InstallmentPaymentWorkspace({
                         }
                         description="Displayed separately and excluded from balances."
                       />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="payment-method">Payment method</FieldLabel>
+                      <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'GCash')}>
+                        <SelectTrigger id="payment-method"><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="GCash">GCash</SelectItem></SelectContent>
+                      </Select>
                     </Field>
                     <PaymentDateField value={paymentDate} onChange={setPaymentDate} />
                     <Field>

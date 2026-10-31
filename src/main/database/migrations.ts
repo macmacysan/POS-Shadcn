@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 51
+export const currentSchemaVersion = 52
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -2161,6 +2161,22 @@ export function runMigrations(db: Database.Database): void {
         51,
         now
       )
+    })
+    migrate()
+  }
+
+  if (applied.version < 52) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE in_house_payments ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'Cash'
+          CHECK (payment_method IN ('Cash', 'GCash'));
+        ALTER TABLE installment_contracts ADD COLUMN down_payment_method TEXT NOT NULL DEFAULT 'Cash'
+          CHECK (down_payment_method IN ('Cash', 'GCash'));
+        ALTER TABLE finance_accounts ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'Cash'
+          CHECK (payment_method IN ('Cash', 'GCash'));
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(52, now)
     })
     migrate()
   }

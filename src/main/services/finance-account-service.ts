@@ -14,7 +14,7 @@ type FinanceRepository = {
   list(
     request: FinanceAccountListRequest
   ): Promise<FinanceAccountListResult> | FinanceAccountListResult
-  create(request: FinanceAccountCreateRequest): Promise<FinanceAccountRecord> | FinanceAccountRecord
+  create(request: FinanceAccountCreateRequest, actorUserId: string): Promise<FinanceAccountRecord> | FinanceAccountRecord
   update(request: FinanceAccountUpdateRequest): Promise<FinanceAccountRecord> | FinanceAccountRecord
   void(ids: readonly string[], actorUserId: string, reason: string): Promise<void> | void
   unvoid(ids: readonly string[], actorUserId: string): Promise<void> | void
@@ -50,8 +50,9 @@ export class FinanceAccountService {
   }
 
   async create(request: FinanceAccountCreateRequest): Promise<FinanceAccountRecord> {
+    const user = this.auth.requireCashierWorkspace()
     this.auth.requireBranchName(request.branch, 'Administrators have read-only finance access.')
-    return this.repository.create(request)
+    return this.repository.create(request, user.id)
   }
 
   async update(request: FinanceAccountUpdateRequest): Promise<FinanceAccountRecord> {

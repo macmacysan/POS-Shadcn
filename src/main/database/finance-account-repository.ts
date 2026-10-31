@@ -12,6 +12,7 @@ import type {
 import { AppError } from './errors'
 import type { AppDatabase } from './database'
 import { recordAudit } from './audit-repository'
+import { recordGcashDrawing } from './gcash-drawings'
 
 type FinanceRow = {
   id: string
@@ -24,6 +25,7 @@ type FinanceRow = {
   middle_name: string | null
   suffix: string | null
   downpayment_centavos: number
+  payment_method: 'Cash' | 'GCash'
   grand_total_centavos: number
   balance_centavos: number
   or_number: string | null
@@ -91,6 +93,7 @@ export class FinanceAccountRepository {
             }),
             grandTotalCentavos: Number(row.grandTotalCentavos) || 0,
             downpaymentCentavos: Number(row.downpaymentCentavos) || 0,
+            paymentMethod: row.paymentMethod === 'GCash' ? 'GCash' : 'Cash',
             balanceCentavos: Number(row.balanceCentavos) || 0,
             orNumber: row.orNumber || undefined,
             orDate: row.orDate || undefined,
@@ -111,10 +114,14 @@ export class FinanceAccountRepository {
     return { rows: cached }
   }
 
-  create(request: FinanceAccountCreateRequest): FinanceAccountRecord {
+  create(request: FinanceAccountCreateRequest, actorUserId: string): FinanceAccountRecord {
     const id = randomUUID()
     const now = new Date().toISOString()
     this.write(id, request, now, now)
+    if (request.paymentMethod === 'GCash') {
+      const branch = this.db.prepare('SELECT id FROM branches WHERE name = ?').get(request.branch) as { id: string }
+      recordGcashDrawing(this.db, { branchId: branch.id, businessDate: request.paidDate ?? request.dateReleased, amountCentavos: request.downpaymentCentavos, actorUserId, reference: `finance:${id}`, description: 'GCash finance downpayment' })
+    }
     return this.getById(id)
   }
 
@@ -217,9 +224,9 @@ export class FinanceAccountRepository {
             `INSERT INTO finance_accounts (
               id, branch, provider, date_released, terms_months, last_name, first_name, middle_name,
               suffix, quantity, item, serial_no, item_price_centavos, grand_total_centavos,
-              downpayment_centavos, balance_centavos, or_number, or_date, paid_date, remarks,
+              downpayment_centavos, payment_method, balance_centavos, or_number, or_date, paid_date, remarks,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
           )
           .run(
             id,
@@ -237,6 +244,7 @@ export class FinanceAccountRepository {
             firstItem.itemPriceCentavos,
             amounts.grandTotalCentavos,
             request.downpaymentCentavos,
+            request.paymentMethod,
             amounts.balanceCentavos,
             request.orNumber || null,
             request.orDate || null,
@@ -251,7 +259,7 @@ export class FinanceAccountRepository {
             `UPDATE finance_accounts SET
               branch = ?, provider = ?, date_released = ?, terms_months = ?, last_name = ?, first_name = ?,
               middle_name = ?, suffix = ?, quantity = ?, item = ?, serial_no = ?, item_price_centavos = ?,
-              grand_total_centavos = ?, downpayment_centavos = ?, balance_centavos = ?, or_number = ?,
+              grand_total_centavos = ?, downpayment_centavos = ?, payment_method = ?, balance_centavos = ?, or_number = ?,
               or_date = ?, paid_date = ?, remarks = ?, updated_at = ? WHERE id = ?`
           )
           .run(
@@ -269,6 +277,7 @@ export class FinanceAccountRepository {
             firstItem.itemPriceCentavos,
             amounts.grandTotalCentavos,
             request.downpaymentCentavos,
+            request.paymentMethod,
             amounts.balanceCentavos,
             request.orNumber || null,
             request.orDate || null,
@@ -344,6 +353,7 @@ export class FinanceAccountRepository {
       })),
       grandTotalCentavos: row.grand_total_centavos,
       downpaymentCentavos: row.downpayment_centavos,
+      paymentMethod: row.payment_method,
       balanceCentavos: row.balance_centavos,
       orNumber: row.or_number ?? undefined,
       orDate: row.or_date ?? undefined,

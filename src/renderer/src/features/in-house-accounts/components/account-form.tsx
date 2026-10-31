@@ -144,6 +144,7 @@ const emptyLoanDraft: LoanDraft = {
   principal: 0,
   interest: 0,
   downPayment: 0,
+  paymentMethod: 'Cash',
   fees: 0,
   installmentAmount: 0,
   grandTotal: 0,
@@ -1534,6 +1535,13 @@ export function InHouseAccountForm({
                         }
                       />
                       <FieldError>{loanErrors.downPayment}</FieldError>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="down-payment-method">Payment method</FieldLabel>
+                      <Select value={loanDraft.paymentMethod} onValueChange={(value) => setLoan('paymentMethod', value as 'Cash' | 'GCash')}>
+                        <SelectTrigger id="down-payment-method"><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="GCash">GCash</SelectItem></SelectContent>
+                      </Select>
                     </Field>
                   </FieldGroup>
                 </FieldSet>

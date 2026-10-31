@@ -415,7 +415,7 @@ export class ExpenseRepository {
          SELECT
            COALESCE(SUM(CASE WHEN type IN ('Company Expenses', 'Operating')
              THEN amount_centavos ELSE 0 END), 0) AS company_expenses_centavos,
-           COALESCE(SUM(CASE WHEN type = 'Drawings'
+           COALESCE(SUM(CASE WHEN type IN ('Drawings', 'GCash')
              THEN amount_centavos ELSE 0 END), 0) AS drawings_centavos,
            COALESCE(SUM(CASE WHEN type IN ('Purchases', 'Supply')
              THEN amount_centavos ELSE 0 END), 0) AS purchases_centavos,

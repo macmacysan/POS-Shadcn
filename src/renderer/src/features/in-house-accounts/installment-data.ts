@@ -22,6 +22,7 @@ function toRow(record: InstallmentAccountRecord): PersistedInstallmentRow {
     account: { ...record.account, branch },
     loan: {
       ...record.loan,
+      paymentMethod: 'Cash',
       items: record.loan.items.map((item) => ({ ...item, model: '' }))
     },
     contractId: record.contractId,

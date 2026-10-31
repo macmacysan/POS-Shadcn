@@ -85,6 +85,7 @@ export type InHouseLoan = {
   readonly principal: number
   readonly interest: number
   readonly downPayment: number
+  readonly paymentMethod: 'Cash' | 'GCash'
   readonly fees: number
   readonly installmentAmount: number
   readonly grandTotal: number

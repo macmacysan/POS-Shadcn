@@ -5,11 +5,21 @@ import { resolve } from 'node:path'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: resolve('src/main/index.ts')
+      }
+    }
   },
 
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        input: resolve('src/preload/index.ts')
+      }
+    }
   },
 
   renderer: {

@@ -20,6 +20,7 @@ import type {
   InstallmentTransitionRequest
 } from '../../shared/contracts'
 import { AppError } from './errors'
+import { recordGcashDrawing } from './gcash-drawings'
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 import { InstallmentRulesRepository } from './installment-rules-repository'
 import {
@@ -367,12 +368,12 @@ export class InstallmentRepository {
         `INSERT OR IGNORE INTO installment_contracts
           (id, account_id, branch_id, installment_type_id, contract_number, contract_date,
             date_released, start_date, first_due_date, payment_frequency, schedule_frequency, terms,
-           principal_centavos, interest_centavos, down_payment_centavos, fees_centavos,
+           principal_centavos, interest_centavos, down_payment_centavos, down_payment_method, fees_centavos,
             installment_amount_centavos, financed_amount_centavos, total_payable_centavos,
             configuration_version_id, end_date, interest_rate_bps, required_down_payment_rate_bps,
             daily_required_fee_factor, payment_amount_centavos, required_fee_centavos,
             remarks, created_at, updated_at)
-          VALUES (?, ?, ?, 'installment-type-in-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          VALUES (?, ?, ?, 'installment-type-in-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const insertItem = this.db.prepare(
         `INSERT OR IGNORE INTO installment_items
@@ -529,6 +530,7 @@ export class InstallmentRepository {
             grandTotal,
             calculated.interestCentavos,
             downPayment,
+            stringValue(loan.paymentMethod, 'Cash') === 'GCash' ? 'GCash' : 'Cash',
             calculated.requiredFeeCentavos,
             calculated.paymentAmountCentavos,
             scheduleTotal,
@@ -1314,7 +1316,7 @@ export class InstallmentRepository {
              FROM in_house_payments p
              JOIN payment_roots roots ON roots.payment_id = p.id
          )
-          SELECT latest.id, latest.payment_date,
+          SELECT latest.id, latest.payment_date, latest.payment_method,
                 (SELECT SUM(family.amount_centavos)
                    FROM payment_rows family WHERE family.root_id = latest.root_id) AS amount_centavos,
                 (SELECT SUM(family.penalty_centavos)
@@ -1343,6 +1345,7 @@ export class InstallmentRepository {
       .all(record.contractId) as Array<{
       id: string
       payment_date: string
+      payment_method: 'Cash' | 'GCash'
       amount_centavos: number
       penalty_centavos: number
       allocated_amount_centavos: number
@@ -1439,6 +1442,7 @@ export class InstallmentRepository {
       payments: payments.map((payment) => ({
         id: payment.id,
         paymentDate: payment.payment_date,
+        paymentMethod: payment.payment_method,
         amountCentavos: payment.amount_centavos,
         penaltyCentavos: payment.penalty_centavos,
         allocatedAmountCentavos: payment.allocated_amount_centavos,
@@ -1576,7 +1580,7 @@ export class InstallmentRepository {
 
       const contract = this.db
         .prepare(
-          `SELECT c.id, c.status, c.total_payable_centavos, a.status AS account_status
+          `SELECT c.id, c.status, c.total_payable_centavos, c.branch_id, a.status AS account_status
              FROM installment_contracts c
              JOIN accounts a ON a.id = c.account_id
             WHERE c.id = ? AND c.account_id = ?`
@@ -1586,6 +1590,7 @@ export class InstallmentRepository {
             id: string
             status: string
             total_payable_centavos: number
+            branch_id: string
             account_status: InstallmentAccountStatus
           }
         | undefined
@@ -1625,8 +1630,8 @@ export class InstallmentRepository {
       this.db
         .prepare(
           `INSERT INTO in_house_payments
-            (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, reference_number, remarks, received_by_user_id, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            (id, contract_id, submission_id, payment_date, amount_centavos, payment_method, penalty_centavos, reference_number, remarks, received_by_user_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           paymentId,
@@ -1634,6 +1639,7 @@ export class InstallmentRepository {
           request.submissionId,
           request.paymentDate,
           request.amountCentavos,
+          request.paymentMethod,
           request.penaltyCentavos,
           request.referenceNumber || null,
           request.remarks || null,
@@ -1641,6 +1647,8 @@ export class InstallmentRepository {
           now,
           now
         )
+      if (request.paymentMethod === 'GCash')
+        recordGcashDrawing(this.db, { branchId: contract.branch_id, businessDate: request.paymentDate, amountCentavos: request.amountCentavos + request.penaltyCentavos, actorUserId: request.actorUserId, reference: `in-house:${paymentId}`, description: 'GCash in-house installment payment' })
 
       let remaining = request.amountCentavos
       const insertAllocation = this.db.prepare(
@@ -1796,10 +1804,10 @@ export class InstallmentRepository {
         .run(now, request.actorUserId, request.reason, now, ...sourcePaymentIds)
 
       const insertPayment = this.db.prepare(
-        `INSERT INTO in_house_payments
-          (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, reference_number, remarks,
+          `INSERT INTO in_house_payments
+          (id, contract_id, submission_id, payment_date, amount_centavos, payment_method, penalty_centavos, reference_number, remarks,
             received_by_user_id, replaces_payment_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const insertAllocation = this.db.prepare(
         `INSERT INTO installment_payment_allocations
@@ -1843,6 +1851,7 @@ export class InstallmentRepository {
           request.submissionId,
           request.paymentDate,
           request.amountCentavos,
+          request.paymentMethod,
           request.penaltyCentavos,
           request.referenceNumber || null,
           request.remarks || null,

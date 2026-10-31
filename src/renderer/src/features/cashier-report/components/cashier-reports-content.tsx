@@ -114,7 +114,7 @@ import {
 
 const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 
-const expenseTypes = ['Company Expenses', 'Drawings', 'Purchases', 'Receivables'] as const
+const expenseTypes = ['Company Expenses', 'Drawings', 'GCash', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT'] as const
 const paymentTypes = ['Bank Check', 'Bank Transfer'] as const
 

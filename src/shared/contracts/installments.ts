@@ -81,6 +81,7 @@ export const installmentCreatePaymentRequestSchema = z.object({
   scheduleId: z.string().trim().min(1).max(100).optional(),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   amountCentavos: z.number().int().positive(),
+  paymentMethod: z.enum(['Cash', 'GCash']).default('Cash'),
   penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
   remarks: z.string().trim().max(1000).optional(),
@@ -95,6 +96,7 @@ export const installmentAdjustPaymentRequestSchema = z.object({
   submissionId: z.string().trim().min(1).max(100),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   amountCentavos: z.number().int().nonnegative(),
+  paymentMethod: z.enum(['Cash', 'GCash']).default('Cash'),
   penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
   remarks: z.string().trim().max(1000).optional(),
@@ -258,6 +260,7 @@ export type InHousePaymentRecord = {
   id: string
   paymentDate: string
   amountCentavos: number
+  paymentMethod: 'Cash' | 'GCash'
   penaltyCentavos: number
   allocatedAmountCentavos: number
   referenceNumber?: string

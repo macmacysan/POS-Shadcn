@@ -119,6 +119,7 @@ function blankForm(branch: FinanceAccountRecord['branch']): FinanceFormValues {
     suffix: '',
     items: [createItem()],
     downpayment: '',
+    paymentMethod: 'Cash',
     orNumber: '',
     orDate: undefined,
     paidDate: undefined,
@@ -141,6 +142,7 @@ function recordForm(record: FinanceAccountRecord): FinanceFormValues {
       itemPrice: (item.itemPriceCentavos / 100).toFixed(2)
     })),
     downpayment: (record.downpaymentCentavos / 100).toFixed(2),
+    paymentMethod: record.paymentMethod,
     orNumber: record.orNumber ?? '',
     orDate: record.orDate,
     paidDate: record.paidDate,
@@ -165,6 +167,7 @@ function toInput(values: FinanceFormValues): FinanceAccountInput {
       itemPriceCentavos: asCentavos(itemPrice)
     })),
     downpaymentCentavos: asCentavos(values.downpayment),
+    paymentMethod: values.paymentMethod,
     orNumber: values.orNumber?.trim() || undefined,
     orDate: values.orDate || undefined,
     paidDate: values.paidDate || undefined,
@@ -1010,6 +1013,13 @@ function FinanceAccountSheet({
                     onChange={(event) => set('downpayment', event.target.value)}
                   />
                   {fieldError('downpaymentCentavos')}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="finance-payment-method">Payment method</FieldLabel>
+                  <Select value={values.paymentMethod} onValueChange={(value) => set('paymentMethod', value as 'Cash' | 'GCash')}>
+                    <SelectTrigger id="finance-payment-method"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectGroup><SelectItem value="Cash">Cash</SelectItem><SelectItem value="GCash">GCash</SelectItem></SelectGroup></SelectContent>
+                  </Select>
                 </Field>
                 <Field>
                   <FieldLabel>Balance</FieldLabel>
