@@ -8,6 +8,8 @@ import {
   CloudDownload,
   Eye,
   EyeOff,
+  Ghost,
+  Moon,
   Send
 } from 'lucide-react'
 import {
@@ -308,11 +310,15 @@ export function LoginForm({
   return (
     <div
       className={cn(
-        'grid w-full max-w-6xl overflow-hidden rounded-2xl border bg-card shadow-sm lg:grid-cols-[minmax(0,1fr)_26rem]',
+        'relative grid w-full max-w-6xl overflow-hidden rounded-2xl border bg-card shadow-sm lg:grid-cols-[minmax(0,1fr)_26rem]',
         className
       )}
       {...props}
     >
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-6 py-4 text-muted-foreground/40" aria-hidden="true">
+        <Moon className="size-5" />
+        <div className="flex gap-6"><Ghost className="size-4" /><Ghost className="size-3" /></div>
+      </div>
       <LoginPreviewCalendar preview={loginPreview} />
       <div className="flex min-h-0 items-center justify-center border-t p-6 lg:border-l lg:border-t-0 lg:p-10">
         {isSubmitting ? (
@@ -338,7 +344,10 @@ export function LoginForm({
 
             <header className="flex flex-col gap-3">
               <div>
-                <h2 className="font-heading text-lg font-medium">Welcome back</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-heading text-lg font-medium">Welcome back</h2>
+                  <Badge variant="outline" className="gap-1 text-xs"><Ghost className="size-3" aria-hidden="true" />Halloween</Badge>
+                </div>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Sign in to continue to your reports.
                 </p>
