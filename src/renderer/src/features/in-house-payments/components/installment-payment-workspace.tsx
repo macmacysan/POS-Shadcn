@@ -963,7 +963,6 @@ export function InstallmentPaymentWorkspace({
                           schedule.isService && 'opacity-50 !cursor-not-allowed'
                         )
                       }
-                      tableLayout={{ columnsResizable: true }}
                     />
                   </CardContent>
                 </Card>
@@ -988,7 +987,6 @@ export function InstallmentPaymentWorkspace({
                           .find((item): item is InHouseScheduleRecord => Boolean(item))
                         if (schedule) openAdjustment(schedule, payment)
                       }}
-                      tableLayout={{ columnsResizable: true }}
                     />
                   </CardContent>
                 </Card>

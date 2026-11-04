@@ -70,6 +70,8 @@ type ContractRow = {
   interest_centavos: number
   down_payment_centavos: number
   down_payment_applied_centavos: number
+  down_payment_reference_number?: string
+  down_payment_method: 'Cash' | 'GCash'
   fees_centavos: number
   installment_amount_centavos: number
   total_payable_centavos: number
@@ -242,6 +244,7 @@ export class InstallmentRepository {
                   WHERE s.contract_id = c.id AND s.status NOT IN ('PAID', 'WAIVED') AND s.is_restructured = 0 AND s.is_service = 0) AS next_due_date,
                 COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) AS payment_frequency, c.terms,
                 c.principal_centavos, c.interest_centavos, c.down_payment_centavos, c.down_payment_applied_centavos,
+                c.down_payment_reference_number, c.down_payment_method,
                 c.fees_centavos, c.installment_amount_centavos, c.total_payable_centavos,
                 c.remarks, c.created_at AS contract_created_at,
                 c.updated_at AS contract_updated_at,
@@ -368,12 +371,12 @@ export class InstallmentRepository {
         `INSERT OR IGNORE INTO installment_contracts
           (id, account_id, branch_id, installment_type_id, contract_number, contract_date,
             date_released, start_date, first_due_date, payment_frequency, schedule_frequency, terms,
-           principal_centavos, interest_centavos, down_payment_centavos, down_payment_method, fees_centavos,
+           principal_centavos, interest_centavos, down_payment_centavos, down_payment_method, down_payment_reference_number, fees_centavos,
             installment_amount_centavos, financed_amount_centavos, total_payable_centavos,
             configuration_version_id, end_date, interest_rate_bps, required_down_payment_rate_bps,
             daily_required_fee_factor, payment_amount_centavos, required_fee_centavos,
             remarks, created_at, updated_at)
-          VALUES (?, ?, ?, 'installment-type-in-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          VALUES (?, ?, ?, 'installment-type-in-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const insertItem = this.db.prepare(
         `INSERT OR IGNORE INTO installment_items
@@ -531,6 +534,7 @@ export class InstallmentRepository {
             calculated.interestCentavos,
             downPayment,
             stringValue(loan.paymentMethod, 'Cash') === 'GCash' ? 'GCash' : 'Cash',
+            optionalString(loan.downPaymentReferenceNumber) ?? null,
             calculated.requiredFeeCentavos,
             calculated.paymentAmountCentavos,
             scheduleTotal,
@@ -568,7 +572,28 @@ export class InstallmentRepository {
           }
           this.ensureSchedules(loanId, firstDueDate, paymentFrequency, terms, scheduleTotal)
           if (frequency !== 'Monthly')
-            this.recordAdvancedPayment(loanId, released, downPayment, now)
+            this.recordAdvancedPayment(
+              loanId,
+              released,
+              downPayment,
+              now,
+              stringValue(loan.paymentMethod, 'Cash') === 'GCash' ? 'GCash' : 'Cash',
+              optionalString(loan.downPaymentReferenceNumber)
+            )
+          if (stringValue(loan.paymentMethod, 'Cash') === 'GCash' && request.actorUserId) {
+            const fullName = [firstName, optionalString(account.middleName), lastName, optionalString(account.suffix)]
+              .filter(Boolean)
+              .join(' ')
+            recordGcashDrawing(this.db, {
+              branchId: persistedBranch.id,
+              businessDate: released,
+              amountCentavos: downPayment,
+              actorUserId: request.actorUserId,
+              reference: `in-house-downpayment:${loanId}`,
+              description: `GCash Downpayment: ${fullName}`,
+              receiptNo: optionalString(loan.downPaymentReferenceNumber)
+            })
+          }
         }
       }
     })
@@ -579,8 +604,22 @@ export class InstallmentRepository {
     const now = new Date().toISOString()
     const update = this.db.transaction(() => {
       const contract = this.db
-        .prepare('SELECT id, status FROM installment_contracts WHERE id = ? AND account_id = ?')
-        .get(request.contractId, request.accountId) as { id: string; status: string } | undefined
+        .prepare(`SELECT c.id, c.status, c.down_payment_method, c.branch_id,
+                         a.first_name, a.middle_name, a.last_name, a.suffix
+                    FROM installment_contracts c JOIN accounts a ON a.id = c.account_id
+                   WHERE c.id = ? AND c.account_id = ?`)
+        .get(request.contractId, request.accountId) as
+        | {
+            id: string
+            status: string
+            down_payment_method: 'Cash' | 'GCash'
+            branch_id: string
+            first_name: string
+            middle_name?: string
+            last_name: string
+            suffix?: string
+          }
+        | undefined
       if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
       if (contract.status !== 'ACTIVE')
         throw new AppError('CONFLICT', 'Only active installment contracts can be updated.')
@@ -632,7 +671,7 @@ export class InstallmentRepository {
           `UPDATE installment_contracts
               SET contract_date = ?, date_released = ?, start_date = ?, first_due_date = ?,
                   payment_frequency = ?, schedule_frequency = ?, terms = ?, principal_centavos = ?,
-                  interest_centavos = ?, down_payment_centavos = ?, down_payment_applied_centavos = ?, fees_centavos = ?,
+                  interest_centavos = ?, down_payment_centavos = ?, down_payment_applied_centavos = ?, down_payment_reference_number = ?, fees_centavos = ?,
                   installment_amount_centavos = ?, financed_amount_centavos = ?, total_payable_centavos = ?,
                   configuration_version_id = ?, end_date = ?, interest_rate_bps = ?,
                   required_down_payment_rate_bps = ?, daily_required_fee_factor = ?,
@@ -651,6 +690,7 @@ export class InstallmentRepository {
           calculated.interestCentavos,
           request.downPaymentCentavos,
           request.paymentFrequency === 'Monthly' ? request.downPaymentCentavos : 0,
+          request.downPaymentReferenceNumber ?? null,
           calculated.requiredFeeCentavos,
           calculated.paymentAmountCentavos,
           scheduleTotal,
@@ -679,8 +719,21 @@ export class InstallmentRepository {
           contract.id,
           request.dateReleased,
           request.downPaymentCentavos,
-          now
+          now,
+          contract.down_payment_method,
+          request.downPaymentReferenceNumber
         )
+      if (contract.down_payment_method === 'GCash' && request.actorUserId) {
+        recordGcashDrawing(this.db, {
+          branchId: contract.branch_id,
+          businessDate: request.dateReleased,
+          amountCentavos: request.downPaymentCentavos,
+          actorUserId: request.actorUserId,
+          reference: `in-house-downpayment:${contract.id}`,
+          description: `GCash Downpayment: ${[contract.first_name, contract.middle_name, contract.last_name, contract.suffix].filter(Boolean).join(' ')}`,
+          receiptNo: request.downPaymentReferenceNumber
+        })
+      }
     })
     update()
   }
@@ -1580,7 +1633,8 @@ export class InstallmentRepository {
 
       const contract = this.db
         .prepare(
-          `SELECT c.id, c.status, c.total_payable_centavos, c.branch_id, a.status AS account_status
+          `SELECT c.id, c.status, c.total_payable_centavos, c.branch_id, a.status AS account_status,
+                  a.first_name, a.middle_name, a.last_name, a.suffix
              FROM installment_contracts c
              JOIN accounts a ON a.id = c.account_id
             WHERE c.id = ? AND c.account_id = ?`
@@ -1592,6 +1646,10 @@ export class InstallmentRepository {
             total_payable_centavos: number
             branch_id: string
             account_status: InstallmentAccountStatus
+            first_name: string
+            middle_name?: string
+            last_name: string
+            suffix?: string
           }
         | undefined
       if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
@@ -1648,7 +1706,15 @@ export class InstallmentRepository {
           now
         )
       if (request.paymentMethod === 'GCash')
-        recordGcashDrawing(this.db, { branchId: contract.branch_id, businessDate: request.paymentDate, amountCentavos: request.amountCentavos + request.penaltyCentavos, actorUserId: request.actorUserId, reference: `in-house:${paymentId}`, description: 'GCash in-house installment payment' })
+        recordGcashDrawing(this.db, {
+          branchId: contract.branch_id,
+          businessDate: request.paymentDate,
+          amountCentavos: request.amountCentavos + request.penaltyCentavos,
+          actorUserId: request.actorUserId,
+          reference: `in-house:${paymentId}`,
+          description: `GCash Payment: ${[contract.first_name, contract.middle_name, contract.last_name, contract.suffix].filter(Boolean).join(' ')}`,
+          receiptNo: request.referenceNumber
+        })
 
       let remaining = request.amountCentavos
       const insertAllocation = this.db.prepare(
@@ -1954,7 +2020,9 @@ export class InstallmentRepository {
     contractId: string,
     paymentDate: string,
     amountCentavos: number,
-    now: string
+    now: string,
+    paymentMethod: 'Cash' | 'GCash' = 'Cash',
+    referenceNumber?: string
   ): void {
     if (amountCentavos <= 0) return
     const schedules = this.db
@@ -1984,8 +2052,8 @@ export class InstallmentRepository {
     this.db
       .prepare(
         `INSERT INTO in_house_payments
-          (id, contract_id, submission_id, payment_date, amount_centavos, penalty_centavos, remarks, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 0, 'Advanced payment', ?, ?)`
+          (id, contract_id, submission_id, payment_date, amount_centavos, payment_method, penalty_centavos, reference_number, remarks, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'Advanced payment', ?, ?)`
       )
       .run(
         paymentId,
@@ -1993,6 +2061,8 @@ export class InstallmentRepository {
         `advanced-payment:${contractId}`,
         paymentDate,
         amountCentavos,
+        paymentMethod,
+        referenceNumber || null,
         now,
         now
       )
@@ -2129,6 +2199,8 @@ export class InstallmentRepository {
       principal: (row.principal_centavos ?? 0) / 100,
       interest: (row.interest_centavos ?? 0) / 100,
       downPayment: (row.down_payment_centavos ?? 0) / 100,
+      downPaymentReferenceNumber: row.down_payment_reference_number ?? undefined,
+      paymentMethod: row.down_payment_method ?? 'Cash',
       fees: (row.fees_centavos ?? 0) / 100,
       installmentAmount: (row.installment_amount_centavos ?? 0) / 100,
       grandTotal: (row.principal_centavos ?? 0) / 100,

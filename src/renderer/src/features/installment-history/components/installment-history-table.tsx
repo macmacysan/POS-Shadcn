@@ -55,7 +55,6 @@ const sourceOptions: Array<InstallmentHistorySource | 'all'> = [
   'home-credit',
   'finance'
 ]
-const historyPaginationSizes = [50, 100]
 
 const historyBranchColumn: ColumnDef<InstallmentHistoryRecord> = {
   id: 'branch',
@@ -396,7 +395,7 @@ export function InstallmentHistoryTable({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <TableToolbar className="mx-4 mt-3 flex-wrap rounded-md border bg-card">
+      <TableToolbar>
         {leadingToolbarContent}
         <ShadcnTableFilters
           filters={filters}
@@ -430,9 +429,6 @@ export function InstallmentHistoryTable({
           }
           onRowDoubleClick={onDoubleClick}
           onRowContextMenu={handleRowContextMenu}
-          paginationSizes={historyPaginationSizes}
-          paginationInfo="{from}-{to} of {count} records"
-          paginationClassName="px-4"
         />
       </div>
       <VoidEntryDialog

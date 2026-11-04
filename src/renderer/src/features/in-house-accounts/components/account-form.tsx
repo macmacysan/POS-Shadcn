@@ -144,6 +144,7 @@ const emptyLoanDraft: LoanDraft = {
   principal: 0,
   interest: 0,
   downPayment: 0,
+  downPaymentReferenceNumber: '',
   paymentMethod: 'Cash',
   fees: 0,
   installmentAmount: 0,
@@ -1542,6 +1543,15 @@ export function InHouseAccountForm({
                         <SelectTrigger id="down-payment-method"><SelectValue /></SelectTrigger>
                         <SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="GCash">GCash</SelectItem></SelectContent>
                       </Select>
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="down-payment-reference">OR No.</FieldLabel>
+                      <Input
+                        id="down-payment-reference"
+                        value={loanDraft.downPaymentReferenceNumber ?? ''}
+                        onChange={(event) => setLoan('downPaymentReferenceNumber', event.target.value)}
+                        maxLength={100}
+                      />
                     </Field>
                   </FieldGroup>
                 </FieldSet>

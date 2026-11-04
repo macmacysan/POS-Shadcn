@@ -85,6 +85,7 @@ export type InHouseLoan = {
   readonly principal: number
   readonly interest: number
   readonly downPayment: number
+  readonly downPaymentReferenceNumber?: string
   readonly paymentMethod: 'Cash' | 'GCash'
   readonly fees: number
   readonly installmentAmount: number
@@ -282,6 +283,7 @@ export function normalizeLoanDraft(draft: LoanDraft): LoanDraft {
     principal: Number(draft.principal) || 0,
     interest: Number(draft.interest) || 0,
     downPayment: Number(draft.downPayment) || 0,
+    downPaymentReferenceNumber: draft.downPaymentReferenceNumber?.trim() || undefined,
     fees: Number(draft.fees) || 0,
     installmentAmount: Number(draft.installmentAmount) || 0,
     grandTotal: Number(draft.grandTotal) || 0,

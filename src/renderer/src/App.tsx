@@ -456,6 +456,7 @@ function Workspace({
           />
         ) : activeView === 'in-house-active-accounts' ? (
           <InHouseActiveAccountsContent
+            userId={userId}
             initialBranch={installmentFilter.branch}
             initialSearch={installmentFilter.search}
             initialPaymentStatus={installmentFilter.paymentStatus}
@@ -465,18 +466,21 @@ function Workspace({
         ) : activeView === 'in-house-closed-accounts' ? (
           <AccountRecordsWorkspace
             view="closed"
+            userId={userId}
             ownBranch={isAdmin || selectedBranch === 'All Branch' ? undefined : selectedBranch}
             onOpenPaymentWorkspace={openPaymentWorkspace}
           />
         ) : activeView === 'in-house-blacklisted-accounts' ? (
           <AccountRecordsWorkspace
             view="blacklisted"
+            userId={userId}
             ownBranch={isAdmin || selectedBranch === 'All Branch' ? undefined : selectedBranch}
             showAllBranches
             onOpenPaymentWorkspace={openPaymentWorkspace}
           />
         ) : activeView === 'in-house-accounts' ? (
           <InHouseAccountsContent
+            userId={userId}
             ownBranch={isAdmin || selectedBranch === 'All Branch' ? undefined : selectedBranch}
             showAllBranches
             onOpenPaymentWorkspace={openPaymentWorkspace}

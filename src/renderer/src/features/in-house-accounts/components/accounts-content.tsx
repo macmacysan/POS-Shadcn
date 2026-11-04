@@ -1,6 +1,7 @@
 import { AccountRecordsWorkspace } from './account-records-workspace'
 
 type Props = {
+  readonly userId: string
   readonly ownBranch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
   readonly showAllBranches?: boolean
   readonly onOpenPaymentWorkspace?: (
@@ -13,6 +14,7 @@ type Props = {
 }
 
 export function InHouseAccountsContent({
+  userId,
   ownBranch,
   showAllBranches,
   onOpenPaymentWorkspace
@@ -20,6 +22,7 @@ export function InHouseAccountsContent({
   return (
     <AccountRecordsWorkspace
       view="records"
+      userId={userId}
       ownBranch={ownBranch}
       showAllBranches={showAllBranches}
       onOpenPaymentWorkspace={onOpenPaymentWorkspace}

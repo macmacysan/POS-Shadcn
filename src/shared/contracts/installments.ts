@@ -18,7 +18,8 @@ export const installmentAttentionRequestSchema = z.object({
 const jsonObjectSchema = z.record(z.string(), z.unknown())
 export const installmentBootstrapRequestSchema = z.object({
   accounts: z.array(jsonObjectSchema).max(10000),
-  loans: z.array(jsonObjectSchema).max(10000)
+  loans: z.array(jsonObjectSchema).max(10000),
+  actorUserId: z.string().trim().min(1).max(100).optional()
 })
 
 export const installmentLoanUpdateRequestSchema = z.object({
@@ -28,6 +29,8 @@ export const installmentLoanUpdateRequestSchema = z.object({
   paymentFrequency: z.enum(['Daily', 'Weekly', 'Semi', 'Monthly']),
   terms: z.number().int().positive().max(1000),
   downPaymentCentavos: z.number().int().nonnegative(),
+  downPaymentReferenceNumber: z.string().trim().max(100).optional(),
+  actorUserId: z.string().trim().min(1).max(100).optional(),
   remarks: z.string().trim().max(1000).optional()
 })
 
@@ -182,6 +185,8 @@ export type InstallmentAccountRecord = {
     principal: number
     interest: number
     downPayment: number
+    downPaymentReferenceNumber?: string
+    paymentMethod?: 'Cash' | 'GCash'
     fees: number
     installmentAmount: number
     grandTotal: number

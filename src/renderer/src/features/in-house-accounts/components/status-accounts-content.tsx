@@ -520,7 +520,7 @@ export function StatusAccountsContent({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
-      <TableToolbar className="mb-3 flex-wrap rounded-md border bg-card">
+      <TableToolbar>
         <ShadcnTableFilters
           filters={filters}
           fields={filterFields}
@@ -585,9 +585,6 @@ export function StatusAccountsContent({
               emptyMessage={`No ${view} installment records found.`}
               onRowClick={(row) => setSelectedId(row.contractId)}
               onRowDoubleClick={handleRowDoubleClick}
-              paginationSizes={[25, 50, 100]}
-              paginationInfo="Showing {from}-{to} of {count} records"
-              tableLayout={{ columnsResizable: true }}
             />
           </CardContent>
         </Card>

@@ -30,7 +30,6 @@ export type ReportRow = { id: string; source?: 'local' | 'google-cache' }
 
 export type ReportColumn<TData extends ReportRow> = ColumnDef<TData>
 
-const reportPaginationSizes = [50, 100]
 
 type ReportDataTableProps<TData extends ReportRow> = {
   columns: ReportColumn<TData>[]
@@ -236,7 +235,7 @@ export function ReportDataTable<TData extends ReportRow>({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col">
-      <TableToolbar className="mx-4 mt-3 flex-wrap rounded-md border bg-card">
+      <TableToolbar>
         {leadingToolbarContent}
         <ShadcnTableFilters
           fields={shadcnFilterFields}
@@ -280,7 +279,7 @@ export function ReportDataTable<TData extends ReportRow>({
       {loadError && data.length > 0 && (
         <div
           role="alert"
-          className="flex shrink-0 items-center justify-between gap-3 border-b border-destructive/30 bg-destructive/5 px-4 py-2 text-xs text-destructive"
+          className="flex shrink-0 items-center justify-between gap-3 bg-destructive/5 px-4 py-2 text-xs text-destructive"
         >
           <span>{loadError}</span>
           {onRetry && (
@@ -293,7 +292,7 @@ export function ReportDataTable<TData extends ReportRow>({
 
       <div
         className={cn(
-          'mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-xl border border-border bg-card'
+          'mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden border rounded-xl'
         )}
       >
         <UniversalDataTable
@@ -305,13 +304,10 @@ export function ReportDataTable<TData extends ReportRow>({
           onRowDoubleClick={onDefaultAction}
           onRowContextMenu={getRowActions ? handleRowContextMenu : undefined}
           emptyMessage="No matching entries."
-          paginationSizes={reportPaginationSizes}
-          paginationInfo="{from}-{to} of {count} entries"
-          paginationClassName="px-4"
         />
         {emptyStateFooter && data.length > 0 && data.length < 5 && (
           <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
-            <div className="h-9 w-9 rounded-full border border-border bg-muted flex items-center justify-center mb-2.5">
+            <div className="h-5 w-9 rounded-full bg-muted flex items-center justify-center mb-2.5">
               <FileText size={15} className="text-muted-foreground" />
             </div>
             <p className="text-sm font-medium text-muted-foreground">{emptyStateFooter}</p>

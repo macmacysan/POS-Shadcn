@@ -120,7 +120,8 @@ export class FinanceAccountRepository {
     this.write(id, request, now, now)
     if (request.paymentMethod === 'GCash') {
       const branch = this.db.prepare('SELECT id FROM branches WHERE name = ?').get(request.branch) as { id: string }
-      recordGcashDrawing(this.db, { branchId: branch.id, businessDate: request.paidDate ?? request.dateReleased, amountCentavos: request.downpaymentCentavos, actorUserId, reference: `finance:${id}`, description: 'GCash finance downpayment' })
+      const fullName = [request.firstName, request.middleName, request.lastName, request.suffix].filter(Boolean).join(' ')
+      recordGcashDrawing(this.db, { branchId: branch.id, businessDate: request.paidDate ?? request.dateReleased, amountCentavos: request.downpaymentCentavos, actorUserId, reference: `finance:${id}`, description: `GCash Downpayment: ${fullName}`, receiptNo: request.orNumber })
     }
     return this.getById(id)
   }

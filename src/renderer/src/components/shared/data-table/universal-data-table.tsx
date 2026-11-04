@@ -43,13 +43,8 @@ type UniversalDataTableProps<TData extends object> = {
   onRowContextMenu?: (row: TData, event: MouseEvent<HTMLTableRowElement>) => void
   getRowClassName?: (row: TData) => string | undefined
   renderExpandedRow?: (row: TData) => ReactNode
-  paginationSizes?: number[]
-  paginationInfo?: string
-  paginationClassName?: string
   showPagination?: boolean
   className?: string
-  tableLayout?: unknown
-  tableClassNames?: unknown
   footerContent?: ReactNode
 }
 
@@ -59,6 +54,8 @@ type ColumnMeta = {
   cellClassName?: string
   autoSize?: boolean
 }
+
+const paginationSizes = [25, 50, 100]
 
 function getColumnMeta<TData>(column: Column<TData, unknown>): ColumnMeta {
   return (column.columnDef.meta ?? {}) as ColumnMeta
@@ -129,9 +126,6 @@ export function UniversalDataTable<TData extends object>({
   onRowContextMenu,
   getRowClassName,
   renderExpandedRow,
-  paginationSizes = [25, 50, 100],
-  paginationInfo = 'Showing {from}-{to} of {count}',
-  paginationClassName,
   showPagination = true,
   className,
   footerContent
@@ -164,10 +158,7 @@ export function UniversalDataTable<TData extends object>({
   const pageIndex = pagination?.pageIndex ?? 0
   const from = recordCount === 0 ? 0 : pageIndex * pageSize + 1
   const to = Math.min((pageIndex + 1) * pageSize, recordCount)
-  const pageInfo = paginationInfo
-    .replaceAll('{from}', from.toLocaleString('en-PH'))
-    .replaceAll('{to}', to.toLocaleString('en-PH'))
-    .replaceAll('{count}', recordCount.toLocaleString('en-PH'))
+  const pageInfo = `Showing ${from.toLocaleString('en-PH')}-${to.toLocaleString('en-PH')} of ${recordCount.toLocaleString('en-PH')}`
 
   return (
     <div className={cn('flex min-h-0 min-w-0 flex-1 basis-0 flex-col', className)}>
@@ -183,7 +174,7 @@ export function UniversalDataTable<TData extends object>({
                       key={header.id}
                       colSpan={header.colSpan}
                       className={cn(
-                        'h-8 px-3 text-xs font-medium text-muted-foreground',
+                        'h-7 px-3 text-xs font-medium text-muted-foreground',
                         meta.headerClassName,
                         getNarrowColumnClassName(header.column.id)
                       )}
@@ -209,7 +200,7 @@ export function UniversalDataTable<TData extends object>({
                   {table.getVisibleLeafColumns().map((column) => (
                     <TableCell
                       key={column.id}
-                      className={cn('h-9 px-3 py-1.5', getNarrowColumnClassName(column.id))}
+                      className={cn('h-5 px-3 py-0', getNarrowColumnClassName(column.id))}
                     >
                       <Skeleton className="h-3 w-full" />
                     </TableCell>
@@ -222,7 +213,7 @@ export function UniversalDataTable<TData extends object>({
                   <TableRow
                     data-state={(row.getIsSelected() || row.id === selectedRowId) && 'selected'}
                     className={cn(
-                      'group/row h-9 border-b border-border last:border-b-0',
+                      'group/row h-5 border-border/40',
                       (row.original as { status?: string }).status === 'VOIDED' &&
                         'text-destructive',
                       getRowClassName?.(row.original),
@@ -239,7 +230,7 @@ export function UniversalDataTable<TData extends object>({
                         <TableCell
                           key={cell.id}
                           className={cn(
-                            'h-9 max-w-72 px-3 py-1.5',
+                            'h-5 max-w-72 px-3 py-0',
                             getNarrowColumnClassName(cell.column.id),
                             meta.cellClassName
                           )}
@@ -269,10 +260,7 @@ export function UniversalDataTable<TData extends object>({
       </div>
       {showPagination && (
         <div
-          className={cn(
-            'flex h-10 shrink-0 items-center justify-between gap-3 border-t border-border bg-muted/30 px-3 text-xs',
-            paginationClassName
-          )}
+          className="flex h-10 shrink-0 items-center justify-between gap-3 border-t bg-muted/30 px-3 text-xs"
         >
           <div className="flex items-center gap-2 text-muted-foreground">
             <span>Rows</span>

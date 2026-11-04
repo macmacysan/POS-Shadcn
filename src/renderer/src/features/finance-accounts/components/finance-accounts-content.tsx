@@ -523,7 +523,7 @@ export function FinanceAccountsContent({
           )}
         </div>
       </header>
-      <TableToolbar className="mb-3 justify-between rounded-md border bg-card">
+      <TableToolbar>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SearchInputGroup
             value={search}
@@ -577,9 +577,6 @@ export function FinanceAccountsContent({
             error={loadError}
             onRetry={() => void reload()}
             emptyMessage="No finance accounts found."
-            paginationSizes={[25, 50, 100]}
-            paginationInfo="Showing {from}-{to} of {count} records"
-            tableLayout={{ columnsResizable: true }}
             onRowClick={(row) =>
               setExpandedIds((current) => {
                 const next = new Set(current)

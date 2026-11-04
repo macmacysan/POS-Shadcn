@@ -24,7 +24,8 @@ try {
       output,
       resolve(root, 'src/main/database/migrations.ts'),
       resolve(root, 'src/main/database/installment-rules-repository.ts'),
-      resolve(root, 'src/main/database/installment-repository.ts')
+      resolve(root, 'src/main/database/installment-repository.ts'),
+      resolve(root, 'src/main/database/finance-account-repository.ts')
     ],
     { stdio: 'inherit' }
   )
@@ -35,6 +36,9 @@ try {
   )
   const { InstallmentRepository } = require(
     resolve(output, 'main/database/installment-repository.js')
+  )
+  const { FinanceAccountRepository } = require(
+    resolve(output, 'main/database/finance-account-repository.js')
   )
   const { buildInHouseSchedule } = require(resolve(output, 'main/services/in-house-schedule.js'))
   const db = new Database(':memory:')
@@ -127,6 +131,91 @@ try {
   assert.equal(monthlyWorkspace.downPayment?.amountCentavos, 200000)
   assert.equal(monthlyWorkspace.payments.length, 0)
   assert.ok(monthlyWorkspace.schedules.every((schedule) => schedule.paidAmountCentavos === 0))
+  const gcashAccountId = 'account-gcash-downpayment'
+  const gcashContractId = 'contract-gcash-downpayment'
+  const gcashLoan = {
+    ...loan(gcashContractId, gcashAccountId),
+    paymentFrequency: 'Monthly',
+    terms: '3',
+    downPayment: 2000,
+    paymentMethod: 'GCash',
+    downPaymentReferenceNumber: 'DP-OR-100'
+  }
+  const bootstrapGcashLoan = () =>
+    installments.bootstrap({
+      accounts: [account(gcashAccountId)],
+      loans: [gcashLoan],
+      actorUserId: user.id
+    })
+  bootstrapGcashLoan()
+  bootstrapGcashLoan()
+  const gcashDownpayment = db
+    .prepare('SELECT description, receipt_no FROM expenses WHERE source_reference = ?')
+    .get(`in-house-downpayment:${gcashContractId}`)
+  assert.deepEqual(gcashDownpayment, {
+    description: 'GCash Downpayment: Test account-gcash-downpayment',
+    receipt_no: 'DP-OR-100'
+  })
+  assert.equal(
+    db.prepare('SELECT COUNT(*) AS count FROM expenses WHERE source_reference = ?')
+      .get(`in-house-downpayment:${gcashContractId}`).count,
+    1
+  )
+  const gcashAdvanceAccountId = 'account-gcash-advance'
+  const gcashAdvanceContractId = 'contract-gcash-advance'
+  installments.bootstrap({
+    accounts: [account(gcashAdvanceAccountId)],
+    loans: [{
+      ...loan(gcashAdvanceContractId, gcashAdvanceAccountId),
+      downPayment: 2000,
+      paymentMethod: 'GCash',
+      downPaymentReferenceNumber: 'ADV-OR-101'
+    }],
+    actorUserId: user.id
+  })
+  assert.deepEqual(
+    db.prepare(`SELECT payment_method, reference_number FROM in_house_payments
+      WHERE submission_id = ?`).get(`advanced-payment:${gcashAdvanceContractId}`),
+    { payment_method: 'GCash', reference_number: 'ADV-OR-101' }
+  )
+  installments.createPayment({
+    accountId: gcashAccountId,
+    contractId: gcashContractId,
+    submissionId: 'gcash-payment-submission',
+    paymentDate: '2026-01-02',
+    amountCentavos: 10000,
+    paymentMethod: 'GCash',
+    penaltyCentavos: 0,
+    referenceNumber: 'PAY-OR-200',
+    actorUserId: user.id
+  })
+  assert.deepEqual(
+    db.prepare('SELECT description, receipt_no FROM expenses WHERE source_reference = ?')
+      .get(db.prepare("SELECT 'in-house:' || id FROM in_house_payments WHERE submission_id = ?")
+        .pluck().get('gcash-payment-submission')),
+    {
+      description: 'GCash Payment: Test account-gcash-downpayment',
+      receipt_no: 'PAY-OR-200'
+    }
+  )
+  const financeAccounts = new FinanceAccountRepository(db)
+  const financeAccount = financeAccounts.create({
+    branch: 'Goa',
+    provider: 'Home Credit',
+    dateReleased: '2026-01-03',
+    termsMonths: 12,
+    firstName: 'Mia',
+    lastName: 'Finance',
+    items: [{ item: 'Phone', quantity: 1, itemPriceCentavos: 500000 }],
+    downpaymentCentavos: 100000,
+    paymentMethod: 'GCash',
+    orNumber: 'FIN-OR-300'
+  }, user.id)
+  assert.deepEqual(
+    db.prepare('SELECT description, receipt_no FROM expenses WHERE source_reference = ?')
+      .get(`finance:${financeAccount.id}`),
+    { description: 'GCash Downpayment: Mia Finance', receipt_no: 'FIN-OR-300' }
+  )
   installments.updateLoan({
     accountId: 'account-a',
     contractId: 'contract-a',

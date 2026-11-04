@@ -66,7 +66,7 @@ export function RowActions({
               size="icon-sm"
               aria-label={label}
               className={cn(
-                'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100',
+                'size-5 p-0 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100',
                 className
               )}
               onClick={(event) => event.stopPropagation()}

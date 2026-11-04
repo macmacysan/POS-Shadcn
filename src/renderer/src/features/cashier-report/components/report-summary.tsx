@@ -787,7 +787,7 @@ export const ReportSummary = React.memo(function ReportSummary({
               <div className="px-2.5">
                 {visibleReceiptTypes.length > 0 && (
                   <>
-                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_4.5rem] pt-2 gap-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_7rem] pt-2 gap-1.5 text-xs font-medium text-muted-foreground">
                       <span>Type</span>
                       <span className="text-right">Qty</span>
                       <span className="text-right">Amount</span>
@@ -799,7 +799,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                       return (
                         <div
                           key={type.id}
-                          className="grid grid-cols-[minmax(0,1fr)_2.75rem_4.5rem] items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs hover:bg-muted/40"
+                          className="grid grid-cols-[minmax(0,1fr)_2.75rem_7rem] items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs hover:bg-muted/40"
                         >
                           <div className="flex min-w-0 items-center gap-1.5">
                             <TooltipProvider>

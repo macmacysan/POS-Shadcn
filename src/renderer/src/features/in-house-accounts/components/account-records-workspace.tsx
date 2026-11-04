@@ -102,6 +102,7 @@ import type { InstallmentHistoryRecord, InstallmentView } from '@/../../shared/c
 import { useNotifications } from '@/hooks/use-notifications'
 
 type Props = {
+  readonly userId: string
   readonly view: InstallmentView
   readonly initialBranch?: BranchName
   readonly initialSearch?: string
@@ -128,6 +129,7 @@ type LoanEditDraft = {
   readonly paymentFrequency: 'Daily' | 'Weekly' | 'Semi' | 'Monthly'
   readonly terms: string
   readonly downPayment: string
+  readonly downPaymentReferenceNumber?: string
   readonly remarks: string
 }
 type LoanRestructureDraft = {
@@ -827,7 +829,6 @@ function ClientPortfolioModal({
                 table={paymentTable}
                 recordCount={history.length}
                 emptyMessage="No payments recorded for this account yet."
-                paginationSizes={[25, 50, 100]}
               />
             </CardContent>
           </Card>
@@ -1015,6 +1016,7 @@ function ClientPortfolioModal({
 }
 
 export function AccountRecordsWorkspace({
+  userId,
   view,
   initialBranch,
   initialSearch = '',
@@ -1118,7 +1120,7 @@ export function AccountRecordsWorkspace({
     if (!clientDraft || isEditSaving) return
     setIsEditSaving(true)
     try {
-      await window.api.installments.bootstrap({ accounts: [clientDraft], loans: [] })
+      await window.api.installments.bootstrap({ accounts: [clientDraft], loans: [], actorUserId: userId })
       setClientDraft(undefined)
       reload()
       notify({ type: 'success', title: 'Client record updated.' })
@@ -1139,6 +1141,8 @@ export function AccountRecordsWorkspace({
         paymentFrequency: loanDraft.paymentFrequency,
         terms: Number(loanDraft.terms),
         downPaymentCentavos: Math.round(Number(loanDraft.downPayment) * 100),
+        downPaymentReferenceNumber: loanDraft.downPaymentReferenceNumber || undefined,
+        actorUserId: userId,
         remarks: loanDraft.remarks || undefined
       })
       setLoanDraft(undefined)
@@ -1180,7 +1184,8 @@ export function AccountRecordsWorkspace({
               updatedAt: now
             }
           ]
-        : []
+          : [],
+      actorUserId: userId
     })
     setCreator(undefined)
     reload()
@@ -1222,6 +1227,8 @@ export function AccountRecordsWorkspace({
             : 'Semi',
         terms: Number(payload.loanDraft.terms),
         downPaymentCentavos: Math.round(payload.loanDraft.downPayment * 100),
+        downPaymentReferenceNumber: payload.loanDraft.downPaymentReferenceNumber || undefined,
+        actorUserId: userId,
         remarks: payload.loanDraft.remarks || undefined
       })
       notify({ type: 'success', title: 'Client loan updated.' })
@@ -1616,7 +1623,7 @@ export function AccountRecordsWorkspace({
           )}
         </div>
       </header>
-      <TableToolbar className="mb-3 justify-between rounded-md border bg-card">
+      <TableToolbar>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <SearchInputGroup
             value={search}
@@ -1713,9 +1720,6 @@ export function AccountRecordsWorkspace({
             onRetry={reload}
             emptyMessage="No account records found."
             onRowDoubleClick={handleRowDoubleClick}
-            paginationSizes={[25, 50, 100]}
-            paginationInfo="Showing {from}-{to} of {count} records"
-            tableLayout={{ columnsResizable: true }}
           />
         </CardContent>
       </Card>

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 52
+export const currentSchemaVersion = 53
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -2177,6 +2177,19 @@ export function runMigrations(db: Database.Database): void {
           CHECK (payment_method IN ('Cash', 'GCash'));
       `)
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(52, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 53) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE installment_contracts ADD COLUMN down_payment_reference_number TEXT;
+        ALTER TABLE expenses ADD COLUMN source_reference TEXT;
+        CREATE UNIQUE INDEX expenses_source_reference_idx ON expenses (source_reference);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(53, now)
     })
     migrate()
   }

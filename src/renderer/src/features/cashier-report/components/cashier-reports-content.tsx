@@ -487,38 +487,13 @@ function CashierReportHeader({
   )
 }
 
-const entryTypeBadgeClasses: Record<'expense' | 'payment', Record<string, string>> = {
-  expense: {
-    'Company Expenses':
-      'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
-    Drawings: 'border-secondary bg-secondary text-secondary-foreground',
-    Purchases: 'border-interactive-muted bg-interactive-muted text-interactive-muted-foreground',
-    Receivables: 'border-status-info/25 bg-status-info/15 text-status-info-foreground',
-    Operating: 'border-secondary bg-secondary text-secondary-foreground',
-    Supply: 'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
-    Transport: 'border-status-info/25 bg-status-info/15 text-status-info-foreground'
-  },
-  payment: {
-    'Bank Check': 'border-status-info/25 bg-status-info/15 text-status-info-foreground',
-    'Bank Transfer':
-      'border-interactive-muted bg-interactive-muted text-interactive-muted-foreground',
-    GCash: 'border-status-warning/25 bg-status-warning/15 text-status-warning-foreground',
-    'Other e-wallet': 'border-secondary bg-secondary text-secondary-foreground'
-  }
-}
-
 function TypeBox({
-  value,
-  kind
+  value
 }: {
   value: string
-  kind: 'expense' | 'payment'
 }): React.JSX.Element {
-  const toneClass =
-    entryTypeBadgeClasses[kind][value] ?? 'border-secondary bg-secondary text-secondary-foreground'
-
   return (
-    <Badge variant="outline" className={toneClass}>
+    <Badge variant="secondary" className="h-5 px-1">
       {value}
     </Badge>
   )
@@ -579,7 +554,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'type',
     header: 'Type',
-    cell: ({ getValue }) => <TypeBox value={getValue<string>()} kind="expense" />,
+    cell: ({ getValue }) => <TypeBox value={getValue<string>()} />,
     size: 145,
     meta: { className: 'text-muted-foreground' }
   },
@@ -702,7 +677,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     accessorKey: 'type',
     header: 'Type',
     size: 132,
-    cell: ({ getValue }) => <TypeBox value={getValue<string>()} kind="payment" />
+    cell: ({ getValue }) => <TypeBox value={getValue<string>()} />
   },
   {
     accessorKey: 'bankProvider',

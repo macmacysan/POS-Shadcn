@@ -1,6 +1,7 @@
 import { AccountRecordsWorkspace } from './account-records-workspace'
 
 type Props = {
+  readonly userId: string
   readonly initialBranch?: 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'
   readonly initialSearch?: string
   readonly initialPaymentStatus?: 'overdue'
@@ -15,6 +16,7 @@ type Props = {
 }
 
 export function InHouseActiveAccountsContent({
+  userId,
   initialBranch,
   initialSearch,
   initialPaymentStatus,
@@ -24,6 +26,7 @@ export function InHouseActiveAccountsContent({
   return (
     <AccountRecordsWorkspace
       view="active"
+      userId={userId}
       initialBranch={initialBranch}
       initialSearch={initialSearch}
       initialPaymentStatus={initialPaymentStatus}
