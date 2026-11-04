@@ -590,7 +590,7 @@ export class InstallmentRepository {
               amountCentavos: downPayment,
               actorUserId: request.actorUserId,
               reference: `in-house-downpayment:${loanId}`,
-              description: `GCash Downpayment: ${fullName}`,
+              description: `GCash-${fullName}`,
               receiptNo: optionalString(loan.downPaymentReferenceNumber)
             })
           }
@@ -730,7 +730,7 @@ export class InstallmentRepository {
           amountCentavos: request.downPaymentCentavos,
           actorUserId: request.actorUserId,
           reference: `in-house-downpayment:${contract.id}`,
-          description: `GCash Downpayment: ${[contract.first_name, contract.middle_name, contract.last_name, contract.suffix].filter(Boolean).join(' ')}`,
+          description: `GCash-${[contract.first_name, contract.middle_name, contract.last_name, contract.suffix].filter(Boolean).join(' ')}`,
           receiptNo: request.downPaymentReferenceNumber
         })
       }
@@ -1712,7 +1712,7 @@ export class InstallmentRepository {
           amountCentavos: request.amountCentavos + request.penaltyCentavos,
           actorUserId: request.actorUserId,
           reference: `in-house:${paymentId}`,
-          description: `GCash Payment: ${[contract.first_name, contract.middle_name, contract.last_name, contract.suffix].filter(Boolean).join(' ')}`,
+          description: `GCash-${[contract.first_name, contract.middle_name, contract.last_name, contract.suffix].filter(Boolean).join(' ')}`,
           receiptNo: request.referenceNumber
         })
 

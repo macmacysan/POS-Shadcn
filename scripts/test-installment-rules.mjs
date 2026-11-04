@@ -153,7 +153,7 @@ try {
     .prepare('SELECT description, receipt_no FROM expenses WHERE source_reference = ?')
     .get(`in-house-downpayment:${gcashContractId}`)
   assert.deepEqual(gcashDownpayment, {
-    description: 'GCash Downpayment: Test account-gcash-downpayment',
+    description: 'GCash-Test account-gcash-downpayment',
     receipt_no: 'DP-OR-100'
   })
   assert.equal(
@@ -185,17 +185,18 @@ try {
     paymentDate: '2026-01-02',
     amountCentavos: 10000,
     paymentMethod: 'GCash',
-    penaltyCentavos: 0,
+    penaltyCentavos: 5000,
     referenceNumber: 'PAY-OR-200',
     actorUserId: user.id
   })
   assert.deepEqual(
-    db.prepare('SELECT description, receipt_no FROM expenses WHERE source_reference = ?')
+    db.prepare('SELECT description, receipt_no, amount_centavos FROM expenses WHERE source_reference = ?')
       .get(db.prepare("SELECT 'in-house:' || id FROM in_house_payments WHERE submission_id = ?")
         .pluck().get('gcash-payment-submission')),
     {
-      description: 'GCash Payment: Test account-gcash-downpayment',
-      receipt_no: 'PAY-OR-200'
+      description: 'GCash-Test account-gcash-downpayment',
+      receipt_no: 'PAY-OR-200',
+      amount_centavos: 15000
     }
   )
   const financeAccounts = new FinanceAccountRepository(db)
@@ -214,7 +215,7 @@ try {
   assert.deepEqual(
     db.prepare('SELECT description, receipt_no FROM expenses WHERE source_reference = ?')
       .get(`finance:${financeAccount.id}`),
-    { description: 'GCash Downpayment: Mia Finance', receipt_no: 'FIN-OR-300' }
+    { description: 'GCash-Mia Finance', receipt_no: 'FIN-OR-300' }
   )
   installments.updateLoan({
     accountId: 'account-a',

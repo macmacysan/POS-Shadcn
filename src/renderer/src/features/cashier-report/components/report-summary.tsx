@@ -2,7 +2,6 @@ import * as React from 'react'
 import { addDays, format, startOfDay } from 'date-fns'
 import { ChevronLeft, ChevronRight, LockKeyhole, Plus, Trash2 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -146,7 +145,7 @@ function AmountInput({
         aria-label={label}
         aria-invalid={invalid}
         className={cn(
-          'h-7 rounded-none border-x-0 border-t-0 border-b border-border/70 text-right tabular-nums',
+          'h-7 rounded-md border border-border/70 bg-background px-1.5 text-right text-xs tabular-nums focus-visible:ring-1 focus-visible:ring-ring',
           inputClassName
         )}
         inputMode="decimal"
@@ -162,23 +161,6 @@ function AmountInput({
         }}
       />
     </div>
-  )
-}
-
-function Section({
-  label,
-  className,
-  children
-}: {
-  label: string
-  className?: string
-  children: React.ReactNode
-}): React.JSX.Element {
-  return (
-    <section className={cn('border-t border-border/50 py-3 first:border-t-0', className)}>
-      {label && <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>}
-      <div className="flex flex-col gap-1">{children}</div>
-    </section>
   )
 }
 
@@ -205,14 +187,14 @@ function SummaryRow({
     <div
       className={cn(
         'flex min-h-7 items-center justify-between gap-3 rounded-md px-2 py-1 text-[13px] transition-colors hover:bg-muted/60',
-        emphasis && 'mt-1 min-h-8 bg-muted py-1.5 font-medium hover:bg-muted',
+        emphasis && 'mt-1 min-h-8 rounded-none border-t border-border/60 bg-transparent px-2 py-1 font-medium hover:bg-transparent',
         className
       )}
     >
       <span
         className={cn(
           'min-w-0 truncate text-muted-foreground',
-          emphasis && 'font-medium text-foreground'
+          emphasis && 'font-semibold text-foreground'
         )}
       >
         {label}
@@ -235,7 +217,13 @@ function SummaryRow({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger
-          render={<div className="cursor-default" tabIndex={0} aria-label={`${label} details`} />}
+          render={
+            <div
+              className="cursor-help rounded-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              tabIndex={0}
+              aria-label={`${label} details`}
+            />
+          }
         >
           {row}
         </TooltipTrigger>
@@ -635,8 +623,8 @@ export const ReportSummary = React.memo(function ReportSummary({
 
   return (
     <>
-      <aside className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden bg-workspace p-3 text-foreground">
-        <header className="flex shrink-0 flex-col gap-2 rounded-xl ">
+      <aside className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-workspace p-3 text-foreground">
+        <header className="flex shrink-0 flex-col gap-2 rounded-xl">
           <div className="flex min-w-0 items-center justify-between gap-3">
             <span className="shrink-0 text-xs text-muted-foreground" aria-live="polite">
               {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
@@ -646,7 +634,7 @@ export const ReportSummary = React.memo(function ReportSummary({
             <div className="flex min-w-0 items-center gap-1">
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon-sm"
                 aria-label="View previous business day"
                 disabled={isDateLoading || !startDate}
@@ -665,7 +653,7 @@ export const ReportSummary = React.memo(function ReportSummary({
               />
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon-sm"
                 aria-label="View next business day"
                 disabled={isDateLoading || !selectedDay || selectedDay.getTime() >= today.getTime()}
@@ -784,10 +772,10 @@ export const ReportSummary = React.memo(function ReportSummary({
             )}
 
             <ScrollArea className="min-h-0 flex-1">
-              <div className="px-2.5">
+              <div className="px-2.5 pb-1">
                 {visibleReceiptTypes.length > 0 && (
                   <>
-                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_7rem] pt-2 gap-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_7rem] gap-2 border-b border-border/50 px-1 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       <span>Type</span>
                       <span className="text-right">Qty</span>
                       <span className="text-right">Amount</span>
@@ -799,14 +787,14 @@ export const ReportSummary = React.memo(function ReportSummary({
                       return (
                         <div
                           key={type.id}
-                          className="grid grid-cols-[minmax(0,1fr)_2.75rem_7rem] items-center gap-1.5 rounded-sm px-1 py-0.5 text-xs hover:bg-muted/40"
+                          className="grid grid-cols-[minmax(0,1fr)_2.75rem_7rem] items-center gap-2 rounded-md px-1 py-1 text-xs transition-colors hover:bg-muted/50"
                         >
                           <div className="flex min-w-0 items-center gap-1.5">
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger
                                   render={
-                                    <span className="min-w-0 truncate text-xs text-muted-foreground" />
+                                    <span className="min-w-0 truncate text-[13px] text-foreground" />
                                   }
                                 >
                                   {receiptTypeSummaryName(type.name, type.shortName, type.isSystem)}
@@ -815,17 +803,20 @@ export const ReportSummary = React.memo(function ReportSummary({
                               </Tooltip>
                             </TooltipProvider>
                             {!isToday && (
-                              <Badge variant={type.isActive ? 'zinc' : 'amber'}>
-                                <LockKeyhole data-icon="inline-start" aria-hidden="true" />
-                                {type.isActive ? '' : ''}
-                              </Badge>
+                              <LockKeyhole
+                                className={cn(
+                                  'size-3.5 shrink-0',
+                                  type.isActive ? 'text-muted-foreground' : 'text-warning-foreground'
+                                )}
+                                aria-hidden="true"
+                              />
                             )}
                           </div>
                           <Input
                             aria-label={`${type.name} quantity`}
                             aria-invalid={hasAmount && !hasQuantity}
                             className={cn(
-                              'h-7 min-w-0 rounded-none border-x-0 border-t-0 border-b border-border/70 px-1.5 text-right text-sm tabular-nums',
+                              'h-7 min-w-0 rounded-md border border-border/70 bg-background px-1.5 text-right text-xs tabular-nums focus-visible:ring-1 focus-visible:ring-ring',
                               hasAmount &&
                                 !hasQuantity &&
                                 'border-destructive focus-visible:ring-destructive/40'
@@ -847,7 +838,6 @@ export const ReportSummary = React.memo(function ReportSummary({
                             value={value?.amountCentavos ?? 0}
                             invalid={hasQuantity && !hasAmount}
                             inputClassName={cn(
-                              'text-sm',
                               hasQuantity &&
                                 !hasAmount &&
                                 'border-destructive focus-visible:ring-destructive/40'
@@ -862,7 +852,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                   </>
                 )}
                 {totalCashReceiptsCentavos !== 0 && (
-                  <Section label="Cash in" className="border-b-0">
+                  <div className="flex flex-col gap-0.5">
                     <SummaryRow
                       label="Collections"
                       value={snapshot.cashCollectionsCentavos ?? 0}
@@ -930,10 +920,10 @@ export const ReportSummary = React.memo(function ReportSummary({
                       value={totalCashReceiptsCentavos}
                       emphasis
                     />
-                  </Section>
+                  </div>
                 )}
                 {totalCashOutCentavos !== 0 && (
-                  <Section label="Cash out" className="border-b-0">
+                  <div className="flex flex-col gap-0.5">
                     <SummaryRow
                       label="Expenses"
                       value={expenseTotals.companyExpensesCentavos}
@@ -991,10 +981,10 @@ export const ReportSummary = React.memo(function ReportSummary({
                       }
                     />
                     <SummaryRow label="Total Cash Outs" value={totalCashOutCentavos} emphasis />
-                  </Section>
+                  </div>
                 )}
                 {paymentTotals.total !== 0 && (
-                  <Section label="Payments" className="border-b-0">
+                  <div className="flex flex-col gap-0.5">
                     <SummaryRow
                       label="Bank Check"
                       value={paymentTotals.bankCheck}
@@ -1008,20 +998,22 @@ export const ReportSummary = React.memo(function ReportSummary({
                       valueMuted
                     />
                     <SummaryRow label="Total Payments" value={paymentTotals.total} emphasis />
-                  </Section>
+                  </div>
                 )}
               </div>
             </ScrollArea>
-            <div className="shrink-0 border-t border-sidebar-border bg-background/30 px-3 py-2">
+            <div className="shrink-0 border-t border-border bg-muted/20 px-2.5 py-2">
               <SummaryRow
                 label="Expected Cash"
                 value={expectedCashCentavos}
                 emphasis
+                className="mt-0 min-h-9 rounded-none border-0 bg-transparent px-2 text-sm hover:bg-transparent [&>span:last-child]:text-base [&>span:last-child]:font-semibold"
                 hideWhenZero
               />
               <SummaryRow
                 label="Cash Denominations"
                 value={snapshot.physicalCashCentavos}
+                className="mt-1 border-t border-border/50 pt-2"
                 hideWhenZero
                 valueMuted
                 hoverDetails={
@@ -1061,16 +1053,16 @@ export const ReportSummary = React.memo(function ReportSummary({
         </Card>
 
         <Card className="shrink-0 gap-0 py-0 shadow-none">
-          <CardContent className="p-2">
+          <CardContent className="p-2.5">
             <section
               aria-label="Cash variance"
-              className="flex items-baseline justify-between gap-3"
+              className="flex items-baseline justify-between gap-3 px-1 py-1"
             >
               <span className="text-sm font-medium text-muted-foreground">Cash variance</span>
               <span
                 className={cn(
-                  'text-lg font-semibold tabular-nums',
-                  variance > 0 && 'text-success',
+                  'text-base font-semibold tabular-nums',
+                  variance > 0 && 'text-warning-foreground',
                   variance < 0 && 'text-destructive'
                 )}
               >

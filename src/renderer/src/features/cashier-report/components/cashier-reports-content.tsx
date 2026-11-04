@@ -562,8 +562,12 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'description',
     header: 'Description',
     size: 176,
-    cell: ({ getValue }) => <TruncatedText value={getValue<string>()} className="text-sm" />,
-    meta: { className: 'min-w-0' }
+    cell: ({ getValue }) => (
+      <span className="block min-w-0 whitespace-normal break-words text-sm">
+        {getValue<string>()}
+      </span>
+    ),
+    meta: { className: 'min-w-0 whitespace-normal' }
   },
   {
     accessorKey: 'category',

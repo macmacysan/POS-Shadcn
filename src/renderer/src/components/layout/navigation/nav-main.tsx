@@ -285,61 +285,6 @@ export function NavMain({
             )
           )}
         </SidebarMenu>
-        <SidebarMenu className="hidden gap-1.5 group-data-[collapsible=icon]:flex">
-          {[
-            [
-              'Cashier reports',
-              <ClipboardTextIcon />,
-              activeView === 'cashier-reports',
-              onCashierReports
-            ],
-            ['Report', <FileTextIcon />, activeView === 'report', onReport],
-            ['Records', <ListBulletsIcon />, activeView === 'in-house-accounts', onAllAccounts],
-            ['Active', <ClockIcon />, activeView === 'in-house-active-accounts', onActiveAccounts],
-            [
-              'Closed',
-              <CheckCircleIcon />,
-              activeView === 'in-house-closed-accounts',
-              onClosedAccounts
-            ],
-            [
-              'Blacklisted',
-              <ProhibitIcon />,
-              activeView === 'in-house-blacklisted-accounts',
-              onBlacklistedAccounts
-            ],
-            ['Accounts', <CreditCardIcon />, activeView === 'finance-accounts', onFinanceAccounts],
-            ['Calendar', <CalendarIcon />, activeView === 'calendar', onCalendar]
-          ].map(([title, icon, isActive, onClick]) => (
-            <SidebarMenuItem key={title as string}>
-              <SidebarMenuButton
-                className="relative"
-                isActive={isActive as boolean}
-                tooltip={title as string}
-                render={
-                  <a
-                    href="#"
-                    onClick={(event) => handleNavClick(event, onClick as (() => void) | undefined)}
-                  />
-                }
-              >
-                {icon as React.ReactNode}
-                <span>{title as string}</span>
-                {title === 'Active' && compactBadge(overdueCount) && (
-                  <ReuiBadge
-                    variant="destructive-light"
-                    size="xs"
-                    radius="full"
-                    className="absolute -right-0.5 -top-0.5 scale-75"
-                    aria-label={`${overdueCount} overdue accounts`}
-                  >
-                    {compactBadge(overdueCount)}
-                  </ReuiBadge>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
   )
