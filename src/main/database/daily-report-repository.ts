@@ -1384,12 +1384,12 @@ export class DailyReportRepository {
           COALESCE((SELECT SUM(p.amount_centavos + p.penalty_centavos)
                       FROM in_house_payments p
                       JOIN installment_contracts c ON c.id = p.contract_id
-                      WHERE p.status = 'POSTED' AND p.payment_method = 'Cash' AND c.status <> 'VOIDED'
+                      WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
                        AND p.payment_date = report.business_date
                        AND c.branch_id = report.branch_id), 0) AS recorded_paid_amount_centavos,
           COALESCE((SELECT SUM(c.down_payment_centavos)
                       FROM installment_contracts c
-                     WHERE c.status <> 'VOIDED' AND c.down_payment_method = 'Cash'
+                     WHERE c.status <> 'VOIDED'
                        AND c.date_released = report.business_date
                        AND c.branch_id = report.branch_id
                        AND COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) = 'Monthly'), 0) AS recorded_down_payment_centavos,
@@ -1399,7 +1399,7 @@ export class DailyReportRepository {
           COALESCE((SELECT SUM(f.downpayment_centavos)
                       FROM finance_accounts f
                       JOIN branches finance_branch ON finance_branch.name = f.branch
-                     WHERE f.payment_method = 'Cash' AND COALESCE(f.paid_date, f.date_released) = ?
+                     WHERE COALESCE(f.paid_date, f.date_released) = ?
                        AND finance_branch.id = report.branch_id), 0) AS finance_down_centavos,
           COALESCE((SELECT SUM(f.balance_centavos)
                       FROM finance_accounts f

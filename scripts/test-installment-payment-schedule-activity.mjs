@@ -24,7 +24,8 @@ try {
     resolve(root, 'src/main/database/migrations.ts'),
     resolve(root, 'src/main/database/user-repository.ts'),
     resolve(root, 'src/main/database/daily-report-repository.ts'),
-    resolve(root, 'src/main/database/installment-repository.ts')
+    resolve(root, 'src/main/database/installment-repository.ts'),
+    resolve(root, 'src/main/database/finance-account-repository.ts')
   ])
   const Database = require('better-sqlite3')
   const { runMigrations } = require(resolve(output, 'main/database/migrations.js'))
@@ -34,6 +35,9 @@ try {
   )
   const { InstallmentRepository } = require(
     resolve(output, 'main/database/installment-repository.js')
+  )
+  const { FinanceAccountRepository } = require(
+    resolve(output, 'main/database/finance-account-repository.js')
   )
   const db = new Database(':memory:')
   db.pragma('foreign_keys = ON')
@@ -98,6 +102,65 @@ try {
     )
     .all('schedule-contract')
   const [first, second, third] = schedules
+  repository.bootstrap({
+    accounts: [{
+      id: 'gcash-summary-account',
+      branch: 'Goa',
+      firstName: 'GCash',
+      lastName: 'Summary',
+      barangay: 'Test',
+      cityMunicipality: 'Goa',
+      province: 'Camarines Sur',
+      contacts: [],
+      emails: [],
+      createdAt: now
+    }],
+    loans: [{
+      id: 'gcash-summary-contract',
+      customerId: 'gcash-summary-account',
+      dateReleased: '2026-09-01',
+      paymentFrequency: 'Monthly',
+      terms: '3',
+      downPayment: 1000,
+      paymentMethod: 'GCash',
+      downPaymentReferenceNumber: 'DP-OR-100',
+      items: [{ id: 'gcash-summary-item', name: 'Test', quantity: 1, price: 10000 }],
+      createdAt: now
+    }],
+    actorUserId: cashier.id
+  })
+  const gcashSchedules = db
+    .prepare('SELECT id FROM in_house_schedules WHERE contract_id = ? ORDER BY installment_number')
+    .all('gcash-summary-contract')
+  repository.createPayment({
+    accountId: 'gcash-summary-account',
+    contractId: 'gcash-summary-contract',
+    scheduleId: gcashSchedules[0].id,
+    submissionId: 'gcash-summary-payment',
+    paymentDate: '2026-09-01',
+    amountCentavos: 10000,
+    paymentMethod: 'GCash',
+    penaltyCentavos: 5000,
+    referenceNumber: 'PAY-OR-200',
+    actorUserId: cashier.id
+  })
+  const financeAccounts = new FinanceAccountRepository(db)
+  financeAccounts.create({
+    branch: 'Goa',
+    provider: 'Home Credit',
+    dateReleased: '2026-09-01',
+    termsMonths: 12,
+    firstName: 'Finance',
+    lastName: 'GCash',
+    items: [{ item: 'Phone', quantity: 1, itemPriceCentavos: 500000 }],
+    downpaymentCentavos: 20000,
+    paymentMethod: 'GCash',
+    orNumber: 'FIN-OR-300'
+  }, cashier.id)
+  const gcashSnapshot = reports.snapshot(report.id)
+  assert.equal(gcashSnapshot.cashCollectionsCentavos, 215000)
+  assert.equal(gcashSnapshot.financeDownCentavos, 20000)
+  assert.equal(gcashSnapshot.expectedCashCentavos, 100000)
   const firstPartOfSecond = Math.floor(second.due_amount_centavos / 2)
   const secondPartOfSecond = second.due_amount_centavos - firstPartOfSecond
   const partialThird = Math.floor(third.due_amount_centavos / 2)
@@ -184,6 +247,7 @@ try {
     submissionId: 'schedule-adjustment',
     paymentDate: '2026-10-01',
     amountCentavos: adjustedAmount,
+    paymentMethod: 'Cash',
     penaltyCentavos: 0,
     reason: 'Allocation cap regression test',
     actorUserId: null
@@ -250,6 +314,7 @@ try {
     submissionId: 'payment-remarks',
     paymentDate: '2026-10-02',
     amountCentavos: 1,
+    paymentMethod: 'Cash',
     penaltyCentavos: 0,
     referenceNumber: '123458',
     remarks: 'Payment remark',
