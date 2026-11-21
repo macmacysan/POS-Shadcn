@@ -1,10 +1,13 @@
 import * as React from 'react'
+import { cn } from '@/lib/utils'
+
 export function TableToolbar({
+  className,
   children,
   ...props
-}: Omit<React.ComponentProps<'div'>, 'className'>): React.JSX.Element {
+}: React.ComponentProps<'div'>): React.JSX.Element {
   return (
-    <div className="table-toolbar" {...props}>
+    <div className={cn('table-toolbar', className)} {...props}>
       {children}
     </div>
   )

@@ -1043,6 +1043,7 @@ export function AccountRecordsWorkspace({
   )
   const [selected, setSelected] = React.useState<PersistedInstallmentRow>()
   const [transition, setTransition] = React.useState<Transition>()
+  const [paidAccountPrompts, setPaidAccountPrompts] = React.useState<readonly PersistedInstallmentRow[]>([])
   const [remarks, setRemarks] = React.useState('')
   const [transitionError, setTransitionError] = React.useState<string>()
   const [isTransitionSubmitting, setIsTransitionSubmitting] = React.useState(false)
@@ -1116,6 +1117,27 @@ export function AccountRecordsWorkspace({
       )
     })
   }, [activeStatusFilter, filters, initialBranch, ownBranch, rows, search, showAllBranches, view])
+
+  React.useEffect(() => {
+    if (view !== 'active') return
+    setPaidAccountPrompts((current) => {
+      const promptedIds = new Set(current.map((row) => row.contractId))
+      return [
+        ...current,
+        ...rows.filter(
+          (row) =>
+            row.contractStatus === 'ACTIVE' &&
+            row.meta.status === 'fully-paid' &&
+            (!ownBranch && !initialBranch || row.account.branch === (ownBranch ?? initialBranch)) &&
+            !promptedIds.has(row.contractId)
+        )
+      ]
+    })
+  }, [initialBranch, ownBranch, rows, view])
+
+  const promptedPaidAccount = paidAccountPrompts[0]
+  const closePaidAccountPrompt = (): void =>
+    setPaidAccountPrompts((current) => current.slice(1))
   const saveClientRecord = async (): Promise<void> => {
     if (!clientDraft || isEditSaving) return
     setIsEditSaving(true)
@@ -1372,7 +1394,11 @@ export function AccountRecordsWorkspace({
         actions.push({
           id: 'close',
           label: 'Close Account',
-          onSelect: () => openTransition('close', row),
+          onSelect: () => {
+            if (view === 'active' && row.meta.status === 'fully-paid' &&
+              !window.confirm(`Set ${formatAccountName(row.account)} to closed?`)) return
+            openTransition('close', row)
+          },
           destructive: true
         })
       if (row.accountStatus === 'ACTIVE')
@@ -1624,7 +1650,7 @@ export function AccountRecordsWorkspace({
         </div>
       </header>
       <TableToolbar>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto">
           <SearchInputGroup
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -2132,19 +2158,32 @@ export function AccountRecordsWorkspace({
           )}
         </DialogContent>
       </Dialog>
-      <Dialog open={Boolean(transition)} onOpenChange={(open) => !open && setTransition(undefined)}>
+      <Dialog
+        open={Boolean(transition) || Boolean(promptedPaidAccount)}
+        onOpenChange={(open) => {
+          if (open) return
+          if (transition) setTransition(undefined)
+          else closePaidAccountPrompt()
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {transition?.kind === 'close'
+              {promptedPaidAccount && !transition
+                ? 'Fully paid account'
+                : transition?.kind === 'close'
                 ? 'Close account'
                 : transition?.kind === 'blacklist'
                   ? 'Blacklist account'
                   : 'Restore account to active'}
             </DialogTitle>
-            <DialogDescription>Enter a required note for this status change.</DialogDescription>
+            <DialogDescription>
+              {promptedPaidAccount && !transition
+                ? `${formatAccountName(promptedPaidAccount.account)} is fully paid. Would you like to set this account to closed?`
+                : 'Enter a required note for this status change.'}
+            </DialogDescription>
           </DialogHeader>
-          <FieldGroup>
+          {transition ? <FieldGroup>
             <Field data-invalid={Boolean(transitionError)}>
               <FieldLabel htmlFor="account-status-remarks">Remarks (optional)</FieldLabel>
               <Textarea
@@ -2156,8 +2195,25 @@ export function AccountRecordsWorkspace({
               />
               {transitionError && <FieldError>{transitionError}</FieldError>}
             </Field>
-          </FieldGroup>
+          </FieldGroup> : null}
           <DialogFooter>
+            {promptedPaidAccount && !transition ? (
+              <>
+                <Button type="button" variant="outline" onClick={closePaidAccountPrompt}>
+                  Later
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => {
+                    openTransition('close', promptedPaidAccount)
+                    closePaidAccountPrompt()
+                  }}
+                >
+                  Close account
+                </Button>
+              </>
+            ) : <>
             <Button type="button" variant="outline" onClick={() => setTransition(undefined)}>
               Cancel
             </Button>
@@ -2173,6 +2229,7 @@ export function AccountRecordsWorkspace({
             >
               {isTransitionSubmitting ? 'Updating…' : 'Confirm'}
             </Button>
+            </>}
           </DialogFooter>
         </DialogContent>
       </Dialog>

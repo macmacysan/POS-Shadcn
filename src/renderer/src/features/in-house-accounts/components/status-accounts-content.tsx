@@ -520,7 +520,7 @@ export function StatusAccountsContent({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3">
-      <TableToolbar>
+      <TableToolbar className="flex-nowrap overflow-x-auto">
         <ShadcnTableFilters
           filters={filters}
           fields={filterFields}

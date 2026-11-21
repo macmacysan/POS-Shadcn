@@ -523,8 +523,8 @@ export function FinanceAccountsContent({
           )}
         </div>
       </header>
-      <TableToolbar>
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <TableToolbar className="flex-nowrap overflow-x-auto">
+        <div className="flex min-w-0 flex-nowrap items-center gap-2">
           <SearchInputGroup
             value={search}
             onChange={(event) => {
