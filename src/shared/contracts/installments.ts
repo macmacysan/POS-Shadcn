@@ -256,13 +256,14 @@ export type InHouseScheduleRecord = {
   paidAmountCentavos: number
   balanceCentavos: number
   penaltyCentavos: number
-  status: 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'WAIVED'
+  status: 'DUE' | 'PARTIALLY_PAID' | 'PAID' | 'WAIVED' | 'PENDING'
   isService: boolean
   isAdjusted: boolean
 }
 
 export type InHousePaymentRecord = {
   id: string
+  sourceSubmissionId?: string
   paymentDate: string
   amountCentavos: number
   paymentMethod: 'Cash' | 'GCash'
@@ -270,7 +271,7 @@ export type InHousePaymentRecord = {
   allocatedAmountCentavos: number
   referenceNumber?: string
   remarks?: string
-  status: 'POSTED' | 'VOIDED'
+  status: 'POSTED' | 'VOIDED' | 'PENDING'
   isAdjustment: boolean
   createdAt: string
   updatedByName?: string

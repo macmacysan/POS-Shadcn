@@ -8,6 +8,7 @@ import { FinanceAccountsContent } from '@/features/finance-accounts'
 import { CalendarWorkspace } from '@/features/calendar'
 import { AccountRecordsWorkspace } from '@/features/in-house-accounts/components/account-records-workspace'
 import { InstallmentPaymentWorkspace } from '@/features/in-house-payments'
+import { CrossBranchPaymentReceivedDialog } from '@/features/in-house-payments/components/cross-branch-payment-received-dialog'
 import { DashboardContent } from '@/features/dashboard'
 import { InstallmentOverviewContent } from '@/features/installment-overview'
 import { SidebarLeft } from '@/components/layout/sidebar-left'
@@ -29,6 +30,7 @@ import { useNotifications } from '@/hooks/use-notifications'
 import { Toaster } from '@/components/ui/sonner'
 import type {
   AuthenticatedUser,
+  CrossBranchPaymentReceipt,
   GoogleSyncProgress,
   InstallmentAttentionSummary,
   LoginBranch
@@ -551,6 +553,19 @@ function App(): React.JSX.Element {
   const [selectedBranch, setSelectedBranch] = useState<LoginBranch>('Lagonoy')
   const [isMaximized, setIsMaximized] = useState(false)
   const [syncFailures, setSyncFailures] = useState<GoogleSyncProgress[]>([])
+  const [receivedPaymentReceipts, setReceivedPaymentReceipts] = useState<
+    CrossBranchPaymentReceipt[]
+  >([])
+
+  useEffect(
+    () =>
+      window.api.googleSync.onPaymentReceived((receipt) =>
+        setReceivedPaymentReceipts((current) =>
+          current.some((item) => item.eventId === receipt.eventId) ? current : [...current, receipt]
+        )
+      ),
+    []
+  )
 
   useEffect(() => {
     const controls = window.windowControls
@@ -586,6 +601,7 @@ function App(): React.JSX.Element {
     window.location.hash = ''
     setAuthenticatedUser(undefined)
     setIsLoggedIn(false)
+    setReceivedPaymentReceipts([])
   }, [])
 
   const toggleMaximize = async (): Promise<void> => {
@@ -677,6 +693,10 @@ function App(): React.JSX.Element {
             </main>
           )}
         </div>
+        <CrossBranchPaymentReceivedDialog
+          receipt={isLoggedIn ? receivedPaymentReceipts[0] : undefined}
+          onDismiss={() => setReceivedPaymentReceipts((current) => current.slice(1))}
+        />
       </div>
     </NotificationProvider>
   )

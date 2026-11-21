@@ -18,7 +18,13 @@ import { KpiCard } from '@/components/shared/kpi-card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { AmountInputGroup } from '@/components/ui/amount-input-group'
@@ -80,9 +86,11 @@ function statusVariant(
     | 'UPCOMING'
     | 'OVERDUE'
     | 'SERVICE'
+    | 'PENDING'
 ): NonNullable<BadgeProps['variant']> {
   if (status === 'PAID' || status === 'POSTED') return 'success-light' as const
-  if (status === 'PARTIALLY_PAID' || status === 'DUE') return 'warning-light' as const
+  if (status === 'PARTIALLY_PAID' || status === 'DUE' || status === 'PENDING')
+    return 'warning-light' as const
   if (status === 'OVERDUE' || status === 'VOIDED') return 'destructive-light' as const
   if (status === 'SERVICE') return 'info-light' as const
   if (status === 'WAIVED') return 'secondary' as const
@@ -103,6 +111,7 @@ function scheduleStatusText(status: ReturnType<typeof scheduleStatusLabel>): str
   return {
     PAID: 'Paid',
     PARTIALLY_PAID: 'Partial',
+    PENDING: 'PENDING',
     UPCOMING: 'Upcoming',
     DUE: 'Due',
     OVERDUE: 'Overdue',
@@ -313,6 +322,7 @@ function paymentColumns(
   const scheduleNumbers = new Map(
     schedules.map((schedule) => [schedule.id, schedule.installmentNumber])
   )
+  const scheduleDates = new Map(schedules.map((schedule) => [schedule.id, schedule.dueDate]))
   return [
     {
       id: 'paymentNumber',
@@ -327,6 +337,18 @@ function paymentColumns(
       header: 'Payment date',
       size: 110,
       cell: ({ row }) => formatDate(row.original.paymentDate)
+    },
+    {
+      id: 'scheduledDate',
+      header: 'Scheduled due',
+      size: 110,
+      cell: ({ row }) => {
+        const dueDate = row.original.scheduleIds
+          .map((id) => scheduleDates.get(id))
+          .filter((date): date is string => Boolean(date))
+          .sort()[0]
+        return dueDate ? formatDate(dueDate) : '—'
+      }
     },
     {
       id: 'covers',
@@ -392,7 +414,9 @@ function paymentColumns(
       header: 'Status',
       size: 128,
       cell: ({ row }) => (
-        <Badge variant={row.original.isDownPayment ? 'info-light' : statusVariant(row.original.status)}>
+        <Badge
+          variant={row.original.isDownPayment ? 'info-light' : statusVariant(row.original.status)}
+        >
           {row.original.isDownPayment ? 'Downpayment' : row.original.status}
         </Badge>
       )
@@ -402,7 +426,8 @@ function paymentColumns(
       header: 'Actions',
       size: 56,
       cell: ({ row }) =>
-        onVoid && !row.original.isDownPayment && (
+        onVoid &&
+        !row.original.isDownPayment && (
           <RowActions
             label="Payment actions"
             className="size-5"
@@ -461,10 +486,9 @@ export function InstallmentPaymentWorkspace({
   const openedInitialPaymentRef = React.useRef<string | undefined>(undefined)
   const openedRecordPaymentRef = React.useRef<string | undefined>(undefined)
   const canRecordPayment =
-    workspace?.account.branch === ownBranch &&
     workspace?.contractStatus === 'ACTIVE' &&
     workspace.accountStatus === 'ACTIVE' &&
-    workspace.outstandingBalanceCentavos > 0
+    (workspace.account.branch !== ownBranch || workspace.outstandingBalanceCentavos > 0)
   const canAdjustPayment =
     workspace?.account.branch === ownBranch &&
     workspace?.contractStatus === 'ACTIVE' &&
@@ -691,7 +715,12 @@ export function InstallmentPaymentWorkspace({
       window.dispatchEvent(new Event('installments:changed'))
       notify({
         type: 'success',
-        title: paymentMode === 'adjust' ? 'Payment adjustment posted.' : 'Payment posted.'
+        title:
+          paymentMode === 'adjust'
+            ? 'Payment adjustment posted.'
+            : workspace.account.branch === ownBranch
+              ? 'Payment posted.'
+              : `Payment recorded at this branch. ${workspace.account.branch} will apply it after sync.`
       })
     } catch {
       const message =
@@ -978,7 +1007,11 @@ export function InstallmentPaymentWorkspace({
                       showPagination={false}
                       selectedRowId={selectedPaymentId}
                       onRowClick={(payment) => {
-                        if (payment.isDownPayment || payment.status !== 'POSTED' || !canAdjustPayment)
+                        if (
+                          payment.isDownPayment ||
+                          payment.status !== 'POSTED' ||
+                          !canAdjustPayment
+                        )
                           return
                         const schedule = payment.scheduleIds
                           .map((scheduleId) =>
@@ -993,11 +1026,15 @@ export function InstallmentPaymentWorkspace({
               </TabsContent>
             </Tabs>
           </section>
-          {isPaymentOpen && (
+          {isPaymentOpen && workspace && (
             <aside className="flex w-[26rem] max-w-[42%] shrink-0 flex-col border-l bg-background">
               <header className="shrink-0 border-b px-5 pb-4 pt-5">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {paymentMode === 'adjust' ? 'Payment adjustment' : 'Record payment'}
+                  {paymentMode === 'adjust'
+                    ? 'Payment adjustment'
+                    : workspace.account.branch !== ownBranch
+                      ? 'Cross-branch payment'
+                      : 'Record payment'}
                 </p>
                 <div className="mt-3">
                   <div className="min-w-0">
@@ -1028,7 +1065,9 @@ export function InstallmentPaymentWorkspace({
                         description={
                           paymentMode === 'adjust'
                             ? 'Use 0.00 to void this installment payment without a replacement amount.'
-                            : 'Any amount above this installment is applied to following installments.'
+                            : workspace.account.branch !== ownBranch
+                              ? `The owner branch (${workspace.account.branch}) allocates this payment against its current schedule after sync.`
+                              : 'Any amount above this installment is applied to following installments.'
                         }
                       />
                     </Field>
@@ -1054,9 +1093,17 @@ export function InstallmentPaymentWorkspace({
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="payment-method">Payment method</FieldLabel>
-                      <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'GCash')}>
-                        <SelectTrigger id="payment-method"><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="GCash">GCash</SelectItem></SelectContent>
+                      <Select
+                        value={paymentMethod}
+                        onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'GCash')}
+                      >
+                        <SelectTrigger id="payment-method">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Cash">Cash</SelectItem>
+                          <SelectItem value="GCash">GCash</SelectItem>
+                        </SelectContent>
                       </Select>
                     </Field>
                     <PaymentDateField value={paymentDate} onChange={setPaymentDate} />

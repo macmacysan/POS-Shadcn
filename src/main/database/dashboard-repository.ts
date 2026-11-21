@@ -65,7 +65,7 @@ export class DashboardRepository {
            FROM in_house_payments p
            JOIN installment_contracts c ON c.id = p.contract_id
            JOIN branches b ON b.id = c.branch_id
-           WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
+           WHERE p.status = 'POSTED' AND c.status <> 'VOIDED' AND p.collection_branch_id IS NULL
              AND p.payment_date = ? AND (? IS NULL OR b.name = ?)`
       )
       .get(businessDate, branch, branch) as { amount_centavos: number }
@@ -97,7 +97,7 @@ export class DashboardRepository {
              FROM in_house_payments p
              JOIN installment_contracts c ON c.id = p.contract_id
              JOIN branches b ON b.id = c.branch_id
-             WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
+             WHERE p.status = 'POSTED' AND c.status <> 'VOIDED' AND p.collection_branch_id IS NULL
               AND p.payment_date BETWEEN date(?, '-' || (? - 1) || ' days') AND ?
               AND (? IS NULL OR b.name = ?)
             GROUP BY p.payment_date

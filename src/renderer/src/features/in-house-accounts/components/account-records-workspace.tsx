@@ -1336,7 +1336,22 @@ export function AccountRecordsWorkspace({
       const actions: RowActionItem[] = [
         { id: 'view-details', label: 'View Details', onSelect: () => setSelected(row) }
       ]
-      if (ownBranch !== row.account.branch) return actions
+      if (ownBranch !== row.account.branch) {
+        if (
+          ownBranch &&
+          view === 'records' &&
+          onOpenPaymentWorkspace &&
+          row.contractStatus === 'ACTIVE' &&
+          row.accountStatus === 'ACTIVE'
+        )
+          actions.push({
+            id: 'record-payment',
+            label: 'Record Payment',
+            onSelect: () =>
+              onOpenPaymentWorkspace(row.account.id, 'schedule', view, undefined, true)
+          })
+        return actions
+      }
       if (view === 'records')
         actions.push({
           id: 'update-client-record',

@@ -73,7 +73,15 @@ export class GoogleDriveSnapshotService {
           "SELECT 1 FROM google_sheet_branch_cache WHERE source_branch = ? AND sheet_name = 'Records' LIMIT 1"
         )
         .get(branch)
-      if (known?.remote_revision === remote.version && recordsCached) return this.result(branch)
+      const paymentWorkspacesCached = this.database
+        .prepare(
+          `SELECT 1 FROM google_sheet_branch_cache
+            WHERE source_branch = ? AND sheet_name = 'InstallmentPayments'
+              AND source_record_id = '__snapshot__' LIMIT 1`
+        )
+        .get(branch)
+      if (known?.remote_revision === remote.version && recordsCached && paymentWorkspacesCached)
+        return this.result(branch)
       const encrypted = await this.drive.downloadDriveFile(remote)
       const checksum = createHash('sha256').update(encrypted).digest('hex')
       if (remote.appProperties?.sha256 && remote.appProperties.sha256 !== checksum)
@@ -243,18 +251,28 @@ export class GoogleDriveSnapshotService {
       'Finance',
       `SELECT f.id, f.branch, f.provider, f.date_released AS dateReleased, f.terms_months AS termsMonths, f.last_name AS lastName, f.first_name AS firstName, f.middle_name AS middleName, f.suffix, f.downpayment_centavos AS downpaymentCentavos, f.grand_total_centavos AS grandTotalCentavos, f.balance_centavos AS balanceCentavos, f.or_number AS orNumber, f.or_date AS orDate, f.paid_date AS paidDate, f.remarks, f.created_at AS createdAt, f.updated_at AS updatedAt, f.status, f.voided_at AS voidedAt, f.voided_by_user_id AS voidedByUserId, f.void_reason AS voidReason, json_group_array(json_object('id', i.id, 'item', i.item, 'serialNo', i.serial_no, 'quantity', i.quantity, 'itemPriceCentavos', i.item_price_centavos, 'totalCentavos', i.total_centavos)) AS items FROM finance_accounts f LEFT JOIN finance_account_items i ON i.finance_account_id=f.id WHERE f.branch=? GROUP BY f.id`
     )
-    const records = new InstallmentRepository(source).list({
+    const installmentRepository = new InstallmentRepository(source)
+    const records = installmentRepository.list({
       view: 'records',
       search: '',
       branch,
       includeVoided: false
     }).rows
+    rows.push({ sheet: 'InstallmentPayments', id: '__snapshot__', payload: { complete: true } })
     rows.push(
       ...records.map((record) => ({
         sheet: 'Records',
         id: record.contractId || record.account.id,
         payload: record
-      }))
+      })),
+      ...records.flatMap((record) => {
+        if (!record.contractId) return []
+        const workspace = installmentRepository.getPaymentWorkspace(
+          { accountId: record.account.id },
+          { contractId: record.contractId, ensureSchedules: false }
+        )
+        return [{ sheet: 'InstallmentPayments', id: record.contractId, payload: workspace }]
+      })
     )
     const now = new Date().toISOString()
     const replace = this.database.transaction(() => {

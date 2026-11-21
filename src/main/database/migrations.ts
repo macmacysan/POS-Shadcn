@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 53
+export const currentSchemaVersion = 56
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -2157,10 +2157,7 @@ export function runMigrations(db: Database.Database): void {
               )
             )`
       ).run(now)
-      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
-        51,
-        now
-      )
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(51, now)
     })
     migrate()
   }
@@ -2190,6 +2187,77 @@ export function runMigrations(db: Database.Database): void {
         CREATE UNIQUE INDEX expenses_source_reference_idx ON expenses (source_reference);
       `)
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(53, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 54) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        CREATE TABLE cross_branch_collections (
+          id TEXT PRIMARY KEY,
+          owner_branch TEXT NOT NULL,
+          collecting_branch TEXT NOT NULL,
+          account_id TEXT NOT NULL,
+          account_name TEXT NOT NULL,
+          contract_id TEXT NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          payment_date TEXT NOT NULL,
+          amount_centavos INTEGER NOT NULL CHECK (amount_centavos > 0),
+          penalty_centavos INTEGER NOT NULL DEFAULT 0 CHECK (penalty_centavos >= 0),
+          payment_method TEXT NOT NULL CHECK (payment_method IN ('Cash', 'GCash')),
+          reference_number TEXT,
+          remarks TEXT,
+          actor_user_id TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPLIED', 'REVIEW', 'VOIDED', 'REJECTED')),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX cross_branch_collections_report_idx
+          ON cross_branch_collections (daily_report_id, payment_date);
+        CREATE TABLE cross_branch_relay_outbox (
+          event_id TEXT PRIMARY KEY,
+          collection_id TEXT REFERENCES cross_branch_collections(id) ON DELETE RESTRICT,
+          event_type TEXT NOT NULL CHECK (event_type IN ('PAYMENT', 'ACK', 'ADJUSTMENT', 'VOID', 'REJECT')),
+          payload_json TEXT NOT NULL,
+          attempts INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          sent_at TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX cross_branch_relay_outbox_pending_idx
+          ON cross_branch_relay_outbox (sent_at, created_at);
+        CREATE TABLE cross_branch_relay_received (
+          event_id TEXT PRIMARY KEY,
+          payload_json TEXT NOT NULL,
+          state TEXT NOT NULL CHECK (state IN ('APPLIED', 'REVIEW', 'REJECTED')),
+          payment_id TEXT,
+          message TEXT,
+          received_at TEXT NOT NULL,
+          acknowledged_at TEXT
+        );
+        ALTER TABLE in_house_payments ADD COLUMN collection_branch_id TEXT REFERENCES branches(id) ON DELETE RESTRICT;
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(54, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 55) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec('ALTER TABLE cross_branch_collections ADD COLUMN schedule_id TEXT')
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(55, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 56) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec('ALTER TABLE in_house_payments ADD COLUMN received_by_name TEXT')
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(56, now)
     })
     migrate()
   }

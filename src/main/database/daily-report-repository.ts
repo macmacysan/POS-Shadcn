@@ -1328,7 +1328,7 @@ export class DailyReportRepository {
            FROM in_house_payments p
            JOIN installment_contracts c ON c.id = p.contract_id
            JOIN accounts a ON a.id = c.account_id
-           WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
+           WHERE p.status = 'POSTED' AND c.status <> 'VOIDED' AND p.collection_branch_id IS NULL
              AND p.payment_date = ? AND c.branch_id = ?
          UNION ALL
          SELECT c.account_id AS id, a.display_name || ' (Downpayment)' AS name,
@@ -1338,9 +1338,20 @@ export class DailyReportRepository {
           WHERE c.status <> 'VOIDED' AND c.date_released = ? AND c.branch_id = ?
             AND c.down_payment_centavos > 0
             AND COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) = 'Monthly'
+         UNION ALL
+         SELECT collection.account_id AS id, collection.account_name || ' (Cross-branch payment)' AS name,
+                collection.amount_centavos + collection.penalty_centavos AS amountCentavos
+           FROM cross_branch_collections collection
+          WHERE collection.daily_report_id = ? AND collection.status NOT IN ('REJECTED', 'VOIDED')
           ORDER BY name, id`
       )
-      .all(report.businessDate, report.branchId, report.businessDate, report.branchId) as Array<{
+      .all(
+        report.businessDate,
+        report.branchId,
+        report.businessDate,
+        report.branchId,
+        report.id
+      ) as Array<{
       id: string
       name: string
       amountCentavos: number
@@ -1384,9 +1395,13 @@ export class DailyReportRepository {
           COALESCE((SELECT SUM(p.amount_centavos + p.penalty_centavos)
                       FROM in_house_payments p
                       JOIN installment_contracts c ON c.id = p.contract_id
-                      WHERE p.status = 'POSTED' AND c.status <> 'VOIDED'
+                      WHERE p.status = 'POSTED' AND c.status <> 'VOIDED' AND p.collection_branch_id IS NULL
                        AND p.payment_date = report.business_date
-                       AND c.branch_id = report.branch_id), 0) AS recorded_paid_amount_centavos,
+                       AND c.branch_id = report.branch_id), 0)
+            + COALESCE((SELECT SUM(amount_centavos + penalty_centavos)
+                          FROM cross_branch_collections
+                         WHERE daily_report_id = report.id AND status NOT IN ('REJECTED', 'VOIDED')), 0)
+            AS recorded_paid_amount_centavos,
           COALESCE((SELECT SUM(c.down_payment_centavos)
                       FROM installment_contracts c
                      WHERE c.status <> 'VOIDED'

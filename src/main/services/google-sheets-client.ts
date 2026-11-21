@@ -71,6 +71,17 @@ export class GoogleSheetsClient {
     )
   }
 
+  async appendValues(
+    spreadsheetId: string,
+    range: string,
+    values: Array<Array<string | number | null>>
+  ): Promise<void> {
+    await this.request(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+      { method: 'POST', body: JSON.stringify({ values }) }
+    )
+  }
+
   async updateValuesBatch(spreadsheetId: string, data: SheetWrite[]): Promise<void> {
     if (!data.length) return
     await this.request(

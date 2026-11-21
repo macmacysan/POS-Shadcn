@@ -35,6 +35,7 @@ import {
   type WindowControlsApi,
   type GoogleSyncApi,
   googleSyncIpcChannels,
+  crossBranchPaymentReceiptSchema,
   googleSyncProgressSchema,
   type BackupsApi,
   backupIpcChannels,
@@ -196,6 +197,14 @@ const api: ExpensesApi &
       }
       ipcRenderer.on(googleSyncIpcChannels.progress, handler)
       return () => ipcRenderer.removeListener(googleSyncIpcChannels.progress, handler)
+    },
+    onPaymentReceived: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, value: unknown): void => {
+        const result = crossBranchPaymentReceiptSchema.safeParse(value)
+        if (result.success) listener(result.data)
+      }
+      ipcRenderer.on(googleSyncIpcChannels.paymentReceived, handler)
+      return () => ipcRenderer.removeListener(googleSyncIpcChannels.paymentReceived, handler)
     },
     records: () => ipcRenderer.invoke(googleSyncIpcChannels.records),
     blacklisted: () => ipcRenderer.invoke(googleSyncIpcChannels.blacklisted)

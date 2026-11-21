@@ -5,7 +5,8 @@ import type {
   GoogleSyncProgress,
   GoogleSyncResponse,
   InstallmentAccountRecord,
-  InstallmentListResult
+  InstallmentListResult,
+  InstallmentPaymentWorkspace
 } from '../../shared/contracts'
 import { AppError } from '../database/errors'
 import { googleSheetSources } from '../config/google-sheets'
@@ -443,6 +444,22 @@ export class GoogleSheetSyncService {
 
   async listRecords(): Promise<InstallmentListResult> {
     return this.listAccountSheet('Records')
+  }
+
+  getCachedInstallmentWorkspace(
+    branch: GoogleSyncBranch,
+    contractId: string
+  ): InstallmentPaymentWorkspace | undefined {
+    this.auth.requireCashierWorkspace()
+    const cached = this.database
+      .prepare(
+        `SELECT payload_json FROM google_sheet_branch_cache
+          WHERE sheet_name = 'InstallmentPayments' AND source_branch = ? AND source_record_id = ?`
+      )
+      .get(branch, contractId) as { payload_json: string } | undefined
+    return cached
+      ? json<InstallmentPaymentWorkspace | undefined>(cached.payload_json, undefined)
+      : undefined
   }
 
   async listBlacklisted(): Promise<InstallmentListResult> {

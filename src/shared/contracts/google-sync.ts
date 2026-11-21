@@ -33,9 +33,34 @@ export const googleSyncProgressSchema = z.object({
 export type GoogleSyncBranch = z.infer<typeof googleSyncRequestSchema>['branch']
 export type GoogleSyncResponse = z.infer<typeof googleSyncResponseSchema>
 export type GoogleSyncProgress = z.infer<typeof googleSyncProgressSchema>
+export const crossBranchPaymentReceiptSchema = z.object({
+  eventId: z.string().min(1).max(100),
+  ownerBranch: z.enum(googleSyncBranchValues),
+  collectingBranch: z.enum(googleSyncBranchValues),
+  accountId: z.string().min(1).max(100),
+  accountName: z.string().max(200),
+  contractId: z.string().min(1).max(100),
+  contractNumber: z.string().max(100),
+  scheduleNumber: z.number().int().positive().optional(),
+  scheduledDueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  amountCentavos: z.number().int().positive(),
+  penaltyCentavos: z.number().int().nonnegative(),
+  paymentMethod: z.enum(['Cash', 'GCash']),
+  referenceNumber: z.string().max(100).optional(),
+  remarks: z.string().max(1000).optional(),
+  cashierName: z.string().max(200).optional(),
+  state: z.enum(['APPLIED', 'REVIEW']),
+  message: z.string().max(300).optional()
+})
+export type CrossBranchPaymentReceipt = z.infer<typeof crossBranchPaymentReceiptSchema>
 export const googleSyncIpcChannels = {
   sync: 'google-sync:branch',
   progress: 'google-sync:progress',
+  paymentReceived: 'google-sync:payment-received',
   records: 'google-sync:records',
   blacklisted: 'google-sync:blacklisted'
 } as const
@@ -43,6 +68,7 @@ export type GoogleSyncApi = {
   googleSync: {
     sync(request: { branch: GoogleSyncBranch }): Promise<GoogleSyncResponse>
     onProgress(listener: (progress: GoogleSyncProgress) => void): () => void
+    onPaymentReceived(listener: (receipt: CrossBranchPaymentReceipt) => void): () => void
     records(): Promise<InstallmentListResult>
     blacklisted(): Promise<InstallmentListResult>
   }

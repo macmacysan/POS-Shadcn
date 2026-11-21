@@ -51,6 +51,7 @@ import { ProductCatalogRepository } from './database/product-catalog-repository'
 import { GoogleSheetsClient } from './services/google-sheets-client'
 import { googleSheetSources } from './config/google-sheets'
 import { GoogleSheetSyncService } from './services/google-sheet-sync-service'
+import { CrossBranchPaymentRelayService } from './services/cross-branch-payment-relay-service'
 import { GoogleDriveSnapshotService } from './services/google-drive-snapshot-service'
 import { ProductCatalogService } from './services/product-catalog-service'
 import { BackupService } from './services/backup-service'
@@ -60,6 +61,7 @@ import { InstallmentRepository } from './database/installment-repository'
 import {
   authIpcChannels,
   googleSyncIpcChannels,
+  type CrossBranchPaymentReceipt,
   type GoogleSyncProgress,
   windowIpcChannels
 } from '../shared/contracts'
@@ -72,6 +74,13 @@ let initialRecoveryRequired = false
 function sendGoogleSyncProgress(progress: GoogleSyncProgress): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send(googleSyncIpcChannels.progress, progress)
+  }
+}
+
+function sendCrossBranchPaymentReceipt(receipt: CrossBranchPaymentReceipt): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed())
+      window.webContents.send(googleSyncIpcChannels.paymentReceived, receipt)
   }
 }
 
@@ -211,6 +220,20 @@ app.whenReady().then(async () => {
       authService,
       sendGoogleSyncProgress
     )
+    const installmentRepository = new InstallmentRepository(database)
+    const crossBranchRelay = new CrossBranchPaymentRelayService(
+      database,
+      googleSheets,
+      authService,
+      installmentRepository,
+      async () => (await legacyGoogleSync.listRecords()).rows,
+      (branch, contractId) => legacyGoogleSync.getCachedInstallmentWorkspace(branch, contractId),
+      sendCrossBranchPaymentReceipt
+    )
+    const crossBranchRelayTimer = setInterval(() => {
+      void crossBranchRelay.sync().catch(() => undefined)
+    }, 60_000)
+    crossBranchRelayTimer.unref()
     const googleSync = new GoogleDriveSnapshotService(
       database,
       databasePath,
@@ -273,7 +296,7 @@ app.whenReady().then(async () => {
     )
     registerDashboardIpc(new DashboardService(new DashboardRepository(database), authService))
     registerInstallmentIpc(
-      new InstallmentService(new InstallmentRepository(database), authService),
+      new InstallmentService(installmentRepository, authService, crossBranchRelay),
       authService,
       () => googleSync.queueActiveBranchUpload()
     )
@@ -292,6 +315,7 @@ app.whenReady().then(async () => {
       authService,
       async (user) => {
         if (user.role === 'ADMIN') return
+        void crossBranchRelay.sync().catch(() => undefined)
         if (initialRecoveryRequired) return
         onlineBackupRevisions.queueDailyRevision(
           user.branch as 'Goa' | 'Tinambac' | 'Tigaon' | 'Lagonoy'

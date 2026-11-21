@@ -49,7 +49,8 @@ try {
   const sourcePath = join(work, 'goa.db')
   const source = new Database(sourcePath)
   runMigrations(source)
-  new InstallmentRepository(source).bootstrap({
+  const sourceRepository = new InstallmentRepository(source)
+  sourceRepository.bootstrap({
     accounts: [
       {
         id: 'goa-account',
@@ -76,6 +77,32 @@ try {
         createdAt: '2026-01-01T00:00:00.000Z'
       }
     ]
+  })
+  const sourceUsers = new UserRepository(source)
+  sourceUsers.createAccount({
+    username: 'goa-cashier',
+    password: 'cashier123',
+    branch: 'Goa',
+    role: 'CASHIER'
+  })
+  const sourceCashierId = source
+    .prepare("SELECT id FROM users WHERE username = 'goa-cashier'")
+    .get().id
+  const firstScheduleId = source
+    .prepare(
+      "SELECT id FROM in_house_schedules WHERE contract_id = 'goa-contract' AND installment_number = 1"
+    )
+    .get().id
+  sourceRepository.createPayment({
+    accountId: 'goa-account',
+    contractId: 'goa-contract',
+    scheduleId: firstScheduleId,
+    submissionId: 'goa-payment-event',
+    paymentDate: '2026-01-08',
+    amountCentavos: 1000,
+    paymentMethod: 'Cash',
+    penaltyCentavos: 0,
+    actorUserId: sourceCashierId
   })
   source.close()
   const live = new Database(':memory:')
@@ -126,6 +153,17 @@ try {
       .get().count,
     1
   )
+  const importedWorkspace = live
+    .prepare(
+      `SELECT payload_json FROM google_sheet_branch_cache
+        WHERE source_branch = 'Goa' AND sheet_name = 'InstallmentPayments'
+          AND source_record_id = 'goa-contract'`
+    )
+    .get()
+  assert.equal(JSON.parse(importedWorkspace.payload_json).schedules.length, 8)
+  const paymentWorkspace = JSON.parse(importedWorkspace.payload_json)
+  assert.equal(paymentWorkspace.payments[0].updatedByName, 'goa-cashier')
+  assert.equal(paymentWorkspace.payments[0].sourceSubmissionId, 'goa-payment-event')
   live.close()
   console.log('google drive record cache tests passed')
 } finally {

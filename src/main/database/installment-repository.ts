@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 
 import type {
+  GoogleSyncBranch,
   InstallmentAdjustPaymentRequest,
   InstallmentAccountRecord,
   InstallmentAttentionSummary,
@@ -203,6 +204,26 @@ export class InstallmentRepository {
       )
       .get(paymentId) as { branch_id: string } | undefined
     return row?.branch_id ?? null
+  }
+
+  relayInfoForPayment(
+    paymentId: string
+  ): { eventId: string; collectingBranch: string } | undefined {
+    return this.db
+      .prepare(
+        `WITH RECURSIVE ancestors AS (
+           SELECT id, replaces_payment_id, submission_id, collection_branch_id
+             FROM in_house_payments WHERE id = ?
+           UNION ALL
+           SELECT p.id, p.replaces_payment_id, p.submission_id, p.collection_branch_id
+             FROM in_house_payments p JOIN ancestors a ON a.replaces_payment_id = p.id
+         )
+         SELECT root.submission_id AS eventId, b.name AS collectingBranch
+           FROM ancestors root JOIN branches b ON b.id = root.collection_branch_id
+          WHERE root.replaces_payment_id IS NULL
+          LIMIT 1`
+      )
+      .get(paymentId) as { eventId: string; collectingBranch: string } | undefined
   }
 
   list(request: InstallmentListRequest): { rows: InstallmentAccountRecord[] } {
@@ -581,7 +602,12 @@ export class InstallmentRepository {
               optionalString(loan.downPaymentReferenceNumber)
             )
           if (stringValue(loan.paymentMethod, 'Cash') === 'GCash' && request.actorUserId) {
-            const fullName = [firstName, optionalString(account.middleName), lastName, optionalString(account.suffix)]
+            const fullName = [
+              firstName,
+              optionalString(account.middleName),
+              lastName,
+              optionalString(account.suffix)
+            ]
               .filter(Boolean)
               .join(' ')
             recordGcashDrawing(this.db, {
@@ -604,10 +630,12 @@ export class InstallmentRepository {
     const now = new Date().toISOString()
     const update = this.db.transaction(() => {
       const contract = this.db
-        .prepare(`SELECT c.id, c.status, c.down_payment_method, c.branch_id,
+        .prepare(
+          `SELECT c.id, c.status, c.down_payment_method, c.branch_id,
                          a.first_name, a.middle_name, a.last_name, a.suffix
                     FROM installment_contracts c JOIN accounts a ON a.id = c.account_id
-                   WHERE c.id = ? AND c.account_id = ?`)
+                   WHERE c.id = ? AND c.account_id = ?`
+        )
         .get(request.contractId, request.accountId) as
         | {
             id: string
@@ -1279,17 +1307,24 @@ export class InstallmentRepository {
     })()
   }
 
-  getPaymentWorkspace(request: InstallmentPaymentWorkspaceRequest): InstallmentPaymentWorkspace {
+  getPaymentWorkspace(
+    request: InstallmentPaymentWorkspaceRequest,
+    options: { ensureSchedules?: boolean; contractId?: string } = {}
+  ): InstallmentPaymentWorkspace {
     const records = this.list({ view: 'records', search: '' }).rows.filter(
       (record) => record.account.id === request.accountId
     )
-    const targetContractId = request.initialPaymentId
-      ? (
-          this.db
-            .prepare("SELECT contract_id FROM in_house_payments WHERE id = ? AND status = 'POSTED'")
-            .get(request.initialPaymentId) as { contract_id: string } | undefined
-        )?.contract_id
-      : undefined
+    const targetContractId =
+      options.contractId ??
+      (request.initialPaymentId
+        ? (
+            this.db
+              .prepare(
+                "SELECT contract_id FROM in_house_payments WHERE id = ? AND status = 'POSTED'"
+              )
+              .get(request.initialPaymentId) as { contract_id: string } | undefined
+          )?.contract_id
+        : undefined)
     const record =
       records.find((item) => item.contractId === targetContractId) ??
       records.find((item) => item.contractStatus === 'ACTIVE') ??
@@ -1316,13 +1351,14 @@ export class InstallmentRepository {
       | undefined
     if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
 
-    this.ensureSchedules(
-      record.contractId,
-      contract.first_due_date,
-      contract.payment_frequency,
-      contract.terms,
-      contract.total_payable_centavos
-    )
+    if (options.ensureSchedules !== false)
+      this.ensureSchedules(
+        record.contractId,
+        contract.first_due_date,
+        contract.payment_frequency,
+        contract.terms,
+        contract.total_payable_centavos
+      )
 
     const schedules = this.db
       .prepare(
@@ -1346,6 +1382,29 @@ export class InstallmentRepository {
           ORDER BY s.installment_number`
       )
       .all(record.contractId) as ScheduleRow[]
+    if (!schedules.length && options.ensureSchedules === false)
+      schedules.push(
+        ...buildInHouseSchedule(
+          contract.first_due_date,
+          contract.payment_frequency,
+          contract.terms,
+          contract.total_payable_centavos
+        ).map((schedule) => ({
+          id: `${record.contractId}-schedule-${schedule.installmentNumber}`,
+          installment_number: schedule.installmentNumber,
+          due_date: schedule.dueDate,
+          due_amount_centavos: schedule.dueAmountCentavos,
+          paid_amount_centavos: 0,
+          penalty_centavos: 0,
+          status: 'DUE' as const,
+          is_restructured: 0,
+          is_service: 0,
+          is_adjusted: 0
+        }))
+      )
+    const hasReceivedByName = (
+      this.db.prepare('PRAGMA table_info(in_house_payments)').all() as Array<{ name: string }>
+    ).some((column) => column.name === 'received_by_name')
     const payments = this.db
       .prepare(
         `WITH RECURSIVE payment_ancestors AS (
@@ -1369,13 +1428,14 @@ export class InstallmentRepository {
              FROM in_house_payments p
              JOIN payment_roots roots ON roots.payment_id = p.id
          )
-          SELECT latest.id, latest.payment_date, latest.payment_method,
+          SELECT latest.id, latest.submission_id AS source_submission_id,
+                latest.payment_date, latest.payment_method,
                 (SELECT SUM(family.amount_centavos)
                    FROM payment_rows family WHERE family.root_id = latest.root_id) AS amount_centavos,
                 (SELECT SUM(family.penalty_centavos)
                    FROM payment_rows family WHERE family.root_id = latest.root_id) AS penalty_centavos,
                  latest.reference_number, latest.remarks, latest.status, latest.created_at,
-                updated_user.display_name AS updated_by_name,
+                ${hasReceivedByName ? 'COALESCE(updated_user.display_name, latest.received_by_name)' : 'updated_user.display_name'} AS updated_by_name,
                 replaced_payment.void_reason AS adjustment_reason,
                 latest.replaces_payment_id IS NOT NULL AS is_adjustment,
                 COALESCE((SELECT SUM(pa.allocated_amount_centavos)
@@ -1397,6 +1457,7 @@ export class InstallmentRepository {
       )
       .all(record.contractId) as Array<{
       id: string
+      source_submission_id?: string
       payment_date: string
       payment_method: 'Cash' | 'GCash'
       amount_centavos: number
@@ -1494,6 +1555,7 @@ export class InstallmentRepository {
       })),
       payments: payments.map((payment) => ({
         id: payment.id,
+        sourceSubmissionId: payment.source_submission_id,
         paymentDate: payment.payment_date,
         paymentMethod: payment.payment_method,
         amountCentavos: payment.amount_centavos,
@@ -1759,6 +1821,204 @@ export class InstallmentRepository {
     postPayment()
   }
 
+  applyRelayedPayment(event: {
+    eventId: string
+    ownerBranch: GoogleSyncBranch
+    collectingBranch: GoogleSyncBranch
+    accountId: string
+    contractId: string
+    scheduleNumber?: number
+    cashierName?: string
+    paymentDate: string
+    amountCentavos: number
+    penaltyCentavos: number
+    paymentMethod: 'Cash' | 'GCash'
+    referenceNumber?: string
+    remarks?: string
+  }): {
+    state: 'APPLIED' | 'REVIEW'
+    paymentId?: string
+    message?: string
+    receivedNow: boolean
+    accountName: string
+    contractNumber: string
+    scheduledDueDate?: string
+  } {
+    const apply = this.db.transaction(() => {
+      const previous = this.db
+        .prepare(
+          'SELECT state, payment_id, message FROM cross_branch_relay_received WHERE event_id = ?'
+        )
+        .get(event.eventId) as
+        { state: 'APPLIED' | 'REVIEW'; payment_id?: string; message?: string } | undefined
+      if (previous)
+        return {
+          state: previous.state,
+          paymentId: previous.payment_id,
+          message: previous.message ?? undefined,
+          receivedNow: false,
+          accountName: event.accountId,
+          contractNumber: event.contractId
+        }
+
+      const owner = this.db
+        .prepare('SELECT id FROM branches WHERE name = ? COLLATE NOCASE')
+        .get(event.ownerBranch) as { id: string } | undefined
+      const collector = this.db
+        .prepare('SELECT id FROM branches WHERE name = ? COLLATE NOCASE')
+        .get(event.collectingBranch) as { id: string } | undefined
+      const contract = this.db
+        .prepare(
+          `SELECT c.id, c.contract_number, c.status, c.branch_id, c.account_id,
+                  a.status AS account_status, a.first_name, a.middle_name, a.last_name, a.suffix
+                    FROM installment_contracts c JOIN accounts a ON a.id = c.account_id
+                   WHERE c.id = ?`
+        )
+        .get(event.contractId) as
+        | {
+            id: string
+            contract_number: string
+            status: string
+            branch_id: string
+            account_id: string
+            account_status: string
+            first_name: string
+            middle_name?: string
+            last_name: string
+            suffix?: string
+          }
+        | undefined
+      let state: 'APPLIED' | 'REVIEW' = 'REVIEW'
+      let message = 'Contract or branch identity could not be verified.'
+      let paymentId: string | undefined
+      let accountName = event.accountId
+      let contractNumber = event.contractId
+      let scheduledDueDate: string | undefined
+      const now = new Date().toISOString()
+      if (
+        owner &&
+        collector &&
+        contract &&
+        contract.branch_id === owner.id &&
+        contract.account_id === event.accountId &&
+        contract.status === 'ACTIVE' &&
+        contract.account_status === 'ACTIVE'
+      ) {
+        accountName = [
+          contract.first_name,
+          contract.middle_name,
+          contract.last_name,
+          contract.suffix
+        ]
+          .filter(Boolean)
+          .join(' ')
+        contractNumber = contract.contract_number
+        const schedules = this.db
+          .prepare(
+            `SELECT s.id, s.installment_number, s.due_date, s.due_amount_centavos,
+                           COALESCE(SUM(CASE WHEN p.status = 'POSTED' THEN pa.allocated_amount_centavos ELSE 0 END), 0) AS paid_amount_centavos
+                      FROM in_house_schedules s
+                      LEFT JOIN installment_payment_allocations pa ON pa.schedule_id = s.id
+                      LEFT JOIN in_house_payments p ON p.id = pa.payment_id
+                     WHERE s.contract_id = ? AND s.status != 'WAIVED' AND s.is_restructured = 0 AND s.is_service = 0
+                     GROUP BY s.id ORDER BY s.due_date, s.installment_number`
+          )
+          .all(contract.id) as Array<{
+          id: string
+          installment_number: number
+          due_date: string
+          due_amount_centavos: number
+          paid_amount_centavos: number
+        }>
+        paymentId = randomUUID()
+        this.db
+          .prepare(
+            `INSERT INTO in_house_payments
+          (id, contract_id, submission_id, payment_date, amount_centavos, payment_method, penalty_centavos,
+           reference_number, remarks, collection_branch_id, received_by_name, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+          .run(
+            paymentId,
+            contract.id,
+            event.eventId,
+            event.paymentDate,
+            event.amountCentavos,
+            event.paymentMethod,
+            event.penaltyCentavos,
+            event.referenceNumber || null,
+            event.remarks || null,
+            collector.id,
+            event.cashierName || null,
+            now,
+            now
+          )
+        const selectedScheduleIndex = event.scheduleNumber
+          ? schedules.findIndex((schedule) => schedule.installment_number === event.scheduleNumber)
+          : 0
+        scheduledDueDate = schedules[selectedScheduleIndex]?.due_date
+        let remaining = event.amountCentavos
+        let penaltyAssigned = false
+        const insert = this.db.prepare(`INSERT INTO installment_payment_allocations
+          (id, payment_id, schedule_id, allocated_amount_centavos, penalty_centavos, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)`)
+        for (const schedule of schedules.slice(Math.max(0, selectedScheduleIndex))) {
+          if (remaining <= 0) break
+          const allocation = Math.min(
+            remaining,
+            Math.max(0, schedule.due_amount_centavos - schedule.paid_amount_centavos)
+          )
+          if (!allocation) continue
+          insert.run(
+            randomUUID(),
+            paymentId,
+            schedule.id,
+            allocation,
+            penaltyAssigned ? 0 : event.penaltyCentavos,
+            now
+          )
+          penaltyAssigned = true
+          remaining -= allocation
+          this.db
+            .prepare('UPDATE in_house_schedules SET status = ?, updated_at = ? WHERE id = ?')
+            .run(
+              schedule.paid_amount_centavos + allocation >= schedule.due_amount_centavos
+                ? 'PAID'
+                : 'PARTIALLY_PAID',
+              now,
+              schedule.id
+            )
+        }
+        state = remaining > 0 ? 'REVIEW' : 'APPLIED'
+        message = remaining > 0 ? 'Payment exceeds the current outstanding schedules.' : ''
+        this.db
+          .prepare(
+            `INSERT INTO installment_activity_history
+          (id, contract_id, action, activity, amount_centavos, created_at)
+          VALUES (?, ?, 'PAYMENT_POSTED', 'Cross-branch payment received', ?, ?)`
+          )
+          .run(randomUUID(), contract.id, event.amountCentavos, now)
+      }
+      this.db
+        .prepare(
+          `INSERT INTO cross_branch_relay_received
+        (event_id, payload_json, state, payment_id, message, received_at, acknowledged_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(event.eventId, JSON.stringify(event), state, paymentId, message || null, now, now)
+      return {
+        state,
+        paymentId,
+        message: message || undefined,
+        receivedNow: true,
+        accountName,
+        contractNumber,
+        scheduledDueDate
+      }
+    })
+    return apply()
+  }
+
   adjustPayment(request: InstallmentAdjustPaymentRequest): void {
     const now = new Date().toISOString()
     const adjust = this.db.transaction(() => {
@@ -1844,6 +2104,12 @@ export class InstallmentRepository {
 
       const sourcePaymentIds = sourcePayments.map((payment) => payment.id)
       const placeholders = sourcePaymentIds.map(() => '?').join(', ')
+      const collectionBranch = this.db
+        .prepare(
+          `SELECT collection_branch_id FROM in_house_payments WHERE id IN (${placeholders})
+            AND collection_branch_id IS NOT NULL LIMIT 1`
+        )
+        .get(...sourcePaymentIds) as { collection_branch_id: string } | undefined
       const sourceAllocations = this.db
         .prepare(
           `SELECT p.id AS payment_id, p.payment_date, p.reference_number,
@@ -1870,10 +2136,10 @@ export class InstallmentRepository {
         .run(now, request.actorUserId, request.reason, now, ...sourcePaymentIds)
 
       const insertPayment = this.db.prepare(
-          `INSERT INTO in_house_payments
+        `INSERT INTO in_house_payments
           (id, contract_id, submission_id, payment_date, amount_centavos, payment_method, penalty_centavos, reference_number, remarks,
-            received_by_user_id, replaces_payment_id, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            received_by_user_id, replaces_payment_id, collection_branch_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       const insertAllocation = this.db.prepare(
         `INSERT INTO installment_payment_allocations
@@ -1923,6 +2189,7 @@ export class InstallmentRepository {
           request.remarks || null,
           request.actorUserId,
           request.paymentId || sourcePaymentIds[0],
+          collectionBranch?.collection_branch_id ?? null,
           now,
           now
         )

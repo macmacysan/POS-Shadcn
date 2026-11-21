@@ -19,10 +19,12 @@ import type {
 } from '../../shared/contracts'
 import { AppError } from '../database/errors'
 import { AuthService } from './auth-service'
+import type { CrossBranchPaymentRelayService } from './cross-branch-payment-relay-service'
 type InstallmentRepositoryLike = {
   branchIdForAccount(accountId: string): string | null
   branchIdForContract(contractId: string): string | null
   branchIdForPayment(paymentId: string): string | null
+  relayInfoForPayment(paymentId: string): { eventId: string; collectingBranch: string } | undefined
   list(request: InstallmentListRequest): Promise<InstallmentListResult> | InstallmentListResult
   getAttentionSummary(
     branch?: string
@@ -54,7 +56,8 @@ type InstallmentRepositoryLike = {
 export class InstallmentService {
   constructor(
     private readonly repository: InstallmentRepositoryLike,
-    private readonly auth: AuthService
+    private readonly auth: AuthService,
+    private readonly relay?: CrossBranchPaymentRelayService
   ) {}
 
   async list(request: InstallmentListRequest): Promise<InstallmentListResult> {
@@ -167,19 +170,29 @@ export class InstallmentService {
     actorUserId: string,
     reason: string
   ): Promise<void> {
+    const relayPayments = [
+      ...new Set(paymentIds.filter((id) => this.repository.relayInfoForPayment(id)))
+    ]
     for (const id of paymentIds)
       this.auth.requireOwnBranch(
         this.repository.branchIdForPayment(id),
         'You cannot void another branch payment.'
       )
     await this.repository.voidPayments(paymentIds, actorUserId, reason)
+    for (const id of relayPayments) await this.relay?.publishOwnerUpdate(id, 'VOID', { reason })
   }
 
   async getPaymentWorkspace(
     request: InstallmentPaymentWorkspaceRequest
   ): Promise<InstallmentPaymentWorkspace> {
     this.auth.requireCashierWorkspace()
-    return await this.repository.getPaymentWorkspace(request)
+    try {
+      return await this.repository.getPaymentWorkspace(request)
+    } catch (error) {
+      const remote = await this.relay?.remoteWorkspace(request.accountId)
+      if (remote) return remote
+      throw error
+    }
   }
 
   async listHistory(request: InstallmentHistoryRequest): Promise<InstallmentHistoryRecord[]> {
@@ -188,6 +201,11 @@ export class InstallmentService {
   }
 
   async createPayment(request: InstallmentCreatePaymentRequest): Promise<void> {
+    if (!this.repository.branchIdForContract(request.contractId)) {
+      if (!this.relay) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
+      await this.relay.createCollection(request)
+      return
+    }
     this.auth.requireOwnBranch(
       this.repository.branchIdForContract(request.contractId),
       'You cannot record another branch payment.'
@@ -200,6 +218,23 @@ export class InstallmentService {
       this.repository.branchIdForContract(request.contractId),
       'You cannot adjust another branch payment.'
     )
+    const relaySource = request.paymentId
+      ? this.repository.relayInfoForPayment(request.paymentId)
+      : undefined
     await this.repository.adjustPayment(request)
+    if (relaySource && request.paymentId) {
+      if (request.amountCentavos === 0)
+        await this.relay?.publishOwnerUpdate(request.paymentId, 'VOID', { reason: request.reason })
+      else
+        await this.relay?.publishOwnerUpdate(request.paymentId, 'ADJUSTMENT', {
+          contractId: request.contractId,
+          paymentDate: request.paymentDate,
+          amountCentavos: request.amountCentavos,
+          penaltyCentavos: request.penaltyCentavos,
+          paymentMethod: request.paymentMethod,
+          referenceNumber: request.referenceNumber,
+          remarks: request.remarks
+        })
+    }
   }
 }
