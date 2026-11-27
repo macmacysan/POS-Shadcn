@@ -84,12 +84,15 @@ export const installmentCreatePaymentRequestSchema = z.object({
   submissionId: z.string().trim().min(1).max(100),
   scheduleId: z.string().trim().min(1).max(100).optional(),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  amountCentavos: z.number().int().positive(),
+  amountCentavos: z.number().int().nonnegative(),
   paymentMethod: paymentMethodNameSchema.default('Cash'),
   penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
   remarks: z.string().trim().max(1000).optional(),
   actorUserId: z.string().trim().min(1).max(100).default('development-cashier')
+}).refine((request) => request.amountCentavos > 0 || request.penaltyCentavos > 0, {
+  message: 'A payment must include an installment amount or penalty.',
+  path: ['amountCentavos']
 })
 
 export const installmentAdjustPaymentRequestSchema = z.object({

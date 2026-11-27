@@ -331,6 +331,34 @@ try {
       .payments.find((payment) => payment.referenceNumber === '123458')?.remarks,
     'Payment remark'
   )
+  db.prepare("UPDATE installment_contracts SET status = 'CLOSED' WHERE id = 'schedule-contract'").run()
+  const collectionsBeforePenalty = reports.snapshot(report.id).cashCollectionsCentavos
+  const paidScheduleBeforePenalty = repository
+    .getPaymentWorkspace({ accountId: 'schedule-account' })
+    .schedules.find((schedule) => schedule.id === first.id)
+  repository.createPayment({
+    accountId: 'schedule-account',
+    contractId: 'schedule-contract',
+    scheduleId: first.id,
+    submissionId: 'late-penalty-payment',
+    paymentDate: '2026-09-01',
+    amountCentavos: 0,
+    paymentMethod: 'Cash',
+    penaltyCentavos: 25000,
+    actorUserId: cashier.id
+  })
+  const penaltyWorkspace = repository.getPaymentWorkspace({ accountId: 'schedule-account' })
+  const penaltyPayment = penaltyWorkspace.payments.find(
+    (payment) => payment.sourceSubmissionId === 'late-penalty-payment'
+  )
+  assert.equal(penaltyPayment?.amountCentavos, 0)
+  assert.equal(penaltyPayment?.penaltyCentavos, 25000)
+  assert.deepEqual(penaltyPayment?.scheduleIds, [first.id])
+  assert.equal(
+    penaltyWorkspace.schedules.find((schedule) => schedule.id === first.id)?.paidAmountCentavos,
+    paidScheduleBeforePenalty?.paidAmountCentavos
+  )
+  assert.equal(reports.snapshot(report.id).cashCollectionsCentavos, collectionsBeforePenalty + 25000)
   db.close()
   console.log('installment payment schedule activity tests passed')
 } finally {

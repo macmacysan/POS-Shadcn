@@ -491,7 +491,7 @@ function CashierReportHeader({
 }
 
 function ReportTypeLabel({ value }: { value: string }): React.JSX.Element {
-  return <span className="text-foreground">{value}</span>
+  return <span className="text-muted-foreground">{value}</span>
 }
 
 function TruncatedText({
@@ -550,13 +550,13 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'type',
     header: 'Type',
     cell: ({ getValue }) => <ReportTypeLabel value={getValue<string>()} />,
-    size: 145,
+    size: 115,
     meta: { className: 'text-muted-foreground' }
   },
   {
     accessorKey: 'description',
     header: 'Description',
-    size: 176,
+    size: 250,
     cell: ({ getValue }) => (
       <span className="block min-w-0 whitespace-normal break-words text-sm">
         {getValue<string>()}
@@ -568,13 +568,13 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'category',
     header: 'Category',
     cell: ({ getValue }) => <ExpenseCategoryCell category={getValue<string>()} />,
-    size: 88,
+    size: 70,
     meta: { className: 'text-muted-foreground' }
   },
   {
     accessorKey: 'receiptNo',
     header: 'Receipt No',
-    size: 96,
+    size: 56,
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
     ),
@@ -583,7 +583,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'vat',
     header: 'VAT',
-    size: 80,
+    size: 50,
     meta: { className: 'text-xs text-muted-foreground' }
   },
   {
@@ -597,7 +597,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    size: 144,
+    size: 112,
     meta: {
       className: 'px-4 text-right text-sm font-medium tabular-nums text-foreground'
     }
@@ -1336,11 +1336,17 @@ function ReportDetailsForm({
   tab,
   expenseTypes,
   paymentTypes,
+  expenseDescriptions,
+  incomeParticulars,
+  paymentProviders,
   initialValues = {}
 }: {
   tab: (typeof reportTabs)[number]
   expenseTypes: readonly string[]
   paymentTypes: readonly string[]
+  expenseDescriptions: readonly string[]
+  incomeParticulars: readonly string[]
+  paymentProviders: readonly string[]
   initialValues?: Record<string, string>
 }): React.JSX.Element {
   return (
@@ -1357,6 +1363,15 @@ function ReportDetailsForm({
                 : tab === 'Payment' && field === 'Type'
                   ? paymentTypes
                   : null
+        const suggestions =
+          tab === 'Expenses' && field === 'Description'
+            ? expenseDescriptions
+            : tab === 'Income' && field === 'Particular'
+              ? incomeParticulars
+              : tab === 'Payment' && field === 'Bank / Provider'
+                ? paymentProviders
+                : []
+        const suggestionsId = `${id}-suggestions`
 
         return (
           <Field key={field}>
@@ -1394,12 +1409,30 @@ function ReportDetailsForm({
                 placeholder={`Enter ${field.toLowerCase()}`}
               />
             ) : (
-              <Input
-                id={id}
-                name={id}
-                defaultValue={initialValues[id]}
-                placeholder={`Enter ${field.toLowerCase()}`}
-              />
+              <>
+                <Input
+                  id={id}
+                  name={id}
+                  defaultValue={initialValues[id]}
+                  list={suggestions.length ? suggestionsId : undefined}
+                  placeholder={
+                    field === 'Description'
+                      ? 'e.g. Rope for Pajero car'
+                      : field === 'Particular'
+                        ? 'e.g. Delivery fee'
+                        : field === 'Bank / Provider'
+                          ? 'e.g. GCash'
+                          : `Enter ${field.toLowerCase()}`
+                  }
+                />
+                {suggestions.length > 0 && (
+                  <datalist id={suggestionsId}>
+                    {suggestions.map((suggestion) => (
+                      <option key={suggestion} value={suggestion} />
+                    ))}
+                  </datalist>
+                )}
+              </>
             )}
           </Field>
         )
@@ -1451,6 +1484,9 @@ function EntryFormPanel({
   saveError,
   expenseTypes,
   paymentTypes,
+  expenseDescriptions,
+  incomeParticulars,
+  paymentProviders,
   initialValues,
   isEdit,
   isSaving
@@ -1461,6 +1497,9 @@ function EntryFormPanel({
   saveError?: string
   expenseTypes: readonly string[]
   paymentTypes: readonly string[]
+  expenseDescriptions: readonly string[]
+  incomeParticulars: readonly string[]
+  paymentProviders: readonly string[]
   initialValues?: Record<string, string>
   isEdit: boolean
   isSaving: boolean
@@ -1494,6 +1533,9 @@ function EntryFormPanel({
           tab={tab}
           expenseTypes={expenseTypes}
           paymentTypes={paymentTypes}
+          expenseDescriptions={expenseDescriptions}
+          incomeParticulars={incomeParticulars}
+          paymentProviders={paymentProviders}
           initialValues={initialValues}
         />
       </ScrollArea>
@@ -2411,6 +2453,9 @@ export function CashierReportsContent({
               saveError={entrySaveError}
               expenseTypes={activeExpenseTypes}
               paymentTypes={activePaymentTypes}
+              expenseDescriptions={uniqueSorted(expenseQuery.rows.map((row) => row.description))}
+              incomeParticulars={uniqueSorted(incomes.map((row) => row.particular))}
+              paymentProviders={uniqueSorted(payments.map((row) => row.bankProvider))}
               initialValues={initialFormValues}
               isEdit={formMode === 'edit'}
               isSaving={isEntryFormSaving}

@@ -74,6 +74,7 @@ import {
   type ShadcnFilterField
 } from '@/components/shared/data-table/shadcn-table-filters'
 import { Input } from '@/components/ui/input'
+import { NameSuggestionInput } from '@/components/shared/name-suggestion-input'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import {
   Select,
@@ -85,6 +86,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { formatAccountName, type BranchName } from '@/lib/in-house-accounts'
+import { compareAccountNames } from '@/lib/in-house-account-display'
 import { formatHistoryDate, formatHistoryMoney } from '@/lib/installment-history'
 import { cn } from '@/lib/utils'
 import {
@@ -151,8 +153,8 @@ const activeStatusFilters: readonly { value: Exclude<ActiveStatusFilter, 'all'>;
   ]
 
 const activeStatusBadgeVariant = {
-  overdue: 'destructive',
-  'due-soon': 'warning',
+  overdue: 'warning-light',
+  'due-soon': 'secondary',
   'fully-paid': 'success'
 } as const
 
@@ -1287,7 +1289,7 @@ export function AccountRecordsWorkspace({
   const openTransition = React.useCallback(
     (kind: Transition['kind'], row: PersistedInstallmentRow) => {
       setTransition({ kind, row })
-      setRemarks('')
+      setRemarks(kind === 'close' && row.meta.status === 'fully-paid' ? 'Fully paid' : '')
       setTransitionError(undefined)
     },
     []
@@ -1476,6 +1478,8 @@ export function AccountRecordsWorkspace({
         id: 'account',
         header: 'Account',
         accessorFn: (row) => formatAccountName(row.account),
+        sortingFn: (left, right, columnId) =>
+          compareAccountNames(String(left.getValue(columnId)), String(right.getValue(columnId))),
         cell: ({ row }) => (
           <span className="font-medium">{formatAccountName(row.original.account)}</span>
         ),
@@ -1533,7 +1537,7 @@ export function AccountRecordsWorkspace({
               cell: ({ row }: { row: { original: PersistedInstallmentRow } }) => {
                 const countdown = paymentCountdown(row.original.meta.nextDue)
                 return (
-                  <span className={cn(countdown.isOverdue && 'font-medium text-destructive')}>
+                  <span className={cn(countdown.isOverdue && 'font-medium text-warning-foreground')}>
                     {row.original.meta.status === 'fully-paid' ? 'Fully paid' : countdown.label}
                   </span>
                 )
@@ -1786,39 +1790,33 @@ export function AccountRecordsWorkspace({
           <FieldGroup className="grid grid-cols-2 content-start gap-3">
             <Field>
               <FieldLabel htmlFor="client-first-name">First name</FieldLabel>
-              <Input
+              <NameSuggestionInput
                 id="client-first-name"
                 value={clientDraft.firstName}
-                onChange={(event) =>
-                  setClientDraft(
-                    (current) => current && { ...current, firstName: event.target.value }
-                  )
+                onValueChange={(value) =>
+                  setClientDraft((current) => current && { ...current, firstName: value })
                 }
                 required
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="client-last-name">Last name</FieldLabel>
-              <Input
+              <NameSuggestionInput
                 id="client-last-name"
                 value={clientDraft.lastName}
-                onChange={(event) =>
-                  setClientDraft(
-                    (current) => current && { ...current, lastName: event.target.value }
-                  )
+                onValueChange={(value) =>
+                  setClientDraft((current) => current && { ...current, lastName: value })
                 }
                 required
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="client-middle-name">Middle name</FieldLabel>
-              <Input
+              <NameSuggestionInput
                 id="client-middle-name"
                 value={clientDraft.middleName ?? ''}
-                onChange={(event) =>
-                  setClientDraft(
-                    (current) => current && { ...current, middleName: event.target.value }
-                  )
+                onValueChange={(value) =>
+                  setClientDraft((current) => current && { ...current, middleName: value })
                 }
               />
             </Field>
@@ -2195,12 +2193,12 @@ export function AccountRecordsWorkspace({
             <DialogDescription>
               {promptedPaidAccount && !transition
                 ? `${formatAccountName(promptedPaidAccount.account)} is fully paid. Would you like to set this account to closed?`
-                : 'Enter a required note for this status change.'}
+                : 'Enter a reason for this status change.'}
             </DialogDescription>
           </DialogHeader>
           {transition ? <FieldGroup>
             <Field data-invalid={Boolean(transitionError)}>
-              <FieldLabel htmlFor="account-status-remarks">Remarks (optional)</FieldLabel>
+              <FieldLabel htmlFor="account-status-remarks">Remarks</FieldLabel>
               <Textarea
                 id="account-status-remarks"
                 value={remarks}

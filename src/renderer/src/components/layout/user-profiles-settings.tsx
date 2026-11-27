@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { NameSuggestionInput } from '@/components/shared/name-suggestion-input'
 import {
   Select,
   SelectContent,
@@ -276,19 +277,19 @@ export function UserProfilesSettings({
         <FieldGroup className="grid gap-4 md:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="profile-first-name">First Name</FieldLabel>
-            <Input
+            <NameSuggestionInput
               id="profile-first-name"
               value={form.firstName}
-              onChange={(event) => setForm({ ...form, firstName: event.target.value })}
+              onValueChange={(value) => setForm({ ...form, firstName: value })}
               required
             />
           </Field>
           <Field>
             <FieldLabel htmlFor="profile-last-name">Last Name</FieldLabel>
-            <Input
+            <NameSuggestionInput
               id="profile-last-name"
               value={form.lastName}
-              onChange={(event) => setForm({ ...form, lastName: event.target.value })}
+              onValueChange={(value) => setForm({ ...form, lastName: value })}
               required
             />
           </Field>

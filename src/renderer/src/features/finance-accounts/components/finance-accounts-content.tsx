@@ -18,6 +18,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { NameSuggestionInput } from '@/components/shared/name-suggestion-input'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -865,30 +866,30 @@ function FinanceAccountSheet({
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field data-invalid={Boolean(errors.lastName)}>
                   <FieldLabel htmlFor="finance-last-name">Last Name</FieldLabel>
-                  <Input
+                  <NameSuggestionInput
                     id="finance-last-name"
                     value={values.lastName}
                     aria-invalid={Boolean(errors.lastName)}
-                    onChange={(event) => set('lastName', event.target.value)}
+                    onValueChange={(value) => set('lastName', value)}
                   />
                   {fieldError('lastName')}
                 </Field>
                 <Field data-invalid={Boolean(errors.firstName)}>
                   <FieldLabel htmlFor="finance-first-name">First Name</FieldLabel>
-                  <Input
+                  <NameSuggestionInput
                     id="finance-first-name"
                     value={values.firstName}
                     aria-invalid={Boolean(errors.firstName)}
-                    onChange={(event) => set('firstName', event.target.value)}
+                    onValueChange={(value) => set('firstName', value)}
                   />
                   {fieldError('firstName')}
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="finance-middle-name">Middle Name</FieldLabel>
-                  <Input
+                  <NameSuggestionInput
                     id="finance-middle-name"
                     value={values.middleName ?? ''}
-                    onChange={(event) => set('middleName', event.target.value)}
+                    onValueChange={(value) => set('middleName', value)}
                   />
                 </Field>
                 <Field>

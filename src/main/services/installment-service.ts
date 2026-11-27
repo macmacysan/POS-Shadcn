@@ -201,7 +201,10 @@ export class InstallmentService {
   }
 
   async createPayment(request: InstallmentCreatePaymentRequest): Promise<void> {
+    const penaltyOnly = request.amountCentavos === 0 && request.penaltyCentavos > 0
     if (!this.repository.branchIdForContract(request.contractId)) {
+      if (penaltyOnly)
+        throw new AppError('FORBIDDEN', 'Penalty-only payments must be recorded at the owner branch.')
       if (!this.relay) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
       await this.relay.createCollection(request)
       return

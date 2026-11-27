@@ -176,7 +176,7 @@ export function cashierSummary(
     ]
   ]
   const footer: SummaryRow[] = [
-    { label: 'Expected Cash', value: expectedCashCentavos, emphasis: true },
+    { label: 'Expected Cash', value: expectedCashCentavos },
     {
       label: 'Cash Denominations',
       value: snapshot.physicalCashCentavos,
@@ -187,7 +187,7 @@ export function cashierSummary(
   return {
     receipts,
     groups: groups.map((group) => group.filter((row) => row.value !== 0)),
-    footer: footer.filter((row) => row.value !== 0),
+    footer,
     variance: { label: 'Cash variance', value: variance, emphasis: true },
     totalCashReceiptsCentavos
   }

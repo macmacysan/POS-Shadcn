@@ -15,6 +15,7 @@ import {
   FieldSet
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { NameSuggestionInput } from '@/components/shared/name-suggestion-input'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { AmountInputGroup } from '@/components/ui/amount-input-group'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -953,21 +954,21 @@ export function InHouseAccountForm({
                   <FieldGroup className="mx-auto grid w-full max-w-md gap-3">
                     <Field data-invalid={Boolean(accountErrors.lastName)}>
                       <FieldLabel htmlFor="last-name">Last Name</FieldLabel>
-                      <Input
+                      <NameSuggestionInput
                         id="last-name"
                         value={accountDraft.lastName}
                         aria-invalid={Boolean(accountErrors.lastName)}
-                        onChange={(event) => setAccount('lastName', event.target.value)}
+                        onValueChange={(value) => setAccount('lastName', value)}
                       />
                       <FieldError>{accountErrors.lastName}</FieldError>
                     </Field>
                     <Field data-invalid={Boolean(accountErrors.firstName)}>
                       <FieldLabel htmlFor="first-name">First Name</FieldLabel>
-                      <Input
+                      <NameSuggestionInput
                         id="first-name"
                         value={accountDraft.firstName}
                         aria-invalid={Boolean(accountErrors.firstName)}
-                        onChange={(event) => setAccount('firstName', event.target.value)}
+                        onValueChange={(value) => setAccount('firstName', value)}
                       />
                       <FieldError>{accountErrors.firstName}</FieldError>
                     </Field>
@@ -975,10 +976,10 @@ export function InHouseAccountForm({
                       <FieldLabel htmlFor="middle-name">
                         Middle Name <span className="text-muted-foreground">(optional)</span>
                       </FieldLabel>
-                      <Input
+                      <NameSuggestionInput
                         id="middle-name"
-                        value={accountDraft.middleName}
-                        onChange={(event) => setAccount('middleName', event.target.value)}
+                        value={accountDraft.middleName ?? ''}
+                        onValueChange={(value) => setAccount('middleName', value)}
                       />
                     </Field>
                     <Field>

@@ -299,7 +299,7 @@ export class UserRepository {
     return (
       this.db
         .prepare(
-          `SELECT u.id, u.first_name AS firstName, u.last_name AS lastName, u.username, u.role, b.name AS branch, u.is_active AS isActive, u.last_login_at AS lastLoginAt FROM users u JOIN branches b ON b.id = u.branch_id ORDER BY u.last_name, u.first_name`
+          `SELECT u.id, u.first_name AS firstName, u.last_name AS lastName, u.username, u.role, b.name AS branch, u.is_active AS isActive, u.last_login_at AS lastLoginAt FROM users u JOIN branches b ON b.id = u.branch_id ORDER BY u.last_name COLLATE NOCASE, u.first_name COLLATE NOCASE`
         )
         .all() as ProfileRow[]
     ).map(({ isActive, ...row }) => {

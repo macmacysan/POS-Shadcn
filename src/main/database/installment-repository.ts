@@ -1685,6 +1685,7 @@ export class InstallmentRepository {
   }
 
   createPayment(request: InstallmentCreatePaymentRequest): void {
+    const penaltyOnly = request.amountCentavos === 0 && request.penaltyCentavos > 0
     const now = new Date().toISOString()
     const postPayment = this.db.transaction(() => {
       const existingPayment = this.db
@@ -1717,7 +1718,7 @@ export class InstallmentRepository {
           }
         | undefined
       if (!contract) throw new AppError('NOT_FOUND', 'Installment contract was not found.')
-      if (contract.status !== 'ACTIVE')
+      if (contract.status !== 'ACTIVE' && !(penaltyOnly && contract.status === 'CLOSED'))
         throw new AppError('CONFLICT', 'Payments can only be posted to an active contract.')
       if (contract.account_status !== 'ACTIVE')
         throw new AppError('CONFLICT', 'Payments cannot be posted to a blacklisted account.')
@@ -1744,6 +1745,8 @@ export class InstallmentRepository {
         : undefined
       if (request.scheduleId && !targetSchedule)
         throw new AppError('NOT_FOUND', 'The selected installment is not available for payment.')
+      if (penaltyOnly && (!targetSchedule || targetSchedule.paid_amount_centavos < targetSchedule.due_amount_centavos))
+        throw new AppError('CONFLICT', 'A penalty-only payment must reference a fully paid installment.')
       const targetIndex = targetSchedule
         ? schedules.findIndex((schedule) => schedule.id === targetSchedule.id)
         : 0
@@ -1790,6 +1793,10 @@ export class InstallmentRepository {
         `UPDATE in_house_schedules SET status = ?, updated_at = ? WHERE id = ?`
       )
       let penaltyAssigned = false
+      if (penaltyOnly && targetSchedule) {
+        insertAllocation.run(randomUUID(), paymentId, targetSchedule.id, 0, request.penaltyCentavos, now)
+        penaltyAssigned = true
+      }
       for (const schedule of allocationSchedules) {
         if (remaining <= 0) break
         const balance = Math.max(0, schedule.due_amount_centavos - schedule.paid_amount_centavos)
@@ -1816,9 +1823,16 @@ export class InstallmentRepository {
         .prepare(
           `INSERT INTO installment_activity_history
             (id, contract_id, actor_user_id, action, activity, amount_centavos, created_at)
-           VALUES (?, ?, ?, 'PAYMENT_POSTED', 'In-house payment posted', ?, ?)`
+           VALUES (?, ?, ?, 'PAYMENT_POSTED', ?, ?, ?)`
         )
-        .run(randomUUID(), contract.id, request.actorUserId, request.amountCentavos, now)
+        .run(
+          randomUUID(),
+          contract.id,
+          request.actorUserId,
+          penaltyOnly ? 'Penalty payment posted' : 'In-house payment posted',
+          request.amountCentavos + request.penaltyCentavos,
+          now
+        )
     })
     postPayment()
   }

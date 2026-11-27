@@ -220,7 +220,7 @@ export class ExpenseRepository {
           `${source}
            SELECT * FROM all_expenses
             WHERE ${whereSql}
-            ORDER BY ${sortColumn} ${sortDirection}, id ${sortDirection}
+            ORDER BY ${sortColumn}${sorting?.field === 'description' ? ' COLLATE NOCASE' : ''} ${sortDirection}, id ${sortDirection}
             LIMIT @limit OFFSET @offset`
         )
         .all({ ...params, limit: request.pageSize, offset }) as ExpenseRow[]

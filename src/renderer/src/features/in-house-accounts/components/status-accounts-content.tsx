@@ -54,7 +54,7 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { accountStatusRank } from '@/lib/in-house-account-display'
+import { accountStatusRank, compareAccountNames } from '@/lib/in-house-account-display'
 import type { AccountMonitoringStatus } from '@/lib/in-house-account-monitoring'
 import {
   branchNames,
@@ -147,6 +147,8 @@ function statusColumns(view: InstallmentView): ColumnDef<PersistedInstallmentRow
       id: 'account',
       accessorFn: (row) => formatAccountName(row.account),
       header: 'Account',
+      sortingFn: (left, right, columnId) =>
+        compareAccountNames(String(left.getValue(columnId)), String(right.getValue(columnId))),
       size: 220,
       meta: { cellClassName: 'min-w-0' },
       cell: ({ row }) => <AccountCell row={row.original} />

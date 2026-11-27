@@ -405,7 +405,12 @@ export function ReportsGeneratorPage({
             <SlidersHorizontal data-icon="inline-start" />
             Date range report
           </Button>
-          <Button type="button" disabled={isReviewing || !reportDate} onClick={onReviewDailyReport}>
+          <Button
+            type="button"
+            variant={pdfPreview ? 'outline' : 'default'}
+            disabled={isReviewing || !reportDate}
+            onClick={onReviewDailyReport}
+          >
             {isReviewing ? (
               <Spinner data-icon="inline-start" />
             ) : (
@@ -442,6 +447,7 @@ export function ReportsGeneratorPage({
               </p>
               <Button
                 type="button"
+                variant={pdfPreview.note !== pdfNote ? 'outline' : 'default'}
                 className="mt-4 w-full"
                 disabled={isProcessing || pdfPreview.note !== pdfNote}
                 onClick={onDeliver}
@@ -484,7 +490,7 @@ export function ReportsGeneratorPage({
               {pdfPreview.note !== pdfNote && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="default"
                   size="sm"
                   className="mt-2"
                   disabled={isReviewing}
@@ -628,7 +634,7 @@ function ReportPreviewDialog({
               {preview?.note !== pdfNote && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="default"
                   size="sm"
                   className="mt-2"
                   disabled={isReviewing}
@@ -673,6 +679,7 @@ function ReportPreviewDialog({
               </Button>
               <Button
                 type="button"
+                variant={preview?.note !== pdfNote ? 'outline' : 'default'}
                 disabled={isProcessing || preview?.note !== pdfNote}
                 onClick={onDeliver}
               >
@@ -741,7 +748,10 @@ export function ReportsGenerator({
   const [telegramNote, setTelegramNote] = React.useState('')
 
   React.useEffect(() => {
-    if (selectedBusinessDate) setReportPageDate(selectedBusinessDate)
+    if (selectedBusinessDate) {
+      setReportPageDate(selectedBusinessDate)
+      setPdfPreview(undefined)
+    }
   }, [selectedBusinessDate])
 
   const updateRangeReportDateFrom = React.useCallback((value: string): void => {
@@ -754,6 +764,7 @@ export function ReportsGenerator({
   const updateReportPageDate = React.useCallback(
     (value: string): void => {
       setReportPageDate(value)
+      setPdfPreview(undefined)
       onSelectedBusinessDateChange?.(value)
     },
     [onSelectedBusinessDateChange]

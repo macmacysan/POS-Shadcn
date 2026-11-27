@@ -7,10 +7,10 @@ import { branchLabels, type BranchName } from '@/lib/in-house-accounts'
 import { cn } from '@/lib/utils'
 
 const branchBadgeClassName: Record<BranchName, string> = {
-  Goa: 'border-branch-goa/30 bg-branch-goa/10 text-branch-goa',
-  Tinambac: 'border-branch-tinambac/30 bg-branch-tinambac/10 text-branch-tinambac',
-  Tigaon: 'border-branch-tigaon/30 bg-branch-tigaon/10 text-branch-tigaon',
-  Lagonoy: 'border-branch-lagonoy/30 bg-branch-lagonoy/10 text-branch-lagonoy'
+  Goa: 'border-branch-goa/20 bg-branch-goa/5 text-branch-goa',
+  Tinambac: 'border-branch-tinambac/20 bg-branch-tinambac/5 text-branch-tinambac',
+  Tigaon: 'border-branch-tigaon/20 bg-branch-tigaon/5 text-branch-tigaon',
+  Lagonoy: 'border-branch-lagonoy/20 bg-branch-lagonoy/5 text-branch-lagonoy'
 }
 
 export const AccountBranchBadge = React.memo(function AccountBranchBadge({

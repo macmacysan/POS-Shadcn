@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ArrowLeft, CalendarDays, Lock, Printer, ReceiptText, Wrench } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Lock, Plus, Printer, ReceiptText, Wrench } from 'lucide-react'
 import {
   getCoreRowModel,
   getPaginationRowModel,
@@ -461,7 +461,7 @@ export function InstallmentPaymentWorkspace({
   const [error, setError] = React.useState<string>()
   const [isNotFound, setIsNotFound] = React.useState(false)
   const [isPaymentOpen, setIsPaymentOpen] = React.useState(false)
-  const [paymentMode, setPaymentMode] = React.useState<'record' | 'adjust'>('record')
+  const [paymentMode, setPaymentMode] = React.useState<'record' | 'penalty-only' | 'adjust'>('record')
   const [selectedSchedule, setSelectedSchedule] = React.useState<InHouseScheduleRecord>()
   const [selectedScheduleId, setSelectedScheduleId] = React.useState<string>()
   const [selectedPaymentId, setSelectedPaymentId] = React.useState<string>()
@@ -501,6 +501,24 @@ export function InstallmentPaymentWorkspace({
     workspace?.account.branch === ownBranch &&
     workspace?.contractStatus === 'ACTIVE' &&
     workspace.accountStatus === 'ACTIVE'
+  const penaltySchedule = React.useMemo(
+    () =>
+      workspace?.schedules
+        .filter(
+          (schedule) =>
+            !schedule.isService &&
+            schedule.status === 'PAID' &&
+            schedule.paidAmountCentavos >= schedule.dueAmountCentavos
+        )
+        .at(-1),
+    [workspace?.schedules]
+  )
+  const canRecordPenalty =
+    Boolean(workspace) &&
+    workspace?.account.branch === ownBranch &&
+    workspace?.accountStatus === 'ACTIVE' &&
+    (workspace?.contractStatus === 'ACTIVE' || workspace?.contractStatus === 'CLOSED') &&
+    Boolean(penaltySchedule)
   const warrantySchedule = React.useMemo(
     () =>
       workspace?.schedules.find(
@@ -642,6 +660,22 @@ export function InstallmentPaymentWorkspace({
     setIsPaymentOpen(true)
   }
 
+  const openPenaltyPayment = (): void => {
+    if (!workspace || !penaltySchedule || !canRecordPenalty) return
+    setPaymentMode('penalty-only')
+    setSelectedSchedule(penaltySchedule)
+    setSelectedPaymentId(undefined)
+    setAmount('0.00')
+    setPenalty('0.00')
+    setPaymentMethod('Cash')
+    setPaymentDate(format(new Date(), 'yyyy-MM-dd'))
+    setReferenceNumber('')
+    setRemarks(`Penalty only for installment #${penaltySchedule.installmentNumber}`)
+    setFormError(undefined)
+    submissionIdRef.current = crypto.randomUUID()
+    setIsPaymentOpen(true)
+  }
+
   React.useEffect(() => {
     if (!workspace || !initialPaymentId || openedInitialPaymentRef.current === initialPaymentId)
       return
@@ -666,11 +700,18 @@ export function InstallmentPaymentWorkspace({
     if (!workspace || isSubmittingRef.current) return
     const amountCentavos = toCentavos(amount)
     const penaltyCentavos = toCentavos(penalty)
-    if (amountCentavos === undefined || (paymentMode === 'record' && amountCentavos <= 0)) {
+    if (
+      amountCentavos === undefined ||
+      (paymentMode === 'record' && amountCentavos <= 0) ||
+      (paymentMode === 'penalty-only' && amountCentavos !== 0)
+    ) {
       setFormError('Enter a valid payment amount.')
       return
     }
-    if (penaltyCentavos === undefined) {
+    if (
+      penaltyCentavos === undefined ||
+      (paymentMode === 'penalty-only' && penaltyCentavos <= 0)
+    ) {
       setFormError('Enter a valid penalty amount.')
       return
     }
@@ -958,6 +999,18 @@ export function InstallmentPaymentWorkspace({
                     <Wrench data-icon="inline-start" />
                     Warranty Service
                   </Button>
+                  {activeTab === 'ledger' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!canRecordPenalty}
+                      onClick={openPenaltyPayment}
+                    >
+                      <Plus data-icon="inline-start" />
+                      Add payment row
+                    </Button>
+                  )}
                   {workspace && (
                     <Badge variant="outline" size="sm">
                       {workspace.paymentFrequency}
@@ -1045,6 +1098,8 @@ export function InstallmentPaymentWorkspace({
               title={
                 paymentMode === 'adjust'
                   ? 'Payment adjustment'
+                  : paymentMode === 'penalty-only'
+                    ? 'Add penalty payment row'
                   : workspace.account.branch !== ownBranch
                     ? 'Cross-branch payment'
                     : 'Record payment'
@@ -1079,6 +1134,8 @@ export function InstallmentPaymentWorkspace({
                         : 'Posting…'
                       : paymentMode === 'adjust'
                         ? 'Void & repost'
+                        : paymentMode === 'penalty-only'
+                          ? 'Post penalty'
                         : 'Post Payment'}
                   </Button>
                 </>
@@ -1093,12 +1150,15 @@ export function InstallmentPaymentWorkspace({
                         name="payment-amount"
                         value={amount}
                         onValueChange={setAmount}
+                        disabled={paymentMode === 'penalty-only'}
                         inputClassName="text-foreground"
                         ariaInvalid={Boolean(formError)}
                         autoFocus
                         description={
                           paymentMode === 'adjust'
                             ? 'Use 0.00 to void this installment payment without a replacement amount.'
+                            : paymentMode === 'penalty-only'
+                              ? 'Penalty only. No amount will be applied to the installment balance.'
                             : workspace.account.branch !== ownBranch
                               ? `The owner branch (${workspace.account.branch}) allocates this payment against its current schedule after sync.`
                               : 'Any amount above this installment is applied to following installments.'

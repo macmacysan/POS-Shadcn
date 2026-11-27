@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 58
+export const currentSchemaVersion = 59
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -2392,6 +2392,47 @@ export function runMigrations(db: Database.Database): void {
       if (foreignKeyErrors.length)
         throw new Error('Payment method migration found foreign-key violations.')
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(58, now)
+    })
+    db.pragma('foreign_keys = OFF')
+    try {
+      migrate()
+    } finally {
+      db.pragma('foreign_keys = ON')
+    }
+  }
+
+  if (applied.version < 59) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      const constraints = [
+        ['in_house_payments', /CHECK\s*\(\s*amount_centavos\s*>\s*0\s*\)/i],
+        ['installment_payment_allocations', /CHECK\s*\(\s*allocated_amount_centavos\s*>\s*0\s*\)/i]
+      ] as const
+      for (const [table, constraint] of constraints) {
+        const source = db
+          .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+          .get(table) as { sql: string } | undefined
+        if (!source?.sql || !constraint.test(source.sql))
+          throw new Error(`Payment amount constraint not found: ${table}`)
+        const temporary = `penalty_rows_v59_${table}`
+        const indexes = db
+          .prepare(
+            "SELECT sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL"
+          )
+          .all(table) as Array<{ sql: string }>
+        const expandedSql = source.sql
+          .replace(/^CREATE TABLE\s+(?:IF NOT EXISTS\s+)?(?:"|`|\[)?[^\s(`\]]+(?:"|`|\])?/i, `CREATE TABLE ${temporary}`)
+          .replace(constraint, (match) => match.replace(/>\s*0/, '>= 0'))
+        db.exec(expandedSql)
+        db.exec(
+          `INSERT INTO ${temporary} SELECT * FROM ${table}; DROP TABLE ${table}; ALTER TABLE ${temporary} RENAME TO ${table};`
+        )
+        for (const index of indexes) db.exec(index.sql)
+      }
+      const foreignKeyErrors = db.pragma('foreign_key_check') as unknown[]
+      if (foreignKeyErrors.length)
+        throw new Error('Penalty payment migration found foreign-key violations.')
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(59, now)
     })
     db.pragma('foreign_keys = OFF')
     try {

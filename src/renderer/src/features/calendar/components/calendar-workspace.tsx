@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { NameSuggestionInput } from '@/components/shared/name-suggestion-input'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -316,10 +317,10 @@ export function CalendarWorkspace({
               </Field>
               <Field>
                 <FieldLabel htmlFor="task-cashier">Cashier name</FieldLabel>
-                <Input
+                <NameSuggestionInput
                   id="task-cashier"
                   value={draft.cashierName}
-                  onChange={(event) => setDraft({ ...draft, cashierName: event.target.value })}
+                  onValueChange={(value) => setDraft({ ...draft, cashierName: value })}
                 />
               </Field>
             </FieldGroup>

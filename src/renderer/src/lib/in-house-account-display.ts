@@ -29,3 +29,9 @@ export const branchCodeByName: Record<BranchName, string> = {
   Tigaon: 'TIG',
   Lagonoy: 'LAG'
 }
+
+const accountNameCollator = new Intl.Collator(undefined, { sensitivity: 'base' })
+
+export function compareAccountNames(left: string, right: string): number {
+  return accountNameCollator.compare(left, right)
+}

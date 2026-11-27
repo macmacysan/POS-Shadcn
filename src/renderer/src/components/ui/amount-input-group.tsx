@@ -21,6 +21,7 @@ type AmountInputGroupProps = {
   description?: string
   inputClassName?: string
   ariaInvalid?: boolean
+  disabled?: boolean
   autoFocus?: boolean
   onValueChange?: (value: string) => void
 }
@@ -34,6 +35,7 @@ export function AmountInputGroup({
   description,
   inputClassName,
   ariaInvalid,
+  disabled,
   autoFocus,
   onValueChange
 }: AmountInputGroupProps): React.JSX.Element {
@@ -52,6 +54,7 @@ export function AmountInputGroup({
         value={value}
         placeholder={placeholder}
         aria-invalid={ariaInvalid}
+        disabled={disabled}
         autoFocus={autoFocus}
         onChange={(event) => {
           const nextValue = formatAmountInput(event.currentTarget.value)

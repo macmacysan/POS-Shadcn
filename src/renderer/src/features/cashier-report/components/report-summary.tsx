@@ -860,29 +860,24 @@ export const ReportSummary = React.memo(function ReportSummary({
                   }
                 />
               ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shrink-0 gap-0 py-0 shadow-none">
-          <CardContent className="p-2.5">
-            <section
-              aria-label="Cash variance"
-              className="flex items-baseline justify-between gap-3 px-1 py-1"
-            >
-              <span className="text-sm font-medium text-muted-foreground">
-                {summary.variance.label}
-              </span>
-              <span
-                className={cn(
-                  'text-base font-semibold tabular-nums',
-                  variance > 0 && 'text-warning-foreground',
-                  variance < 0 && 'text-destructive'
-                )}
+              <section
+                aria-label="Cash variance"
+                className="mt-2 flex min-h-10 items-center justify-between gap-3 border-t border-border px-2 pt-2"
               >
-                {money(variance)}
-              </span>
-            </section>
+                <span className="text-sm font-semibold text-foreground">
+                  {summary.variance.label}
+                </span>
+                <span
+                  className={cn(
+                    'text-base font-semibold tabular-nums',
+                    variance > 0 && 'text-warning-foreground',
+                    variance < 0 && 'text-destructive'
+                  )}
+                >
+                  {money(variance)}
+                </span>
+              </section>
+            </div>
           </CardContent>
         </Card>
       </aside>
