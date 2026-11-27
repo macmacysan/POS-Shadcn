@@ -279,16 +279,6 @@ export function DashboardContent({
             actionLabel="Open in-house accounts"
             onOpen={onOpenInHouse}
           />
-          <Metric
-            label="Cash status"
-            value={variance === 0 ? 'Balanced' : 'Review'}
-            detail={
-              variance === 0
-                ? 'Physical count matches expected cash'
-                : 'Cash difference requires review'
-            }
-            tone={variance === 0 ? 'default' : 'destructive'}
-          />
         </div>
       </section>
       {/* Charts, cash controls, and report calendar intentionally removed from the dashboard.

@@ -30,6 +30,29 @@ export class CatalogOptionRepository {
   constructor(private readonly db: AppDatabase) {}
 
   list(request: CatalogOptionListRequest = {}): CatalogOptionRecord[] {
+    if (request.kind === 'CASHIER_PAYMENT_TYPE' || request.paymentContext) {
+      const context = request.paymentContext ?? 'CASHIER_REPORT'
+      const rows = this.db
+        .prepare(
+          `SELECT m.id, COALESCE(c.display_name, m.name) AS value, m.id AS reference_id, c.is_active
+             FROM payment_methods m
+             JOIN payment_method_contexts c ON c.payment_method_id = m.id
+            WHERE c.context = ? ${request.activeOnly ? 'AND c.is_active = 1' : ''}
+            ORDER BY m.name`
+        )
+        .all(context) as Row[]
+      return rows.map((row) => record({ ...row, kind: 'CASHIER_PAYMENT_TYPE' }))
+    }
+    if (!request.kind) {
+      return [
+        ...this.list({ ...request, kind: 'CASHIER_PAYMENT_TYPE' }),
+        ...this.list({ ...request, kind: 'CASHIER_EXPENSE_TYPE' }),
+        ...this.list({ ...request, kind: 'IN_HOUSE_AGENT' }),
+        ...this.list({ ...request, kind: 'IN_HOUSE_LOAN_TERM' }),
+        ...this.list({ ...request, kind: 'FINANCE_TYPE' }),
+        ...this.list({ ...request, kind: 'FINANCE_TERM' })
+      ]
+    }
     const clauses: string[] = []
     const values: unknown[] = []
     if (request.kind) {
@@ -52,13 +75,33 @@ export class CatalogOptionRepository {
     this.validate(request.kind, value)
     const now = new Date().toISOString()
     const id = randomUUID()
-    const referenceId = request.kind === 'CASHIER_PAYMENT_TYPE' ? randomUUID() : null
+    if (request.kind === 'CASHIER_PAYMENT_TYPE') {
+      const id = randomUUID()
+      try {
+        this.db.transaction(() => {
+          this.db
+            .prepare(
+              'INSERT INTO payment_methods (id, code, name, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)'
+            )
+            .run(id, `CUSTOM_${id.replaceAll('-', '').toUpperCase()}`, value, now, now)
+          this.db
+            .prepare(
+              'INSERT INTO payment_method_contexts (payment_method_id, context, is_active) VALUES (?, ?, 1)'
+            )
+            .run(id, 'CASHIER_REPORT')
+        })()
+      } catch {
+        throw new AppError('CONFLICT', 'That payment method already exists.')
+      }
+      return { id, kind: request.kind, value, referenceId: id, isActive: true }
+    }
+    const referenceId = null
     try {
       const insert = this.db.transaction(() => {
         if (referenceId)
           this.db
             .prepare(
-              `INSERT INTO report_payment_methods (id, code, name, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`
+              `INSERT INTO payment_methods (id, code, name, is_active, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`
             )
             .run(referenceId, `CUSTOM_${id}`, value, now, now)
         return this.db
@@ -78,11 +121,23 @@ export class CatalogOptionRepository {
     const value = request.value.trim()
     this.validate(current.kind, value)
     const now = new Date().toISOString()
+    if (current.kind === 'CASHIER_PAYMENT_TYPE') {
+      try {
+        this.db
+          .prepare(
+            "UPDATE payment_method_contexts SET display_name = ? WHERE payment_method_id = ? AND context = 'CASHIER_REPORT'"
+          )
+          .run(value, current.id)
+      } catch {
+        throw new AppError('CONFLICT', 'That payment method name already exists.')
+      }
+      return { ...current, value }
+    }
     try {
       const updated = this.db.transaction(() => {
         if (current.referenceId)
           this.db
-            .prepare('UPDATE report_payment_methods SET name = ?, updated_at = ? WHERE id = ?')
+            .prepare('UPDATE payment_methods SET name = ?, updated_at = ? WHERE id = ?')
             .run(value, now, current.referenceId)
         return this.db
           .prepare(
@@ -106,10 +161,23 @@ export class CatalogOptionRepository {
 
   private setActive(id: string, active: boolean): void {
     const current = this.get(id)
+    if (current.kind === 'CASHIER_PAYMENT_TYPE') {
+      const result = this.db
+        .prepare(
+          'UPDATE payment_method_contexts SET is_active = ? WHERE payment_method_id = ? AND context = ? AND is_active = ?'
+        )
+        .run(active ? 1 : 0, id, 'CASHIER_REPORT', active ? 0 : 1)
+      if (!result.changes)
+        throw new AppError(
+          'CONFLICT',
+          active ? 'Option is already active.' : 'Option is already retired.'
+        )
+      return
+    }
     const changed = this.db.transaction(() => {
       if (current.referenceId)
         this.db
-          .prepare('UPDATE report_payment_methods SET is_active = ?, updated_at = ? WHERE id = ?')
+          .prepare('UPDATE payment_methods SET is_active = ?, updated_at = ? WHERE id = ?')
           .run(active ? 1 : 0, new Date().toISOString(), current.referenceId)
       return this.db
         .prepare(
@@ -128,7 +196,21 @@ export class CatalogOptionRepository {
     const row = this.db
       .prepare('SELECT id, kind, value, reference_id, is_active FROM catalog_options WHERE id = ?')
       .get(id) as Row | undefined
-    if (!row) throw new AppError('NOT_FOUND', 'Catalog option was not found.')
+    if (!row) {
+      const payment = this.db
+        .prepare(
+          `SELECT m.id, COALESCE(c.display_name, m.name) AS value, m.id AS reference_id, c.is_active
+           FROM payment_methods m JOIN payment_method_contexts c ON c.payment_method_id = m.id
+          WHERE m.id = ? AND c.context = 'CASHIER_REPORT'`
+        )
+        .get(id) as Row | undefined
+      if (payment)
+        return {
+          ...record({ ...payment, kind: 'CASHIER_PAYMENT_TYPE' }),
+          isActive: payment.is_active === 1
+        }
+      throw new AppError('NOT_FOUND', 'Catalog option was not found.')
+    }
     return record(row)
   }
 

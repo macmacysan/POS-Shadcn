@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
+import { paymentMethodNameSchema } from '../../shared/contracts'
 
 import type {
   GoogleSyncBranch,
@@ -18,7 +19,8 @@ import type {
   InstallmentLoanUpdateRequest,
   InstallmentLoanRestructureRequest,
   InstallmentWarrantyServiceRequest,
-  InstallmentTransitionRequest
+  InstallmentTransitionRequest,
+  PaymentMethodName
 } from '../../shared/contracts'
 import { AppError } from './errors'
 import { recordGcashDrawing } from './gcash-drawings'
@@ -72,7 +74,7 @@ type ContractRow = {
   down_payment_centavos: number
   down_payment_applied_centavos: number
   down_payment_reference_number?: string
-  down_payment_method: 'Cash' | 'GCash'
+  down_payment_method: PaymentMethodName
   fees_centavos: number
   installment_amount_centavos: number
   total_payable_centavos: number
@@ -554,7 +556,7 @@ export class InstallmentRepository {
             grandTotal,
             calculated.interestCentavos,
             downPayment,
-            stringValue(loan.paymentMethod, 'Cash') === 'GCash' ? 'GCash' : 'Cash',
+            paymentMethodNameSchema.safeParse(loan.paymentMethod).data ?? 'Cash',
             optionalString(loan.downPaymentReferenceNumber) ?? null,
             calculated.requiredFeeCentavos,
             calculated.paymentAmountCentavos,
@@ -598,7 +600,7 @@ export class InstallmentRepository {
               released,
               downPayment,
               now,
-              stringValue(loan.paymentMethod, 'Cash') === 'GCash' ? 'GCash' : 'Cash',
+              paymentMethodNameSchema.safeParse(loan.paymentMethod).data ?? 'Cash',
               optionalString(loan.downPaymentReferenceNumber)
             )
           if (stringValue(loan.paymentMethod, 'Cash') === 'GCash' && request.actorUserId) {
@@ -640,7 +642,7 @@ export class InstallmentRepository {
         | {
             id: string
             status: string
-            down_payment_method: 'Cash' | 'GCash'
+            down_payment_method: PaymentMethodName
             branch_id: string
             first_name: string
             middle_name?: string
@@ -1459,7 +1461,7 @@ export class InstallmentRepository {
       id: string
       source_submission_id?: string
       payment_date: string
-      payment_method: 'Cash' | 'GCash'
+      payment_method: PaymentMethodName
       amount_centavos: number
       penalty_centavos: number
       allocated_amount_centavos: number
@@ -1832,7 +1834,7 @@ export class InstallmentRepository {
     paymentDate: string
     amountCentavos: number
     penaltyCentavos: number
-    paymentMethod: 'Cash' | 'GCash'
+    paymentMethod: PaymentMethodName
     referenceNumber?: string
     remarks?: string
   }): {
@@ -2288,7 +2290,7 @@ export class InstallmentRepository {
     paymentDate: string,
     amountCentavos: number,
     now: string,
-    paymentMethod: 'Cash' | 'GCash' = 'Cash',
+    paymentMethod: PaymentMethodName = 'Cash',
     referenceNumber?: string
   ): void {
     if (amountCentavos <= 0) return

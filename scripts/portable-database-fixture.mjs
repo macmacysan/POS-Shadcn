@@ -32,9 +32,14 @@ export function seedPortableBusinessData(db, prefix) {
   const id = (name) => `${prefix}-${name}`
   const branch = db.prepare("SELECT id FROM branches WHERE name = 'Goa'").get().id
   const first = (table) => db.prepare(`SELECT id FROM ${table} LIMIT 1`).get().id
-  const [receipt, method, deduction, denomination, incomeCategory, ruleVersion] = [
+  const method = db
+    .prepare(
+      `SELECT payment_method_id AS id FROM payment_method_contexts
+        WHERE context = 'CASHIER_REPORT' AND is_active = 1 LIMIT 1`
+    )
+    .get().id
+  const [receipt, deduction, denomination, incomeCategory, ruleVersion] = [
     first('receipt_types'),
-    first('report_payment_methods'),
     first('deduction_types'),
     first('cash_denominations'),
     first('income_categories'),

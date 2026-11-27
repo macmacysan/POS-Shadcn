@@ -189,7 +189,8 @@ export function SidebarLeft({
             onValueChange={setSettingsSection}
             className="min-h-0 flex-1 gap-0"
           >
-            <TabsList
+            {isAdmin && (
+              <TabsList
               variant="line"
               className="h-full w-52 shrink-0 items-stretch gap-1 rounded-none bg-muted/20 px-4 py-6"
             >
@@ -209,7 +210,8 @@ export function SidebarLeft({
                   Administration
                 </TabsTrigger>
               )}
-            </TabsList>
+              </TabsList>
+            )}
             <TabsContent value="workspace" className="min-h-0 overflow-y-auto px-8 py-7">
               <section className="flex max-w-2xl flex-col gap-8">
                 <div className="flex max-w-xl flex-col gap-2">

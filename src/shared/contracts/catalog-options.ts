@@ -9,15 +9,33 @@ export const catalogOptionKinds = [
   'FINANCE_TERM'
 ] as const
 
+export const paymentMethodContexts = [
+  'CASHIER_REPORT',
+  'EXPENSE',
+  'INSTALLMENT',
+  'FINANCE'
+] as const
+export const paymentMethodContextSchema = z.enum(paymentMethodContexts)
+export const paymentMethodNames = [
+  'Cash',
+  'Check',
+  'Bank Transfer',
+  'GCash',
+  'Maya',
+  'Other E-wallet',
+  'Other'
+] as const
+export const paymentMethodNameSchema = z.enum(paymentMethodNames)
+
 export const catalogOptionKindSchema = z.enum(catalogOptionKinds)
-const idSchema = z.string().uuid()
+const idSchema = z.string().trim().min(1).max(100)
 const valueSchema = z.string().trim().min(1).max(200)
 
 export const catalogOptionRecordSchema = z.object({
   id: idSchema,
   kind: catalogOptionKindSchema,
   value: valueSchema,
-  referenceId: z.string().uuid().nullable(),
+  referenceId: z.string().trim().min(1).max(100).nullable(),
   isActive: z.boolean()
 })
 export const catalogOptionCreateRequestSchema = z.object({
@@ -28,7 +46,8 @@ export const catalogOptionRenameRequestSchema = z.object({ id: idSchema, value: 
 export const catalogOptionIdRequestSchema = z.object({ id: idSchema })
 export const catalogOptionListRequestSchema = z.object({
   kind: catalogOptionKindSchema.optional(),
-  activeOnly: z.boolean().optional()
+  activeOnly: z.boolean().optional(),
+  paymentContext: paymentMethodContextSchema.optional()
 })
 
 export type CatalogOptionKind = z.infer<typeof catalogOptionKindSchema>
@@ -37,6 +56,8 @@ export type CatalogOptionCreateRequest = z.infer<typeof catalogOptionCreateReque
 export type CatalogOptionRenameRequest = z.infer<typeof catalogOptionRenameRequestSchema>
 export type CatalogOptionIdRequest = z.infer<typeof catalogOptionIdRequestSchema>
 export type CatalogOptionListRequest = z.infer<typeof catalogOptionListRequestSchema>
+export type PaymentMethodContext = z.infer<typeof paymentMethodContextSchema>
+export type PaymentMethodName = z.infer<typeof paymentMethodNameSchema>
 
 export const catalogOptionIpcChannels = {
   list: 'catalog-options:list',

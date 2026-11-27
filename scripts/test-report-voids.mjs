@@ -165,7 +165,10 @@ try {
     .prepare('SELECT id FROM income_categories WHERE is_active = 1 LIMIT 1')
     .get().id
   const paymentMethodId = db
-    .prepare('SELECT id FROM report_payment_methods WHERE is_active = 1 LIMIT 1')
+    .prepare(
+      `SELECT c.payment_method_id AS id FROM payment_method_contexts c
+        WHERE c.context = 'CASHIER_REPORT' AND c.is_active = 1 LIMIT 1`
+    )
     .get().id
 
   const expense = expenseService.create({
@@ -197,10 +200,15 @@ try {
     remarks: null
   })
 
+  const exportExpenseTotals = () =>
+    dailyReports.rangeSnapshot(cashier.branchId, report.businessDate, nextReport.businessDate)
+      .expenseTotals
+  assert.equal(exportExpenseTotals().companyExpensesCentavos, 12500)
   await expenseService.void([expense.id], 'Entered in error')
   await dailyReportService.voidIncome({ id: income.id, voidReason: 'Entered in error' })
   await dailyReportService.voidPayment({ id: payment.id, voidReason: 'Entered in error' })
 
+  assert.equal(exportExpenseTotals().companyExpensesCentavos, 0)
   assert.equal(expenses.findById(expense.id).status, 'VOIDED')
   assert.equal(
     dailyReports.listIncome({ dailyReportId: report.id, status: 'VOIDED' })[0].voidReason,

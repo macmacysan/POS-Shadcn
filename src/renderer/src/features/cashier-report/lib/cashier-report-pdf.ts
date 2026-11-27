@@ -1,3 +1,4 @@
+import type { cashierSummary } from './cashier-summary'
 import type {
   DailyReportPaymentEntryRecord,
   DailyReportSnapshotResponse,
@@ -38,6 +39,7 @@ export type CashierReportPdfData = {
   generatedAt: string
   note?: string
   snapshot: DailyReportSnapshotResponse
+  summary: ReturnType<typeof cashierSummary>
   expenses: ExpenseRecord[]
   incomes: IncomeEntryRecord[]
   payments: DailyReportPaymentEntryRecord[]
@@ -158,15 +160,13 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     }))
     .filter((item) => item.quantity > 0 && item.valueCentavos > 0)
   const history = data.installmentHistory.filter(isVisibleInstallmentHistoryRecord)
-  const receiptTotal = snapshot.receiptTotals.reduce(
-    (total, item) => total + item.amountCentavos,
-    0
-  )
-  const totalReceiptsCentavos =
-    receiptTotal +
-    snapshot.cashCollectionsCentavos +
-    snapshot.otherIncomeCentavos +
-    snapshot.financeDownCentavos
+  const { summary } = data
+  const cashSummaryRows = [
+    ...summary.receipts,
+    ...summary.groups.flat(),
+    ...summary.footer,
+    summary.variance
+  ]
   const cashReceiptRows = [
     ...snapshot.receiptTotals.map((item) => ({
       type: item.receiptName,
@@ -185,73 +185,6 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
   const expenseTotal = data.expenses.reduce((total, item) => total + item.amountCentavos, 0)
   const incomeTotal = data.incomes.reduce((total, item) => total + item.amountCentavos, 0)
   const paymentTotal = data.payments.reduce((total, item) => total + item.amountCentavos, 0)
-  const expenseSummary = data.expenses.reduce(
-    (totals, item) => {
-      if (item.type === 'Company Expenses' || item.type === 'Operating')
-        totals.companyExpensesCentavos += item.amountCentavos
-      else if (item.type === 'Drawings') totals.drawingsCentavos += item.amountCentavos
-      else if (item.type === 'Purchases' || item.type === 'Supply')
-        totals.purchasesCentavos += item.amountCentavos
-      else if (item.type === 'Receivables') totals.receivablesCentavos += item.amountCentavos
-      return totals
-    },
-    {
-      companyExpensesCentavos: 0,
-      drawingsCentavos: 0,
-      purchasesCentavos: 0,
-      receivablesCentavos: 0
-    }
-  )
-  const cashOutCentavos =
-    expenseSummary.companyExpensesCentavos +
-    expenseSummary.drawingsCentavos +
-    expenseSummary.purchasesCentavos +
-    expenseSummary.receivablesCentavos +
-    deductionTotal
-  const paymentTotals = snapshot.paymentEntries
-    .filter((item) => item.status === 'POSTED')
-    .reduce(
-      (totals, item) => {
-        if (item.paymentMethodId === 'report-payment-method-check')
-          totals.bankCheck += item.amountCentavos
-        else if (item.paymentMethodId === 'report-payment-method-bank-transfer')
-          totals.bankTransfer += item.amountCentavos
-        totals.total += item.amountCentavos
-        return totals
-      },
-      { bankCheck: 0, bankTransfer: 0, total: 0 }
-    )
-  const expectedCashCentavos = totalReceiptsCentavos - cashOutCentavos - paymentTotals.total
-  const cashVarianceCentavos = snapshot.physicalCashCentavos - expectedCashCentavos
-  const cashSummaryRows: Array<{
-    label: string
-    value: number | null | undefined
-    quantity?: number
-    emphasis?: boolean
-    alwaysShow?: boolean
-  }> = [
-    ...snapshot.receiptTotals.map((item) => ({
-      label: item.receiptName,
-      value: item.amountCentavos,
-      quantity: item.quantity
-    })),
-    { label: 'Collections', value: snapshot.cashCollectionsCentavos },
-    { label: 'Other', value: snapshot.otherIncomeCentavos },
-    { label: 'Finance Down', value: snapshot.financeDownCentavos },
-    { label: 'Total Cash Receipts', value: totalReceiptsCentavos, emphasis: true },
-    { label: 'Expenses', value: expenseSummary.companyExpensesCentavos },
-    { label: 'Drawings', value: expenseSummary.drawingsCentavos },
-    { label: 'Purchases', value: expenseSummary.purchasesCentavos },
-    { label: 'Receivables', value: expenseSummary.receivablesCentavos },
-    { label: 'Deductions', value: deductionTotal },
-    { label: 'Total Cash Outs', value: cashOutCentavos, emphasis: true },
-    { label: 'Bank Check', value: paymentTotals.bankCheck },
-    { label: 'Bank Transfer', value: paymentTotals.bankTransfer },
-    { label: 'Total Payments', value: paymentTotals.total, emphasis: true },
-    { label: 'Expected Cash', value: expectedCashCentavos, emphasis: true },
-    { label: 'Cash Denominations', value: snapshot.physicalCashCentavos },
-    { label: 'Cash Variance', value: cashVarianceCentavos, emphasis: true, alwaysShow: true }
-  ]
   const currentMonthLabel =
     data.charts.monthlyCashFlow.at(-1)?.month ?? data.businessDate.slice(0, 7)
   const variance = snapshot.cashVarianceCentavos
@@ -296,7 +229,7 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
     <header><div class="company">Nueva Camsur Home Furnishing</div><h1>Branch Cashier Report</h1><div class="meta"><div><span>Contributors</span><strong>${escapeHtml(data.cashierName)}</strong></div><div><span>Branch</span><strong>${escapeHtml(data.branch)}</strong></div><div><span>Business date</span><strong>${escapeHtml(data.businessDate)}</strong></div><div><span>Generated</span><strong>${escapeHtml(data.generatedAt)}</strong></div></div></header>
     ${
       sections.has('Cash Summary')
-        ? `<section class="cash-overview"><div><h2>Cash Summary</h2>${cashSummaryRows.map((item) => summaryRow(item.label, item.value, item)).join('')}</div><div class="cash-side"><div><h2>Cash Denominations</h2>${denominations.length ? `<table><thead><tr><th>Denomination</th><th class="amount">Qty</th><th class="amount">Total</th></tr></thead><tbody>${denominations.map((item) => `<tr><td>${escapeHtml(money(item.valueCentavos))}</td><td class="amount">${item.quantity}</td>${amount(item.valueCentavos * item.quantity)}</tr>`).join('')}</tbody></table>` : ''}</div><div><h2>Deductions</h2>${deductions.map((item) => summaryRow(item.label, item.amountCentavos)).join('')}${summaryRow('Total deductions', deductionTotal)}</div></div></section>`
+        ? `<section class="cash-overview"><div><h2>Cash Summary</h2>${cashSummaryRows.map((item) => summaryRow(item.label, item.value, { ...item, alwaysShow: true })).join('')}</div><div class="cash-side"><div><h2>Cash Denominations</h2>${denominations.length ? `<table><thead><tr><th>Denomination</th><th class="amount">Qty</th><th class="amount">Total</th></tr></thead><tbody>${denominations.map((item) => `<tr><td>${escapeHtml(money(item.valueCentavos))}</td><td class="amount">${item.quantity}</td>${amount(item.valueCentavos * item.quantity)}</tr>`).join('')}</tbody></table>` : ''}</div><div><h2>Deductions</h2>${deductions.map((item) => summaryRow(item.label, item.amountCentavos)).join('')}${summaryRow('Total deductions', deductionTotal)}</div></div></section>`
         : ''
     }
     ${
@@ -308,7 +241,7 @@ export function cashierReportPdfHtml(data: CashierReportPdfData): string {
               (item) =>
                 `<tr><td>${escapeHtml(item.type)}</td><td class="amount">${item.quantity ?? ''}</td>${amount(item.amountCentavos)}</tr>`
             ),
-            totalReceiptsCentavos,
+            summary.totalCashReceiptsCentavos,
             'Total Cash Receipts'
           )
         : ''

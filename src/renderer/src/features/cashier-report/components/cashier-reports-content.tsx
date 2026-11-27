@@ -102,7 +102,6 @@ import {
   type CatalogOptionRecord,
   parseAmountToCentavos,
   type DailyReportPaymentEntryRecord,
-  type DailyReportSnapshotResponse,
   type ExpenseCategory,
   type ExpenseType,
   type ExpenseVat,
@@ -116,7 +115,15 @@ const reportTabs = ['Expenses', 'Income', 'Payment', 'Activity'] as const
 
 const expenseTypes = ['Company Expenses', 'Drawings', 'GCash', 'Purchases', 'Receivables'] as const
 const vatOptions = ['VAT', 'Non-VAT'] as const
-const paymentTypes = ['Bank Check', 'Bank Transfer'] as const
+const paymentTypes = [
+  'Cash',
+  'Check',
+  'Bank Transfer',
+  'GCash',
+  'Maya',
+  'Other E-wallet',
+  'Other'
+] as const
 
 type ExpenseCategoryConfig = {
   value: string
@@ -285,12 +292,8 @@ function createdByInitials(name: string): string {
   return `${parts[0]?.[0] ?? '?'}${parts.length > 1 ? (parts.at(-1)?.[0] ?? '') : ''}`.toUpperCase()
 }
 
-function CreatedByBadge({ name }: { name: string }): React.JSX.Element {
-  return (
-    <Badge variant="secondary" className="h-5 px-1 text-xs leading-none" aria-label={name}>
-      {createdByInitials(name)}
-    </Badge>
-  )
+function CreatedByInitials({ name }: { name: string }): React.JSX.Element {
+  return <span aria-label={name}>{createdByInitials(name)}</span>
 }
 
 function uniqueSorted(values: readonly string[]): string[] {
@@ -487,16 +490,8 @@ function CashierReportHeader({
   )
 }
 
-function TypeBox({
-  value
-}: {
-  value: string
-}): React.JSX.Element {
-  return (
-    <Badge variant="secondary" className="h-5 px-1">
-      {value}
-    </Badge>
-  )
+function ReportTypeLabel({ value }: { value: string }): React.JSX.Element {
+  return <span className="text-foreground">{value}</span>
 }
 
 function TruncatedText({
@@ -554,7 +549,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'type',
     header: 'Type',
-    cell: ({ getValue }) => <TypeBox value={getValue<string>()} />,
+    cell: ({ getValue }) => <ReportTypeLabel value={getValue<string>()} />,
     size: 145,
     meta: { className: 'text-muted-foreground' }
   },
@@ -594,7 +589,7 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
   {
     accessorKey: 'createdByName',
     header: 'By',
-    cell: ({ row }) => <CreatedByBadge name={row.original.createdByName} />,
+    cell: ({ row }) => <CreatedByInitials name={row.original.createdByName} />,
     size: 20,
     meta: { className: 'px-1 text-center text-muted-foreground' }
   },
@@ -659,7 +654,7 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
   {
     accessorKey: 'createdByName',
     header: 'By',
-    cell: ({ row }) => <CreatedByBadge name={row.original.createdByName} />,
+    cell: ({ row }) => <CreatedByInitials name={row.original.createdByName} />,
     size: 20,
     meta: { className: 'px-1 text-center text-muted-foreground' }
   },
@@ -681,7 +676,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
     accessorKey: 'type',
     header: 'Type',
     size: 132,
-    cell: ({ getValue }) => <TypeBox value={getValue<string>()} />
+    cell: ({ getValue }) => <ReportTypeLabel value={getValue<string>()} />
   },
   {
     accessorKey: 'bankProvider',
@@ -717,7 +712,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'createdByName',
     header: 'By',
-    cell: ({ row }) => <CreatedByBadge name={row.original.createdByName} />,
+    cell: ({ row }) => <CreatedByInitials name={row.original.createdByName} />,
     size: 20,
     meta: { className: 'px-1 text-center text-muted-foreground' }
   },
@@ -737,10 +732,13 @@ const compactPaymentColumns: ReportColumn<PaymentRow>[] = [
 ]
 
 const paymentMethodByLabel: Record<string, string> = {
-  'Bank Check': 'report-payment-method-check',
+  Cash: '00000000-0000-4000-8000-000000000001',
+  Check: 'report-payment-method-check',
   'Bank Transfer': 'report-payment-method-bank-transfer',
   GCash: 'report-payment-method-gcash',
-  'Other e-wallet': 'report-payment-method-other-ewallet'
+  Maya: 'report-payment-method-maya',
+  'Other E-wallet': 'report-payment-method-other-ewallet',
+  Other: '00000000-0000-4000-8000-000000000003'
 }
 
 const paymentLabelByMethod = Object.fromEntries(
@@ -1572,7 +1570,6 @@ export function CashierReportsContent({
   const [isDateLoading, setIsDateLoading] = React.useState(false)
   const [selectedReportMissing, setSelectedReportMissing] = React.useState(!hasActiveReport)
   const [dateError, setDateError] = React.useState<string>()
-  const summarySnapshotRef = React.useRef<DailyReportSnapshotResponse | undefined>(undefined)
   const [reportSearch, setReportSearch] = React.useState('')
   const [dateRange, setDateRange] = React.useState<DateSelectorValue>(() => {
     const initialDate = parseISO(selectedBusinessDate ?? activeReport.businessDate)
@@ -2124,7 +2121,6 @@ export function CashierReportsContent({
         cashierName={cashierName}
         reportId={reportId}
         businessDate={selectedReport.businessDate}
-        summarySnapshotRef={summarySnapshotRef}
       />
     )
   }
@@ -2216,9 +2212,6 @@ export function CashierReportsContent({
             onOpenCollection={onOpenCollection}
             onOpenFinance={onOpenFinance}
             readOnly={isAdmin}
-            onSnapshotChange={(snapshot) => {
-              summarySnapshotRef.current = snapshot
-            }}
           />
         </div>
       )}
@@ -2374,9 +2367,6 @@ export function CashierReportsContent({
                 onOpenCollection={onOpenCollection}
                 onOpenFinance={onOpenFinance}
                 readOnly={isAdmin}
-                onSnapshotChange={(snapshot) => {
-                  summarySnapshotRef.current = snapshot
-                }}
               />
             </SheetContent>
           </Sheet>
@@ -2448,7 +2438,6 @@ export function CashierReportsContent({
         cashierName={cashierName}
         reportId={reportId}
         businessDate={selectedReport.businessDate}
-        summarySnapshotRef={summarySnapshotRef}
       />
       {confirmation && (
         <ConfirmationAlertDialog

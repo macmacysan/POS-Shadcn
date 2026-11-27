@@ -1,4 +1,5 @@
 import { format } from 'date-fns'
+import type { PaymentMethodName } from '../../../shared/contracts'
 
 export const branchNames = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const
 export type BranchName = (typeof branchNames)[number]
@@ -86,7 +87,7 @@ export type InHouseLoan = {
   readonly interest: number
   readonly downPayment: number
   readonly downPaymentReferenceNumber?: string
-  readonly paymentMethod: 'Cash' | 'GCash'
+  readonly paymentMethod: PaymentMethodName
   readonly fees: number
   readonly installmentAmount: number
   readonly grandTotal: number

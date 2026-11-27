@@ -60,7 +60,9 @@ import {
   financeAccountInputSchema,
   financeBranchValues,
   financeProviderValues,
+  paymentMethodNames,
   type CatalogOptionRecord,
+  type PaymentMethodName,
   type FinanceAccountInput,
   type FinanceAccountRecord,
   type FinanceItemInput,
@@ -692,6 +694,7 @@ function FinanceAccountSheet({
   )
   const [errors, setErrors] = React.useState<Record<string, string>>({})
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
+  const [paymentMethods, setPaymentMethods] = React.useState<string[]>([...paymentMethodNames])
   const [productCatalog, setProductCatalog] = React.useState<ProductCatalogItem[]>([])
   const [submitError, setSubmitError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
@@ -705,6 +708,10 @@ function FinanceAccountSheet({
     void window.api.catalogOptions
       .list({ activeOnly: true })
       .then(({ rows }) => setCatalogOptions(rows))
+      .catch(() => undefined)
+    void window.api.catalogOptions
+      .list({ paymentContext: 'FINANCE', activeOnly: true })
+      .then(({ rows }) => setPaymentMethods(rows.map((row) => row.value)))
       .catch(() => undefined)
   }, [])
   const activeProviders = catalogOptions
@@ -1013,9 +1020,22 @@ function FinanceAccountSheet({
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="finance-payment-method">Payment method</FieldLabel>
-                  <Select value={values.paymentMethod} onValueChange={(value) => set('paymentMethod', value as 'Cash' | 'GCash')}>
-                    <SelectTrigger id="finance-payment-method"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectGroup><SelectItem value="Cash">Cash</SelectItem><SelectItem value="GCash">GCash</SelectItem></SelectGroup></SelectContent>
+                  <Select
+                    value={values.paymentMethod}
+                    onValueChange={(value) => set('paymentMethod', value as PaymentMethodName)}
+                  >
+                    <SelectTrigger id="finance-payment-method">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {paymentMethods.map((method) => (
+                          <SelectItem key={method} value={method}>
+                            {method}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
                   </Select>
                 </Field>
                 <Field>

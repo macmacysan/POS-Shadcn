@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto'
 
 import { calculateFinanceAmounts } from '../../shared/finance-calculations'
+import { paymentMethodNameSchema } from '../../shared/contracts'
 import type {
   FinanceAccountCreateRequest,
   FinanceAccountListRequest,
   FinanceAccountListResult,
   FinanceAccountRecord,
   FinanceAccountUpdateRequest,
-  FinanceItemRecord
+  FinanceItemRecord,
+  PaymentMethodName
 } from '../../shared/contracts'
 import { AppError } from './errors'
 import type { AppDatabase } from './database'
@@ -25,7 +27,7 @@ type FinanceRow = {
   middle_name: string | null
   suffix: string | null
   downpayment_centavos: number
-  payment_method: 'Cash' | 'GCash'
+  payment_method: PaymentMethodName
   grand_total_centavos: number
   balance_centavos: number
   or_number: string | null
@@ -72,7 +74,14 @@ export class FinanceAccountRepository {
       try {
         const row = JSON.parse(payload_json) as Record<string, string>
         const items = JSON.parse(row.items || '[]') as Array<Record<string, unknown>>
-        if (!row.id || !row.branch || !row.provider || !row.dateReleased || !row.lastName || !row.firstName)
+        if (
+          !row.id ||
+          !row.branch ||
+          !row.provider ||
+          !row.dateReleased ||
+          !row.lastName ||
+          !row.firstName
+        )
           return []
         return [
           {
@@ -86,14 +95,24 @@ export class FinanceAccountRepository {
             middleName: row.middleName || undefined,
             suffix: row.suffix || undefined,
             items: items.flatMap((item, index) => {
-              if (typeof item.item !== 'string' || !Number.isFinite(Number(item.quantity))) return []
+              if (typeof item.item !== 'string' || !Number.isFinite(Number(item.quantity)))
+                return []
               const quantity = Number(item.quantity)
               const itemPriceCentavos = Number(item.itemPriceCentavos) || 0
-              return [{ id: String(item.id || `${row.id}-item-${index}`), item: item.item, serialNo: typeof item.serialNo === 'string' ? item.serialNo : undefined, quantity, itemPriceCentavos, totalCentavos: Number(item.totalCentavos) || quantity * itemPriceCentavos }]
+              return [
+                {
+                  id: String(item.id || `${row.id}-item-${index}`),
+                  item: item.item,
+                  serialNo: typeof item.serialNo === 'string' ? item.serialNo : undefined,
+                  quantity,
+                  itemPriceCentavos,
+                  totalCentavos: Number(item.totalCentavos) || quantity * itemPriceCentavos
+                }
+              ]
             }),
             grandTotalCentavos: Number(row.grandTotalCentavos) || 0,
             downpaymentCentavos: Number(row.downpaymentCentavos) || 0,
-            paymentMethod: row.paymentMethod === 'GCash' ? 'GCash' : 'Cash',
+            paymentMethod: paymentMethodNameSchema.safeParse(row.paymentMethod).data ?? 'Cash',
             balanceCentavos: Number(row.balanceCentavos) || 0,
             orNumber: row.orNumber || undefined,
             orDate: row.orDate || undefined,
@@ -119,9 +138,21 @@ export class FinanceAccountRepository {
     const now = new Date().toISOString()
     this.write(id, request, now, now)
     if (request.paymentMethod === 'GCash') {
-      const branch = this.db.prepare('SELECT id FROM branches WHERE name = ?').get(request.branch) as { id: string }
-      const fullName = [request.firstName, request.middleName, request.lastName, request.suffix].filter(Boolean).join(' ')
-      recordGcashDrawing(this.db, { branchId: branch.id, businessDate: request.paidDate ?? request.dateReleased, amountCentavos: request.downpaymentCentavos, actorUserId, reference: `finance:${id}`, description: `GCash-${fullName}`, receiptNo: request.orNumber })
+      const branch = this.db
+        .prepare('SELECT id FROM branches WHERE name = ?')
+        .get(request.branch) as { id: string }
+      const fullName = [request.firstName, request.middleName, request.lastName, request.suffix]
+        .filter(Boolean)
+        .join(' ')
+      recordGcashDrawing(this.db, {
+        branchId: branch.id,
+        businessDate: request.paidDate ?? request.dateReleased,
+        amountCentavos: request.downpaymentCentavos,
+        actorUserId,
+        reference: `finance:${id}`,
+        description: `GCash-${fullName}`,
+        receiptNo: request.orNumber
+      })
     }
     return this.getById(id)
   }

@@ -1,5 +1,6 @@
 import { z } from '../zod'
 import type { InstallmentListResult } from './installments'
+import { paymentMethodNameSchema } from './catalog-options'
 
 export const googleSyncBranchValues = ['Goa', 'Tinambac', 'Tigaon', 'Lagonoy'] as const
 export const googleSyncRequestSchema = z.object({ branch: z.enum(googleSyncBranchValues) })
@@ -49,7 +50,7 @@ export const crossBranchPaymentReceiptSchema = z.object({
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   amountCentavos: z.number().int().positive(),
   penaltyCentavos: z.number().int().nonnegative(),
-  paymentMethod: z.enum(['Cash', 'GCash']),
+  paymentMethod: paymentMethodNameSchema,
   referenceNumber: z.string().max(100).optional(),
   remarks: z.string().max(1000).optional(),
   cashierName: z.string().max(200).optional(),

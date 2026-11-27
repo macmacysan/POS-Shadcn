@@ -37,20 +37,21 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatPhilippinePeso } from '@/lib/currency'
 import { formatAccountName } from '@/lib/in-house-accounts'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
+import { TaskSheet } from '@/components/shared/task-sheet/task-sheet'
 import { createPaymentSchedulePdfHtml } from '@/features/in-house-payments/lib/payment-schedule-pdf'
 import type {
   InHousePaymentRecord,
+  PaymentMethodName,
   InHouseScheduleRecord,
   InstallmentPaymentWorkspace
 } from '../../../../../shared/contracts'
+import { paymentMethodNames } from '../../../../../shared/contracts'
 
 type Props = {
   readonly accountId: string
@@ -472,13 +473,20 @@ export function InstallmentPaymentWorkspace({
   const [scheduleVerticalAdjustmentInches, setScheduleVerticalAdjustmentInches] = React.useState(0)
   const [activeTab, setActiveTab] = React.useState(initialTab)
   const [amount, setAmount] = React.useState('')
-  const [paymentMethod, setPaymentMethod] = React.useState<'Cash' | 'GCash'>('Cash')
+  const [paymentMethod, setPaymentMethod] = React.useState<PaymentMethodName>('Cash')
+  const [paymentMethods, setPaymentMethods] = React.useState<string[]>([...paymentMethodNames])
   const [penalty, setPenalty] = React.useState('0.00')
   const [paymentDate, setPaymentDate] = React.useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [referenceNumber, setReferenceNumber] = React.useState('')
   const [remarks, setRemarks] = React.useState('')
   const [formError, setFormError] = React.useState<string>()
   const [isSaving, setIsSaving] = React.useState(false)
+  React.useEffect(() => {
+    void window.api.catalogOptions
+      .list({ paymentContext: 'INSTALLMENT', activeOnly: true })
+      .then(({ rows }) => setPaymentMethods(rows.map((row) => row.value)))
+      .catch(() => undefined)
+  }, [])
   const { notify } = useNotifications()
   const loadRequestId = React.useRef(0)
   const isSubmittingRef = React.useRef(false)
@@ -845,6 +853,10 @@ export function InstallmentPaymentWorkspace({
     )
   }
 
+  const amountDue = selectedSchedule
+    ? Math.max(0, selectedSchedule.dueAmountCentavos - selectedSchedule.paidAmountCentavos)
+    : workspace?.nextDue?.amountCentavos
+
   return (
     <Dialog open onOpenChange={(open) => !open && onBack()}>
       <DialogContent className="flex h-[min(90vh,58rem)] w-[min(96vw,90rem)] max-w-none flex-col gap-0 overflow-hidden p-3 sm:max-w-none">
@@ -1027,30 +1039,52 @@ export function InstallmentPaymentWorkspace({
             </Tabs>
           </section>
           {isPaymentOpen && workspace && (
-            <aside className="flex w-[26rem] max-w-[42%] shrink-0 flex-col border-l bg-background">
-              <header className="shrink-0 border-b px-5 pb-4 pt-5">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {paymentMode === 'adjust'
-                    ? 'Payment adjustment'
-                    : workspace.account.branch !== ownBranch
-                      ? 'Cross-branch payment'
-                      : 'Record payment'}
-                </p>
-                <div className="mt-3">
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-semibold leading-none tracking-tighter text-primary tabular-nums">
-                      #
-                      {selectedSchedule?.installmentNumber ??
-                        workspace?.nextDue?.installmentNumber ??
-                        'â€”'}
-                    </h2>
-                    <p className="mt-1 text-xs text-muted-foreground">Installment</p>
-                  </div>
-                </div>
-              </header>
-              <ScrollArea className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
-                <div className="flex flex-col gap-5 py-4">
-                  <Separator />
+            <TaskSheet
+              open
+              onOpenChange={setIsPaymentOpen}
+              title={
+                paymentMode === 'adjust'
+                  ? 'Payment adjustment'
+                  : workspace.account.branch !== ownBranch
+                    ? 'Cross-branch payment'
+                    : 'Record payment'
+              }
+              description={
+                <span>
+                  Installment #
+                  {selectedSchedule?.installmentNumber ?? workspace.nextDue?.installmentNumber ?? '—'}
+                  {amountDue !== undefined && (
+                    <>
+                      {' · '}Amount due{' '}
+                      {formatPhilippinePeso(amountDue / 100)}
+                    </>
+                  )}
+                </span>
+              }
+              bodyClassName="p-4"
+              footer={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsPaymentOpen(false)}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={() => void submitPayment()} disabled={isSaving}>
+                    {isSaving
+                      ? paymentMode === 'adjust'
+                        ? 'Adjusting…'
+                        : 'Posting…'
+                      : paymentMode === 'adjust'
+                        ? 'Void & repost'
+                        : 'Post Payment'}
+                  </Button>
+                </>
+              }
+            >
+              <div className="flex flex-col gap-5 py-1">
                   <FieldGroup>
                     <Field data-invalid={Boolean(formError)}>
                       <FieldLabel htmlFor="payment-amount">Amount received</FieldLabel>
@@ -1095,14 +1129,17 @@ export function InstallmentPaymentWorkspace({
                       <FieldLabel htmlFor="payment-method">Payment method</FieldLabel>
                       <Select
                         value={paymentMethod}
-                        onValueChange={(value) => setPaymentMethod(value as 'Cash' | 'GCash')}
+                        onValueChange={(value) => setPaymentMethod(value as PaymentMethodName)}
                       >
                         <SelectTrigger id="payment-method">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Cash">Cash</SelectItem>
-                          <SelectItem value="GCash">GCash</SelectItem>
+                          {paymentMethods.map((method) => (
+                            <SelectItem key={method} value={method}>
+                              {method}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </Field>
@@ -1141,28 +1178,8 @@ export function InstallmentPaymentWorkspace({
                     </Field>
                     {formError && <FieldError>{formError}</FieldError>}
                   </FieldGroup>
-                </div>
-              </ScrollArea>
-              <footer className="flex shrink-0 justify-end gap-2 border-t px-4 py-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsPaymentOpen(false)}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </Button>
-                <Button type="button" onClick={() => void submitPayment()} disabled={isSaving}>
-                  {isSaving
-                    ? paymentMode === 'adjust'
-                      ? 'Adjusting…'
-                      : 'Posting…'
-                    : paymentMode === 'adjust'
-                      ? 'Void & repost'
-                      : 'Post Payment'}
-                </Button>
-              </footer>
-            </aside>
+              </div>
+            </TaskSheet>
           )}
         </div>
         <VoidEntryDialog

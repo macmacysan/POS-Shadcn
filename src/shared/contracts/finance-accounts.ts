@@ -1,4 +1,5 @@
 import { z } from '../zod'
+import { paymentMethodNameSchema } from './catalog-options'
 
 import { calculateFinanceAmounts } from '../finance-calculations'
 
@@ -24,7 +25,7 @@ export const financeAccountInputSchema = z
     suffix: z.string().trim().max(30).optional(),
     items: z.array(financeItemInputSchema).min(1).max(100),
     downpaymentCentavos: z.number().int().nonnegative(),
-    paymentMethod: z.enum(['Cash', 'GCash']).default('Cash'),
+    paymentMethod: paymentMethodNameSchema.default('Cash'),
     orNumber: z.string().trim().max(100).optional(),
     orDate: dateSchema.optional(),
     paidDate: dateSchema.optional(),

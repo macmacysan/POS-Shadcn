@@ -168,7 +168,7 @@ export const dailyReportPaymentEntryRecordSchema = z.object({
   id: uuidSchema,
   dailyReportId: uuidSchema,
   branch: z.string().trim().min(1).max(100),
-  paymentMethodId: uuidSchema,
+  paymentMethodId: z.string().trim().min(1).max(100),
   paymentMethodName: z.string().trim().min(1).max(200),
   transactionDate: businessDateSchema,
   amountCentavos: positiveCentavosSchema,
@@ -200,7 +200,7 @@ export const dailyReportPaymentListResponseSchema = z.object({
 })
 export const dailyReportPaymentCreateRequestSchema = z.object({
   dailyReportId: uuidSchema,
-  paymentMethodId: uuidSchema,
+  paymentMethodId: z.string().trim().min(1).max(100),
   transactionDate: businessDateSchema,
   amountCentavos: positiveCentavosSchema,
   referenceNumber: z.string().trim().max(100).nullable().optional(),
@@ -303,7 +303,8 @@ export const dailyReportRangeSnapshotRequestSchema = z
 export const dailyReportDetailSchema = z.object({
   id: uuidSchema,
   name: z.string().trim().min(1).max(200),
-  amountCentavos: centavosSchema.nonnegative()
+  amountCentavos: centavosSchema.nonnegative(),
+  paymentMethodName: z.string().trim().min(1).max(200).optional()
 })
 export const dailyReportSnapshotResponseSchema = z.object({
   report: dailyReportRecordSchema,
@@ -320,6 +321,8 @@ export const dailyReportSnapshotResponseSchema = z.object({
   financeDownDetails: z.array(dailyReportDetailSchema),
   financeBalanceDetails: z.array(dailyReportDetailSchema),
   legacyExpenseCashOutCentavos: centavosSchema.nonnegative(),
+  nonCashCollectionCentavos: centavosSchema.nonnegative(),
+  cashPaymentCentavos: centavosSchema.nonnegative(),
   cashCollectionsCentavos: centavosSchema.nonnegative(),
   otherIncomeCentavos: centavosSchema.nonnegative(),
   financeDownCentavos: centavosSchema.nonnegative(),
@@ -328,7 +331,14 @@ export const dailyReportSnapshotResponseSchema = z.object({
   physicalCashCentavos: centavosSchema.nonnegative(),
   cashVarianceCentavos: centavosSchema
 })
-export const dailyReportRangeSnapshotResponseSchema = dailyReportSnapshotResponseSchema
+export const dailyReportRangeSnapshotResponseSchema = dailyReportSnapshotResponseSchema.extend({
+  expenseTotals: z.object({
+    companyExpensesCentavos: z.number().int(),
+    drawingsCentavos: z.number().int(),
+    purchasesCentavos: z.number().int(),
+    receivablesCentavos: z.number().int()
+  })
+})
 export const dailyReportSummaryUpdateRequestSchema = z.object({
   dailyReportId: uuidSchema,
   openingCashCentavos: centavosSchema.nonnegative(),

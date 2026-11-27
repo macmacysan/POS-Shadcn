@@ -121,57 +121,51 @@ export function CalendarWorkspace({
 
   return (
     <main className="flex min-h-0 flex-1 overflow-hidden bg-workspace">
-      <aside className="flex w-80 shrink-0 flex-col border-r bg-card">
-        <div className="border-b px-5 py-4">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Tasks
-          </p>
-          <h1 className="mt-1 font-heading text-lg font-medium">Calendar tasks</h1>
-        </div>
-        <Collapsible defaultOpen className="group/collapsible min-h-0 flex-1 overflow-auto">
-          <CollapsibleTrigger className="flex w-full items-center gap-2 border-b px-5 py-2 text-left text-xs font-medium">
-            Task list <span className="text-muted-foreground">{tasks.length}</span>
-            <CaretDownIcon className="ml-auto size-4 transition-transform group-data-[panel-open]/collapsible:rotate-180" />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="grid grid-cols-[1.1fr_0.8fr_0.6fr_0.5fr] gap-2 border-b px-5 py-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              <span>Date</span>
-              <span>Type</span>
-              <span>Branch</span>
-              <span>Name</span>
-            </div>
+      <Collapsible
+        defaultOpen
+        className="group/collapsible flex min-h-0 shrink-0 flex-col border-r bg-card transition-[width] data-[panel-open]:w-80 data-[panel-closed]:w-12"
+      >
+        <CollapsibleTrigger
+          aria-label="Toggle calendar task list"
+          className="flex shrink-0 items-center gap-2 border-b px-4 py-4 text-left text-sm font-medium data-[panel-closed]:justify-center data-[panel-closed]:px-0"
+        >
+          <span className="min-w-0 flex-1 truncate group-data-[panel-closed]/collapsible:hidden">
+            Calendar tasks <span className="text-muted-foreground">{tasks.length}</span>
+          </span>
+          <CaretDownIcon className="size-4 shrink-0 transition-transform group-data-[panel-open]/collapsible:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-auto">
             {tasks.length ? (
               tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="grid grid-cols-[1.1fr_0.8fr_0.6fr_0.5fr] gap-2 border-b px-5 py-3 text-xs"
-                >
-                  <span className="truncate font-medium">{formatDate(task.date)}</span>
-                  <Badge variant={typeVariants[task.type]} size="xs">
-                    {task.type}
-                  </Badge>
-                  <span className="font-mono text-muted-foreground">
-                    {branchCodeByName[task.branch]}
-                  </span>
-                  <span className="font-medium text-muted-foreground">
-                    {initials(task.cashierName)}
-                  </span>
+                <div key={task.id} className="border-b px-4 py-3">
+                  <p className="truncate text-sm font-medium">{task.title}</p>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{formatDate(task.date)}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{branchCodeByName[task.branch]}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{initials(task.cashierName)}</span>
+                    <Badge variant={typeVariants[task.type]} size="xs" className="ml-auto">
+                      {task.type}
+                    </Badge>
+                  </div>
                 </div>
               ))
             ) : (
-              <p className="px-5 py-8 text-sm text-muted-foreground">
+              <p className="px-4 py-8 text-sm text-muted-foreground">
                 No tasks yet. Add one to place it on the calendar.
               </p>
             )}
-          </CollapsibleContent>
-        </Collapsible>
-        <div className="border-t p-4">
-          <Button className="w-full" onClick={openTaskDialog}>
-            <PlusIcon />
-            Add Task
-          </Button>
-        </div>
-      </aside>
+          </div>
+          <div className="border-t p-4">
+            <Button className="w-full" onClick={openTaskDialog}>
+              <PlusIcon />
+              Add Task
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b px-6 py-4">

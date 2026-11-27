@@ -1,4 +1,5 @@
 import { z } from '../zod'
+import { paymentMethodNameSchema, type PaymentMethodName } from './catalog-options'
 
 export const installmentViewValues = ['records', 'active', 'closed', 'blacklisted'] as const
 export const installmentViewSchema = z.enum(installmentViewValues)
@@ -84,7 +85,7 @@ export const installmentCreatePaymentRequestSchema = z.object({
   scheduleId: z.string().trim().min(1).max(100).optional(),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   amountCentavos: z.number().int().positive(),
-  paymentMethod: z.enum(['Cash', 'GCash']).default('Cash'),
+  paymentMethod: paymentMethodNameSchema.default('Cash'),
   penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
   remarks: z.string().trim().max(1000).optional(),
@@ -99,7 +100,7 @@ export const installmentAdjustPaymentRequestSchema = z.object({
   submissionId: z.string().trim().min(1).max(100),
   paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   amountCentavos: z.number().int().nonnegative(),
-  paymentMethod: z.enum(['Cash', 'GCash']).default('Cash'),
+  paymentMethod: paymentMethodNameSchema.default('Cash'),
   penaltyCentavos: z.number().int().nonnegative().default(0),
   referenceNumber: z.string().trim().max(100).optional(),
   remarks: z.string().trim().max(1000).optional(),
@@ -186,7 +187,7 @@ export type InstallmentAccountRecord = {
     interest: number
     downPayment: number
     downPaymentReferenceNumber?: string
-    paymentMethod?: 'Cash' | 'GCash'
+    paymentMethod?: PaymentMethodName
     fees: number
     installmentAmount: number
     grandTotal: number
@@ -266,7 +267,7 @@ export type InHousePaymentRecord = {
   sourceSubmissionId?: string
   paymentDate: string
   amountCentavos: number
-  paymentMethod: 'Cash' | 'GCash'
+  paymentMethod: PaymentMethodName
   penaltyCentavos: number
   allocatedAmountCentavos: number
   referenceNumber?: string

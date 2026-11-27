@@ -41,35 +41,26 @@ try {
     db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get().version,
     currentSchemaVersion
   )
-  assert.deepEqual(
-    db
-      .prepare(
-        `SELECT reference_id, is_active FROM catalog_options
-          WHERE reference_id IN (
-            'report-payment-method-gcash',
-            'report-payment-method-other-ewallet'
-          )
-          ORDER BY reference_id`
-      )
-      .all(),
-    [
-      { reference_id: 'report-payment-method-gcash', is_active: 0 },
-      { reference_id: 'report-payment-method-other-ewallet', is_active: 0 }
-    ]
-  )
   assert.equal(
     db
-      .prepare(
-        `SELECT is_active FROM catalog_options
-          WHERE reference_id = 'report-payment-method-check'`
-      )
-      .get().is_active,
-    1
+      .prepare("SELECT COUNT(*) AS count FROM catalog_options WHERE kind = 'CASHIER_PAYMENT_TYPE'")
+      .get().count,
+    0
   )
+  for (const context of ['CASHIER_REPORT', 'EXPENSE', 'INSTALLMENT', 'FINANCE']) {
+    assert.equal(
+      db
+        .prepare(
+          'SELECT COUNT(*) AS count FROM payment_method_contexts WHERE context = ? AND is_active = 1'
+        )
+        .get(context).count,
+      7
+    )
+  }
   assert.deepEqual(
     db
       .prepare(
-        `SELECT id FROM report_payment_methods
+        `SELECT id FROM payment_methods
           WHERE id IN (
             'report-payment-method-gcash',
             'report-payment-method-other-ewallet'
@@ -77,28 +68,39 @@ try {
           ORDER BY id`
       )
       .all(),
-    [
-      { id: 'report-payment-method-gcash' },
-      { id: 'report-payment-method-other-ewallet' }
-    ]
+    [{ id: 'report-payment-method-gcash' }, { id: 'report-payment-method-other-ewallet' }]
   )
 
   runMigrations(db)
-  assert.deepEqual(
+  for (const [table, column] of [
+    ['in_house_payments', 'payment_method'],
+    ['installment_contracts', 'down_payment_method'],
+    ['finance_accounts', 'payment_method'],
+    ['cross_branch_collections', 'payment_method']
+  ]) {
+    const sql = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+      .get(table).sql
+    for (const method of ['Cash', 'Check', 'Bank Transfer', 'GCash', 'Maya', 'Other E-wallet', 'Other'])
+      assert.ok(sql.includes(`'${method}'`), `${table}.${column} accepts ${method}`)
+  }
+  assert.ok(
+    db
+      .pragma('foreign_key_list(expense_entries)')
+      .some((key) => key.table === 'payment_methods' && key.from === 'payment_method_code')
+  )
+  assert.equal(
+    db.prepare("SELECT name FROM payment_methods WHERE code = 'CHECK'").get().name,
+    'Check'
+  )
+  assert.equal(
     db
       .prepare(
-        `SELECT reference_id, is_active FROM catalog_options
-          WHERE reference_id IN (
-            'report-payment-method-gcash',
-            'report-payment-method-other-ewallet'
-          )
-          ORDER BY reference_id`
+        `SELECT display_name FROM payment_method_contexts
+          WHERE payment_method_id = 'report-payment-method-check' AND context = 'CASHIER_REPORT'`
       )
-      .all(),
-    [
-      { reference_id: 'report-payment-method-gcash', is_active: 0 },
-      { reference_id: 'report-payment-method-other-ewallet', is_active: 0 }
-    ]
+      .get().display_name,
+    null
   )
   console.log('wallet payment method retirement tests passed')
 } finally {

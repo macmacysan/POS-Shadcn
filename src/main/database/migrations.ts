@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { buildInHouseSchedule } from '../services/in-house-schedule'
 
-export const currentSchemaVersion = 56
+export const currentSchemaVersion = 58
 
 export function runMigrations(db: Database.Database): void {
   db.exec(`
@@ -2260,5 +2260,144 @@ export function runMigrations(db: Database.Database): void {
       db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(56, now)
     })
     migrate()
+  }
+
+  if (applied.version < 57) {
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        ALTER TABLE report_payment_methods RENAME TO payment_methods;
+        CREATE TABLE payment_method_contexts (
+          payment_method_id TEXT NOT NULL REFERENCES payment_methods(id) ON DELETE RESTRICT,
+          context TEXT NOT NULL CHECK (context IN ('CASHIER_REPORT', 'EXPENSE', 'INSTALLMENT', 'FINANCE')),
+          display_name TEXT,
+          is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+          PRIMARY KEY (payment_method_id, context)
+        );
+        INSERT INTO payment_method_contexts (payment_method_id, context, display_name, is_active)
+          SELECT reference_id, 'CASHIER_REPORT', value, is_active FROM catalog_options
+           WHERE kind = 'CASHIER_PAYMENT_TYPE' AND reference_id IS NOT NULL;
+        INSERT OR IGNORE INTO payment_methods (id, code, name, is_active, created_at, updated_at)
+          VALUES ('00000000-0000-4000-8000-000000000001', 'CASH', 'Cash', 1, '${now}', '${now}');
+        INSERT OR IGNORE INTO payment_methods (id, code, name, is_active, created_at, updated_at)
+          VALUES ('00000000-0000-4000-8000-000000000002', 'GCASH', 'GCash', 1, '${now}', '${now}');
+        INSERT OR IGNORE INTO payment_methods (id, code, name, is_active, created_at, updated_at)
+          VALUES ('00000000-0000-4000-8000-000000000003', 'OTHER', 'Other', 1, '${now}', '${now}');
+        CREATE TABLE expense_entries_part_57 (
+          id TEXT PRIMARY KEY NOT NULL,
+          daily_report_id TEXT NOT NULL REFERENCES daily_reports(id) ON DELETE RESTRICT,
+          category_id TEXT NOT NULL REFERENCES expense_categories(id) ON DELETE RESTRICT,
+          transaction_date TEXT NOT NULL CHECK (length(transaction_date) = 10),
+          description TEXT NOT NULL,
+          receipt_number TEXT,
+          vat_type TEXT NOT NULL DEFAULT 'NON_VAT'
+            CHECK (vat_type IN ('VATABLE', 'VAT_EXEMPT', 'ZERO_RATED', 'NON_VAT')),
+          vat_amount_centavos INTEGER NOT NULL DEFAULT 0 CHECK (vat_amount_centavos >= 0),
+          gross_amount_centavos INTEGER NOT NULL CHECK (gross_amount_centavos > 0),
+          payment_method_code TEXT NOT NULL DEFAULT 'CASH'
+            REFERENCES payment_methods(code) ON UPDATE CASCADE ON DELETE RESTRICT,
+          reference_number TEXT,
+          remarks TEXT,
+          status TEXT NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED', 'VOIDED')),
+          voided_at TEXT,
+          voided_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          void_reason TEXT,
+          created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          CHECK (vat_amount_centavos <= gross_amount_centavos)
+        );
+        INSERT INTO expense_entries_part_57
+          SELECT * FROM expense_entries;
+        DROP TABLE expense_entries;
+        ALTER TABLE expense_entries_part_57 RENAME TO expense_entries;
+        CREATE INDEX idx_expense_entries_report ON expense_entries (daily_report_id);
+        CREATE INDEX idx_expense_entries_category ON expense_entries (category_id);
+        INSERT OR IGNORE INTO payment_method_contexts (payment_method_id, context, is_active)
+          SELECT id, 'EXPENSE', 1 FROM payment_methods
+           WHERE code IN ('CASH', 'CHECK', 'BANK_TRANSFER', 'GCASH', 'MAYA', 'OTHER_EWALLET', 'OTHER');
+        INSERT OR IGNORE INTO payment_method_contexts (payment_method_id, context, is_active)
+          SELECT id, context, 1 FROM payment_methods CROSS JOIN
+            (SELECT 'INSTALLMENT' AS context UNION ALL SELECT 'FINANCE')
+           WHERE code IN ('CASH', 'GCASH');
+        DELETE FROM catalog_options WHERE kind = 'CASHIER_PAYMENT_TYPE';
+        CREATE INDEX payment_method_contexts_active_idx
+          ON payment_method_contexts (context, is_active, payment_method_id);
+      `)
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(57, now)
+    })
+    migrate()
+  }
+
+  if (applied.version < 58) {
+    const methods = ['Cash', 'Check', 'Bank Transfer', 'GCash', 'Maya', 'Other E-wallet', 'Other']
+    const methodSql = methods.map((method) => `'${method}'`).join(', ')
+    const tables = [
+      ['in_house_payments', 'payment_method'],
+      ['installment_contracts', 'down_payment_method'],
+      ['finance_accounts', 'payment_method'],
+      ['cross_branch_collections', 'payment_method']
+    ] as const
+    const migrate = db.transaction(() => {
+      const now = new Date().toISOString()
+      db.exec(`
+        INSERT OR IGNORE INTO payment_method_contexts (payment_method_id, context, is_active)
+          SELECT m.id, contexts.context, 1 FROM payment_methods m CROSS JOIN (
+            SELECT 'CASHIER_REPORT' AS context UNION ALL SELECT 'EXPENSE'
+            UNION ALL SELECT 'INSTALLMENT' UNION ALL SELECT 'FINANCE'
+          ) contexts
+          WHERE m.code IN ('CASH', 'CHECK', 'BANK_TRANSFER', 'GCASH', 'MAYA', 'OTHER_EWALLET', 'OTHER');
+        UPDATE payment_method_contexts
+           SET is_active = 1, display_name = NULL
+         WHERE payment_method_id IN (
+           SELECT id FROM payment_methods
+            WHERE code IN ('CASH', 'CHECK', 'BANK_TRANSFER', 'GCASH', 'MAYA', 'OTHER_EWALLET', 'OTHER')
+         );
+      `)
+
+      for (const [table, column] of tables) {
+        const source = db
+          .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
+          .get(table) as { sql: string } | undefined
+        if (!source?.sql) throw new Error(`Missing payment table: ${table}`)
+        const check = new RegExp(
+          `CHECK\\s*\\(\\s*${column}\\s+IN\\s*\\('Cash',\\s*'GCash'\\)\\s*\\)`,
+          'i'
+        )
+        if (!check.test(source.sql))
+          throw new Error(`Payment constraint not found: ${table}.${column}`)
+        const createPrefix = new RegExp(
+          `^CREATE TABLE\\s+(?:IF NOT EXISTS\\s+)?(?:\x22|\\x60|\\[)?${table}(?:\x22|\\x60|\\])?`,
+          'i'
+        )
+        if (!createPrefix.test(source.sql))
+          throw new Error(`Unexpected payment table schema: ${table}`)
+        const temporary = `payment_modes_v58_${table}`
+        const indexes = db
+          .prepare(
+            "SELECT sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL"
+          )
+          .all(table) as Array<{ sql: string }>
+        const expandedSql = source.sql
+          .replace(createPrefix, `CREATE TABLE ${temporary}`)
+          .replace(check, `CHECK (${column} IN (${methodSql}))`)
+        db.exec(expandedSql)
+        db.exec(
+          `INSERT INTO ${temporary} SELECT * FROM ${table}; DROP TABLE ${table}; ALTER TABLE ${temporary} RENAME TO ${table};`
+        )
+        for (const index of indexes) db.exec(index.sql)
+      }
+
+      const foreignKeyErrors = db.pragma('foreign_key_check') as unknown[]
+      if (foreignKeyErrors.length)
+        throw new Error('Payment method migration found foreign-key violations.')
+      db.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(58, now)
+    })
+    db.pragma('foreign_keys = OFF')
+    try {
+      migrate()
+    } finally {
+      db.pragma('foreign_keys = ON')
+    }
   }
 }

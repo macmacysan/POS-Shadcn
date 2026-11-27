@@ -1689,7 +1689,7 @@ export function AccountRecordsWorkspace({
                   type="button"
                   size="sm"
                   variant={activeStatusFilter === value ? 'secondary' : 'outline'}
-                  className="relative gap-2"
+                  className="gap-2"
                   aria-pressed={activeStatusFilter === value}
                   onClick={() => {
                     setActiveStatusFilter((current) => (current === value ? 'all' : value))
@@ -1702,7 +1702,7 @@ export function AccountRecordsWorkspace({
                       variant={activeStatusBadgeVariant[value]}
                       size="sm"
                       radius="full"
-                      className="absolute -top-1.5 -right-2 px-1"
+                      className="px-1"
                       aria-hidden="true"
                     >
                       {activeStatusCounts[value]}

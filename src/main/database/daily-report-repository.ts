@@ -1,3 +1,4 @@
+import { ExpenseRepository } from './expense-repository'
 import { randomUUID } from 'node:crypto'
 
 import type {
@@ -950,13 +951,14 @@ export class DailyReportRepository {
     request: DailyReportPaymentCreateRequest,
     actorUserId: string
   ): DailyReportPaymentEntryRecord {
+    this.requireActivePaymentMethod(request.paymentMethodId)
     const now = new Date().toISOString()
     const row = this.db
       .prepare(
         `INSERT INTO daily_report_payment_entries (
           id, daily_report_id, payment_method_id, payment_method_name, transaction_date, amount_centavos, reference_number,
           bank_name, payer_name, remarks, created_by_user_id, created_at, updated_at
-        ) VALUES (?, ?, ?, (SELECT name FROM report_payment_methods WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+        ) VALUES (?, ?, ?, (SELECT COALESCE(c.display_name, m.name) FROM payment_methods m JOIN payment_method_contexts c ON c.payment_method_id = m.id AND c.context = 'CASHIER_REPORT' WHERE m.id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
       )
       .get(
         randomUUID(),
@@ -993,11 +995,18 @@ export class DailyReportRepository {
     request: DailyReportPaymentUpdateRequest,
     actorUserId: string
   ): DailyReportPaymentEntryRecord {
+    const existing = this.db
+      .prepare(
+        "SELECT payment_method_id FROM daily_report_payment_entries WHERE id = ? AND status = 'POSTED'"
+      )
+      .get(request.id) as { payment_method_id: string } | undefined
+    if (existing && existing.payment_method_id !== request.paymentMethodId)
+      this.requireActivePaymentMethod(request.paymentMethodId)
     const now = new Date().toISOString()
     const row = this.db
       .prepare(
         `UPDATE daily_report_payment_entries
-            SET payment_method_id = ?, payment_method_name = (SELECT name FROM report_payment_methods WHERE id = ?), transaction_date = ?, amount_centavos = ?, reference_number = ?,
+            SET payment_method_id = ?, payment_method_name = (SELECT COALESCE(c.display_name, m.name) FROM payment_methods m JOIN payment_method_contexts c ON c.payment_method_id = m.id AND c.context = 'CASHIER_REPORT' WHERE m.id = ?), transaction_date = ?, amount_centavos = ?, reference_number = ?,
                 bank_name = ?, payer_name = ?, remarks = ?, updated_at = ?
           WHERE id = ? AND status = 'POSTED' RETURNING *`
       )
@@ -1023,6 +1032,16 @@ export class DailyReportRepository {
     })
     this.touchReport(row.daily_report_id, actorUserId, now)
     return paymentRecord(row)
+  }
+
+  private requireActivePaymentMethod(paymentMethodId: string): void {
+    const method = this.db
+      .prepare(
+        `SELECT 1 FROM payment_method_contexts
+          WHERE payment_method_id = ? AND context = 'CASHIER_REPORT' AND is_active = 1`
+      )
+      .get(paymentMethodId)
+    if (!method) throw new AppError('VALIDATION_ERROR', 'Payment method is unavailable.')
   }
 
   voidPayment(
@@ -1213,6 +1232,9 @@ export class DailyReportRepository {
 
     return {
       ...finalSnapshot,
+      expenseTotals: new ExpenseRepository(this.db).findSummaryTotals(
+        reportRows.map((row) => row.id)
+      ),
       report: {
         ...finalSnapshot.report,
         openingCashCentavos: sum(snapshots.map((snapshot) => snapshot.report.openingCashCentavos)),
@@ -1233,6 +1255,10 @@ export class DailyReportRepository {
       legacyExpenseCashOutCentavos: sum(
         snapshots.map((snapshot) => snapshot.legacyExpenseCashOutCentavos)
       ),
+      nonCashCollectionCentavos: sum(
+        snapshots.map((snapshot) => snapshot.nonCashCollectionCentavos)
+      ),
+      cashPaymentCentavos: sum(snapshots.map((snapshot) => snapshot.cashPaymentCentavos)),
       cashCollectionsCentavos: sum(snapshots.map((snapshot) => snapshot.cashCollectionsCentavos)),
       otherIncomeCentavos: sum(snapshots.map((snapshot) => snapshot.otherIncomeCentavos)),
       financeDownCentavos: sum(snapshots.map((snapshot) => snapshot.financeDownCentavos)),
@@ -1324,6 +1350,7 @@ export class DailyReportRepository {
     const collectionDetails = this.db
       .prepare(
         `SELECT c.account_id AS id, a.display_name AS name,
+                p.payment_method AS paymentMethodName,
                 p.amount_centavos + p.penalty_centavos AS amountCentavos
            FROM in_house_payments p
            JOIN installment_contracts c ON c.id = p.contract_id
@@ -1332,6 +1359,7 @@ export class DailyReportRepository {
              AND p.payment_date = ? AND c.branch_id = ?
          UNION ALL
          SELECT c.account_id AS id, a.display_name || ' (Downpayment)' AS name,
+                c.down_payment_method AS paymentMethodName,
                 c.down_payment_centavos AS amountCentavos
            FROM installment_contracts c
            JOIN accounts a ON a.id = c.account_id
@@ -1340,6 +1368,7 @@ export class DailyReportRepository {
             AND COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) = 'Monthly'
          UNION ALL
          SELECT collection.account_id AS id, collection.account_name || ' (Cross-branch payment)' AS name,
+                collection.payment_method AS paymentMethodName,
                 collection.amount_centavos + collection.penalty_centavos AS amountCentavos
            FROM cross_branch_collections collection
           WHERE collection.daily_report_id = ? AND collection.status NOT IN ('REJECTED', 'VOIDED')
@@ -1355,10 +1384,12 @@ export class DailyReportRepository {
       id: string
       name: string
       amountCentavos: number
+      paymentMethodName: string
     }>
     const financeDownDetails = this.db
       .prepare(
         `SELECT f.id, trim(f.first_name || ' ' || f.last_name) AS name,
+                f.payment_method AS paymentMethodName,
                 f.downpayment_centavos AS amountCentavos
            FROM finance_accounts f
            JOIN branches b ON b.name = f.branch
@@ -1369,6 +1400,7 @@ export class DailyReportRepository {
       id: string
       name: string
       amountCentavos: number
+      paymentMethodName: string
     }>
     const financeBalanceDetails = this.db
       .prepare(
@@ -1421,15 +1453,43 @@ export class DailyReportRepository {
                       JOIN branches finance_branch ON finance_branch.name = f.branch
                      WHERE COALESCE(f.paid_date, f.date_released) = ?
                        AND finance_branch.id = report.branch_id), 0) AS finance_balance_centavos,
-          COALESCE((SELECT SUM(amount_centavos)
-                      FROM daily_report_payment_entries
-                     WHERE daily_report_id = ? AND status = 'POSTED'), 0) AS payment_centavos,
+          COALESCE((SELECT SUM(p.amount_centavos + p.penalty_centavos)
+                      FROM in_house_payments p
+                      JOIN installment_contracts c ON c.id = p.contract_id
+                     WHERE p.status = 'POSTED' AND c.status <> 'VOIDED' AND p.collection_branch_id IS NULL
+                       AND p.payment_date = report.business_date AND c.branch_id = report.branch_id
+                       AND p.payment_method NOT IN ('Cash', 'GCash')), 0)
+          + COALESCE((SELECT SUM(amount_centavos + penalty_centavos)
+                        FROM cross_branch_collections
+                       WHERE daily_report_id = report.id AND status NOT IN ('REJECTED', 'VOIDED')
+                         AND payment_method NOT IN ('Cash', 'GCash')), 0)
+          + COALESCE((SELECT SUM(c.down_payment_centavos)
+                        FROM installment_contracts c
+                       WHERE c.status <> 'VOIDED' AND c.date_released = report.business_date
+                         AND c.branch_id = report.branch_id
+                         AND COALESCE(NULLIF(c.schedule_frequency, ''), c.payment_frequency) = 'Monthly'
+                         AND c.down_payment_method NOT IN ('Cash', 'GCash')), 0)
+          + COALESCE((SELECT SUM(f.downpayment_centavos)
+                        FROM finance_accounts f JOIN branches finance_branch ON finance_branch.name = f.branch
+                       WHERE COALESCE(f.paid_date, f.date_released) = report.business_date
+                         AND finance_branch.id = report.branch_id
+                         AND f.payment_method NOT IN ('Cash', 'GCash')), 0)
+            AS non_cash_collection_centavos,
+          COALESCE((SELECT SUM(CASE WHEN m.code = 'CASH' THEN e.amount_centavos ELSE 0 END)
+                      FROM daily_report_payment_entries e
+                      JOIN payment_methods m ON m.id = e.payment_method_id
+                     WHERE e.daily_report_id = report.id AND e.status = 'POSTED'), 0)
+            AS cash_payment_centavos,
+          COALESCE((SELECT SUM(CASE WHEN m.code <> 'CASH' THEN e.amount_centavos ELSE 0 END)
+                      FROM daily_report_payment_entries e
+                      JOIN payment_methods m ON m.id = e.payment_method_id
+                     WHERE e.daily_report_id = report.id AND e.status = 'POSTED'), 0)
+            AS payment_centavos,
           COALESCE((SELECT SUM(d.value_centavos * c.quantity) FROM daily_report_cash_counts c JOIN cash_denominations d ON d.id = c.denomination_id WHERE c.daily_report_id = ? AND d.value_centavos >= 25), 0) AS physical_cash_centavos
           FROM daily_reports report
          WHERE report.id = ?`
       )
       .get(
-        dailyReportId,
         dailyReportId,
         dailyReportId,
         dailyReportId,
@@ -1451,6 +1511,8 @@ export class DailyReportRepository {
       other_income_centavos: number
       finance_down_centavos: number
       finance_balance_centavos: number
+      non_cash_collection_centavos: number
+      cash_payment_centavos: number
       payment_centavos: number
       physical_cash_centavos: number
     }
@@ -1460,6 +1522,8 @@ export class DailyReportRepository {
       totals.recorded_down_payment_centavos +
       totals.other_income_centavos +
       totals.finance_down_centavos -
+      totals.non_cash_collection_centavos +
+      totals.cash_payment_centavos -
       totals.deduction_centavos -
       totals.cash_out_centavos -
       totals.legacy_expense_cash_out_centavos -
@@ -1479,6 +1543,8 @@ export class DailyReportRepository {
       financeDownDetails,
       financeBalanceDetails,
       legacyExpenseCashOutCentavos: totals.legacy_expense_cash_out_centavos,
+      nonCashCollectionCentavos: totals.non_cash_collection_centavos,
+      cashPaymentCentavos: totals.cash_payment_centavos,
       cashCollectionsCentavos:
         totals.recorded_paid_amount_centavos + totals.recorded_down_payment_centavos,
       otherIncomeCentavos: totals.other_income_centavos,

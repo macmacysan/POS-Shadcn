@@ -1,3 +1,4 @@
+import { cashierSummary, initialReceiptVisibility } from '../lib/cashier-summary'
 import * as React from 'react'
 import * as XLSX from 'xlsx'
 import { format, parseISO } from 'date-fns'
@@ -21,7 +22,6 @@ import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 import { isVisibleInstallmentHistoryRecord } from '@/lib/installment-history'
 import type {
-  DailyReportSnapshotResponse,
   ExpenseRecord,
   FinanceAccountRecord,
   InstallmentAccountRecord,
@@ -695,7 +695,6 @@ type ReportsGeneratorProps = {
   businessDate: string
   selectedBusinessDate?: string
   onSelectedBusinessDateChange?: (businessDate: string) => void
-  summarySnapshotRef: React.RefObject<DailyReportSnapshotResponse | undefined>
 }
 
 export function ReportsGenerator({
@@ -705,8 +704,7 @@ export function ReportsGenerator({
   reportId,
   businessDate,
   selectedBusinessDate,
-  onSelectedBusinessDateChange,
-  summarySnapshotRef
+  onSelectedBusinessDateChange
 }: ReportsGeneratorProps): React.JSX.Element {
   const [exportError, setExportError] = React.useState<string>()
   const [isReviewingPdf, setIsReviewingPdf] = React.useState(false)
@@ -802,13 +800,11 @@ export function ReportsGenerator({
         financeAccounts,
         charts
       ] = await Promise.all([
-        mode === 'range' || (filters?.dateFrom && filters.dateFrom === filters.dateTo)
-          ? window.api.dailyReports.getRangeSnapshot({
-              branch: branchFilter,
-              dateFrom: filters?.dateFrom ?? businessDate,
-              dateTo: filters?.dateTo ?? businessDate
-            })
-          : window.api.dailyReports.getSnapshot({ dailyReportId: reportId }),
+        window.api.dailyReports.getRangeSnapshot({
+          branch: branchFilter,
+          dateFrom: filters?.dateFrom ?? businessDate,
+          dateTo: filters?.dateTo ?? businessDate
+        }),
         window.api.dailyReports.listIncome({
           branch: branchFilter,
           dateFrom: filters?.dateFrom,
@@ -897,7 +893,8 @@ export function ReportsGenerator({
           snapshot.receiptTotals.reduce((total, item) => total + item.amountCentavos, 0) +
           snapshot.cashCollectionsCentavos +
           snapshot.otherIncomeCentavos +
-          snapshot.financeDownCentavos
+          snapshot.financeDownCentavos +
+          snapshot.cashPaymentCentavos
         nextExcelSheets['Total Cash Receipts'] = [
           ...snapshot.receiptTotals.map((item) => ({
             Type: item.receiptName,
@@ -907,7 +904,8 @@ export function ReportsGenerator({
           ...[
             { Type: 'Collections', Amount: snapshot.cashCollectionsCentavos },
             { Type: 'Other Income', Amount: snapshot.otherIncomeCentavos },
-            { Type: 'Finance Downpayment', Amount: snapshot.financeDownCentavos }
+            { Type: 'Finance Downpayment', Amount: snapshot.financeDownCentavos },
+            { Type: 'Cash Payments', Amount: snapshot.cashPaymentCentavos }
           ]
             .filter((item) => item.Amount > 0)
             .map((item) => ({
@@ -976,10 +974,16 @@ export function ReportsGenerator({
             : businessDate,
         generatedAt: format(now, 'MMM d, yyyy · h:mm a'),
         note: pdfNote,
-        snapshot:
-          mode === 'day' && summarySnapshotRef.current?.report.id === snapshot.report.id
-            ? summarySnapshotRef.current
-            : snapshot,
+        snapshot,
+        summary: cashierSummary(
+          snapshot,
+          snapshot.expenseTotals,
+          initialReceiptVisibility(
+            snapshot,
+            (filters?.dateFrom ?? businessDate) === format(now, 'yyyy-MM-dd') &&
+              (filters?.dateTo ?? businessDate) === format(now, 'yyyy-MM-dd')
+          )
+        ),
         expenses: postedExpenses,
         incomes: postedIncomes,
         payments: postedPayments,

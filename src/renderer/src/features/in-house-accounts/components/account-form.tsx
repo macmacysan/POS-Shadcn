@@ -75,7 +75,12 @@ import {
   psgcRegions,
   type PsgcOption
 } from '@/lib/psgc'
-import type { CatalogOptionRecord, ProductCatalogItem } from '../../../../../shared/contracts'
+import type {
+  CatalogOptionRecord,
+  PaymentMethodName,
+  ProductCatalogItem
+} from '../../../../../shared/contracts'
+import { paymentMethodNames } from '../../../../../shared/contracts'
 import type { InstallmentFrequency, InstallmentRulesRecord } from '../../../../../shared/contracts'
 import { calculateInstallment } from '../../../../../shared/installment-calculations'
 import type { PersistedInstallmentRow } from '@/features/in-house-accounts/installment-data'
@@ -479,6 +484,7 @@ export function InHouseAccountForm({
   )
   const [step, setStep] = React.useState(1)
   const [catalogOptions, setCatalogOptions] = React.useState<CatalogOptionRecord[]>([])
+  const [paymentMethods, setPaymentMethods] = React.useState<string[]>([...paymentMethodNames])
   const [productCatalog, setProductCatalog] = React.useState<ProductCatalogItem[]>([])
   const [installmentRules, setInstallmentRules] = React.useState<InstallmentRulesRecord>()
   const [address, setAddress] = React.useState(() => initialAddress(initialAccountDraft))
@@ -495,6 +501,10 @@ export function InHouseAccountForm({
     void window.api.catalogOptions
       .list({ activeOnly: true })
       .then(({ rows }) => setCatalogOptions(rows))
+      .catch(() => undefined)
+    void window.api.catalogOptions
+      .list({ paymentContext: 'INSTALLMENT', activeOnly: true })
+      .then(({ rows }) => setPaymentMethods(rows.map((row) => row.value)))
       .catch(() => undefined)
   }, [])
   React.useEffect(() => {
@@ -1539,9 +1549,22 @@ export function InHouseAccountForm({
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="down-payment-method">Payment method</FieldLabel>
-                      <Select value={loanDraft.paymentMethod} onValueChange={(value) => setLoan('paymentMethod', value as 'Cash' | 'GCash')}>
-                        <SelectTrigger id="down-payment-method"><SelectValue /></SelectTrigger>
-                        <SelectContent><SelectItem value="Cash">Cash</SelectItem><SelectItem value="GCash">GCash</SelectItem></SelectContent>
+                      <Select
+                        value={loanDraft.paymentMethod}
+                        onValueChange={(value) =>
+                          setLoan('paymentMethod', value as PaymentMethodName)
+                        }
+                      >
+                        <SelectTrigger id="down-payment-method">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {paymentMethods.map((method) => (
+                            <SelectItem key={method} value={method}>
+                              {method}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
                       </Select>
                     </Field>
                     <Field>
@@ -1549,7 +1572,9 @@ export function InHouseAccountForm({
                       <Input
                         id="down-payment-reference"
                         value={loanDraft.downPaymentReferenceNumber ?? ''}
-                        onChange={(event) => setLoan('downPaymentReferenceNumber', event.target.value)}
+                        onChange={(event) =>
+                          setLoan('downPaymentReferenceNumber', event.target.value)
+                        }
                         maxLength={100}
                       />
                     </Field>

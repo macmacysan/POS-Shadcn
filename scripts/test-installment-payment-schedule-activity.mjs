@@ -94,7 +94,12 @@ try {
   const downPaymentSnapshot = reports.snapshot(report.id)
   assert.equal(downPaymentSnapshot.cashCollectionsCentavos, 100000)
   assert.deepEqual(downPaymentSnapshot.collectionDetails, [
-    { id: 'schedule-account', name: 'Test, Schedule (Downpayment)', amountCentavos: 100000 }
+    {
+      id: 'schedule-account',
+      name: 'Test, Schedule (Downpayment)',
+      paymentMethodName: 'Cash',
+      amountCentavos: 100000
+    }
   ])
   const schedules = db
     .prepare(

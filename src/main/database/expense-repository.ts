@@ -386,18 +386,18 @@ export class ExpenseRepository {
     return row?.name ?? null
   }
 
-  findSummaryTotals(reportId: string): ExpenseSummaryTotals {
+  findSummaryTotals(reportIds: string | string[]): ExpenseSummaryTotals {
     const row = this.db
       .prepare(
         `WITH report_context AS (
-           SELECT b.name AS branch, dr.business_date
+           SELECT dr.id, b.name AS branch, dr.business_date
              FROM daily_reports dr
              JOIN branches b ON b.id = dr.branch_id
-            WHERE dr.id = @reportId
+            WHERE dr.id IN (SELECT value FROM json_each(@reportIds))
          ), report_expenses AS (
            SELECT type, amount_centavos
              FROM expenses
-            WHERE report_id = @reportId AND status = 'POSTED'
+            WHERE report_id IN (SELECT id FROM report_context) AND status = 'POSTED'
            UNION ALL
            SELECT json_extract(c.payload_json, '$.type'),
                   CAST(COALESCE(json_extract(c.payload_json, '$.amountCentavos'), json_extract(c.payload_json, '$.amount_centavos')) AS INTEGER)
@@ -423,7 +423,7 @@ export class ExpenseRepository {
              THEN amount_centavos ELSE 0 END), 0) AS receivables_centavos
          FROM report_expenses`
       )
-      .get({ reportId }) as {
+      .get({ reportIds: JSON.stringify(Array.isArray(reportIds) ? reportIds : [reportIds]) }) as {
       company_expenses_centavos: number
       drawings_centavos: number
       purchases_centavos: number

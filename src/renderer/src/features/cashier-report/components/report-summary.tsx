@@ -1,3 +1,9 @@
+import {
+  cashierSummary,
+  initialReceiptVisibility,
+  receiptTypesExcludedFromPicker,
+  writeReceiptVisibility
+} from '../lib/cashier-summary'
 import * as React from 'react'
 import { addDays, format, startOfDay } from 'date-fns'
 import { ChevronLeft, ChevronRight, LockKeyhole, Plus, Trash2 } from 'lucide-react'
@@ -45,12 +51,6 @@ const deductionDefinitions = [
   { id: 'deduction-type-philhealth-ee', label: 'PHILHEALTH EC' }
 ] as const
 
-const receiptTypesExcludedFromPicker = new Set(['CASH SALES', 'COLLECTIONS'])
-const paymentMethodIds = {
-  bankCheck: 'report-payment-method-check',
-  bankTransfer: 'report-payment-method-bank-transfer'
-} as const
-const RECEIPT_VISIBILITY_STORAGE_KEY = 'cashiers-report-visible-receipt-types'
 const defaultReceiptTypeNames = new Set([
   'SALES INVOICE',
   'SALES INVOICE - TRADING',
@@ -63,46 +63,7 @@ const defaultReceiptTypeNames = new Set([
   'BP'
 ])
 
-function receiptTypeSummaryName(name: string, shortName?: string, isSystem = false): string {
-  if (!isSystem && shortName?.trim()) return shortName.trim().slice(0, 7)
-  switch (name.trim().toUpperCase()) {
-    case 'SALES INVOICE':
-    case 'SI':
-      return 'SI'
-    case 'SALES INVOICE - TRADING':
-    case 'SI TRADING':
-    case 'SI-T':
-      return 'SI-T'
-    case 'DELIVERY RECEIPT':
-    case 'DR':
-      return 'DR'
-    case 'BOBS PAWNSHOP':
-    case 'BP':
-      return 'BP'
-    default:
-      return isSystem ? name : name.trim().slice(0, 7)
-  }
-}
-
 const money = formatCentavos
-
-function readReceiptVisibility(): Set<string> | undefined {
-  try {
-    const stored = localStorage.getItem(RECEIPT_VISIBILITY_STORAGE_KEY)
-    if (!stored) return undefined
-    const parsed: unknown = JSON.parse(stored)
-    if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === 'string')) {
-      return undefined
-    }
-    return new Set(parsed)
-  } catch {
-    return undefined
-  }
-}
-
-function writeReceiptVisibility(ids: Set<string>): void {
-  localStorage.setItem(RECEIPT_VISIBILITY_STORAGE_KEY, JSON.stringify([...ids]))
-}
 
 function amountToCentavos(value: string): number {
   const normalized = value.replaceAll(',', '').trim()
@@ -170,7 +131,6 @@ function SummaryRow({
   emphasis = false,
   className,
   hoverDetails,
-  hideWhenZero = false,
   valueMuted = false
 }: {
   label: string
@@ -178,16 +138,14 @@ function SummaryRow({
   emphasis?: boolean
   className?: string
   hoverDetails?: React.ReactNode
-  hideWhenZero?: boolean
   valueMuted?: boolean
 }): React.JSX.Element | null {
-  if (hideWhenZero && value === 0) return null
-
   const row = (
     <div
       className={cn(
         'flex min-h-7 items-center justify-between gap-3 rounded-md px-2 py-1 text-[13px] transition-colors hover:bg-muted/60',
-        emphasis && 'mt-1 min-h-8 rounded-none border-t border-border/60 bg-transparent px-2 py-1 font-medium hover:bg-transparent',
+        emphasis &&
+          'mt-1 min-h-8 rounded-none border-t border-border/60 bg-transparent px-2 py-1 font-medium hover:bg-transparent',
         className
       )}
     >
@@ -359,7 +317,6 @@ export const ReportSummary = React.memo(function ReportSummary({
   isDateLoading = false,
   onDateRangeChange,
   expenseTotals,
-  onSnapshotChange,
   onOpenCollection,
   onOpenFinance,
   readOnly = false
@@ -375,7 +332,6 @@ export const ReportSummary = React.memo(function ReportSummary({
   isDateLoading?: boolean
   onDateRangeChange: (value: DateSelectorValue) => void
   expenseTotals: ExpenseSummaryTotals
-  onSnapshotChange?: (snapshot: Snapshot) => void
   onOpenCollection?: (accountId: string) => void
   onOpenFinance?: (accountId: string) => void
   readOnly?: boolean
@@ -412,28 +368,14 @@ export const ReportSummary = React.memo(function ReportSummary({
       if (snapshotVersion !== snapshotVersionRef.current) return
       snapshotRef.current = next
       setSnapshot(next)
-      onSnapshotChange?.(next)
-      const availableIds = new Set([
-        ...next.receiptTypes.map((type) => type.id),
-        ...next.receiptTotals.map((item) => item.receiptTypeId)
-      ])
-      const storedIds = readReceiptVisibility()
-      setVisibleReceiptTypeIds(
-        !isToday
-          ? new Set(next.receiptTotals.map((item) => item.receiptTypeId))
-          : storedIds
-            ? new Set([...storedIds].filter((id) => availableIds.has(id)))
-            : new Set(
-                next.receiptTypes.filter((type) => type.isDefaultVisible).map((type) => type.id)
-              )
-      )
+      setVisibleReceiptTypeIds(initialReceiptVisibility(next, isToday))
       setHasSaved(false)
       setSaveError(undefined)
     } catch {
       if (snapshotVersion !== snapshotVersionRef.current) return
       setError('The report summary could not be loaded.')
     }
-  }, [isToday, onSnapshotChange, reportId])
+  }, [isToday, reportId])
 
   React.useEffect(() => {
     void load()
@@ -453,7 +395,6 @@ export const ReportSummary = React.memo(function ReportSummary({
           snapshotVersionRef.current += 1
           snapshotRef.current = saved
           setSnapshot(saved)
-          onSnapshotChange?.(saved)
           setHasSaved(true)
         }
       }
@@ -464,7 +405,7 @@ export const ReportSummary = React.memo(function ReportSummary({
       savingRef.current = false
       setIsSaving(false)
     }
-  }, [onSnapshotChange])
+  }, [])
 
   const save = React.useCallback(
     (next: Snapshot): void => {
@@ -472,7 +413,6 @@ export const ReportSummary = React.memo(function ReportSummary({
       snapshotVersionRef.current += 1
       snapshotRef.current = next
       setSnapshot(next)
-      onSnapshotChange?.(next)
       setHasSaved(false)
       setSaveError(undefined)
       pendingRef.current = true
@@ -500,10 +440,6 @@ export const ReportSummary = React.memo(function ReportSummary({
     )
   }
 
-  const deductionCentavos = snapshot.deductions.reduce(
-    (total, item) => total + item.amountCentavos,
-    0
-  )
   const populatedDeductions = deductionDefinitions
     .map(({ id, label }) => ({
       label,
@@ -517,55 +453,9 @@ export const ReportSummary = React.memo(function ReportSummary({
     }))
     .filter(({ quantity }) => quantity > 0)
     .sort((a, b) => b.valueCentavos - a.valueCentavos)
-  const paymentTotals = snapshot.paymentEntries
-    .filter((item) => item.status === 'POSTED')
-    .reduce(
-      (totals, item) => {
-        if (item.paymentMethodId === paymentMethodIds.bankCheck)
-          totals.bankCheck += item.amountCentavos
-        else if (item.paymentMethodId === paymentMethodIds.bankTransfer)
-          totals.bankTransfer += item.amountCentavos
-        totals.total += item.amountCentavos
-        return totals
-      },
-      { bankCheck: 0, bankTransfer: 0, total: 0 }
-    )
-  const totalCashReceiptsCentavos =
-    snapshot.receiptTotals.reduce((total, item) => total + item.amountCentavos, 0) +
-    snapshot.cashCollectionsCentavos +
-    snapshot.otherIncomeCentavos +
-    snapshot.financeDownCentavos
-  const totalCashOutCentavos =
-    expenseTotals.companyExpensesCentavos +
-    expenseTotals.drawingsCentavos +
-    expenseTotals.purchasesCentavos +
-    expenseTotals.receivablesCentavos +
-    deductionCentavos
-  const expectedCashCentavos =
-    totalCashReceiptsCentavos - totalCashOutCentavos - paymentTotals.total
-  const variance = snapshot.physicalCashCentavos - expectedCashCentavos
-  const receiptTypesByReport = [
-    ...snapshot.receiptTypes.map((type) => {
-      const total = receiptTotal(snapshot, type.id)
-      return total ? { ...type, name: total.receiptName, shortName: total.receiptShortName } : type
-    }),
-    ...snapshot.receiptTotals
-      .filter((total) => !snapshot.receiptTypes.some((type) => type.id === total.receiptTypeId))
-      .map((total, index) => ({
-        id: total.receiptTypeId,
-        name: total.receiptName,
-        shortName: total.receiptShortName,
-        sortOrder: Number.MAX_SAFE_INTEGER + index,
-        isDefaultVisible: false,
-        isSystem: false,
-        isActive: false
-      }))
-  ]
-  const visibleReceiptTypes = receiptTypesByReport.filter(
-    (type) =>
-      visibleReceiptTypeIds.has(type.id) &&
-      !receiptTypesExcludedFromPicker.has(type.name.trim().toUpperCase())
-  )
+  const summary = cashierSummary(snapshot, expenseTotals, visibleReceiptTypeIds)
+  const visibleReceiptTypes = summary.receipts
+  const variance = summary.variance.value
   const selectableReceiptTypes = snapshot.receiptTypes.filter(
     (type) => !receiptTypesExcludedFromPicker.has(type.name.trim().toUpperCase())
   )
@@ -621,6 +511,95 @@ export const ReportSummary = React.memo(function ReportSummary({
     setOpenDialog(null)
   }
 
+  const hoverDetails = {
+    collections: (
+      <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
+        {snapshot.collectionDetails.map(({ id, name, amountCentavos, paymentMethodName }) => (
+          <React.Fragment key={`${name}-${amountCentavos}`}>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="xs"
+                onClick={() => onOpenCollection?.(id)}
+              >
+                Update
+              </Button>
+            )}
+            <span className="min-w-0 truncate">
+              {paymentMethodName ? `${name} · ${paymentMethodName}` : name}
+            </span>
+            <span className="text-right tabular-nums">{money(amountCentavos)}</span>
+          </React.Fragment>
+        ))}
+      </div>
+    ),
+    finance: (
+      <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
+        {snapshot.financeDownDetails.map(({ id, name, amountCentavos, paymentMethodName }) => (
+          <React.Fragment key={`${name}-${amountCentavos}`}>
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="xs"
+                onClick={() => onOpenFinance?.(id)}
+              >
+                Update
+              </Button>
+            )}
+            <span className="min-w-0 truncate">
+              {paymentMethodName ? `${name} · ${paymentMethodName}` : name}
+            </span>
+            <span className="text-right tabular-nums">{money(amountCentavos)}</span>
+          </React.Fragment>
+        ))}
+      </div>
+    ),
+    deductions: populatedDeductions.length > 0 && (
+      <div className="flex min-w-56 flex-col gap-2 text-xs">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1">
+          {populatedDeductions.map(({ label, amountCentavos }) => (
+            <React.Fragment key={label}>
+              <span className="min-w-0 truncate">{label}</span>
+              <span className="text-right tabular-nums">{money(amountCentavos)}</span>
+            </React.Fragment>
+          ))}
+        </div>
+        {!readOnly && (
+          <Button type="button" variant="secondary" size="xs" onClick={openDeductions}>
+            Update
+          </Button>
+        )}
+      </div>
+    ),
+    denominations: populatedCashDenominations.length > 0 && (
+      <div className="flex min-w-56 flex-col gap-2 text-xs">
+        <div className="grid grid-cols-[1fr_2rem_1fr] gap-x-3 gap-y-1">
+          <span>Value</span>
+          <span className="text-right">Qty</span>
+          <span className="text-right">Total</span>
+          {populatedCashDenominations.map(({ id, valueCentavos, quantity }) => (
+            <React.Fragment key={id}>
+              <span>{money(valueCentavos)}</span>
+              <span className="text-right tabular-nums">{quantity}</span>
+              <span className="text-right tabular-nums">{money(valueCentavos * quantity)}</span>
+            </React.Fragment>
+          ))}
+        </div>
+        {!readOnly && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="xs"
+            onClick={() => setOpenDialog('cash-count')}
+          >
+            Update
+          </Button>
+        )}
+      </div>
+    )
+  }
   return (
     <>
       <aside className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-workspace p-3 text-foreground">
@@ -781,9 +760,8 @@ export const ReportSummary = React.memo(function ReportSummary({
                       <span className="text-right">Amount</span>
                     </div>
                     {visibleReceiptTypes.map((type) => {
-                      const value = receiptTotal(snapshot, type.id)
-                      const hasQuantity = (value?.quantity ?? 0) > 0
-                      const hasAmount = (value?.amountCentavos ?? 0) > 0
+                      const hasQuantity = type.quantity > 0
+                      const hasAmount = type.value > 0
                       return (
                         <div
                           key={type.id}
@@ -797,7 +775,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                                     <span className="min-w-0 truncate text-[13px] text-foreground" />
                                   }
                                 >
-                                  {receiptTypeSummaryName(type.name, type.shortName, type.isSystem)}
+                                  {type.label}
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-72">{type.name}</TooltipContent>
                               </Tooltip>
@@ -806,7 +784,9 @@ export const ReportSummary = React.memo(function ReportSummary({
                               <LockKeyhole
                                 className={cn(
                                   'size-3.5 shrink-0',
-                                  type.isActive ? 'text-muted-foreground' : 'text-warning-foreground'
+                                  type.isActive
+                                    ? 'text-muted-foreground'
+                                    : 'text-warning-foreground'
                                 )}
                                 aria-hidden="true"
                               />
@@ -824,7 +804,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                             disabled={readOnly}
                             inputMode="numeric"
                             placeholder="—"
-                            value={value?.quantity || ''}
+                            value={type.quantity || ''}
                             onChange={(event) =>
                               save(
                                 updateReceipt(snapshot, type.id, {
@@ -835,7 +815,7 @@ export const ReportSummary = React.memo(function ReportSummary({
                           />
                           <AmountInput
                             label={`${type.name} amount`}
-                            value={value?.amountCentavos ?? 0}
+                            value={type.value}
                             invalid={hasQuantity && !hasAmount}
                             inputClassName={cn(
                               hasQuantity &&
@@ -851,203 +831,35 @@ export const ReportSummary = React.memo(function ReportSummary({
                     })}
                   </>
                 )}
-                {totalCashReceiptsCentavos !== 0 && (
-                  <div className="flex flex-col gap-0.5">
-                    <SummaryRow
-                      label="Collections"
-                      value={snapshot.cashCollectionsCentavos ?? 0}
-                      hideWhenZero
-                      valueMuted
-                      hoverDetails={
-                        <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
-                          {snapshot.collectionDetails.map(({ id, name, amountCentavos }) => (
-                            <React.Fragment key={`${name}-${amountCentavos}`}>
-                              {!readOnly && (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="xs"
-                                  onClick={() => onOpenCollection?.(id)}
-                                >
-                                  Update
-                                </Button>
-                              )}
-                              <span className="min-w-0 truncate">{name}</span>
-                              <span className="text-right tabular-nums">
-                                {money(amountCentavos)}
-                              </span>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      }
-                    />
-                    <SummaryRow
-                      label="Other"
-                      value={snapshot.otherIncomeCentavos ?? 0}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Finance Down"
-                      value={snapshot.financeDownCentavos ?? 0}
-                      hideWhenZero
-                      valueMuted
-                      hoverDetails={
-                        <div className="grid min-w-56 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs">
-                          {snapshot.financeDownDetails.map(({ id, name, amountCentavos }) => (
-                            <React.Fragment key={`${name}-${amountCentavos}`}>
-                              {!readOnly && (
-                                <Button
-                                  type="button"
-                                  variant="secondary"
-                                  size="xs"
-                                  onClick={() => onOpenFinance?.(id)}
-                                >
-                                  Update
-                                </Button>
-                              )}
-                              <span className="min-w-0 truncate">{name}</span>
-                              <span className="text-right tabular-nums">
-                                {money(amountCentavos)}
-                              </span>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      }
-                    />
-                    <SummaryRow
-                      label="Total Cash Receipts"
-                      value={totalCashReceiptsCentavos}
-                      emphasis
-                    />
-                  </div>
-                )}
-                {totalCashOutCentavos !== 0 && (
-                  <div className="flex flex-col gap-0.5">
-                    <SummaryRow
-                      label="Expenses"
-                      value={expenseTotals.companyExpensesCentavos}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Drawings"
-                      value={expenseTotals.drawingsCentavos}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Purchases"
-                      value={expenseTotals.purchasesCentavos}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Receivables"
-                      value={expenseTotals.receivablesCentavos}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Deductions"
-                      value={deductionCentavos}
-                      hideWhenZero
-                      valueMuted
-                      hoverDetails={
-                        populatedDeductions.length > 0 && (
-                          <div className="flex min-w-56 flex-col gap-2 text-xs">
-                            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1">
-                              {populatedDeductions.map(({ label, amountCentavos }) => (
-                                <React.Fragment key={label}>
-                                  <span className="min-w-0 truncate">{label}</span>
-                                  <span className="text-right tabular-nums">
-                                    {money(amountCentavos)}
-                                  </span>
-                                </React.Fragment>
-                              ))}
-                            </div>
-                            {!readOnly && (
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="xs"
-                                onClick={openDeductions}
-                              >
-                                Update
-                              </Button>
-                            )}
-                          </div>
-                        )
-                      }
-                    />
-                    <SummaryRow label="Total Cash Outs" value={totalCashOutCentavos} emphasis />
-                  </div>
-                )}
-                {paymentTotals.total !== 0 && (
-                  <div className="flex flex-col gap-0.5">
-                    <SummaryRow
-                      label="Bank Check"
-                      value={paymentTotals.bankCheck}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow
-                      label="Bank Transfer"
-                      value={paymentTotals.bankTransfer}
-                      hideWhenZero
-                      valueMuted
-                    />
-                    <SummaryRow label="Total Payments" value={paymentTotals.total} emphasis />
-                  </div>
+                {summary.groups.map(
+                  (group) =>
+                    group.length > 0 && (
+                      <div key={group.at(-1)?.label} className="flex flex-col gap-0.5">
+                        {group.map((row) => (
+                          <SummaryRow
+                            key={row.label + Boolean(row.emphasis)}
+                            {...row}
+                            hoverDetails={row.detail && hoverDetails[row.detail]}
+                          />
+                        ))}
+                      </div>
+                    )
                 )}
               </div>
             </ScrollArea>
             <div className="shrink-0 border-t border-border bg-muted/20 px-2.5 py-2">
-              <SummaryRow
-                label="Expected Cash"
-                value={expectedCashCentavos}
-                emphasis
-                className="mt-0 min-h-9 rounded-none border-0 bg-transparent px-2 text-sm hover:bg-transparent [&>span:last-child]:text-base [&>span:last-child]:font-semibold"
-                hideWhenZero
-              />
-              <SummaryRow
-                label="Cash Denominations"
-                value={snapshot.physicalCashCentavos}
-                className="mt-1 border-t border-border/50 pt-2"
-                hideWhenZero
-                valueMuted
-                hoverDetails={
-                  populatedCashDenominations.length > 0 && (
-                    <div className="flex min-w-56 flex-col gap-2 text-xs">
-                      <div className="grid grid-cols-[1fr_2rem_1fr] gap-x-3 gap-y-1">
-                        <span>Value</span>
-                        <span className="text-right">Qty</span>
-                        <span className="text-right">Total</span>
-                        {populatedCashDenominations.map(({ id, valueCentavos, quantity }) => (
-                          <React.Fragment key={id}>
-                            <span>{money(valueCentavos)}</span>
-                            <span className="text-right tabular-nums">{quantity}</span>
-                            <span className="text-right tabular-nums">
-                              {money(valueCentavos * quantity)}
-                            </span>
-                          </React.Fragment>
-                        ))}
-                      </div>
-                      {!readOnly && (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="xs"
-                          onClick={() => setOpenDialog('cash-count')}
-                        >
-                          Update
-                        </Button>
-                      )}
-                    </div>
-                  )
-                }
-              />
-              <SummaryRow label="Cash Remitted" value={0} hideWhenZero valueMuted />
+              {summary.footer.map((row) => (
+                <SummaryRow
+                  key={row.label}
+                  {...row}
+                  hoverDetails={row.detail && hoverDetails[row.detail]}
+                  className={
+                    row.emphasis
+                      ? 'mt-0 min-h-9 rounded-none border-0 bg-transparent px-2 text-sm hover:bg-transparent [&>span:last-child]:text-base [&>span:last-child]:font-semibold'
+                      : 'mt-1 border-t border-border/50 pt-2'
+                  }
+                />
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -1058,7 +870,9 @@ export const ReportSummary = React.memo(function ReportSummary({
               aria-label="Cash variance"
               className="flex items-baseline justify-between gap-3 px-1 py-1"
             >
-              <span className="text-sm font-medium text-muted-foreground">Cash variance</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                {summary.variance.label}
+              </span>
               <span
                 className={cn(
                   'text-base font-semibold tabular-nums',

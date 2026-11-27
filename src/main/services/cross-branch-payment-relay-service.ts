@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
+import { paymentMethodNameSchema, type PaymentMethodName } from '../../shared/contracts'
 import type {
   CrossBranchPaymentReceipt,
   GoogleSyncBranch,
@@ -57,7 +58,7 @@ function isRelayPayment(value: unknown): value is RelayPayment {
     (event.amountCentavos ?? 0) > 0 &&
     Number.isSafeInteger(event.penaltyCentavos) &&
     (event.penaltyCentavos ?? -1) >= 0 &&
-    (event.paymentMethod === 'Cash' || event.paymentMethod === 'GCash') &&
+    paymentMethodNameSchema.safeParse(event.paymentMethod).success &&
     (event.cashierName === undefined ||
       (typeof event.cashierName === 'string' &&
         event.cashierName.trim().length > 0 &&
@@ -124,7 +125,7 @@ export class CrossBranchPaymentRelayService {
       payment_date: string
       amount_centavos: number
       penalty_centavos: number
-      payment_method: 'Cash' | 'GCash'
+      payment_method: PaymentMethodName
       reference_number?: string
       remarks?: string
       status: string
@@ -577,7 +578,7 @@ export class CrossBranchPaymentRelayService {
             Number.isSafeInteger(update.penaltyCentavos) &&
             Number(update.penaltyCentavos) >= 0 &&
             isBusinessDate(update.paymentDate) &&
-            (update.paymentMethod === 'Cash' || update.paymentMethod === 'GCash')
+            paymentMethodNameSchema.safeParse(update.paymentMethod).success
           ) {
             const branch = this.db
               .prepare('SELECT id FROM branches WHERE name = ? COLLATE NOCASE')
