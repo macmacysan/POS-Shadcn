@@ -1,6 +1,6 @@
 import * as React from 'react'
 import appIcon from '@/assets/app-icon.png'
-import { MonitorCogIcon, Settings2Icon, ShieldCheckIcon } from 'lucide-react'
+import { MonitorCogIcon, ShieldCheckIcon } from 'lucide-react'
 
 import { NavMain } from '@/components/layout/navigation/nav-main'
 import { NavUser } from '@/components/layout/navigation/nav-user'
@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -42,7 +41,7 @@ const teams = [
         Home Furnishing
       </>
     ),
-    logo: <img src={appIcon} alt="" className="size-10 rounded-2xl object-contain" />
+    logo: <img src={appIcon} alt="" className="size-8 rounded-lg object-contain" />
   }
 ]
 
@@ -126,7 +125,7 @@ export function SidebarLeft({
   return (
     <Sidebar
       {...props}
-      variant="inset"
+      variant="sidebar"
       collapsible="icon"
       onPointerEnter={(event) => {
         onPointerEnter?.(event)
@@ -137,7 +136,7 @@ export function SidebarLeft({
         if (!isMobile) setHoverOpen(false)
       }}
     >
-      <SidebarHeader className="gap-2">
+      <SidebarHeader>
         <TeamSwitcher teams={teams} branch={selectedBranch} />
       </SidebarHeader>
       <SidebarContent>
@@ -172,13 +171,9 @@ export function SidebarLeft({
       </SidebarFooter>
       <Dialog open={isSettingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="h-[min(46rem,calc(100dvh-3rem))] max-h-[calc(100dvh-3rem)] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
-          <DialogHeader className="shrink-0 px-8 py-7 pr-14">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-              <Settings2Icon aria-hidden="true" />
-              Workspace controls
-            </div>
-            <DialogTitle className="mt-3 text-lg tracking-tight">Settings</DialogTitle>
-            <DialogDescription>
+          <DialogHeader className="shrink-0 px-5 py-4 pr-14">
+            <DialogTitle>Settings</DialogTitle>
+            <DialogDescription className="text-xs">
               Choose how this workstation looks and how your team operates.
             </DialogDescription>
           </DialogHeader>
@@ -191,36 +186,34 @@ export function SidebarLeft({
           >
             {isAdmin && (
               <TabsList
-              variant="line"
-              className="h-full w-52 shrink-0 items-stretch gap-1 rounded-none bg-muted/20 px-4 py-6"
-            >
-              <p className="px-3 pb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                Settings
-              </p>
-              <TabsTrigger value="workspace" className="h-auto flex-none px-3 py-2.5 text-left">
-                <MonitorCogIcon data-icon="inline-start" />
-                Workspace
-              </TabsTrigger>
-              {isAdmin && (
-                <TabsTrigger
-                  value="administration"
-                  className="h-auto flex-none px-3 py-2.5 text-left"
-                >
-                  <ShieldCheckIcon data-icon="inline-start" />
-                  Administration
+                variant="line"
+                className="h-full w-44 shrink-0 items-stretch gap-1 rounded-none border-r bg-workspace-subtle px-3 py-4"
+              >
+                <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">Settings</p>
+                <TabsTrigger value="workspace" className="h-auto flex-none px-3 py-2.5 text-left">
+                  <MonitorCogIcon data-icon="inline-start" />
+                  Workspace
                 </TabsTrigger>
-              )}
+                {isAdmin && (
+                  <TabsTrigger
+                    value="administration"
+                    className="h-auto flex-none px-3 py-2.5 text-left"
+                  >
+                    <ShieldCheckIcon data-icon="inline-start" />
+                    Administration
+                  </TabsTrigger>
+                )}
               </TabsList>
             )}
-            <TabsContent value="workspace" className="min-h-0 overflow-y-auto px-8 py-7">
-              <section className="flex max-w-2xl flex-col gap-8">
-                <div className="flex max-w-xl flex-col gap-2">
-                  <p className="text-base font-medium tracking-tight">Workspace appearance</p>
-                  <p className="text-sm leading-6 text-muted-foreground">
+            <TabsContent value="workspace" className="min-h-0 overflow-y-auto px-6 py-5">
+              <section className="flex max-w-2xl flex-col gap-6">
+                <div className="flex max-w-xl flex-col gap-1.5">
+                  <p className="text-sm font-medium">Workspace appearance</p>
+                  <p className="text-sm text-muted-foreground">
                     Personal preferences apply only to this workstation.
                   </p>
                 </div>
-                <Field orientation="horizontal" className="rounded-lg border p-5">
+                <Field orientation="horizontal" className="rounded-md border p-3">
                   <Checkbox
                     checked={hidePesoSignDraft}
                     onCheckedChange={(checked) => setHidePesoSignDraft(checked === true)}
@@ -236,17 +229,14 @@ export function SidebarLeft({
               </section>
             </TabsContent>
             {isAdmin && (
-              <TabsContent value="administration" className="min-h-0 overflow-y-auto px-8 py-7">
+              <TabsContent value="administration" className="min-h-0 overflow-y-auto px-6 py-5">
                 {settingsSection === 'administration' && (
-                  <div className="flex max-w-4xl flex-col gap-8">
-                    <section className="flex max-w-2xl flex-col gap-2">
+                  <div className="flex max-w-4xl flex-col gap-6">
+                    <section className="flex max-w-2xl flex-col gap-1.5">
                       <div className="flex items-center gap-2">
-                        <p className="text-base font-medium tracking-tight">
-                          Operational configuration
-                        </p>
-                        <Badge variant="secondary">Admin only</Badge>
+                        <p className="text-sm font-medium">Operational configuration</p>
                       </div>
-                      <p className="text-sm leading-6 text-muted-foreground">
+                      <p className="text-sm text-muted-foreground">
                         Changes take effect immediately for future reports and accounts. Retired
                         values stay on existing records.
                       </p>
@@ -262,7 +252,7 @@ export function SidebarLeft({
             )}
           </Tabs>
           <Separator />
-          <DialogFooter className="mx-0 mb-0 shrink-0 bg-muted/30 px-8 py-4">
+          <DialogFooter className="mx-0 mb-0 shrink-0 bg-workspace-subtle px-5 py-3">
             {hasUnsavedChanges && (
               <span className="mr-auto text-xs text-muted-foreground" aria-live="polite">
                 Unsaved changes

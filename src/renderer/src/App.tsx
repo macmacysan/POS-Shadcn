@@ -17,13 +17,6 @@ import { UpdateNotifications } from '@/components/layout/update-notifications'
 import { InstallmentAttentionAlertDialog } from '@/components/shared/installment-attention-alert-dialog'
 import { ReportAttentionAlertDialog } from '@/components/shared/report-attention-alert-dialog'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator
-} from '@/components/ui/breadcrumb'
 import { ActiveReportProvider } from '@/contexts/active-report-context'
 import { NotificationProvider } from '@/contexts/notification-context'
 import { useNotifications } from '@/hooks/use-notifications'
@@ -339,7 +332,7 @@ function Workspace({
   }
 
   return (
-    <SidebarProvider defaultOpen={false} className="h-full min-h-0 overflow-hidden bg-sidebar">
+    <SidebarProvider defaultOpen={false} className="h-full min-h-0 overflow-hidden bg-workspace">
       <SidebarLeft
         isDark={isDark}
         activeView={activeView}
@@ -365,23 +358,12 @@ function Workspace({
         settingsOnly={isAdmin}
         openSettingsOnMount={isAdmin}
       />
-      <SidebarInset className="flex min-h-0 flex-col overflow-hidden bg-sidebar">
-        <div className="flex h-10 shrink-0 items-center gap-3 border-b bg-background px-6 pr-24">
-          <SidebarTrigger className="window-no-drag relative z-50 !shadow-none hover:!shadow-none [&_svg]:!size-4" />
-          <span aria-hidden="true" className="h-4 w-px bg-border" />
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem className="hidden text-base font-medium md:block">
-                Cashiers Report
-              </BreadcrumbItem>
-              <BreadcrumbSeparator className="hidden md:block" />
-              <BreadcrumbItem>
-                <BreadcrumbPage className="text-muted-foreground">
-                  {activeViewLabel(activeView)}
-                </BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
+      <SidebarInset className="flex min-h-0 flex-col overflow-hidden">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b bg-workspace-subtle px-3 pr-24">
+          <SidebarTrigger className="window-no-drag relative z-50" />
+          <h1 className="min-w-0 truncate text-sm font-semibold text-foreground">
+            {activeViewLabel(activeView)}
+          </h1>
           <div className="ml-auto mr-1">
             <NotificationCenter />
           </div>

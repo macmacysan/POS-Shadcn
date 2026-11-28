@@ -14,7 +14,6 @@ import {
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -281,7 +280,7 @@ function financeColumns(expandedIds: ReadonlySet<string>): ColumnDef<FinanceTabl
       header: 'Grand Total',
       cell: ({ row }) => <Cell money>{formatMoney(row.original.grandTotalCentavos)}</Cell>,
       size: 128,
-      meta: { headerClassName: 'text-right', cellClassName: 'text-right' }
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' }
     },
     {
       id: 'downpayment',
@@ -289,7 +288,7 @@ function financeColumns(expandedIds: ReadonlySet<string>): ColumnDef<FinanceTabl
       header: 'Downpayment',
       cell: ({ row }) => <Cell money>{formatMoney(row.original.downpaymentCentavos)}</Cell>,
       size: 128,
-      meta: { headerClassName: 'text-right', cellClassName: 'text-right' }
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' }
     },
     {
       id: 'balance',
@@ -297,7 +296,7 @@ function financeColumns(expandedIds: ReadonlySet<string>): ColumnDef<FinanceTabl
       header: 'Balance',
       cell: ({ row }) => <Cell money>{formatMoney(row.original.balanceCentavos)}</Cell>,
       size: 120,
-      meta: { headerClassName: 'text-right', cellClassName: 'text-right' }
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' }
     }
   ]
 }
@@ -500,11 +499,11 @@ export function FinanceAccountsContent({
   }
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3 bg-workspace">
-      <header className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-workspace">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-2">
         <div>
-          <h1 className="font-heading text-lg font-medium">Finance Accounts</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <h1 className="font-heading text-lg font-semibold">Finance Accounts</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Review finance contracts and collection records.
           </p>
         </div>
@@ -571,83 +570,80 @@ export function FinanceAccountsContent({
             )}
         </div>
       </TableToolbar>
-      <Card className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 py-0">
-        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-          <UniversalDataTable
-            table={table}
-            recordCount={filteredRows.length}
-            isLoading={isLoading}
-            error={loadError}
-            onRetry={() => void reload()}
-            emptyMessage="No finance accounts found."
-            onRowClick={(row) =>
-              setExpandedIds((current) => {
-                const next = new Set(current)
-                next.has(row.id) ? next.delete(row.id) : next.add(row.id)
-                return next
-              })
-            }
-            renderExpandedRow={(row) =>
-              expandedIds.has(row.id) ? (
-                <TableRow key={`${row.id}-items`}>
-                  <TableCell colSpan={columns.length} className="p-0">
-                    <Collapsible open>
-                      <CollapsibleContent className="bg-muted/20 p-3">
-                        <div className="mb-3 grid w-fit max-w-full grid-cols-[8rem_8rem_8rem_16rem] gap-3 overflow-hidden">
-                          <div>
-                            <span className="block text-xs font-medium text-muted-foreground">
-                              OR#
-                            </span>
-                            <Cell>{text(row.orNumber)}</Cell>
-                          </div>
-                          <div>
-                            <span className="block text-xs font-medium text-muted-foreground">
-                              OR Date
-                            </span>
-                            <Cell>{text(row.orDate)}</Cell>
-                          </div>
-                          <div>
-                            <span className="block text-xs font-medium text-muted-foreground">
-                              Paid Date
-                            </span>
-                            <Cell>{text(row.paidDate)}</Cell>
-                          </div>
-                          <div>
-                            <span className="block text-xs font-medium text-muted-foreground">
-                              Remarks
-                            </span>
-                            <Cell>{text(row.remarks)}</Cell>
-                          </div>
-                        </div>
-                        <div className="grid w-fit max-w-full grid-cols-[3rem_12rem_8rem_6rem_6rem] gap-1 overflow-hidden text-xs">
-                          <span className="font-medium text-muted-foreground">QTY</span>
-                          <span className="font-medium text-muted-foreground">Item</span>
-                          <span className="font-medium text-muted-foreground">Serial No.</span>
-                          <span className="text-right font-medium text-muted-foreground">
-                            Item Price
-                          </span>
-                          <span className="text-right font-medium text-muted-foreground">
-                            Total
-                          </span>
-                          {row.items.map((item) => (
-                            <React.Fragment key={item.id}>
-                              <Cell>{item.quantity}</Cell>
-                              <Cell>{item.item}</Cell>
-                              <Cell>{item.serialNo || '—'}</Cell>
-                              <Cell money>{formatMoney(item.itemPriceCentavos)}</Cell>
-                              <Cell money>{formatMoney(item.totalCentavos)}</Cell>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </TableCell>
-                </TableRow>
-              ) : null
-            }
-          />
-        </CardContent>
-      </Card>
+      <UniversalDataTable
+        layout="auto"
+        table={table}
+        recordCount={filteredRows.length}
+        isLoading={isLoading}
+        error={loadError}
+        onRetry={() => void reload()}
+        emptyMessage="No finance accounts found."
+        onRowClick={(row) =>
+          setExpandedIds((current) => {
+            const next = new Set(current)
+            next.has(row.id) ? next.delete(row.id) : next.add(row.id)
+            return next
+          })
+        }
+        renderExpandedRow={(row) =>
+          expandedIds.has(row.id) ? (
+            <TableRow key={`${row.id}-items`}>
+              <TableCell colSpan={columns.length} className="p-0">
+                <Collapsible open>
+                  <CollapsibleContent className="bg-muted/20 p-3">
+                    <div className="mb-3 grid w-fit max-w-full grid-cols-[8rem_8rem_8rem_16rem] gap-3 overflow-hidden">
+                      <div>
+                        <span className="block text-xs font-medium text-muted-foreground">
+                          OR#
+                        </span>
+                        <Cell>{text(row.orNumber)}</Cell>
+                      </div>
+                      <div>
+                        <span className="block text-xs font-medium text-muted-foreground">
+                          OR Date
+                        </span>
+                        <Cell>{text(row.orDate)}</Cell>
+                      </div>
+                      <div>
+                        <span className="block text-xs font-medium text-muted-foreground">
+                          Paid Date
+                        </span>
+                        <Cell>{text(row.paidDate)}</Cell>
+                      </div>
+                      <div>
+                        <span className="block text-xs font-medium text-muted-foreground">
+                          Remarks
+                        </span>
+                        <Cell>{text(row.remarks)}</Cell>
+                      </div>
+                    </div>
+                    <div className="grid w-fit max-w-full grid-cols-[3rem_12rem_8rem_max-content_max-content] gap-x-3 gap-y-1 text-xs">
+                      <span className="font-medium text-muted-foreground">QTY</span>
+                      <span className="font-medium text-muted-foreground">Item</span>
+                      <span className="font-medium text-muted-foreground">Serial No.</span>
+                      <span className="text-right font-medium text-muted-foreground">
+                        Item Price
+                      </span>
+                      <span className="text-right font-medium text-muted-foreground">
+                        Total
+                      </span>
+                      {row.items.map((item) => (
+                        <React.Fragment key={item.id}>
+                          <Cell>{item.quantity}</Cell>
+                          <Cell>{item.item}</Cell>
+                          <Cell>{item.serialNo || '—'}</Cell>
+                          <Cell money>{formatMoney(item.itemPriceCentavos)}</Cell>
+                          <Cell money>{formatMoney(item.totalCentavos)}</Cell>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </TableCell>
+            </TableRow>
+          ) : null
+        }
+      />
       <FinanceAccountSheet
         open={isCreating || Boolean(editing)}
         record={editing}

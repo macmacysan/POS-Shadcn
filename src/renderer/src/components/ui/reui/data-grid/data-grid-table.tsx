@@ -662,7 +662,7 @@ function DataGridTableHeadRowCell<TData>({
       className={cn(
         'relative text-left align-middle text-xs font-medium uppercase tracking-widest text-muted-foreground rtl:text-right [&:has([role=checkbox])]:pe-0',
         headerCellSpacing,
-        props.tableLayout?.headerBackground && 'bg-muted',
+        props.tableLayout?.headerBackground && 'bg-workspace-subtle',
         props.tableLayout?.cellBorder && 'border-e',
         props.tableLayout?.columnsResizable &&
           column.getCanResize() &&
@@ -674,7 +674,7 @@ function DataGridTableHeadRowCell<TData>({
         props.tableLayout?.columnsPinnable &&
           column.getCanPin() &&
           cn(
-            'data-pinned:bg-muted data-outer-pinned-col:bg-clip-padding data-pinned:isolate',
+            'data-pinned:bg-workspace-subtle data-outer-pinned-col:bg-clip-padding data-pinned:isolate',
             '[&[data-pinned=left][data-last-col=left]]:shadow-[inset_-1px_0_0_0_var(--border)] [&[data-pinned=right]:last-child_div.cursor-col-resize:last-child]:opacity-0 [&[data-pinned=right][data-last-col=right]]:shadow-[inset_1px_0_0_0_var(--border)]',
             '[&:not([data-pinned]):has(+[data-pinned])_div.cursor-col-resize:last-child]:opacity-0 [&[data-last-col=left]_div.cursor-col-resize:last-child]:opacity-0'
           ),
@@ -835,7 +835,7 @@ function DataGridTableFootRow({ children }: { children: ReactNode }) {
     <tr
       data-slot="data-grid-table-foot-row"
       className={cn(
-        props.tableLayout?.footerBackground && 'bg-muted/40 dark:bg-background',
+        props.tableLayout?.footerBackground && 'bg-workspace-subtle',
         props.tableLayout?.rowBorder && footRowBottomBorderClasses,
         props.tableLayout?.cellBorder && '*:last:border-e-0'
       )}
@@ -865,7 +865,7 @@ function DataGridTableFootRowCell({
       className={cn(
         'text-secondary-foreground/80 align-middle font-light',
         spacing,
-        props.tableLayout?.footerBackground && 'bg-muted/40 dark:bg-background',
+        props.tableLayout?.footerBackground && 'bg-workspace-subtle',
         props.tableLayout?.cellBorder && 'border-e',
         className
       )}
@@ -887,7 +887,7 @@ function DataGridTableBodyRowSkeleton({ children }: { children: ReactNode }) {
           props.tableLayout?.rowBorder &&
           'border-border border-b [&:not(:last-child)>td]:border-b',
         props.tableLayout?.cellBorder && '*:last:border-e-0',
-        props.tableLayout?.stripped && 'odd:bg-muted/90 odd:hover:bg-muted hover:bg-transparent',
+        props.tableLayout?.stripped && 'odd:bg-workspace-subtle odd:hover:bg-muted hover:bg-transparent',
         table.options.enableRowSelection && '*:first:relative',
         props.tableClassNames?.bodyRow
       )}
@@ -1014,7 +1014,7 @@ function DataGridTableBodyRow<TData>({
         (row.original as { status?: string }).status === 'VOIDED' && 'text-destructive',
         !props.tableLayout?.stripped && props.tableLayout?.rowBorder && bodyRowBottomBorderClasses,
         props.tableLayout?.cellBorder && `*:last:border-e-0 ${bodyRowBottomBorderClasses}`,
-        props.tableLayout?.stripped && 'odd:bg-muted/90 odd:hover:bg-muted hover:bg-transparent',
+        props.tableLayout?.stripped && 'odd:bg-workspace-subtle odd:hover:bg-muted hover:bg-transparent',
         table.options.enableRowSelection && '*:first:relative',
         props.tableLayout?.rowsPinnable && isRowPinned && 'bg-muted/30 hover:bg-muted/50',
         pinnedBoundary === 'top' && '[&>td]:shadow-[0_2px_0_var(--border)]',

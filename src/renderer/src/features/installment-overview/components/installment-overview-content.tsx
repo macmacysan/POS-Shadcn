@@ -13,7 +13,6 @@ import { ArrowUpRight, CreditCard, RefreshCw, WalletCards } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Frame,
@@ -66,7 +65,7 @@ function errorMessage(error: unknown): string {
   return 'Installment overview data could not be loaded.'
 }
 
-function BranchCard({
+function BranchSummary({
   summary,
   onOpenInHouse,
   onOpenFinance
@@ -76,24 +75,23 @@ function BranchCard({
   readonly onOpenFinance: Props['onOpenFinance']
 }): React.JSX.Element {
   return (
-    <Card size="sm" className="flex flex-col gap-0">
-      <CardHeader className="border-b">
+    <section className="min-w-0 border-t py-3">
+      <header>
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-base">
+          <h2 className="flex items-center gap-2 text-sm font-medium">
             <AccountBranchBadge branch={summary.branch} />
             {summary.branch}
-          </CardTitle>
+          </h2>
           <Badge variant={summary.overdue > 0 ? 'destructive' : 'secondary'}>
             {summary.overdue} overdue
           </Badge>
         </div>
-        <CardDescription>Active installment portfolio</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 pt-4">
+      </header>
+      <div className="flex flex-col gap-3 pt-3">
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            className="rounded-lg border bg-muted/30 p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md px-1 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onOpenInHouse(summary.branch)}
           >
             <p className="text-xs text-muted-foreground">In-house</p>
@@ -102,7 +100,7 @@ function BranchCard({
           </button>
           <button
             type="button"
-            className="rounded-lg border bg-muted/30 p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="rounded-md px-1 py-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={() => onOpenFinance(summary.branch)}
           >
             <p className="text-xs text-muted-foreground">Finance</p>
@@ -150,19 +148,19 @@ function BranchCard({
             <ArrowUpRight data-icon="inline-end" />
           </Button>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }
 
 function OverviewLoading(): React.JSX.Element {
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-6">
+    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto bg-workspace p-4">
       <div className="flex flex-col gap-2">
         <Skeleton className="h-6 w-52" />
         <Skeleton className="h-4 w-96" />
       </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-x-6 gap-y-3 md:grid-cols-2 xl:grid-cols-4">
         {branchNames.map((branch) => (
           <Skeleton key={branch} className="h-[29rem]" />
         ))}
@@ -409,28 +407,24 @@ function PortfolioSummary({
   const finance = summaries.reduce((total, summary) => total + summary.finance, 0)
   const overdue = summaries.reduce((total, summary) => total + summary.overdue, 0)
   return (
-    <Frame spacing="sm" className="min-w-0">
-      <FramePanel>
-        <div className="grid grid-cols-2 divide-x divide-border sm:grid-cols-4">
-          <div className="flex flex-col gap-1 px-3 py-2 first:pl-0 sm:px-4">
-            <span className="text-xs text-muted-foreground">Active accounts</span>
-            <span className="text-lg font-semibold tabular-nums">{inHouse + finance}</span>
-          </div>
-          <div className="flex flex-col gap-1 px-3 py-2 sm:px-4">
-            <span className="text-xs text-muted-foreground">In-house</span>
-            <span className="text-lg font-semibold tabular-nums">{inHouse}</span>
-          </div>
-          <div className="flex flex-col gap-1 border-t px-3 py-2 sm:border-t-0 sm:px-4">
-            <span className="text-xs text-muted-foreground">Finance</span>
-            <span className="text-lg font-semibold tabular-nums">{finance}</span>
-          </div>
-          <div className="flex flex-col gap-1 border-t px-3 py-2 sm:border-t-0 sm:px-4">
-            <span className="text-xs text-muted-foreground">Needs attention</span>
-            <span className="text-lg font-semibold tabular-nums text-destructive">{overdue}</span>
-          </div>
-        </div>
-      </FramePanel>
-    </Frame>
+    <div className="grid grid-cols-2 divide-x divide-border border-y py-1 sm:grid-cols-4">
+      <div className="flex flex-col gap-1 px-3 py-2 first:pl-0 sm:px-4">
+        <span className="text-xs text-muted-foreground">Active accounts</span>
+        <span className="text-lg font-semibold tabular-nums">{inHouse + finance}</span>
+      </div>
+      <div className="flex flex-col gap-1 px-3 py-2 sm:px-4">
+        <span className="text-xs text-muted-foreground">In-house</span>
+        <span className="text-lg font-semibold tabular-nums">{inHouse}</span>
+      </div>
+      <div className="flex flex-col gap-1 border-t px-3 py-2 sm:border-t-0 sm:px-4">
+        <span className="text-xs text-muted-foreground">Finance</span>
+        <span className="text-lg font-semibold tabular-nums">{finance}</span>
+      </div>
+      <div className="flex flex-col gap-1 border-t px-3 py-2 sm:border-t-0 sm:px-4">
+        <span className="text-xs text-muted-foreground">Needs attention</span>
+        <span className="text-lg font-semibold tabular-nums text-destructive">{overdue}</span>
+      </div>
+    </div>
   )
 }
 
@@ -504,10 +498,9 @@ export function InstallmentOverviewContent({
     return <OverviewLoading />
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-6">
+    <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto bg-workspace p-4">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-muted-foreground">Installments · Overview</p>
           <h1 className="text-lg font-semibold tracking-tight">Branch installment overview</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Active accounts, finance types, and in-house payment frequencies at a glance.
@@ -531,11 +524,11 @@ export function InstallmentOverviewContent({
       <PortfolioSummary summaries={summaries} />
       <InstallmentTrendChart inHouseRows={inHouseHistoryRows} financeRows={financeRows} />
       <section
-        className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+        className="grid gap-x-6 gap-y-3 md:grid-cols-2 xl:grid-cols-4"
         aria-label="Branch installment summaries"
       >
         {summaries.map((summary) => (
-          <BranchCard
+          <BranchSummary
             key={summary.branch}
             summary={summary}
             onOpenInHouse={onOpenInHouse}

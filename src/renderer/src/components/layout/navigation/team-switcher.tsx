@@ -23,12 +23,10 @@ export function TeamSwitcher({
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <div className="flex w-full flex-col items-start gap-2 px-2.5 py-2 group-data-[collapsible=icon]:hidden">
-          <div className="flex size-10 shrink-0 items-center justify-center">
-            {team.logo}
-          </div>
-          <div className="min-w-0 space-y-1.5">
-            <span className="block text-left text-xs leading-4 font-semibold uppercase tracking-widest text-sidebar-foreground">
+        <div className="flex min-h-10 w-full items-center gap-2 px-2 py-1">
+          <div className="flex size-8 shrink-0 items-center justify-center">{team.logo}</div>
+          <div className="min-w-0 space-y-1 group-data-[collapsible=icon]:hidden">
+            <span className="block text-left text-xs leading-4 font-semibold text-sidebar-foreground">
               {team.name}
             </span>
             {branch === 'All Branch' ? (

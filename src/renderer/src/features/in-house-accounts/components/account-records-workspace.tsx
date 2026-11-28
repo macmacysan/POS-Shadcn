@@ -47,7 +47,6 @@ import { UniversalDataTable } from '@/components/shared/data-table/universal-dat
 import { TableToolbar } from '@/components/shared/data-table/table-toolbar'
 import { TaskSheet } from '@/components/shared/task-sheet'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/reui/badge'
 import {
   Dialog,
@@ -359,7 +358,7 @@ function ClientPortfolioModal({
         id: 'activity',
         header: 'Activity',
         accessorKey: 'activity',
-        cell: ({ row }) => <span className="block truncate">{row.original.activity}</span>,
+        cell: ({ row }) => <span className="whitespace-normal">{row.original.activity}</span>,
         meta: { autoSize: true }
       },
       {
@@ -415,7 +414,7 @@ function ClientPortfolioModal({
     Number(Boolean(account.landmarkRemarks))
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="grid shrink-0 grid-cols-2 border-b bg-muted/20 lg:grid-cols-[minmax(16rem,1.5fr)_repeat(3,minmax(9rem,1fr))]">
+      <div className="grid shrink-0 grid-cols-2 border-b text-xs bg-muted/20 lg:grid-cols-[minmax(16rem,1.5fr)_repeat(3,minmax(9rem,1fr))]">
         <div className="col-span-2 border-b px-5 py-3 lg:col-span-1 lg:border-b-0">
           <p className="text-xs text-muted-foreground">Portfolio balance</p>
           <p className="mt-1 text-lg font-semibold leading-none tabular-nums">
@@ -440,7 +439,7 @@ function ClientPortfolioModal({
       <Tabs defaultValue="profile" orientation="vertical" className="min-h-0 flex-1 gap-0">
         <TabsList
           variant="line"
-          className="m-4 mr-0 w-52 shrink-0 gap-1 border-r pr-4"
+          className="w-36 shrink-0 gap-1 border-r p-2 lg:w-44"
           aria-label="Client portfolio categories"
         >
           <TabsTrigger value="profile" className="h-8 justify-start px-2">
@@ -504,8 +503,7 @@ function ClientPortfolioModal({
                 </h3>
                 <dl className="divide-y">
                   <DetailRow label="Full name" value={formatAccountName(account)} />
-                  <DetailRow label="Branch" value={account.branch} />
-                  <DetailRow label="Account ID" value={account.id} />
+                  <DetailRow label="Branch" value={<AccountBranchBadge branch={account.branch} />} />
                 </dl>
               </section>
               <section>
@@ -623,12 +621,12 @@ function ClientPortfolioModal({
               </p>
             </div>
             <div className="grid min-h-0 gap-4 lg:grid-cols-[13rem_minmax(0,1fr)]">
-              <Card size="sm" className="min-h-0 overflow-hidden">
-                <CardHeader>
-                  <CardTitle>Contracts</CardTitle>
-                  <CardDescription>Select a loan record.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex max-h-[calc(100%-4.75rem)] flex-col gap-1 overflow-y-auto p-2">
+              <section className="flex min-w-0 flex-col min-h-0 overflow-hidden">
+                <header className="pb-2">
+                  <h3 className="text-sm font-medium">Contracts</h3>
+                  <p className="text-xs text-muted-foreground">Select a loan record.</p>
+                </header>
+                <div className="flex min-h-0 flex-col gap-1 overflow-y-auto p-2">
                   {contracts.map((row) => (
                     <Button
                       key={row.contractId}
@@ -646,14 +644,14 @@ function ClientPortfolioModal({
                       </span>
                     </Button>
                   ))}
-                </CardContent>
-              </Card>
-              <Card size="sm" className="min-h-0 overflow-hidden">
-                <CardHeader>
-                  <CardTitle>Selected contract</CardTitle>
-                  <CardDescription>Contract, financing, and term details.</CardDescription>
-                </CardHeader>
-                <CardContent className="grid h-[calc(100%-3.75rem)] gap-4 overflow-y-auto lg:grid-cols-2">
+                </div>
+              </section>
+              <section className="flex min-w-0 flex-col min-h-0 overflow-hidden">
+                <header className="pb-2">
+                  <h3 className="text-sm font-medium">Selected contract</h3>
+                  <p className="text-xs text-muted-foreground">Contract, financing, and term details.</p>
+                </header>
+                <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto lg:grid-cols-2">
                   <div>
                     <p className="mb-2 text-xs font-medium text-muted-foreground">
                       Contract and terms
@@ -795,20 +793,20 @@ function ClientPortfolioModal({
                       </p>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </section>
             </div>
           </div>
         </TabsContent>
         <TabsContent value="payments" className="min-h-0 min-w-0 overflow-y-auto p-4">
-          <Card size="sm" className="h-full min-h-0 overflow-hidden">
-            <CardHeader className="border-b">
-              <CardTitle>Payments</CardTitle>
-              <CardDescription>
+          <section className="flex min-w-0 flex-col h-full min-h-0 overflow-hidden">
+            <header className="border-b pb-2">
+              <h3 className="text-sm font-medium">Payments</h3>
+              <p className="text-xs text-muted-foreground">
                 Recorded installment payments and transaction history.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+              </p>
+            </header>
+            <div className="flex min-h-0 flex-1 flex-col p-0">
               <div className="grid shrink-0 grid-cols-3 gap-3 border-b bg-muted/20 px-5 py-3 text-xs">
                 <div>
                   <p className="text-muted-foreground">Last activity</p>
@@ -828,20 +826,21 @@ function ClientPortfolioModal({
                 </div>
               </div>
               <UniversalDataTable
+                layout="auto"
                 table={paymentTable}
                 recordCount={history.length}
                 emptyMessage="No payments recorded for this account yet."
               />
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </TabsContent>
         <TabsContent value="analytics" className="min-h-0 min-w-0 overflow-y-auto p-4">
-          <Card size="sm" className="h-full min-h-0 overflow-hidden">
-            <CardHeader className="border-b">
-              <CardTitle>Payment performance</CardTitle>
-              <CardDescription>Payment activity and recorded lateness over time.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+          <section className="flex min-w-0 flex-col h-full min-h-0 overflow-hidden">
+            <header className="border-b pb-2">
+              <h3 className="text-sm font-medium">Payment performance</h3>
+              <p className="text-xs text-muted-foreground">Payment activity and recorded lateness over time.</p>
+            </header>
+            <div className="flex min-h-0 flex-1 flex-col p-0">
               {!hasAnalytics ? (
                 <Empty className="min-h-0 flex-1 rounded-none border-0">
                   <EmptyHeader>
@@ -978,18 +977,18 @@ function ClientPortfolioModal({
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </TabsContent>
         <TabsContent value="remarks" className="min-h-0 min-w-0 overflow-y-auto p-4">
-          <Card size="sm" className="h-full overflow-hidden">
-            <CardHeader>
-              <CardTitle>Remarks</CardTitle>
-              <CardDescription>
+          <section className="flex min-w-0 flex-col h-full overflow-hidden">
+            <header className="pb-2">
+              <h3 className="text-sm font-medium">Remarks</h3>
+              <p className="text-xs text-muted-foreground">
                 Location, contract, and status notes recorded for this client.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex h-[calc(100%-3.75rem)] flex-col gap-3 overflow-y-auto">
+              </p>
+            </header>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
               <div className="rounded-md border p-3 text-xs">
                 <p className="text-muted-foreground">Location remarks</p>
                 <p className="mt-1 whitespace-pre-wrap">
@@ -1009,8 +1008,8 @@ function ClientPortfolioModal({
                   </p>
                 </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </TabsContent>
       </Tabs>
     </div>
@@ -1525,7 +1524,7 @@ export function AccountRecordsWorkspace({
             {formatHistoryMoney(row.original.meta.outstandingBalance)}
           </span>
         ),
-        meta: { headerClassName: 'text-right', cellClassName: 'text-right' },
+        meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
         size: 128
       },
       ...(view === 'active'
@@ -1570,7 +1569,7 @@ export function AccountRecordsWorkspace({
             {formatHistoryMoney(row.original.meta.installmentAmount)}
           </span>
         ),
-        meta: { headerClassName: 'text-right', cellClassName: 'text-right' },
+        meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
         size: 128
       },
       {
@@ -1595,7 +1594,7 @@ export function AccountRecordsWorkspace({
             {formatHistoryMoney(row.original.meta.totalPaid)}
           </span>
         ),
-        meta: { headerClassName: 'text-right', cellClassName: 'text-right' },
+        meta: { headerClassName: 'text-right', cellClassName: 'text-right tabular-nums' },
         size: 128
       },
       {
@@ -1639,11 +1638,11 @@ export function AccountRecordsWorkspace({
   const copy = workspaceCopy[view]
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-3 bg-workspace">
-      <header className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-workspace">
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-4 py-2">
         <div>
-          <h1 className="font-heading text-lg font-medium">{copy.title}</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">{copy.description}</p>
+          <h1 className="font-heading text-lg font-semibold">{copy.title}</h1>
+          <p className="mt-0.5 text-xs text-muted-foreground">{copy.description}</p>
         </div>
         <div className="flex items-center gap-2">
           {ownBranch && view === 'records' && (
@@ -1755,19 +1754,16 @@ export function AccountRecordsWorkspace({
         open={isQuoteCalculatorOpen}
         onOpenChange={setIsQuoteCalculatorOpen}
       />
-      <Card className="flex min-h-0 min-w-0 flex-1 flex-col gap-0 py-0">
-        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-          <UniversalDataTable
-            table={table}
-            recordCount={filteredRows.length}
-            isLoading={isLoading}
-            error={error}
-            onRetry={reload}
-            emptyMessage="No account records found."
-            onRowDoubleClick={handleRowDoubleClick}
-          />
-        </CardContent>
-      </Card>
+      <UniversalDataTable
+        layout="auto"
+        table={table}
+        recordCount={filteredRows.length}
+        isLoading={isLoading}
+        error={error}
+        onRetry={reload}
+        emptyMessage="No account records found."
+        onRowDoubleClick={handleRowDoubleClick}
+      />
       <TaskSheet
         open={Boolean(clientDraft)}
         onOpenChange={(open) => !open && setClientDraft(undefined)}
@@ -2152,7 +2148,6 @@ export function AccountRecordsWorkspace({
                 <DialogDescription className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                   <span>Client portfolio</span>
                   <AccountBranchBadge branch={selected.account.branch} />
-                  <span className="font-mono">{selected.contractId}</span>
                 </DialogDescription>
               )}
             </div>

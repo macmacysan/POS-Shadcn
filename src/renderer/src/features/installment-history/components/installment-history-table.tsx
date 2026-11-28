@@ -419,8 +419,9 @@ export function InstallmentHistoryTable({
           )}
         </div>
       </TableToolbar>
-      <div className="mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
         <UniversalDataTable
+          layout="auto"
           table={table}
           recordCount={visibleRecords.length}
           isLoading={isLoading}

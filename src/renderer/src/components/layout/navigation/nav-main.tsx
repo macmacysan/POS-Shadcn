@@ -132,7 +132,11 @@ function NavChildList({
               className="h-8 rounded-md px-2.5 text-sm"
               isActive={item.isActive}
               render={
-                <a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />
+                <a
+                  href={item.url}
+                  aria-current={item.isActive ? 'page' : undefined}
+                  onClick={(event) => handleNavClick(event, item.onClick)}
+                />
               }
             >
               {item.icon}
@@ -160,7 +164,14 @@ function NavItemLink({ item }: { item: NavLinkItem }): React.JSX.Element {
       <SidebarMenuButton
         className="h-8 rounded-md px-2.5 text-sm font-medium"
         isActive={item.isActive}
-        render={<a href={item.url} onClick={(event) => handleNavClick(event, item.onClick)} />}
+        tooltip={item.title}
+        render={
+          <a
+            href={item.url}
+            aria-current={item.isActive ? 'page' : undefined}
+            onClick={(event) => handleNavClick(event, item.onClick)}
+          />
+        }
       >
         {item.icon}
         <span>{item.title}</span>
@@ -176,6 +187,8 @@ function NavGroup({
   item: NavGroupItem
   activeView: string
 }): React.JSX.Element {
+  const activeChild = item.children.find((child) => child.isActive)
+
   return (
     <Collapsible defaultOpen className="group/collapsible">
       <SidebarMenuItem>
@@ -183,7 +196,7 @@ function NavGroup({
           className="h-8 rounded-md px-2.5 text-sm font-medium"
           isActive={item.isActive}
           render={<CollapsibleTrigger />}
-          tooltip={item.title}
+          tooltip={item.isActive ? (activeChild?.title ?? item.title) : item.title}
         >
           {item.icon}
           <span>{item.title}</span>
@@ -239,6 +252,7 @@ export function NavMain({
     if (item.title === 'In-house')
       return {
         ...item,
+        isActive: activeView.startsWith('in-house-'),
         children: item.children.map((entry) =>
           entry.title === 'Records'
             ? { ...entry, isActive: activeView === 'in-house-accounts', onClick: onAllAccounts }
@@ -264,6 +278,7 @@ export function NavMain({
       }
     return {
       ...item,
+      isActive: activeView === 'finance-accounts',
       children: item.children.map((entry) => ({
         ...entry,
         isActive: activeView === 'finance-accounts',
@@ -276,7 +291,7 @@ export function NavMain({
   return (
     <SidebarGroup>
       <SidebarGroupContent>
-        <SidebarMenu className="gap-1.5">
+        <SidebarMenu className="gap-1">
           {items.map((item) =>
             isNavGroup(item) ? (
               <NavGroup key={item.title} item={item} activeView={activeView} />

@@ -30,7 +30,6 @@ export type ReportRow = { id: string; source?: 'local' | 'google-cache' }
 
 export type ReportColumn<TData extends ReportRow> = ColumnDef<TData>
 
-
 type ReportDataTableProps<TData extends ReportRow> = {
   columns: ReportColumn<TData>[]
   data: TData[]
@@ -62,7 +61,6 @@ type ReportDataTableProps<TData extends ReportRow> = {
   }
   filterOptions?: Record<string, readonly string[]>
   additionalFilterFields?: ShadcnFilterField[]
-  leadingToolbarContent?: React.ReactNode
   afterFiltersContent?: React.ReactNode
   trailingToolbarContent?: React.ReactNode
   toolbarContent?: React.ReactNode
@@ -100,7 +98,6 @@ export function ReportDataTable<TData extends ReportRow>({
   serverState,
   filterOptions,
   additionalFilterFields,
-  leadingToolbarContent,
   afterFiltersContent,
   trailingToolbarContent,
   toolbarContent,
@@ -236,7 +233,6 @@ export function ReportDataTable<TData extends ReportRow>({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col">
       <TableToolbar>
-        {leadingToolbarContent}
         <ShadcnTableFilters
           fields={shadcnFilterFields}
           filters={[
@@ -290,12 +286,9 @@ export function ReportDataTable<TData extends ReportRow>({
         </div>
       )}
 
-      <div
-        className={cn(
-          'mx-4 flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden border rounded-xl'
-        )}
-      >
+      <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col overflow-hidden">
         <UniversalDataTable
+          layout="auto"
           table={table}
           recordCount={filteredRowCount}
           isLoading={serverState?.loading ?? isLoading}

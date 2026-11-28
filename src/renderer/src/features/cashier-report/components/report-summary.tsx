@@ -9,7 +9,6 @@ import { addDays, format, startOfDay } from 'date-fns'
 import { ChevronLeft, ChevronRight, LockKeyhole, Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -28,7 +27,6 @@ import {
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { DateSelectorValue } from '@/../../components/reui/date-selector'
@@ -77,6 +75,7 @@ function AmountInput({
   onChange,
   className,
   inputClassName,
+  fixedDecimals = false,
   placeholder = '—',
   invalid = false,
   disabled = false
@@ -86,18 +85,24 @@ function AmountInput({
   onChange: (value: number) => void
   className?: string
   inputClassName?: string
+  fixedDecimals?: boolean
   placeholder?: string
   invalid?: boolean
   disabled?: boolean
 }): React.JSX.Element {
-  const [text, setText] = React.useState(() =>
-    value ? formatAmountInput(String(value / 100)) : ''
+  const formatValue = React.useCallback(
+    (amount: number): string => {
+      if (!amount) return ''
+      return formatAmountInput(fixedDecimals ? (amount / 100).toFixed(2) : String(amount / 100))
+    },
+    [fixedDecimals]
   )
+  const [text, setText] = React.useState(() => formatValue(value))
   const [isFocused, setIsFocused] = React.useState(false)
 
   React.useEffect(() => {
-    if (!isFocused) setText(value ? formatAmountInput(String(value / 100)) : '')
-  }, [isFocused, value])
+    if (!isFocused) setText(formatValue(value))
+  }, [formatValue, isFocused, value])
 
   return (
     <div className={cn('flex items-center gap-1.5', className)}>
@@ -131,29 +136,24 @@ function SummaryRow({
   emphasis = false,
   className,
   hoverDetails,
-  valueMuted = false
 }: {
   label: string
   value: number
   emphasis?: boolean
   className?: string
   hoverDetails?: React.ReactNode
-  valueMuted?: boolean
 }): React.JSX.Element | null {
   const row = (
     <div
       className={cn(
-        'flex min-h-7 items-center justify-between gap-3 rounded-md px-2 py-1 text-[13px] transition-colors hover:bg-muted/60',
+        'flex min-h-7 items-center justify-between gap-3 rounded-md px-1 py-1 text-xs transition-colors hover:bg-muted/60',
         emphasis &&
-          'mt-1 min-h-8 rounded-none border-t border-border/60 bg-transparent px-2 py-1 font-medium hover:bg-transparent',
+          'mt-1 min-h-8 rounded-none border-t border-border/60 bg-transparent px-1 py-1 font-medium hover:bg-transparent',
         className
       )}
     >
       <span
-        className={cn(
-          'min-w-0 truncate text-muted-foreground',
-          emphasis && 'font-semibold text-foreground'
-        )}
+        className={cn('min-w-0 text-muted-foreground', emphasis && 'font-semibold text-foreground')}
       >
         {label}
       </span>
@@ -161,7 +161,7 @@ function SummaryRow({
         className={cn(
           'shrink-0 tabular-nums',
           emphasis && 'font-semibold',
-          valueMuted ? 'text-muted-foreground' : emphasis && 'text-foreground'
+          'text-foreground'
         )}
       >
         {money(value)}
@@ -195,7 +195,7 @@ function SummaryRow({
 
 function loadingSummary(): React.JSX.Element {
   return (
-    <aside className="flex min-h-0 flex-1 flex-col gap-2 border-r border-border/70 bg-card p-2">
+    <aside className="flex min-h-0 flex-1 flex-col gap-2 border-r border-border/70 bg-workspace p-2">
       <Skeleton className="h-9 w-full rounded-md" />
       <Skeleton className="h-36 w-full" />
       <Skeleton className="h-24 w-full" />
@@ -424,7 +424,7 @@ export const ReportSummary = React.memo(function ReportSummary({
   if (!snapshot && !error) return loadingSummary()
   if (!snapshot) {
     return (
-      <aside className="flex min-h-0 flex-1 flex-col bg-card p-1.5">
+      <aside className="flex min-h-0 flex-1 flex-col bg-workspace p-1.5">
         <Empty className="m-auto border-0">
           <EmptyHeader>
             <EmptyTitle>Summary unavailable</EmptyTitle>
@@ -602,10 +602,14 @@ export const ReportSummary = React.memo(function ReportSummary({
   }
   return (
     <>
-      <aside className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden bg-workspace p-3 text-foreground">
-        <header className="flex shrink-0 flex-col gap-2 rounded-xl">
+      <aside className="flex min-h-0 flex-1 flex-col overflow-hidden bg-workspace text-foreground">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-1 border-b px-3 py-1">
           <div className="flex min-w-0 items-center justify-between gap-3">
-            <span className="shrink-0 text-xs text-muted-foreground" aria-live="polite">
+            <h2 className="text-sm font-medium">Summary</h2>
+            <span
+              className="shrink-0 text-xs text-muted-foreground empty:hidden"
+              aria-live="polite"
+            >
               {isSaving ? 'Saving…' : saveError ? 'Save failed' : hasSaved ? 'Saved' : ''}
             </span>
           </div>
@@ -728,158 +732,167 @@ export const ReportSummary = React.memo(function ReportSummary({
           </div>
         </header>
 
-        <Card className="min-h-0 flex-1 gap-0 py-0 shadow-none">
-          <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-            {error && (
-              <div className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                <span>{error}</span>
-                <Button type="button" variant="outline" size="xs" onClick={() => void load()}>
-                  Retry
-                </Button>
-              </div>
-            )}
-            {saveError && (
-              <div
-                role="alert"
-                className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
-              >
-                <span>{saveError}</span>
-                <Button type="button" variant="outline" size="xs" onClick={() => void flush()}>
-                  Retry save
-                </Button>
-              </div>
-            )}
+        {error && (
+          <div className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <span>{error}</span>
+            <Button type="button" variant="outline" size="xs" onClick={() => void load()}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {saveError && (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+          >
+            <span>{saveError}</span>
+            <Button type="button" variant="outline" size="xs" onClick={() => void flush()}>
+              Retry save
+            </Button>
+          </div>
+        )}
 
-            <ScrollArea className="min-h-0 flex-1">
-              <div className="px-2.5 pb-1">
-                {visibleReceiptTypes.length > 0 && (
-                  <>
-                    <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_7rem] gap-2 border-b border-border/50 px-1 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      <span>Type</span>
-                      <span className="text-right">Qty</span>
-                      <span className="text-right">Amount</span>
-                    </div>
-                    {visibleReceiptTypes.map((type) => {
-                      const hasQuantity = type.quantity > 0
-                      const hasAmount = type.value > 0
-                      return (
-                        <div
-                          key={type.id}
-                          className="grid grid-cols-[minmax(0,1fr)_2.75rem_7rem] items-center gap-2 rounded-md px-1 py-1 text-xs transition-colors hover:bg-muted/50"
-                        >
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <span className="min-w-0 truncate text-[13px] text-foreground" />
-                                  }
-                                >
-                                  {type.label}
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-72">{type.name}</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                            {!isToday && (
-                              <LockKeyhole
-                                className={cn(
-                                  'size-3.5 shrink-0',
-                                  type.isActive
-                                    ? 'text-muted-foreground'
-                                    : 'text-warning-foreground'
-                                )}
-                                aria-hidden="true"
-                              />
-                            )}
-                          </div>
-                          <Input
-                            aria-label={`${type.name} quantity`}
-                            aria-invalid={hasAmount && !hasQuantity}
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div className="px-3 pb-3">
+            {(visibleReceiptTypes.length > 0 || summary.groups[0].length > 0) && (
+              <h3 className="pt-3 pb-1 text-sm font-medium">Cash Receipts</h3>
+            )}
+            {visibleReceiptTypes.length > 0 && (
+              <>
+                <div className="grid grid-cols-[minmax(0,1fr)_2.75rem_max(10rem,calc(22ch+1.5rem))] gap-2 border-b border-border/50 px-1 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>Type</span>
+                  <span className="text-right">Qty</span>
+                  <span className="text-right">Amount</span>
+                </div>
+                {visibleReceiptTypes.map((type) => {
+                  const hasQuantity = type.quantity > 0
+                  const hasAmount = type.value > 0
+                  return (
+                    <div
+                      key={type.id}
+                      className="grid grid-cols-[minmax(0,1fr)_2.75rem_max(10rem,calc(22ch+1.5rem))] items-center gap-2 rounded-md px-1 py-1 text-xs transition-colors hover:bg-muted/50"
+                    >
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <span
+                                  tabIndex={0}
+                                  className="min-w-0 truncate text-sm text-foreground"
+                                />
+                              }
+                            >
+                              {type.label}
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-72">{type.name}</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        {!isToday && (
+                          <LockKeyhole
                             className={cn(
-                              'h-7 min-w-0 rounded-md border border-border/70 bg-background px-1.5 text-right text-xs tabular-nums focus-visible:ring-1 focus-visible:ring-ring',
-                              hasAmount &&
-                                !hasQuantity &&
-                                'border-destructive focus-visible:ring-destructive/40'
+                              'size-3.5 shrink-0',
+                              type.isActive ? 'text-muted-foreground' : 'text-warning-foreground'
                             )}
-                            disabled={readOnly}
-                            inputMode="numeric"
-                            placeholder="—"
-                            value={type.quantity || ''}
-                            onChange={(event) =>
-                              save(
-                                updateReceipt(snapshot, type.id, {
-                                  quantity: Math.max(0, Math.floor(Number(event.target.value) || 0))
-                                })
-                              )
-                            }
+                            aria-hidden="true"
                           />
-                          <AmountInput
-                            label={`${type.name} amount`}
-                            value={type.value}
-                            invalid={hasQuantity && !hasAmount}
-                            inputClassName={cn(
-                              hasQuantity &&
-                                !hasAmount &&
-                                'border-destructive focus-visible:ring-destructive/40'
-                            )}
-                            onChange={(amountCentavos) =>
-                              save(updateReceipt(snapshot, type.id, { amountCentavos }))
-                            }
-                          />
-                        </div>
-                      )
-                    })}
-                  </>
-                )}
-                {summary.groups.map(
-                  (group) =>
-                    group.length > 0 && (
-                      <div key={group.at(-1)?.label} className="flex flex-col gap-0.5">
-                        {group.map((row) => (
-                          <SummaryRow
-                            key={row.label + Boolean(row.emphasis)}
-                            {...row}
-                            hoverDetails={row.detail && hoverDetails[row.detail]}
-                          />
-                        ))}
+                        )}
                       </div>
-                    )
+                      <Input
+                        aria-label={`${type.name} quantity`}
+                        aria-invalid={hasAmount && !hasQuantity}
+                        className={cn(
+                          'h-7 min-w-0 rounded-md border border-border/70 bg-background px-1.5 text-right text-xs tabular-nums focus-visible:ring-1 focus-visible:ring-ring',
+                          hasAmount &&
+                            !hasQuantity &&
+                            'border-destructive focus-visible:ring-destructive/40'
+                        )}
+                        disabled={readOnly}
+                        inputMode="numeric"
+                        placeholder="—"
+                        value={type.quantity || ''}
+                        onChange={(event) =>
+                          save(
+                            updateReceipt(snapshot, type.id, {
+                              quantity: Math.max(0, Math.floor(Number(event.target.value) || 0))
+                            })
+                          )
+                        }
+                      />
+                      <AmountInput
+                        label={`${type.name} amount`}
+                        value={type.value}
+                        fixedDecimals={!isToday}
+                        invalid={hasQuantity && !hasAmount}
+                        inputClassName={cn(
+                          hasQuantity &&
+                            !hasAmount &&
+                            'border-destructive focus-visible:ring-destructive/40'
+                        )}
+                        onChange={(amountCentavos) =>
+                          save(updateReceipt(snapshot, type.id, { amountCentavos }))
+                        }
+                      />
+                    </div>
+                  )
+                })}
+              </>
+            )}
+            {summary.groups.map(
+              (group, index) =>
+                group.length > 0 && (
+                  <div key={group.at(-1)?.label} className="flex flex-col gap-0.5">
+                    {index > 0 && (
+                      <h3 className="pt-3 pb-1 text-sm font-medium">
+                        {index === 1 ? 'Cash Outflows' : 'Payments'}
+                      </h3>
+                    )}
+                    {group.map((row) => (
+                      <SummaryRow
+                        key={row.label + Boolean(row.emphasis)}
+                        {...row}
+                        hoverDetails={row.detail && hoverDetails[row.detail]}
+                      />
+                    ))}
+                  </div>
+                )
+            )}
+          </div>
+        </div>
+        <div className="shrink-0 border-t border-border bg-workspace px-3 py-2">
+          <h3 className="text-sm font-medium">Reconciliation</h3>
+          {summary.footer.map((row) => (
+            <SummaryRow
+              key={row.label}
+              {...row}
+              hoverDetails={row.detail && hoverDetails[row.detail]}
+              className="px-0"
+            />
+          ))}
+          <section
+            aria-label="Cash variance"
+            className="mt-2 flex min-h-10 items-center justify-between flex-wrap gap-x-2 border-t border-border pt-2"
+          >
+            <div>
+              <span className="block text-sm font-medium">{summary.variance.label}</span>
+              <span
+                className={cn(
+                  'text-xs',
+                  variance === 0
+                    ? 'text-muted-foreground'
+                    : variance > 0
+                      ? 'text-warning-foreground'
+                      : 'text-destructive'
                 )}
-              </div>
-            </ScrollArea>
-            <div className="shrink-0 border-t border-border bg-muted/20 px-2.5 py-2">
-              {summary.footer.map((row) => (
-                <SummaryRow
-                  key={row.label}
-                  {...row}
-                  hoverDetails={row.detail && hoverDetails[row.detail]}
-                  className={
-                    row.emphasis
-                      ? 'mt-0 min-h-9 rounded-none border-0 bg-transparent px-2 text-sm hover:bg-transparent [&>span:last-child]:text-base [&>span:last-child]:font-semibold'
-                      : 'mt-1 border-t border-border/50 pt-2'
-                  }
-                />
-              ))}
-              <section
-                aria-label="Cash variance"
-                className="mt-2 flex min-h-10 items-center justify-between gap-3 border-t border-border px-2 pt-2"
               >
-                <span className="text-sm font-semibold text-foreground">
-                  {summary.variance.label}
-                </span>
-                <span
-                  className={cn(
-                    'text-base font-semibold tabular-nums',
-                    variance > 0 && 'text-warning-foreground',
-                    variance < 0 && 'text-destructive'
-                  )}
-                >
-                  {money(variance)}
-                </span>
-              </section>
+                {variance === 0 ? 'Balanced' : variance > 0 ? 'Overage' : 'Shortage'}
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            <span className="ml-auto whitespace-nowrap text-right text-sm font-semibold tabular-nums">
+              {money(variance)}
+            </span>
+          </section>
+        </div>
       </aside>
 
       <Dialog

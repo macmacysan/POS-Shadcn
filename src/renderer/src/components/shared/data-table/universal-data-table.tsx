@@ -45,6 +45,7 @@ type UniversalDataTableProps<TData extends object> = {
   renderExpandedRow?: (row: TData) => ReactNode
   showPagination?: boolean
   className?: string
+  layout?: 'auto' | 'fixed'
   footerContent?: ReactNode
 }
 
@@ -86,13 +87,19 @@ function TableColumnHeader<TData>({
   const isSorted = column.getIsSorted()
   const label = getColumnLabel(column)
   if (!column.getCanSort()) return <>{label}</>
+  const isRightAligned = getColumnMeta(column).headerClassName
+    ?.split(/\s+/)
+    .includes('text-right')
 
   return (
     <Button
       type="button"
       variant="ghost"
       size="sm"
-      className="group/header -ml-2 h-5 px-2 text-xs font-normal shadow-none hover:shadow-none"
+      className={cn(
+        'group/header h-7 px-2 text-xs font-normal shadow-none hover:shadow-none',
+        isRightAligned ? 'w-full justify-end' : '-ml-2'
+      )}
       onClick={() => column.toggleSorting(isSorted === 'asc')}
       disabled={isLoading || table.getRowModel().rows.length === 0}
       aria-label={`Sort ${label}`}
@@ -128,6 +135,7 @@ export function UniversalDataTable<TData extends object>({
   renderExpandedRow,
   showPagination = true,
   className,
+  layout = 'fixed',
   footerContent
 }: UniversalDataTableProps<TData>): React.JSX.Element {
   if (error) {
@@ -163,8 +171,8 @@ export function UniversalDataTable<TData extends object>({
   return (
     <div className={cn('flex min-h-0 min-w-0 flex-1 basis-0 flex-col', className)}>
       <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col [&>[data-slot=table-container]]:h-0 [&>[data-slot=table-container]]:min-h-0 [&>[data-slot=table-container]]:flex-1 [&>[data-slot=table-container]]:overflow-auto">
-        <Table className="w-full table-fixed text-xs" style={{ minWidth: fixedWidth || undefined }}>
-          <TableHeader className="sticky top-0 z-10 border-b bg-muted/50">
+        <Table className="w-full text-xs" style={{ tableLayout: layout, minWidth: fixedWidth || undefined }}>
+          <TableHeader className="sticky top-0 z-10 border-b bg-workspace-subtle">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => {
@@ -200,7 +208,7 @@ export function UniversalDataTable<TData extends object>({
                   {table.getVisibleLeafColumns().map((column) => (
                     <TableCell
                       key={column.id}
-                      className={cn('h-5 px-3 py-0', getNarrowColumnClassName(column.id))}
+                      className={cn('h-7 px-3 py-1', getNarrowColumnClassName(column.id))}
                     >
                       <Skeleton className="h-3 w-full" />
                     </TableCell>
@@ -213,11 +221,11 @@ export function UniversalDataTable<TData extends object>({
                   <TableRow
                     data-state={(row.getIsSelected() || row.id === selectedRowId) && 'selected'}
                     className={cn(
-                      'group/row h-5 border-border/40',
+                      'group/row border-border/40',
+                      onRowClick || onRowDoubleClick ? 'h-9' : 'h-7',
                       (row.original as { status?: string }).status === 'VOIDED' &&
                         'text-destructive',
                       getRowClassName?.(row.original),
-                      row.id === selectedRowId && 'bg-primary/10',
                       (onRowClick || onRowDoubleClick) && 'cursor-pointer'
                     )}
                     onClick={() => onRowClick?.(row.original)}
@@ -230,7 +238,7 @@ export function UniversalDataTable<TData extends object>({
                         <TableCell
                           key={cell.id}
                           className={cn(
-                            'h-5 max-w-72 px-3 py-0',
+                            cn('px-3 py-1', onRowClick || onRowDoubleClick ? 'h-9' : 'h-7'),
                             getNarrowColumnClassName(cell.column.id),
                             meta.cellClassName
                           )}
@@ -260,7 +268,7 @@ export function UniversalDataTable<TData extends object>({
       </div>
       {showPagination && (
         <div
-          className="flex h-10 shrink-0 items-center justify-between gap-3 border-t bg-muted/30 px-3 text-xs"
+          className="flex h-10 shrink-0 items-center justify-between gap-3 border-t bg-workspace px-3 text-xs"
         >
           <div className="flex items-center gap-2 text-muted-foreground">
             <span>Rows</span>

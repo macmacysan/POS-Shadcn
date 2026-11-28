@@ -29,7 +29,6 @@ import {
   type LucideIcon
 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -568,13 +567,13 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'category',
     header: 'Category',
     cell: ({ getValue }) => <ExpenseCategoryCell category={getValue<string>()} />,
-    size: 70,
+    size: 100,
     meta: { className: 'text-muted-foreground' }
   },
   {
     accessorKey: 'receiptNo',
     header: 'Receipt No',
-    size: 56,
+    size: 96,
     cell: ({ getValue }) => (
       <TruncatedText value={getValue<string>()} className="text-muted-foreground" />
     ),
@@ -597,9 +596,9 @@ const expenseColumns: ReportColumn<ExpenseRow>[] = [
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    size: 112,
+    size: 152,
     meta: {
-      className: 'px-4 text-right text-sm font-medium tabular-nums text-foreground'
+      className: 'text-right font-medium tabular-nums text-foreground'
     }
   }
 ]
@@ -662,9 +661,9 @@ const incomeColumns: ReportColumn<IncomeRow>[] = [
     accessorKey: 'amount',
     header: 'Amount',
     cell: ({ getValue }) => money(getValue<number>()),
-    size: 134,
+    size: 152,
     meta: {
-      className: cn('w-30', 'text-right text-sm font-medium tabular-nums text-foreground')
+      className: 'text-right font-medium tabular-nums text-foreground'
     }
   }
 ]
@@ -719,7 +718,7 @@ const paymentColumns: ReportColumn<PaymentRow>[] = [
   {
     accessorKey: 'amount',
     header: 'Amount',
-    size: 134,
+    size: 152,
     cell: ({ getValue }) => money(getValue<number>()),
     meta: { className: 'text-right text-sm font-medium tabular-nums text-foreground' }
   }
@@ -1017,7 +1016,6 @@ function ReportTab({
   isAdmin,
   showVoided,
   onShowVoidedChange,
-  leadingToolbarContent,
   afterFiltersContent,
   trailingToolbarContent
 }: {
@@ -1054,7 +1052,6 @@ function ReportTab({
   isAdmin: boolean
   showVoided: boolean
   onShowVoidedChange: (value: boolean) => void
-  leadingToolbarContent?: React.ReactNode
   afterFiltersContent?: React.ReactNode
   trailingToolbarContent?: React.ReactNode
 }): React.JSX.Element {
@@ -1168,7 +1165,6 @@ function ReportTab({
           onDefaultAction={isAdmin ? undefined : onExpenseDefaultAction}
           serverState={expenseQuery}
           filterOptions={expenseFilterOptions}
-          leadingToolbarContent={leadingToolbarContent}
           afterFiltersContent={afterFiltersContent}
           trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
@@ -1211,7 +1207,6 @@ function ReportTab({
             date: uniqueSorted(incomeRows.map((row) => row.date)),
             createdByName: incomeAddedByOptions
           }}
-          leadingToolbarContent={leadingToolbarContent}
           afterFiltersContent={afterFiltersContent}
           trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
@@ -1255,7 +1250,6 @@ function ReportTab({
             date: uniqueSorted(paymentRows.map((row) => row.date)),
             createdByName: paymentAddedByOptions
           }}
-          leadingToolbarContent={leadingToolbarContent}
           afterFiltersContent={afterFiltersContent}
           trailingToolbarContent={trailingToolbarContent}
           toolbarContent={
@@ -1291,7 +1285,6 @@ function ReportTab({
             isLoading={historyLoadState.isLoading}
             dateFrom={dateFrom}
             dateTo={dateTo}
-            leadingToolbarContent={leadingToolbarContent}
             afterFiltersContent={afterFiltersContent}
             trailingToolbarContent={trailingToolbarContent}
             onVisibleRecordCountChange={onVisibleHistoryCountChange}
@@ -2204,8 +2197,8 @@ export function CashierReportsContent({
     if (nextTab === 'Activity') setIsEntryFormVisible(false)
   }
   const tabToolbarContent = (
-    <div className="min-w-0 max-w-full overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
-      <TabsList aria-label="Cashier report sections" className="h-8 w-fit justify-start bg-muted">
+    <div className="min-w-0 max-w-full shrink-0 overflow-x-auto">
+      <TabsList aria-label="Cashier report sections" variant="line">
         {reportTabs.map((tab) => (
           <TabsTrigger
             key={tab}
@@ -2215,12 +2208,9 @@ export function CashierReportsContent({
           >
             <span>{tab === 'Activity' ? 'Activity History' : tab}</span>
             {tabRowCounts[tab] > 0 && (
-              <Badge
-                variant="secondary"
-                className="size-5 shrink-0 justify-center rounded-full bg-muted p-0 text-xs tabular-nums text-muted-foreground group-data-[state=active]:bg-primary/10 group-data-[state=active]:text-primary"
-              >
+              <span className="text-xs tabular-nums text-muted-foreground">
                 {tabRowCounts[tab]}
-              </Badge>
+              </span>
             )}
           </TabsTrigger>
         ))}
@@ -2232,12 +2222,12 @@ export function CashierReportsContent({
     <div
       className={
         isSummaryCompact
-          ? 'flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden p-4'
-          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(220px,252px)_minmax(0,1fr)] gap-5 overflow-hidden bg-workspace p-4'
+          ? 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden'
+          : 'grid min-h-0 min-w-0 flex-1 grid-cols-[fit-content(26rem)_minmax(0,1fr)] overflow-hidden bg-workspace'
       }
     >
       {!isSummaryCompact && (
-        <div className="-my-3 -ml-4 flex min-h-0 min-w-76 flex-col bg-card">
+        <div className="flex min-h-0 min-w-[19rem] flex-col border-r">
           <ReportSummary
             key={reportId}
             refreshKey={summaryRefreshKey}
@@ -2265,6 +2255,33 @@ export function CashierReportsContent({
               onValueChange={(value) => selectTab(value as (typeof reportTabs)[number])}
               className="flex min-h-0 flex-1 flex-col gap-0"
             >
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-2 border-b px-2">
+                {tabToolbarContent}
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 px-2 py-1 text-xs">
+                  <span className="truncate text-foreground">Branch: {selectedBranch}</span>
+                  <span className="truncate text-muted-foreground">Cashier: {cashierName}</span>
+                  {(isSummaryCompact || dateError || isDateLoading) && (
+                    <span className="text-muted-foreground">
+                      Business date:{' '}
+                      {format(
+                        parse(selectedReport.businessDate, 'yyyy-MM-dd', new Date()),
+                        'MMMM d, yyyy'
+                      )}
+                    </span>
+                  )}
+                  {isSummaryCompact && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="ml-auto"
+                      onClick={() => setIsSummaryVisible(true)}
+                    >
+                      Summary
+                    </Button>
+                  )}
+                </div>
+              </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-visible">
                 {reportTabs.map((tab) => (
                   <TabsContent
@@ -2299,7 +2316,6 @@ export function CashierReportsContent({
                       isAdmin={isAdmin}
                       showVoided={showVoided}
                       onShowVoidedChange={setShowVoided}
-                      leadingToolbarContent={tabToolbarContent}
                       trailingToolbarContent={
                         <>
                           {dateError && (
@@ -2371,16 +2387,6 @@ export function CashierReportsContent({
       </div>
       {isSummaryCompact && (
         <>
-          <Button
-            type="button"
-            size="sm"
-            className="fixed right-4 bottom-4"
-            onClick={() => setIsSummaryVisible(true)}
-          >
-            {selectedReport.businessDate === format(new Date(), 'yyyy-MM-dd')
-              ? 'Today’s Summary'
-              : `${format(parse(selectedReport.businessDate, 'yyyy-MM-dd', new Date()), 'MMM d')} Summary`}
-          </Button>
           <Sheet open={isSummaryVisible} onOpenChange={setIsSummaryVisible}>
             <SheetContent side="left" className="w-[min(92vw,22rem)] p-0">
               <SheetHeader className="sr-only">

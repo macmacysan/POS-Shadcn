@@ -35,7 +35,7 @@ export function KpiCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="px-3 pb-2.5 pt-0">
-        <p className="truncate text-lg font-semibold leading-none tracking-tight tabular-nums">
+        <p className="whitespace-normal break-words text-lg font-semibold leading-6 tracking-tight tabular-nums">
           {value}
         </p>
       </CardContent>

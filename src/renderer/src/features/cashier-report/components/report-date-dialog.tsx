@@ -94,10 +94,7 @@ function ExceptionRow({
         <span className="text-xs font-semibold">
           {format(parseISO(day.businessDate), 'EEE, MMM d')}
         </span>
-        <Badge
-          variant={label === 'Variance' ? 'amber' : 'outline'}
-          className="px-1.5 py-0 text-xs"
-        >
+        <Badge variant={label === 'Variance' ? 'amber' : 'outline'} className="px-1.5 py-0 text-xs">
           {label}
         </Badge>
       </div>

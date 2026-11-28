@@ -9,12 +9,11 @@ import {
 import { format } from 'date-fns'
 
 import { UniversalDataTable } from '@/components/shared/data-table/universal-data-table'
+import { AccountBranchBadge } from '@/features/in-house-accounts/components/account-badges'
 import { RowActions } from '@/components/shared/data-table/row-actions'
 import { DestructiveAlertDialog } from '@/components/shared/destructive-alert-dialog'
 import { VoidEntryDialog } from '@/components/shared/void-entry-dialog'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { KpiCard } from '@/components/shared/kpi-card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -40,7 +39,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatPhilippinePeso } from '@/lib/currency'
-import { formatAccountName } from '@/lib/in-house-accounts'
+import { branchNames, formatAccountName } from '@/lib/in-house-accounts'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/hooks/use-notifications'
 import { TaskSheet } from '@/components/shared/task-sheet/task-sheet'
@@ -180,6 +179,7 @@ function scheduleColumns(
                 <TooltipTrigger
                   render={
                     <span
+                      tabIndex={0}
                       className="inline-flex text-muted-foreground"
                       aria-label="Payment locked"
                     />
@@ -262,9 +262,9 @@ function scheduleColumns(
       accessorKey: 'balanceCentavos',
       header: 'Loan balance',
       size: 140,
-      meta: { headerClassName: 'text-right', cellClassName: 'text-right font-light tabular-nums' },
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right font-medium tabular-nums' },
       cell: ({ row }) => (
-        <span className="text-muted-foreground">
+        <span className="text-foreground">
           {formatPhilippinePeso(row.original.balanceCentavos / 100)}
         </span>
       )
@@ -278,7 +278,7 @@ function scheduleColumns(
       cell: ({ row }) => (
         <span
           className={cn(
-            row.original.penaltyCentavos === 0 ? 'text-muted-foreground' : 'text-warning'
+            row.original.penaltyCentavos === 0 ? 'text-foreground' : 'text-warning-foreground'
           )}
         >
           {formatPhilippinePeso(row.original.penaltyCentavos / 100)}
@@ -374,7 +374,7 @@ function paymentColumns(
       accessorKey: 'amountCentavos',
       header: 'Amount received',
       size: 170,
-      meta: { headerClassName: 'text-right', cellClassName: 'text-right font-light tabular-nums' },
+      meta: { headerClassName: 'text-right', cellClassName: 'text-right font-medium tabular-nums' },
       cell: ({ row }) => formatPhilippinePeso(row.original.amountCentavos / 100)
     },
     {
@@ -386,7 +386,7 @@ function paymentColumns(
       cell: ({ row }) => (
         <span
           className={cn(
-            row.original.penaltyCentavos === 0 ? 'text-muted-foreground' : 'text-warning'
+            row.original.penaltyCentavos === 0 ? 'text-foreground' : 'text-warning-foreground'
           )}
         >
           {formatPhilippinePeso(row.original.penaltyCentavos / 100)}
@@ -431,7 +431,7 @@ function paymentColumns(
         !row.original.isDownPayment && (
           <RowActions
             label="Payment actions"
-            className="size-5"
+            className="size-6"
             actions={[
               {
                 id: 'void',
@@ -894,17 +894,18 @@ export function InstallmentPaymentWorkspace({
     )
   }
 
+  const branch = branchNames.find((name) => name === workspace?.account.branch)
   const amountDue = selectedSchedule
     ? Math.max(0, selectedSchedule.dueAmountCentavos - selectedSchedule.paidAmountCentavos)
     : workspace?.nextDue?.amountCentavos
 
   return (
     <Dialog open onOpenChange={(open) => !open && onBack()}>
-      <DialogContent className="flex h-[min(90vh,58rem)] w-[min(96vw,90rem)] max-w-none flex-col gap-0 overflow-hidden p-3 sm:max-w-none">
+      <DialogContent className="flex h-[min(90vh,58rem)] w-[min(96vw,90rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
         <DialogTitle className="sr-only">Installment payment workspace</DialogTitle>
         <div className="flex min-h-0 min-w-0 flex-1">
           <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 bg-muted/30 px-3 py-2.5">
+            <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b px-4 py-3 pr-12">
               <div className="flex min-w-0 items-start gap-2">
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground">In-house installment payment</p>
@@ -921,9 +922,9 @@ export function InstallmentPaymentWorkspace({
                     </TooltipContent>
                   </Tooltip>
                   {workspace && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {workspace.account.id} · {workspace.contractNumber} ·{' '}
-                      {workspace.account.branch}
+                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      {workspace.contractNumber}
+                      {branch ? <AccountBranchBadge branch={branch} /> : workspace.account.branch}
                     </p>
                   )}
                 </div>
@@ -932,39 +933,29 @@ export function InstallmentPaymentWorkspace({
 
             {workspace && (
               <section
-                className="grid shrink-0 grid-cols-2 gap-3 bg-muted/30 p-3 md:grid-cols-4"
+                className="grid shrink-0 gap-x-6 border-b bg-muted/20 px-4 py-2 md:grid-cols-2"
                 aria-label="Account payment summary"
               >
-                <KpiCard
-                  label="Outstanding balance"
-                  value={formatPhilippinePeso(workspace.outstandingBalanceCentavos / 100)}
-                  emphasis
-                />
-                <KpiCard
-                  label="Total paid"
-                  value={formatPhilippinePeso(workspace.totalPaidCentavos / 100)}
-                />
-                <KpiCard
-                  label="Next due"
-                  value={workspace.nextDue ? formatDate(workspace.nextDue.dueDate) : '—'}
-                />
-                <KpiCard
-                  label="Due now"
-                  value={
-                    workspace.nextDue
-                      ? formatPhilippinePeso(workspace.nextDue.amountCentavos / 100)
-                      : 'Paid in full'
-                  }
-                />
+                {[
+                  ['Outstanding balance', formatPhilippinePeso(workspace.outstandingBalanceCentavos / 100)],
+                  ['Total paid', formatPhilippinePeso(workspace.totalPaidCentavos / 100)],
+                  ['Next due', workspace.nextDue ? formatDate(workspace.nextDue.dueDate) : '\u2014'],
+                  ['Due now', workspace.nextDue ? formatPhilippinePeso(workspace.nextDue.amountCentavos / 100) : 'Paid in full']
+                ].map(([label, value]) => (
+                  <div key={label} className="flex min-w-0 items-baseline justify-between gap-3 py-1">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className="text-right text-sm font-medium tabular-nums">{value}</p>
+                  </div>
+                ))}
               </section>
             )}
 
             <Tabs
               value={activeTab}
               onValueChange={(value) => setActiveTab(value as typeof activeTab)}
-              className="min-h-0 flex-1 gap-0 bg-muted/30 px-3"
+              className="min-h-0 flex-1 gap-0"
             >
-              <div className="flex shrink-0 items-center justify-between gap-3 py-2">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-1">
                 <TabsList variant="line" aria-label="Payment workspace views">
                   <TabsTrigger value="schedule">
                     <CalendarDays data-icon="inline-start" />
@@ -1012,82 +1003,74 @@ export function InstallmentPaymentWorkspace({
                     </Button>
                   )}
                   {workspace && (
-                    <Badge variant="outline" size="sm">
-                      {workspace.paymentFrequency}
-                    </Badge>
+                    <span className="text-xs text-muted-foreground">{workspace.paymentFrequency}</span>
                   )}
                 </div>
               </div>
               <TabsContent value="schedule" className="flex min-h-0 flex-1">
-                <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col p-0">
-                    <UniversalDataTable
-                      table={scheduleTable}
-                      recordCount={workspace?.schedules.length ?? 0}
-                      isLoading={isLoading}
-                      emptyMessage="No payment schedule is available for this contract."
-                      showPagination={false}
-                      selectedRowId={selectedScheduleId}
-                      onRowClick={(schedule) => {
-                        if (schedule.status === 'WAIVED' || schedule.isService) return
-                        setSelectedScheduleId(schedule.id)
-                        const payment = workspace?.payments.find((item) =>
-                          item.scheduleIds.includes(schedule.id)
-                        )
-                        if (payment && schedule.status === 'PAID') {
-                          setActiveTab('ledger')
-                          openAdjustment(schedule, payment)
-                          return
-                        }
-                        if (
-                          scheduleStatusLabel(schedule) === 'UPCOMING' &&
-                          schedule.id !== firstUpcomingScheduleId
-                        )
-                          return
-                        if (schedule.balanceCentavos <= 0) return
-                        if (!canRecordPayment) return
-                        openPayment(schedule)
-                      }}
-                      getRowClassName={(schedule) =>
-                        cn(
-                          schedule.id === firstUpcomingScheduleId && 'bg-primary/5 font-medium',
-                          scheduleStatusLabel(schedule) === 'UPCOMING' &&
-                            schedule.id !== firstUpcomingScheduleId &&
-                            'opacity-50 !cursor-not-allowed',
-                          schedule.isService && 'opacity-50 !cursor-not-allowed'
-                        )
-                      }
-                    />
-                  </CardContent>
-                </Card>
+                <UniversalDataTable
+                  layout="auto"
+                  table={scheduleTable}
+                  recordCount={workspace?.schedules.length ?? 0}
+                  isLoading={isLoading}
+                  emptyMessage="No payment schedule is available for this contract."
+                  showPagination={false}
+                  selectedRowId={selectedScheduleId}
+                  onRowClick={(schedule) => {
+                    if (schedule.status === 'WAIVED' || schedule.isService) return
+                    setSelectedScheduleId(schedule.id)
+                    const payment = workspace?.payments.find((item) =>
+                      item.scheduleIds.includes(schedule.id)
+                    )
+                    if (payment && schedule.status === 'PAID') {
+                      setActiveTab('ledger')
+                      openAdjustment(schedule, payment)
+                      return
+                    }
+                    if (
+                      scheduleStatusLabel(schedule) === 'UPCOMING' &&
+                      schedule.id !== firstUpcomingScheduleId
+                    )
+                      return
+                    if (schedule.balanceCentavos <= 0) return
+                    if (!canRecordPayment) return
+                    openPayment(schedule)
+                  }}
+                  getRowClassName={(schedule) =>
+                    cn(
+                      schedule.id === firstUpcomingScheduleId && 'bg-primary/5 font-medium',
+                      scheduleStatusLabel(schedule) === 'UPCOMING' &&
+                        schedule.id !== firstUpcomingScheduleId &&
+                        'text-muted-foreground cursor-not-allowed!',
+                      schedule.isService && 'text-muted-foreground cursor-not-allowed!'
+                    )
+                  }
+                />
               </TabsContent>
               <TabsContent value="ledger" className="flex min-h-0 flex-1">
-                <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                  <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col p-0">
-                    <UniversalDataTable
-                      table={paymentTable}
-                      recordCount={paymentTable.getRowCount()}
-                      isLoading={isLoading}
-                      emptyMessage="No payments have been recorded for this contract."
-                      showPagination={false}
-                      selectedRowId={selectedPaymentId}
-                      onRowClick={(payment) => {
-                        if (
-                          payment.isDownPayment ||
-                          payment.status !== 'POSTED' ||
-                          !canAdjustPayment
-                        )
-                          return
-                        const schedule = payment.scheduleIds
-                          .map((scheduleId) =>
-                            workspace?.schedules.find((item) => item.id === scheduleId)
-                          )
-                          .find((item): item is InHouseScheduleRecord => Boolean(item))
-                        if (schedule) openAdjustment(schedule, payment)
-                      }}
-                    />
-                  </CardContent>
-                </Card>
+                <UniversalDataTable
+                  layout="auto"
+                  table={paymentTable}
+                  recordCount={paymentTable.getRowCount()}
+                  isLoading={isLoading}
+                  emptyMessage="No payments have been recorded for this contract."
+                  showPagination={false}
+                  selectedRowId={selectedPaymentId}
+                  onRowClick={(payment) => {
+                    if (
+                      payment.isDownPayment ||
+                      payment.status !== 'POSTED' ||
+                      !canAdjustPayment
+                    )
+                      return
+                    const schedule = payment.scheduleIds
+                      .map((scheduleId) =>
+                        workspace?.schedules.find((item) => item.id === scheduleId)
+                      )
+                      .find((item): item is InHouseScheduleRecord => Boolean(item))
+                    if (schedule) openAdjustment(schedule, payment)
+                  }}
+                />
               </TabsContent>
             </Tabs>
           </section>

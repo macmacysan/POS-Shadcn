@@ -1,218 +1,71 @@
-# Product Design Contract
+# Cashiers Report design contract
 
-This is the single authoritative product design contract for Cashiers Report. It applies to layout, forms, drawers, tables, visual hierarchy, responsive behavior, and shared UI patterns. Component-library defaults and skill preferences support this contract; they do not override it.
+Cashiers Report is a local-first financial workstation. A cashier closing a report needs to identify the branch, cashier and business date, compare cash figures, resolve exceptions and find the next permitted action. Give the active ledger or form the most space. Use Linearâ€™s compact navigation, Attioâ€™s alignment of comparable records and Stripeâ€™s clarity around financial outcomes as references. Use Cashiers Reportâ€™s own components, copy and theme.
 
-## Product Direction
+## Ownership
 
-Design the application as a compact financial workstation, not a generic admin dashboard.
+- This contract governs presentation. Preserve calculations, precision, conditional fields and rows, permissions, branch and ownership boundaries, IPC, persistence, data contracts and workflow order. Use existing action eligibility and confirmation paths, including voiding posted financial entries. See [business rules](BUSINESS_RULES.md).
+- Follow the projectâ€™s reuse order: shared project component â†’ existing compatible ReUI component â†’ justified ReUI installation â†’ existing shadcn/ui component â†’ justified shadcn/ui installation â†’ custom implementation if none fits. Retain stable components. Check API fit, keyboard behavior and theme support before adopting a library example.
+- Shared components own visual variants, sizes and states. Features own their content and composition. Extend a shared variant for a recurring need. Keep one-off color, type, radius and control-size overrides out of feature code. See [frontend conventions](FRONTEND.md).
 
-Directional references:
+## Theme, typography and density
 
-- **Stripe:** restrained hierarchy, clean financial tables, subtle borders, and clear primary actions
-- **Linear:** compact density, minimal controls, lightweight navigation, and keyboard-friendly workflows
+Use the active global variables from `src/renderer/src/assets/main.css` in both light and dark mode, including sidebar, menus, dialogs and notification portals. Geist is the bundled default sans; components use the active font tokens so a TweakCN font preset replaces it without component edits. Pair surface roles with their foregrounds (for example, `bg-popover text-popover-foreground` and `bg-primary text-primary-foreground`). Use workspace aliases for panes, input and ring tokens for controls, and status and branch tokens for domain meaning. Define project-only roles centrally for both modes. Bind font, tracking, spacing, radius and shadow utilities to the active variables. A TweakCN preset change must propagate without component edits or a reload of the view. Fix a failing pair at its shared owner. Feature-local palettes, literal theme colors and fixed font families bypass this contract.
 
-Use these products as inspiration only. Do not copy branding, proprietary layouts, colors, or components.
+| Role | Type size / line height at default scale | Treatment |
+| --- | --- | --- |
+| Page title | `text-lg`, 18/24px | Theme heading family, semibold |
+| Dialog or drawer title | `text-base`, 16/24px | Heading, semibold |
+| Pane or section title | `text-sm`, 14/20px | Heading, medium |
+| Field label, control, entered value | `text-sm`, 14/20px | Theme sans, foreground for values, muted placeholders |
+| Table cell, metadata, helper | `text-xs`, 12/16px | Foreground for primary data, muted foreground for supporting text |
 
-## Component Priority
+Use `tabular-nums` for comparable figures and the theme mono face for identifiers that need fixed widths. Use spacing units 1/2/3/4/6 (4/8/12/16/24px at the default theme) for label-to-field, within a control group, between workspace elements, between fields and between major sections respectively. Financial summary rows are 24â€“28px, compact table rows 28â€“32px and interactive rows 32â€“36px. Let controls and rows grow for content and text enlargement.
 
-### Reuse order
+## Surface roles
 
-Use components in this order:
+- Use the active background and foreground for workspace panes, ledgers, toolbars and pagination. Keep a sticky table header opaque. The title bar and table headers use the subtle workspace role, a restrained mix of the background and muted tokens. Use borders for separation.
+- Navigation uses the preset sidebar pair, independent cards use the card pair, and floating layers use the popover pair. Keep monetary amounts in the foreground, use weight for totals and reserve status text for meaningful exceptions.
 
-1. Existing project shared components
-2. Existing compatible ReUI components
-3. Install a compatible ReUI component when justified
-4. Existing shadcn/ui components
-5. Install a compatible shadcn/ui component when justified
-6. Custom implementation only when no suitable reusable component exists
+## Workspace and navigation
 
-Do not replace a stable component solely to use ReUI or shadcn/ui. Use ReUI for suitable higher-level components and shadcn/ui for primitives; both must follow this contract and the project theme tokens.
+- The authenticated root workspace is full-bleed: it fills the available window content with no inset margin, rounded outer corners, surrounding border or shadow. Do not wrap the root app in a card or `WorkstationSurface`. Integrate the sidebar, title bar and workspace directly, separated only by semantic borders. Keep `WorkstationShell` for page-level layout and `WorkstationSurface` for independent work areas. Independent panes and dialogs may use one rounded boundary (`rounded-xl`), standalone surfaces such as sign-in may use `rounded-2xl`, and controls use `rounded-md`; all radii follow the global token. Preserve native window controls and drag regions.
+- Inside a pane, group related amounts in aligned rows with a single separator before a total. Use spacing before adding borders. Reserve elevation for overlapping layers. KPI cards are suitable for independent dashboard metrics, not related amounts in a calculation or reconciliation. Omit decorative gradients, hero headings, repeated card frames and badges on ordinary attributes. Include explanatory copy only when it identifies data, explains a decision or helps complete a task.
+- In Cashier Reports keep Todayâ€™s Summary on the left and the active workspace on the right at desktop widths. Use one compact page-title header with actions on the right and the primary action first; omit product-name breadcrumbs when navigation already provides context. Keep the header, toolbar and footer outside the scrolling body. Use subtle token borders between the sidebar, title bar and workspace; never put the authenticated root workspace inside a rounded or bordered container. Use `min-w-0` and `min-h-0` on constrained grid and flex children.
+- Retain role-appropriate navigation order and labels. Mark the current destination visually and programmatically, for example with `aria-current="page"` on the active link. Collapsed controls retain accessible names and keyboard access. Interactive title-bar controls use a non-draggable region.
+- When width runs short, collapse the secondary inspector, move advanced filters into a drawer and group secondary actions in a menu. Keep search, the main action and row-action access visible. Wide tables scroll inside their viewport. Opening an overlay preserves the underlying paneâ€™s size and scroll position.
 
-### Shared component rules
+## Financial records and tables
 
-- Use the shared `Button`; do not add button colors, typography, height, padding, radius, or icon sizing inline.
-- Use default or `primary` for the one main action, `outline` or `secondary` for supporting actions, `ghost` for low-emphasis actions, and `destructive` only for destructive actions.
-- Button sizes are `sm` (h-8) and default (h-9); use h-8 only for compact table and toolbar controls.
-- Use the shared `Input`, `SearchInput`, and `Select` primitives. Standard form controls are h-9; compact h-8 controls are limited to dense table and toolbar rows. Do not create locally styled input, select, or filter triggers.
-- Use `FilterButton` for filters; do not create a separately styled filter trigger.
-- Use shared `Badge` semantic variants—zinc, amber, blue, emerald, or destructive—and do not style badges inline.
-- Reuse `TaskSheet` for standard short-form drawers, `WorkstationShell` and `WorkstationSurface` for desktop workspaces, and `UniversalDataTable` for compatible data tables.
+- Identify account workspaces by customer, branch and business contract number where available. Keep internal record identifiers in detailed contract views for lookup.
+- Keep report identity visible in context, including on past business dates. Label business date, transaction date and creation time according to their distinct meanings. Present existing model values. Format integer centavos through `formatCentavos`, preserving two decimal places, the sign and the userâ€™s peso-sign setting. Preserve each fieldâ€™s missing-value semantics and conditional visibility.
+- In a reconciliation footer, show the variance status separately from its signed amount, including a formatted zero when balanced. Keep the amount on the same right edge as the figures above it.
+- Right-align monetary headers, values and totals on one edge. Show complete, readable amounts and signs. Never silently truncate, clip or replace monetary values with an ellipsis. Show expected cash, physical cash, remittance and variance under their own labels wherever the workflow exposes them. Emphasize totals with weight and a separator. Signed figures or explicit shortage/overage text must convey variance without color.
+- Use the shared table shell for Cashier Reports, Installment History and Active Accounts, and `UniversalDataTable` where compatible. Use sticky headers, 12px cell text and 8â€“12px horizontal cell padding. At default spacing use a 28px header and 28â€“32px compact rows. Interactive rows are 32â€“36px and grow to fit content and targets. Keep density in the shared table. Align Description left and Amount right, with category, receipt number, VAT and secondary identifiers muted.
+- Where supported, keep one search field and one `FilterButton` for advanced filters. Keep active filters discoverable and indicate sort direction on the sorted header. Preserve stable record IDs and source order. Paginate or virtualize high-volume data.
+- Use equal column geometry for skeletons and loaded rows, shared `Empty` for no records, clear filters for a filtered-empty result and an inline retry for recoverable load failures. If descriptive text is clipped, expose the full text via the shared tooltip on hover and keyboard focus. Amounts, required instructions and actions must be available directly.
+- Use shared `Badge` variants for states that affect interpretation or action. Include the state in text. Use `AccountBranchBadge` for every account branch label, with its existing code, accessible name and global color mapping: Goa GOA blue, Tinambac TIN violet, Tigaon TIG amber, Lagonoy LAG green.
 
-All components must follow the project theme tokens, typography, spacing, accessibility, and Electron requirements.
+## Controls, forms and overlays
 
-## Visual Principles
+- Use shared `Button`, `Input`, `SearchInput` and `Select`. Default to `h-9` (36px) in forms and `h-8` (32px) in compact toolbars and table controls. Give each task header or footer at most one primary action. Use outline or secondary for supporting actions, ghost for low emphasis, and destructive for a destructive decision. Name the action by its outcome.
+- Hover and pressed feedback must preserve legibility. Focus has a visible ring independent of selection. Expose selection, expansion, invalidity and disabled state through the controlâ€™s semantics. Explain a blocking condition at its point of correction. A pending commit gives in-place feedback and prevents duplicate activation.
+- Group related fields with `FieldGroup` and `Field`. Associate persistent labels, descriptions and inline `FieldError` with their controls. Use up to two columns for short related fields and one for long or complex entries. Keep section headings with their first field. Disclose optional detail within existing workflow conditions. Preserve entered values after validation fails.
+- Short create/edit tasks use the right-side `TaskSheet`: fixed header, one scrolling body, fixed footer and unsaved-change protection. Use the central workspace for wide comparisons and multi-section entry. A wizard keeps its title, step context and Back and Next/Save actions visible and retains values between steps. Use the shared ReUI `Stepper` when compatible.
+- Use shared dialogs for focused choices and confirmations. Use the shared header and footer for the chosen dialog primitive. Name the affected record and consequence before a destructive decision. End-align form and dialog footer actions, Cancel or secondary first and the committing action last.
 
-- Prefer compact workstation layouts over large dashboard cards.
-- Give primary workflows and data tables most of the available space.
-- Use spacing and typography before adding borders or containers.
-- Use subtle separators, restrained status colors, and minimal shadows.
-- Keep search and primary actions prominent.
-- Move advanced filters and secondary actions into popovers, menus, dialogs, or drawers.
-- Preserve clear hierarchy between primary data, secondary metadata, and supporting labels.
-- Avoid gradients, decorative cards, oversized headings, excessive pills, and unnecessary shadows.
-- Do not reduce usability merely to make the interface smaller.
+## Notifications
 
-## Typography and Spacing
+Use the typed shared provider for operation outcomes across login and the authenticated workspace. For a failed operation requiring correction, announce the outcome once and keep corrective detail beside the field or in the workspace. Use user-safe copy for backend and unexpected errors. Keep destructive confirmation in the dialog and notify after the operation finishes.
 
-- Use the global font tokens: the sans/monospace body treatment for dense operational data and `font-heading` for page, workspace, dialog, drawer, and section titles.
-- Page and workspace titles use `text-base` or `text-lg` with medium emphasis; section titles use `text-sm` with medium emphasis; labels, table data, and controls use `text-[13px]` or `text-sm`; metadata and helper text use `text-xs` or `text-sm` with `text-muted-foreground`.
-- Preserve entered values as stronger than labels, placeholders, and secondary metadata. Do not use oversized display type.
-- Use the 4px spacing rhythm. Default gaps are 8px within a control group, 12px between adjacent workspace elements, 16px within form sections, and 24px between major form sections.
-- Use `rounded-md` for controls and small interactive elements, `rounded-xl` for normal cards, table shells, and contained panels, and `rounded-2xl` for prominent standalone application surfaces. `rounded-3xl` and larger are not normal defaults; features must not choose radii independently or change the global `--radius` token.
+Position notifications top center above overlays, with safe-area spacing and width `min(28rem, calc(100vw - 2rem))`. Show at most three, newest first. Deduplicate identical active messages and provide a named close button. Defaults are 3 seconds for success/info and 6 seconds for warning/error. Announce without moving focus. Use a brief slide/fade only when motion is enabled.
 
-## Surface Containment and Radius
+## Acceptance for affected UI
 
-- Rounded contained surfaces are part of the Cashiers Report product identity: major workspaces, cards, dialogs, authentication surfaces, inspectors, and substantial panels retain visibly rounded edges through existing project tokens and components.
-- ReUI is an implementation foundation, not a visual override. Do not adopt a flatter ReUI example composition when it conflicts with this product language, and avoid flat edge-to-edge feature surfaces where the application uses a contained rounded workspace.
-- Do not make everything a card. Within an existing contained surface, use spacing, typography, subtle separators, and muted backgrounds when useful rather than nested rounded cards.
-- Do not globally increase radius or introduce arbitrary page-specific radius values.
+Use the smallest applicable checks in [verification rules](VERIFICATION.md). Record the view, role, theme and window size for any visual finding.
 
-## Layout
-
-- In the Cashier Reports workflow, keep **Today’s Summary** on the left and the primary workspace on the right.
-- In the Cashier Reports workflow, do not move the summary above the workspace at narrow desktop widths.
-- Prefer internal scrolling over page-level scrolling or layout stacking.
-- Use `min-h-0` and `min-w-0` in constrained flex and grid layouts.
-- Opening an overlay must not resize or restructure the main workspace.
-- Workspace headers use a compact title and optional muted description on the left, with primary action then secondary actions on the right. Keep the header, toolbar, and footer outside the scrolling data body when the workspace scrolls.
-
-## Form Placement
-
-Choose form placement based on workflow size.
-
-### Right-side drawer
-
-Use a right-side drawer for:
-
-- short create and edit forms
-- table-row editing
-- focused tasks that do not require the full workspace
-- quick account, expense, income, payment, or installment entry
-
-Use `TaskSheet` when it fits the task; it provides the standard project wrapper over the shared `Sheet`. Use another compatible shared component only when the task requires it.
-
-Drawer structure:
-
-1. fixed header
-2. scrollable form body
-3. fixed action footer
-
-The drawer must overlay the workspace, preserve the underlying layout, and protect unsaved changes.
-
-Do not place drawer forms inside tables, below the workspace, or in permanent columns.
-
-### Center workspace
-
-Use the center workspace for:
-
-- large or multi-section workflows
-- multi-step forms
-- complex financial configuration
-- workflows requiring wide tables, previews, or side-by-side comparison
-
-Do not force substantial workflows into a narrow drawer.
-
-## Form Layout
-
-- Use at most two columns for short, related fields.
-- Use one column for addresses, remarks, long inputs, and complex financial sections.
-- Group fields by task and meaning.
-- Use `FieldGroup`, `Field`, labels, descriptions, and inline `FieldError` where compatible rather than reproducing their spacing and states.
-- Separate related fields by 16px and major sections by 24px. Section headings stay with the first field and use a subtle separator only when grouping would otherwise be unclear.
-- Use progressive disclosure for optional or advanced fields.
-- Use sticky actions for long workflows.
-- Avoid nested scrolling.
-
-## Dialogs and Wizards
-
-- Use dialogs for confirmation, destructive decisions, and short focused choices; use drawers or the center workspace for data-entry workflows.
-- Dialogs follow the shared `DialogHeader`, scroll-safe content area when needed, and `DialogFooter`. Put cancel or secondary actions before the single primary action; destructive confirmation uses the destructive action last.
-- Use the shared ReUI `Stepper` for multi-step workflows when it fits. A wizard has a persistent title and step context, one scrollable step body, visible Back and Next/Save actions in a fixed footer, and preserves entered values while navigating.
-
-## Form Visual Hierarchy
-
-Use this emphasis order:
-
-1. form title
-2. primary action
-3. section titles
-4. field labels and entered values
-5. helper text, placeholders, metadata, and secondary actions
-
-Rules:
-
-- Form titles use strong foreground emphasis.
-- Descriptions and helper text use `text-muted-foreground`.
-- Section titles are distinct but less prominent than the form title.
-- Entered values are more prominent than placeholders.
-- Use one primary action per form footer.
-- Align footer actions to the end; place cancel and secondary actions before the primary action, with the primary action last.
-- Secondary actions use outline, ghost, or muted styling.
-- Group related fields and separate major sections consistently.
-- Show validation directly below the affected field using semantic destructive styling.
-
-## Table Design
-
-- Use shared table primitives, theme tokens, density, and interaction patterns.
-- Use the shared table shell for Cashier Reports, Installment History, and Active Accounts so search, filters, table framing, empty states, loading, and pagination remain visually consistent.
-- Keep table surfaces compact and workstation-oriented: readable values, restrained row padding, sticky headers, subtle separators, and no decorative card treatment inside the table viewport.
-- Use the shared table density: compact header and row heights, `text-xs` table content, and 8–12px horizontal cell padding. Do not create a denser per-screen table variant.
-- Keep the primary table toolbar minimal: one prominent search field, one Filters control for advanced filters, and only the highest-value quick filters visible beside it.
-- Keep Description and Amount visually prominent.
-- Use muted styling for supporting metadata such as Category, Receipt No., VAT, and secondary identifiers.
-- Right-align monetary values.
-- Keep essential actions visible and inside the table viewport.
-- Keep headers, toolbars, and pagination visible while the table body scrolls.
-- Use pagination or virtualization for high-volume datasets.
-- Prefer virtualized rows for datasets that may grow beyond 1,000 records; keep filtering and sorting memoized and preserve stable record identifiers.
-- Use shadcn/ReUI skeleton rows during table loading so column geometry remains stable and the workspace does not jump.
-- Do not compress columns until values become unreadable.
-- Use the shared `Empty` composition for no-data states, skeleton rows that preserve table geometry for loading, and an actionable inline error state with a retry when recovery is possible. Do not replace a workspace with a toast-only error.
-
-## Notifications and alerts
-
-Use the shared notification provider for transient operation outcomes across login and the authenticated workspace.
-
-- Place notifications at the top center of the window, above dialogs and drawers, with a responsive width of `min(28rem, calc(100vw - 2rem))` and safe-area-aware top spacing.
-- Use success and informational notifications for 3 seconds; keep warnings and errors visible for 6 seconds. Always provide a close button.
-- Show at most three notifications at once, newest first, and deduplicate identical active messages.
-- Animate notifications with a short top-center slide and fade; respect `prefers-reduced-motion`.
-- Use notifications for load, save, create, update, delete, restore, submit, and authentication outcomes.
-- Keep field-level validation inline and adjacent to its field. Use both inline validation and a notification when a failed operation also needs correction.
-- Keep destructive confirmations in dialogs; show a notification only for the completed action result.
-- Convert backend failures to user-safe copy before notifying. Never display raw database, IPC, or stack details.
-- Expose notifications through the typed shared notification API rather than page-specific toast implementations.
-
-## Branch Badges
-
-Use the shared `AccountBranchBadge` for every account branch label. Do not create page-specific
-branch colors or substitute text-only branch labels.
-
-| Branch   | Code  | Color  |
-| -------- | ----- | ------ |
-| Goa      | `GOA` | Blue   |
-| Tinambac | `TIN` | Violet |
-| Tigaon   | `TIG` | Amber  |
-| Lagonoy  | `LAG` | Green  |
-
-Branch colors are global semantic tokens defined in `src/renderer/src/assets/main.css`. Apply them
-only through `AccountBranchBadge` so the color code remains consistent in tables, inspectors, and
-future account views.
-
-## Truncated Content
-
-- When text is intentionally truncated with ellipsis, reveal the complete value using the shared tooltip on hover and keyboard focus.
-- Use tooltips only when content is actually clipped where practical.
-- Do not use the native `title` attribute when the shared tooltip component is available.
-- Do not hide validation, required instructions, or essential actions inside tooltips.
-
-## Responsive Behavior
-
-- Treat the application as a desktop workstation.
-- Prioritize the active table or form workspace.
-- Collapse secondary inspectors before compressing primary content.
-- Move advanced filters into a drawer on constrained widths.
-- Prevent clipped labels and unintended page-level horizontal scrolling.
-- Allow wide tables to scroll inside their container.
-- Do not solve responsive issues by globally reducing font sizes.
-- Desktop widths remain the primary target. Preserve the two-column workstation shell, allow the primary workspace and wide tables to scroll internally, and reduce or collapse secondary inspectors, quick filters, and secondary actions before reducing control density or wrapping essential labels.
+1. **Theme and contrast.** For a theme or shared style change, inspect the affected component under the default and one visibly different TweakCN preset, each in light and dark. Change palette, font, spacing and radius on the open view. Check a portaled surface when affected. Compare computed styles with active tokens. Normal text must reach 4.5:1 against its rendered background, including muted text and button labels. Essential control boundaries, state indicators and focus rings must reach 3:1 against adjacent colors.
+2. **Keyboard and targets.** Complete the affected task using the keyboard, including row actions and recovery from an error. Focus stays visible and unobscured. Modal focus enters the dialog, stays inside and returns to the trigger or logical successor. Escape respects unsaved-change protection. Inspect accessible names, labels, errors, current/sort state and announcements. Pointer targets must be at least 24 Ã— 24 CSS px or satisfy the WCAG 2.2 target-spacing exception.
+3. **Fit.** Use 1300 Ã— 670 and 1024 Ã— 670 CSS px as desktop review sizes. Repeat the affected entry or comparison with text enlarged to 200%. Pass with zero page-level horizontal overflow, clipped amounts, obscured errors or unreachable controls. Scroll a long body and open its overlay. The pane keeps its width and task actions stay reachable.
+4. **Financial parity.** Compare the same role, branch, record and business date before and after a presentation change. Check displayed amounts to the centavo, zero, missing and both variance directions where applicable, plus visible rows, fields and permitted actions. Check the longest representative description and amount. All digits and signs remain readable and comparable.
+5. **Feedback.** Exercise applicable loading, empty, filtered-empty, error, pending and completed states. Check column alignment before and after loading, keyboard access to recovery, and equivalent outcomes with reduced motion enabled.

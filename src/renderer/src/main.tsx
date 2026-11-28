@@ -1,4 +1,5 @@
 import './assets/main.css'
+import '@fontsource-variable/geist'
 import '@fontsource-variable/ibm-plex-sans'
 import '@fontsource-variable/jetbrains-mono'
 

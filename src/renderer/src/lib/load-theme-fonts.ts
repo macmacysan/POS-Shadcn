@@ -1,5 +1,13 @@
 const FONT_TOKENS = ['--font-sans', '--font-serif', '--font-mono'] as const
-const GENERIC_FONTS = new Set(['sans-serif', 'serif', 'monospace', 'cursive', 'fantasy', 'system-ui'])
+const GENERIC_FONTS = new Set([
+  'sans-serif',
+  'serif',
+  'monospace',
+  'cursive',
+  'fantasy',
+  'system-ui'
+])
+const BUNDLED_FONTS = new Set(['geist variable'])
 const FONT_NAME = /^[a-z][a-z0-9 -]{0,63}$/i
 const debug = (...message: unknown[]): void => {
   if (import.meta.env.DEV) console.info('[theme-font]', ...message)
@@ -13,7 +21,11 @@ export function loadThemeFonts(): void {
       .trim()
       .replaceAll(/["']/g, '')
 
-    if (!FONT_NAME.test(font) || GENERIC_FONTS.has(font.toLowerCase())) {
+    if (
+      !FONT_NAME.test(font) ||
+      GENERIC_FONTS.has(font.toLowerCase()) ||
+      BUNDLED_FONTS.has(font.toLowerCase())
+    ) {
       debug('skipped', token, font || '(empty)')
       continue
     }

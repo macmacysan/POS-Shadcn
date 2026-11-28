@@ -48,7 +48,7 @@ function Header({
   onClose
 }: Pick<InHouseAccountInspectorProps, 'isSheet' | 'onClose'>): React.JSX.Element {
   return (
-    <div className="sticky top-0 flex min-h-12 shrink-0 items-center justify-between gap-2 border-b bg-card px-3 py-2">
+    <div className="sticky top-0 flex min-h-12 shrink-0 items-center justify-between gap-2 border-b bg-workspace px-3 py-2">
       <h2 className="text-sm font-semibold">Account Details</h2>
       {onClose && (
         <Button type="button" variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
@@ -298,7 +298,7 @@ export function InHouseAccountInspector({
   const viewLedger = onViewLedger ?? onViewAccount
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-card">
+    <div className="flex min-h-0 flex-1 flex-col bg-workspace">
       {!hideHeader && <Header isSheet={isSheet} onClose={onClose} />}
       <div className="shrink-0 border-b px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
